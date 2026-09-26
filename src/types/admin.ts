@@ -4,7 +4,6 @@ export type AdminView =
   | 'dashboard'
   | 'products'
   | 'product-categories'
-  | 'products-master'
   | 'customers'
   | 'vendors'
   | 'purchase-orders'
@@ -12,7 +11,7 @@ export type AdminView =
   | 'sales-quotations'
   | 'sales-orders'
   | 'packing-lists'
-  | 'hardware-issues'
+  | 'issue-lists'
   | 'payments'
   | 'followups'
   | 'qr-center'
@@ -29,6 +28,10 @@ export type AdminView =
   | 'cms-catalogs'
   | 'cms-faqs'
   | 'cms-testimonials'
+  | 'board-inventory'
+  | 'locker-inventory'
+  | 'ump-inventory'
+  | 'store-inventory'
   | 'settings';
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'EDITOR' | 'VIEWER';
@@ -48,6 +51,81 @@ export interface AuthTokens {
   refreshToken: string;
   user: AdminUser;
 }
+
+// ─── RBAC & User Management ──────────────────────────────────────────────────
+
+export interface Permission {
+  id: string;
+  code: string;
+  module: string;
+  description: string;
+  createdAt?: string;
+}
+
+export interface RoleManagementItem {
+  id: string;
+  name: string;
+  code: string;
+  description?: string | null;
+  isSystem: boolean;
+  permissionCount?: number;
+  assignedUsersCount?: number;
+  permissions?: Permission[];
+  users?: AdminUser[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface GroupedPermissionsResponse {
+  total: number;
+  modules: string[];
+  grouped: Record<string, Permission[]>;
+  all: Permission[];
+}
+
+export interface AdminUserManagementItem {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  isActive: boolean;
+  customRoles?: RoleManagementItem[];
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface CreateAdminUserPayload {
+  email: string;
+  password?: string;
+  firstName: string;
+  lastName: string;
+  role?: string;
+  roleIds?: string[];
+  isActive?: boolean;
+}
+
+export interface UpdateAdminUserPayload {
+  firstName?: string;
+  lastName?: string;
+  role?: string;
+  isActive?: boolean;
+  roleIds?: string[];
+}
+
+export interface CreateRolePayload {
+  name: string;
+  code?: string;
+  description?: string;
+  permissionIds?: string[];
+}
+
+export interface UpdateRolePayload {
+  name?: string;
+  description?: string;
+  permissionIds?: string[];
+}
+
 
 // ─── Multi-Entity & Company ──────────────────────────────────────────────────
 
@@ -88,6 +166,8 @@ export interface CompanyAddress {
   stateCode?: string;
   postalCode: string;
   phone?: string;
+  gstin?: string;
+  pan?: string;
   isDefault: boolean;
 }
 
@@ -136,12 +216,32 @@ export interface BusinessParty {
   pan?: string;
   email?: string;
   phone?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
   status: string;
   notes?: string;
   customerProfile?: CustomerProfile;
+  exportCustomerProfile?: ExportCustomerProfile;
   vendorProfile?: VendorProfile;
   contacts?: PartyContact[];
   addresses?: PartyAddress[];
+  purchaseOrders?: PurchaseOrder[];
+  payments?: Payment[];
+  summary?: {
+    totalPoValue?: number;
+    totalPaidValue?: number;
+    outstandingBalance?: number;
+    totalPoCount?: number;
+    totalPaymentsCount?: number;
+  };
+  _count?: {
+    exportOrders?: number;
+    exportQuotations?: number;
+    exportRfqs?: number;
+    salesOrders?: number;
+    salesQuotations?: number;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -356,6 +456,7 @@ export interface ProformaInvoiceItem {
   id?: string;
   serialNumber: number;
   productId?: string;
+  product?: Product;
   description: string;
   hsnSac?: string;
   quantity: number;
@@ -395,6 +496,10 @@ export interface ProformaInvoice {
   grLrNumber?: string;
   linkedPoNumber?: string;
   linkedPoDate?: string;
+  paymentTerms?: string;
+  deliveryTerms?: string;
+  notes?: string;
+  termsAndConditions?: string;
   subtotal: number;
   freightAmount: number;
   taxableAmount: number;
@@ -407,11 +512,49 @@ export interface ProformaInvoice {
   amountInWords?: string;
   currency: string;
   status: PIStatus;
+  quotationId?: string | null;
+  quotationRef?: string | null;
+  orderId?: string | null;
+  advancePercentage?: number;
+  advanceRequiredAmount?: number;
+  advanceReceivedAmount?: number;
+  advancePaymentStatus?: 'PENDING' | 'PARTIAL' | 'FULLY_RECEIVED';
+  advancePaymentDate?: string | null;
+  advancePaymentReference?: string | null;
+  advancePaymentMode?: string | null;
+  convertedOrderId?: string | null;
   parties?: ProformaInvoiceParty[];
   items?: ProformaInvoiceItem[];
   taxSummary?: ProformaInvoiceTaxSummary[];
   terms?: { clauseNumber: number; text: string }[];
   qrCodes?: QrCode[];
+  statusHistory?: Array<{
+    id: string;
+    fromStatus: string;
+    toStatus: string;
+    comment?: string;
+    changedById?: string;
+    changedBy?: { firstName?: string; lastName?: string };
+    createdAt: string;
+  }>;
+  followups?: Array<{
+    id: string;
+    followupStatus: string;
+    priority: string;
+    nextFollowupDate?: string;
+    promisedPaymentDate?: string;
+    promisedAmount?: number;
+    notes?: string;
+    communicationChannel: string;
+    createdAt: string;
+    logs?: Array<{
+      id: string;
+      notes: string;
+      channel: string;
+      status: string;
+      actionDate: string;
+    }>;
+  }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -513,6 +656,120 @@ export interface RecoveryDashboardStats {
   promiseToPayAmount: number;
   pendingFollowupsCount: number;
   collectedToday: number;
+}
+
+export interface CustomerLedgerEntry {
+  id: string;
+  serialNo: number;
+  date: string;
+  docType: 'PI' | 'SALES_ORDER' | 'PAYMENT' | 'OPENING';
+  docRef: string;
+  description: string;
+  dueDate?: string | null;
+  daysOverdue?: number;
+  debit: number;
+  credit: number;
+  runningBalance: number;
+  status?: string;
+  notes?: string;
+}
+
+export interface CustomerLedgerStatement {
+  customer: {
+    id: string;
+    legalName: string;
+    tradeName?: string | null;
+    gstin?: string | null;
+    pan?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    paymentTermsDays: number;
+    creditLimit?: number | null;
+    customerType?: string | null;
+    status: string;
+    billingAddress?: any;
+    primaryContact?: any;
+  };
+  company?: {
+    legalName: string;
+    tradeName?: string;
+    gstin?: string;
+    pan?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    bankAccount?: {
+      bankName: string;
+      accountNumber: string;
+      ifscCode: string;
+      swiftCode?: string;
+      branch: string;
+    };
+    signatory?: {
+      name: string;
+      designation: string;
+      signatureUrl?: string | null;
+    };
+  };
+  summary: {
+    openingBalance: number;
+    periodDebits: number;
+    periodCredits: number;
+    closingBalance: number;
+    overdueAmount: number;
+    daysOverdue: number;
+    earliestDueDate: string | null;
+    paymentTermsDays: number;
+    currency: string;
+    totalTransactions: number;
+  };
+  cadence: {
+    currentStage: 'CURRENT' | 'REMINDER_1' | 'REMINDER_2' | 'REMINDER_3' | 'FINAL_NOTICE' | 'MANUAL_FOLLOWUP';
+    lastReminderDate: string | null;
+    nextReminderDate: string | null;
+    followupStatus: string;
+    priority: string;
+    promisedPaymentDate?: string | null;
+    promisedAmount?: number | null;
+    notes?: string | null;
+  };
+  entries: CustomerLedgerEntry[];
+  logs: Array<{
+    id: string;
+    notes: string;
+    response?: string;
+    createdAt: string;
+    user?: { id: string; firstName: string; lastName: string };
+  }>;
+}
+
+export interface FollowupTouchpointInput {
+  channel: 'PHONE' | 'WHATSAPP' | 'VISIT' | 'EMAIL';
+  notes: string;
+  customerResponse?: string;
+  promisedPaymentDate?: string;
+  promisedAmount?: number;
+  nextFollowupDate?: string;
+  followupStatus?: string;
+}
+
+export interface SendLedgerEmailInput {
+  to?: string | string[];
+  cc?: string[];
+  subject?: string;
+  notes?: string;
+  stage?: 'REMINDER_1' | 'REMINDER_2' | 'REMINDER_3' | 'FINAL_NOTICE' | 'MANUAL_EMAIL' | 'STATEMENT';
+}
+
+export interface ManualLedgerEntryInput {
+  entryType: 'DEBIT' | 'CREDIT';
+  nature?: 'OPENING_BALANCE' | 'PAST_INVOICE' | 'PAST_PAYMENT' | 'ADJUSTMENT';
+  date: string;
+  docRef: string;
+  description: string;
+  amount: number;
+  paymentMethod?: string;
+  dueDate?: string;
 }
 
 // ─── QR Code Subsystem ───────────────────────────────────────────────────────
@@ -795,6 +1052,14 @@ export interface SalesQuotationItem {
   gstAmount: number;
   totalAmount: number;
   hsnCode?: string;
+  boardType?: string;
+  cubicleSize?: string;
+  boardColor?: string;
+  boardThickness?: string;
+  doorSize?: string;
+  overallHeight?: string;
+  hardwarePackage?: string;
+  customSpecsJson?: any;
 }
 
 export interface SalesQuotationRevision {
@@ -820,6 +1085,7 @@ export interface QuotationContentTemplate {
 export interface SalesQuotation {
   id: string;
   quotationNumber: string;
+  referenceNumber?: string;
   revisionNumber: number;
   date: string;
   validUntil?: string;
@@ -835,58 +1101,134 @@ export interface SalesQuotation {
   staffEmail?: string;
   siteName?: string;
   siteAddress?: string;
+  projectName?: string;
+  recipientSalutation?: string;
+  recipientName?: string;
+  recipientCompany?: string;
+  recipientAddress?: string;
+  recipientEmail?: string;
+  recipientPhone?: string;
   subject: string;
   salutation: string;
   openingParagraph?: string;
   closingParagraph?: string;
+  basicPrice?: number;
+  installationCharge?: number;
+  freightTerms?: string;
+  freightAmount?: number;
+  gstRate?: number;
   subtotal: number;
   discountAmount: number;
   taxableAmount: number;
   cgstAmount: number;
   sgstAmount: number;
   igstAmount: number;
+  gstAmount?: number;
   totalTax: number;
   grandTotal: number;
   currency: string;
   isSez: boolean;
+  isSezExempt?: boolean;
+  sezCertificateRef?: string;
   sezDeclarationNote?: string;
   specificationNotes?: string;
   accessoriesNotes?: string;
+  paymentTerms?: string;
+  deliveryTerms?: string;
+  warrantyText?: string;
+  accessoriesText?: string;
+  generalTerms?: string;
+  otherTerms?: string;
   termsAndConditions?: string;
+  notes?: string;
   status: SalesQuotationStatus;
   sentAt?: string;
   convertedAt?: string;
   convertedOrderId?: string;
+  convertedPiId?: string | null;
   items: SalesQuotationItem[];
   revisions?: SalesQuotationRevision[];
+  nextFollowupDate?: string;
+  followupStatus?: string;
+  lastFollowupDate?: string;
+  followupCount?: number;
+  followups?: QuotationFollowup[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type QuotationFollowupChannel = 'CALL' | 'WHATSAPP' | 'EMAIL' | 'SMS' | 'IN_PERSON' | 'OTHER';
+export type QuotationFollowupStatus = 'PENDING' | 'SCHEDULED' | 'COMPLETED' | 'NO_ANSWER' | 'INTERESTED' | 'PRICE_NEGOTIATION' | 'ORDER_CONFIRMED' | 'DROPPED' | 'CALLBACK_REQUESTED';
+
+export interface QuotationFollowup {
+  id: string;
+  quotationId: string;
+  channel: QuotationFollowupChannel;
+  status: QuotationFollowupStatus;
+  discussionNotes: string;
+  nextFollowupDate?: string | null;
+  contactPerson?: string | null;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  performedById?: string | null;
+  performedByName?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 // ─── Central Sales Order Hub ────────────────────────────────────────────────
 
-export type SalesOrderStatus = 'PENDING' | 'APPROVED' | 'PARTIALLY_DISPATCHED' | 'FULLY_DISPATCHED' | 'CANCELLED';
+export type SalesOrderStatus =
+  | 'PENDING'
+  | 'PENDING_APPROVAL'
+  | 'WAITING_FOR_ADVANCE'
+  | 'APPROVED'
+  | 'PI_ISSUED'
+  | 'IN_PRODUCTION'
+  | 'PARTIALLY_DISPATCHED'
+  | 'FULLY_DISPATCHED'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export type SalesOrderSource =
+  | 'FROM_QUOTATION'
+  | 'CONVERTED_QUOTATION'
+  | 'CONVERTED_PROFORMA'
+  | 'DIRECT'
+  | 'DIRECT_ENTRY'
+  | 'B2B_SELF_SERVICE'
+  | 'CUSTOMER_PO_UPLOAD';
 
 export interface SalesOrderItem {
   id?: string;
   serialNumber: number;
   productId?: string;
-  itemDescription: string;
+  description?: string;
+  itemDescription?: string;
   quantity: number;
-  dispatchedQuantity: number;
-  remainingQuantity: number;
+  dispatchedQuantity?: number;
+  remainingQuantity?: number;
   unit: string;
-  unitPrice: number;
-  taxableAmount: number;
-  gstRate: number;
-  gstAmount: number;
-  totalAmount: number;
+  rate?: number;
+  unitPrice?: number;
+  taxableAmount?: number;
+  gstRate?: number;
+  gstAmount?: number;
+  amount?: number;
+  totalAmount?: number;
+  cubicleSize?: string;
+  boardColor?: string;
+  boardThickness?: string;
+  doorSize?: string;
+  overallHeight?: string;
+  specsJson?: any;
 }
 
 export interface SalesOrderStatusHistory {
   id: string;
   fromStatus: string;
   toStatus: string;
+  comment?: string;
   reason?: string;
   changedById?: string;
   changedBy?: { firstName: string; lastName: string };
@@ -902,38 +1244,131 @@ export interface SalesOrder {
   companyProfileId: string;
   companyProfile?: CompanyProfile;
   quotationId?: string;
-  quotation?: { id: string; quotationNumber: string };
-  source: 'FROM_QUOTATION' | 'DIRECT';
+  quotationRef?: string;
+  quotation?: { id: string; quotationNumber?: string; referenceNumber?: string };
+  source: SalesOrderSource;
   clientPoNumber?: string;
   clientPoDate?: string;
+  customerPoNumber?: string;
+  customerPoDate?: string;
   siteName?: string;
   siteAddress?: string;
   subtotal: number;
-  discountAmount: number;
-  taxableAmount: number;
-  totalTax: number;
+  discountAmount?: number;
+  taxableAmount?: number;
+  taxAmount?: number;
+  totalTax?: number;
   grandTotal: number;
+  totalAmount?: number;
+  advancePercentage?: number;
+  advanceRequiredAmount?: number;
+  advanceReceivedAmount?: number;
+  advancePaymentStatus?: string;
+  currency?: string;
   status: SalesOrderStatus;
+  statusReason?: string;
   approvedAt?: string;
   cancelledAt?: string;
   cancellationReason?: string;
+  notes?: string;
+  termsAndConditions?: string;
+  billingAddressSnapshot?: any;
+  shippingAddressSnapshot?: any;
+  siteContactSnapshot?: any;
+  proformaInvoiceId?: string | null;
+  piNumber?: string | null;
   items: SalesOrderItem[];
   proformaInvoices?: ProformaInvoice[];
   packingLists?: PackingList[];
   hardwareIssueLists?: HardwareIssueList[];
+  dispatchRecords?: DispatchRecord[];
+  invoices?: any[];
   statusHistory?: SalesOrderStatusHistory[];
+  nextFollowupDate?: string | null;
+  followupStatus?: string | null;
+  lastFollowupDate?: string | null;
+  followupCount?: number;
+  followups?: SalesOrderFollowup[];
   createdAt: string;
   updatedAt: string;
 }
 
+export type OrderDocumentTimelineType =
+  | 'QUOTATION'
+  | 'PI'
+  | 'ORDER'
+  | 'INVOICE'
+  | 'PACKING_LIST'
+  | 'DISPATCH'
+  | 'HARDWARE_ISSUE'
+  | 'PAYMENT';
+
 export interface OrderDocumentTimelineItem {
   id: string;
-  type: 'QUOTATION' | 'ORDER' | 'PI' | 'PACKING_LIST' | 'HARDWARE_ISSUE' | 'PAYMENT';
+  type: OrderDocumentTimelineType;
+  stageNumber?: number;
   referenceNumber: string;
   title: string;
   date: string;
   status: string;
   amount?: number;
+  pdfUrl?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface DispatchRecord {
+  id: string;
+  dispatchNumber: string;
+  orderId?: string | null;
+  packingListId?: string | null;
+  customerId?: string | null;
+  transporterName?: string | null;
+  vehicleNumber?: string | null;
+  driverName?: string | null;
+  driverPhone?: string | null;
+  lrNumber?: string | null;
+  lrDate?: string | null;
+  ewayBillNumber?: string | null;
+  dispatchDate: string;
+  totalPackages?: number | null;
+  status: 'DISPATCHED' | 'IN_TRANSIT' | 'DELIVERED' | 'ACKNOWLEDGED' | string;
+  termsAndConditions?: string | null;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  order?: SalesOrder;
+  packingList?: PackingList;
+}
+
+export type SalesOrderFollowupChannel = 'CALL' | 'WHATSAPP' | 'EMAIL' | 'SMS' | 'IN_PERSON' | 'OTHER';
+
+export type SalesOrderFollowupStatus =
+  | 'PENDING'
+  | 'SCHEDULED'
+  | 'COMPLETED'
+  | 'SITE_MEASUREMENT_PENDING'
+  | 'ADVANCE_PAYMENT_PENDING'
+  | 'PRODUCTION_HOLD'
+  | 'FABRICATION_IN_PROGRESS'
+  | 'READY_FOR_DISPATCH'
+  | 'DISPATCHED'
+  | 'DELIVERY_CONFIRMED'
+  | 'CANCELLED';
+
+export interface SalesOrderFollowup {
+  id: string;
+  orderId: string;
+  channel: SalesOrderFollowupChannel;
+  status: SalesOrderFollowupStatus;
+  discussionNotes: string;
+  nextFollowupDate?: string | null;
+  contactPerson?: string | null;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  performedById?: string | null;
+  performedByName?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ─── Packing List System ───────────────────────────────────────────────────
@@ -985,6 +1420,7 @@ export interface PackingList {
   receivedByPhone?: string;
   receivedAt?: string;
   receiptSignatureData?: string;
+  notes?: string;
   items: PackingListItem[];
   createdAt: string;
   updatedAt: string;
@@ -1056,3 +1492,874 @@ export interface CustomerMergeLog {
   createdAt: string;
 }
 
+// ─── Export & International Trade Management Module Types ─────────────────────
+
+export interface ExportCountry {
+  id: string;
+  countryCode: string;
+  name: string;
+  region?: string;
+  currencyCode?: string;
+  dialCode?: string;
+  requiresCoo: boolean;
+  requiresLegalization: boolean;
+  inspectionAgency?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  rules?: ExportCountryRule[];
+  ports?: ExportPort[];
+  _count?: { ports?: number; customerProfiles?: number; orders?: number };
+}
+
+export interface ExportCountryRule {
+  id: string;
+  countryId: string;
+  country?: ExportCountry;
+  ruleType: string;
+  ruleKey: string;
+  ruleValue?: string;
+  requiredDocChecklist: any;
+  restrictedHsCodes: any;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportPort {
+  id: string;
+  countryId?: string;
+  country?: ExportCountry;
+  portCode: string;
+  name: string;
+  portType: 'SEA' | 'AIR' | 'LAND';
+  unLocode?: string;
+  customsStationCode?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportIncoterm {
+  id: string;
+  code: string;
+  name: string;
+  freightResponsibility?: string;
+  insuranceResponsibility?: string;
+  riskTransferPoint?: string;
+  customsExportResponsibility?: string;
+  customsImportResponsibility?: string;
+  description?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportCurrency {
+  id: string;
+  currencyCode: string;
+  name: string;
+  symbol?: string;
+  isBase: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  rates?: ExportExchangeRate[];
+}
+
+export interface ExportExchangeRate {
+  id: string;
+  currencyId: string;
+  currency?: ExportCurrency;
+  rateToInr: number;
+  rateToUsd: number;
+  effectiveDate: string;
+  source: string;
+  createdAt: string;
+}
+
+export interface ExportHsCode {
+  id: string;
+  hsCode: string;
+  description: string;
+  chapter?: string;
+  dutyRate: number;
+  rodtepRate: number;
+  drawbackRate: number;
+  gstRate: number;
+  requiresInspection: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportCustomerProfile {
+  id: string;
+  partyId: string;
+  party?: BusinessParty;
+  countryId?: string;
+  country?: ExportCountry;
+  foreignTaxId?: string;
+  vatTrn?: string;
+  defaultIncotermId?: string;
+  defaultIncoterm?: ExportIncoterm;
+  defaultCurrency: string;
+  defaultDestinationPortId?: string;
+  defaultDestinationPort?: ExportPort;
+  creditTermsDays: number;
+  creditLimitUsd: number;
+  riskRating: 'LOW' | 'MEDIUM' | 'HIGH';
+  complianceStatus: 'VERIFIED' | 'PENDING' | 'RESTRICTED';
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportCustomerBankAccount {
+  id: string;
+  partyId: string;
+  bankName: string;
+  swiftBic?: string;
+  iban?: string;
+  accountNumberMasked?: string;
+  routingNumber?: string;
+  currency: string;
+  countryId?: string;
+  country?: ExportCountry;
+  isVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportCustomer360 {
+  party: BusinessParty & {
+    exportCustomerProfile?: ExportCustomerProfile;
+    exportBankAccounts?: ExportCustomerBankAccount[];
+    contacts?: PartyContact[];
+    addresses?: PartyAddress[];
+    exportOrders?: ExportOrder[];
+    exportQuotations?: ExportQuotation[];
+    exportRfqs?: ExportRfq[];
+    exportEmails?: ExportEmailLog[];
+  };
+  tradeMetrics: {
+    totalOrdersCount: number;
+    lifetimeTradeValueUsd: number;
+    lifetimeFobValueUsd: number;
+    lifetimeRealizedUsd: number;
+    outstandingBalanceUsd: number;
+  };
+}
+
+export interface ExportRfqItem {
+  id?: string;
+  productId?: string;
+  itemDescription: string;
+  quantity: number;
+  unit: string;
+  targetRate?: number;
+  notes?: string;
+}
+
+export interface ExportRfq {
+  id: string;
+  rfqNumber: string;
+  partyId: string;
+  party?: BusinessParty;
+  countryId?: string;
+  country?: ExportCountry;
+  incotermId?: string;
+  incoterm?: ExportIncoterm;
+  destinationPortId?: string;
+  destinationPort?: ExportPort;
+  targetDeliveryDate?: string;
+  currency: string;
+  estimatedValue: number;
+  status: 'RECEIVED' | 'ANALYSIS' | 'QUOTED' | 'WON' | 'LOST' | 'EXPIRED';
+  notes?: string;
+  items?: ExportRfqItem[];
+  _count?: { quotations?: number };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportQuotationItem {
+  id?: string;
+  productId?: string;
+  hsCodeId?: string;
+  itemCode?: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unitRate: number;
+  totalAmount: number;
+  cbm?: number;
+  grossWeightKg?: number;
+  netWeightKg?: number;
+}
+
+export interface ExportQuotation {
+  id: string;
+  quotationNumber: string;
+  rfqId?: string;
+  rfq?: ExportRfq;
+  partyId: string;
+  party?: BusinessParty;
+  companyProfileId?: string;
+  companyProfile?: CompanyProfile;
+  countryId?: string;
+  country?: ExportCountry;
+  incotermId?: string;
+  incoterm?: ExportIncoterm;
+  portOfLoadingId?: string;
+  portOfLoading?: ExportPort;
+  portOfDestinationId?: string;
+  portOfDestination?: ExportPort;
+  currency: string;
+  exchangeRate: number;
+  subtotal: number;
+  freightCharges: number;
+  insuranceCharges: number;
+  otherCharges: number;
+  totalAmount: number;
+  fobValue: number;
+  validUntil?: string;
+  paymentTerms?: string;
+  deliveryTerms?: string;
+  status: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'SENT' | 'ACCEPTED' | 'REJECTED' | 'CONVERTED';
+  notes?: string;
+  items?: ExportQuotationItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ExportOrderStage =
+  | 'ORDER_CONFIRMED'
+  | 'ADVANCE_RECEIVED'
+  | 'IN_PRODUCTION'
+  | 'PACKED'
+  | 'CUSTOMS_CLEARED'
+  | 'ON_BOARD'
+  | 'IN_TRANSIT'
+  | 'ARRIVED'
+  | 'DELIVERED'
+  | 'REALIZED'
+  | 'CLOSED'
+  | 'CANCELLED';
+
+export interface ExportPaymentMilestone {
+  id: string;
+  exportOrderId: string;
+  milestoneName: string;
+  percentage: number;
+  amount: number;
+  currency: string;
+  dueDate?: string;
+  isPaid: boolean;
+  paidAmount?: number;
+  paidDate?: string;
+  paymentId?: string;
+  payment?: Payment;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportLc {
+  id: string;
+  exportOrderId: string;
+  lcNumber: string;
+  issuingBank: string;
+  advisingBank?: string;
+  amount: number;
+  currency: string;
+  issueDate?: string;
+  expiryDate?: string;
+  latestShipmentDate?: string;
+  tolerancePercentage: number;
+  lcType: string;
+  status: string;
+  discrepancyNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportContainer {
+  id: string;
+  shipmentId: string;
+  containerNumber: string;
+  containerType: string;
+  sealNumber?: string;
+  tareWeightKg: number;
+  payloadWeightKg: number;
+  grossWeightKg: number;
+  cbm: number;
+  stuffingDate?: string;
+  gateInDate?: string;
+  qrCodeId?: string;
+  qrCode?: QrCode;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportShippingEvent {
+  id: string;
+  shipmentId: string;
+  containerId?: string;
+  eventType: string;
+  eventLocation?: string;
+  eventTimestamp: string;
+  source: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface ExportShipment {
+  id: string;
+  shipmentNumber: string;
+  exportOrderId: string;
+  exportOrder?: ExportOrder;
+  shippingLine?: string;
+  forwarderPartnerId?: string;
+  forwarderPartner?: BusinessParty;
+  bookingNumber?: string;
+  vesselName?: string;
+  voyageNumber?: string;
+  blAwbNumber?: string;
+  blType: string;
+  blDate?: string;
+  etd?: string;
+  eta?: string;
+  actualDeparture?: string;
+  actualArrival?: string;
+  portOfLoadingId?: string;
+  portOfLoading?: ExportPort;
+  portOfDestinationId?: string;
+  portOfDestination?: ExportPort;
+  freightTerm: string;
+  status: string;
+  notes?: string;
+  containers?: ExportContainer[];
+  shippingEvents?: ExportShippingEvent[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportShippingBill {
+  id: string;
+  exportOrderId: string;
+  customsRecordId?: string;
+  sbNumber: string;
+  sbDate?: string;
+  portCode?: string;
+  fobValueInr: number;
+  drawbackClaimed: number;
+  rodtepClaimed: number;
+  leoDate?: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportCustomsRecord {
+  id: string;
+  exportOrderId: string;
+  countryId?: string;
+  country?: ExportCountry;
+  filingType: string;
+  chaPartnerId?: string;
+  chaPartner?: BusinessParty;
+  status: string;
+  assessmentDate?: string;
+  examDate?: string;
+  letExportOrderDate?: string;
+  customsOfficerNotes?: string;
+  shippingBills?: ExportShippingBill[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportComplianceCheck {
+  id: string;
+  exportOrderId: string;
+  partyId?: string;
+  party?: BusinessParty;
+  screeningType: string;
+  status: 'PASSED' | 'REVIEW_REQUIRED' | 'BLOCKED' | 'OVERRIDDEN';
+  matchedList?: string;
+  riskScore: number;
+  reviewedById?: string;
+  reviewedBy?: { id: string; firstName: string; lastName: string };
+  reviewNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportCertificate {
+  id: string;
+  exportOrderId: string;
+  certificateType: string;
+  certificateNumber?: string;
+  issuingAuthority?: string;
+  issueDate?: string;
+  expiryDate?: string;
+  fileUrl?: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportExpense {
+  id: string;
+  exportOrderId: string;
+  shipmentId?: string;
+  shipment?: ExportShipment;
+  expenseType: string;
+  vendorId?: string;
+  vendor?: BusinessParty;
+  amount: number;
+  currency: string;
+  exchangeRate: number;
+  amountInr: number;
+  invoiceNumber?: string;
+  isPaid: boolean;
+  paidDate?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportIrm {
+  id: string;
+  bankRealizationId: string;
+  irmNumber: string;
+  irmDate?: string;
+  amount: number;
+  currency: string;
+  remitterName?: string;
+  swiftRef?: string;
+  createdAt: string;
+}
+
+export interface ExportEbrc {
+  id: string;
+  bankRealizationId: string;
+  ebrcNumber: string;
+  ebrcDate?: string;
+  dgftStatus: string;
+  fobValueRealized: number;
+  createdAt: string;
+}
+
+export interface ExportBankRealization {
+  id: string;
+  exportOrderId: string;
+  exportOrder?: { id: string; exportOrderNumber: string; party?: { legalName: string } };
+  invoiceNumber?: string;
+  paymentId?: string;
+  payment?: Payment;
+  realizedAmount: number;
+  currency: string;
+  realizedAmountInr: number;
+  realizationDate?: string;
+  adBankCode?: string;
+  adBankName?: string;
+  bankRefNumber?: string;
+  status: string;
+  notes?: string;
+  irms?: ExportIrm[];
+  ebrcs?: ExportEbrc[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportDocument {
+  id: string;
+  entityType: string;
+  entityId: string;
+  documentType: string;
+  title: string;
+  fileUrl: string;
+  fileSize: number;
+  version: number;
+  status: string;
+  uploadedById?: string;
+  uploadedBy?: { id: string; firstName: string; lastName: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportTask {
+  id: string;
+  entityType: string;
+  entityId: string;
+  title: string;
+  department: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  dueDate?: string;
+  slaHours: number;
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'OVERDUE';
+  assignedToUserId?: string;
+  assignedToUser?: { id: string; firstName: string; lastName: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportEmailTemplate {
+  id: string;
+  templateCode: string;
+  name: string;
+  subjectTemplate: string;
+  bodyTemplateHtml: string;
+  variables: string[];
+  isDefault: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportEmailLog {
+  id: string;
+  exportOrderId?: string;
+  exportOrder?: { exportOrderNumber: string };
+  partyId?: string;
+  party?: { legalName: string };
+  recipientEmail: string;
+  ccEmails?: string;
+  bccEmails?: string;
+  subject: string;
+  bodyHtml: string;
+  templateCode?: string;
+  status: 'QUEUED' | 'SENT' | 'DELIVERED' | 'FAILED';
+  provider: string;
+  providerMessageId?: string;
+  errorMessage?: string;
+  attachments: Array<{ filename: string }>;
+  sentByUserId?: string;
+  sentByUser?: { id: string; firstName: string; lastName: string; email: string };
+  sentAt: string;
+  createdAt: string;
+}
+
+export interface ExportProfitability {
+  revenueUsd: number;
+  subtotalUsd: number;
+  freightCostUsd: number;
+  insuranceCostUsd: number;
+  revenueInr: number;
+  totalExpensesInr: number;
+  netProfitInr: number;
+  netProfitMarginPct: number;
+  exchangeRate: number;
+}
+
+export interface ExportOrder {
+  id: string;
+  exportOrderNumber: string;
+  salesOrderId?: string;
+  salesOrder?: SalesOrder;
+  partyId: string;
+  party?: BusinessParty;
+  companyProfileId?: string;
+  companyProfile?: CompanyProfile;
+  countryId?: string;
+  country?: ExportCountry;
+  incotermId?: string;
+  incoterm?: ExportIncoterm;
+  portOfLoadingId?: string;
+  portOfLoading?: ExportPort;
+  portOfDestinationId?: string;
+  portOfDestination?: ExportPort;
+  currency: string;
+  exchangeRate: number;
+  subtotal: number;
+  freightCost: number;
+  insuranceCost: number;
+  totalOrderValue: number;
+  fobValue: number;
+  commercialInvoiceNumber?: string;
+  buyerPoNumber?: string;
+  buyerPoDate?: string;
+  paymentMethod: string;
+  stage: ExportOrderStage;
+  status: string;
+  notes?: string;
+  paymentMilestones?: ExportPaymentMilestone[];
+  lcs?: ExportLc[];
+  shipments?: ExportShipment[];
+  customsRecords?: ExportCustomsRecord[];
+  shippingBills?: ExportShippingBill[];
+  complianceChecks?: ExportComplianceCheck[];
+  certificates?: ExportCertificate[];
+  expenses?: ExportExpense[];
+  bankRealizations?: ExportBankRealization[];
+  emailLogs?: ExportEmailLog[];
+  _count?: {
+    shipments?: number;
+    paymentMilestones?: number;
+    expenses?: number;
+    bankRealizations?: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportOrder360 {
+  order: ExportOrder;
+  profitability: ExportProfitability;
+  realizationProgress: {
+    totalRealizedUsd: number;
+    outstandingUsd: number;
+    realizationPercentage: number;
+  };
+}
+
+export interface ExportDashboardStats {
+  totalOrders: number;
+  activeOrders: number;
+  totalOrderValueUsd: number;
+  fobValueUsd: number;
+  realizedAmountUsd: number;
+  realizedAmountInr: number;
+  countriesCount: number;
+  totalContainers: number;
+  inTransitShipments: number;
+  pendingTasks: number;
+  ordersByStage: Array<{ stage: string; _count: { id: number }; _sum: { totalOrderValue: number; fobValue: number } }>;
+  recentRealizations: ExportBankRealization[];
+  recentEmails: ExportEmailLog[];
+}
+
+// ─── Products & Models Management Catalog Types ──────────────────────────────
+
+export type ProductCategoryType = 'Cubicle' | 'Lockers' | 'Urinal Partitions';
+
+export type HardwareMaterialType = 'SS Hardware' | 'Nylon Hardware' | 'Standard' | 'Both';
+
+export type SSHardwareColor = 'golden' | 'Black' | 'stainless steel';
+
+export interface ModelHardwareOption {
+  material: HardwareMaterialType;
+  enabled: boolean;
+  colors?: SSHardwareColor[];
+}
+
+export interface ModelHardwareItem {
+  id: string;
+  name: string;
+  quantity?: number;
+  unit?: string;
+  material?: HardwareMaterialType;
+  notes?: string;
+  isExtraLeg?: boolean;
+}
+
+export interface ProductCatalogModel {
+  id: string;
+  slug: string;
+  title: string;
+  category: ProductCategoryType;
+  subtitle: string;
+  description: string;
+  imageUrl: string;
+  additionalImages?: string[];
+  hardwareOptions?: ModelHardwareOption[];
+  hardwareList: ModelHardwareItem[];
+  specifications: Array<{ label: string; value: string }>;
+  features?: string[];
+  hasExtraLeg?: boolean;
+  tierCount?: number | string;
+  sortOrder?: number;
+  published?: boolean;
+  isFeatured?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TopProductCategory {
+  id: string;
+  key: ProductCategoryType;
+  name: string;
+  tagline: string;
+  description: string;
+  imageUrl: string;
+  modelCount: number;
+}
+
+// ─── Board Inventory Management System ───────────────────────────────────────
+
+export type BoardMovementType =
+  | 'INWARD'
+  | 'ISSUE_AUTO'
+  | 'ISSUE_MANUAL'
+  | 'ADJUSTMENT_ADD'
+  | 'ADJUSTMENT_SUB'
+  | 'RETURN_VENDOR';
+
+export interface BoardInventoryItem {
+  id: string;
+  itemCode: string;
+  serialNumber: number;
+  category?: 'RESTROOM_CUBICLE' | 'LOCKER_BOARD' | 'URINAL_PARTITION' | 'STORE_HARDWARE' | string;
+  warehouse?: 'DELHI' | 'KOLKATA' | string;
+  designNo: string;
+  designName?: string | null;
+  size: string;
+  thickness: string;
+  boardType: string;
+  vendorId: string;
+  vendorName?: string | null;
+  openingStock: number | string;
+  currentStock: number | string;
+  totalInward: number | string;
+  totalIssued: number | string;
+  reorderLevel: number | string;
+  unit: string;
+  unitCost?: number | string | null;
+  locationRack?: string | null;
+  status: 'ACTIVE' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'DISCONTINUED';
+  notes?: string | null;
+  lastAlertSentAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  vendor?: {
+    id: string;
+    partyId: string;
+    party: {
+      legalName: string;
+      tradeName?: string | null;
+      phone?: string | null;
+      email?: string | null;
+    };
+  };
+  movements?: BoardStockMovement[];
+}
+
+export interface BoardStockMovement {
+  id: string;
+  movementNumber: string;
+  inventoryItemId: string;
+  warehouse?: string;
+  movementType: BoardMovementType;
+  movementDate: string;
+  quantity: number | string;
+  stockBefore: number | string;
+  stockAfter: number | string;
+  supplierInvoiceNo?: string | null;
+  supplierInvoiceDate?: string | null;
+  batchLotNo?: string | null;
+  unitCost?: number | string | null;
+  totalValue?: number | string | null;
+  issueListId?: string | null;
+  issueListNumber?: string | null;
+  dispatchRecordId?: string | null;
+  packingListId?: string | null;
+  orderId?: string | null;
+  issueReference?: string | null;
+  issuedToPerson?: string | null;
+  notes?: string | null;
+  createdById?: string | null;
+  createdAt: string;
+  inventoryItem?: {
+    id: string;
+    itemCode: string;
+    designNo: string;
+    designName?: string | null;
+    size: string;
+    thickness: string;
+    boardType: string;
+    vendorName?: string | null;
+  };
+}
+
+export interface BoardSupplier {
+  id: string;
+  partyId: string;
+  name: string;
+  legalName: string;
+  vendorType: string;
+  contactPerson?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  totalSkus: number;
+  totalSheets: number;
+}
+
+export interface BoardAnalyticsSummary {
+  totalSkus: number;
+  totalSheets: number;
+  totalValuation: number;
+  lowStockCount: number;
+  outOfStockCount: number;
+  periodInward: number;
+  periodIssued: number;
+  supplierDistribution: Record<string, { skus: number; sheets: number; valuation: number }>;
+  thicknessDistribution: Record<string, number>;
+  boardTypeDistribution: Record<string, number>;
+}
+
+export interface InwardStockInput {
+  inventoryItemId: string;
+  quantity: number;
+  supplierInvoiceNo?: string;
+  supplierInvoiceDate?: string;
+  batchLotNo?: string;
+  unitCost?: number;
+  notes?: string;
+  createdById?: string;
+}
+
+export interface ManualIssueInput {
+  inventoryItemId: string;
+  quantity: number;
+  issueReference?: string;
+  issuedToPerson?: string;
+  notes?: string;
+  createdById?: string;
+}
+
+export interface AutoDeductInput {
+  issueListId: string;
+  issueListNumber: string;
+  orderId?: string;
+  packingListId?: string;
+  dispatchRecordId?: string;
+  issueReference?: string;
+  issuedToPerson?: string;
+  items: Array<{
+    designNo: string;
+    thickness?: string;
+    size?: string;
+    quantity: number;
+  }>;
+  createdById?: string;
+}
+
+export interface CreateBoardItemInput {
+  category?: 'RESTROOM_CUBICLE' | 'LOCKER_BOARD' | 'URINAL_PARTITION' | 'STORE_HARDWARE' | string;
+  warehouse?: 'DELHI' | 'KOLKATA' | string;
+  designNo: string;
+  designName?: string;
+  size: string;
+  thickness: string;
+  boardType: string;
+  vendorId: string;
+  vendorName?: string;
+  openingStock?: number;
+  reorderLevel?: number;
+  unitCost?: number;
+  locationRack?: string;
+  notes?: string;
+}
+
+export interface UpdateBoardItemInput {
+  designNo?: string;
+  designName?: string;
+  size?: string;
+  thickness?: string;
+  boardType?: string;
+  reorderLevel?: number;
+  unitCost?: number;
+  locationRack?: string;
+  notes?: string;
+}

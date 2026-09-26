@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { projectsApi } from '../api/services';
 import type { CommercialProject } from '../types/admin';
 import { Plus, RefreshCw, Edit, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const ProjectsPage: React.FC = () => {
   const [projects, setProjects] = useState<CommercialProject[]>([]);
@@ -20,10 +21,15 @@ const ProjectsPage: React.FC = () => {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this project?')) return;
-    try { await projectsApi.delete(id); fetch(); }
-    catch { alert('Failed to delete'); }
+  const handleDelete = async (id: string, title?: string) => {
+    if (!confirm(`Are you sure you want to permanently delete project ${title || ''}? This action cannot be undone.`)) return;
+    try {
+      await projectsApi.delete(id);
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+      fetch();
+    } catch {
+      alert('Failed to delete');
+    }
   };
 
   const statusColors: Record<string, string> = {
@@ -39,12 +45,13 @@ const ProjectsPage: React.FC = () => {
         <h2 className="text-sm text-gray-500">{total} total projects</h2>
         <div className="flex gap-2">
           <button onClick={fetch} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50"><RefreshCw size={16} className="text-gray-500" /></button>
-          <button className="flex items-center gap-1.5 px-3 py-2 bg-pacific-600 text-white rounded-lg text-sm hover:bg-pacific-700"><Plus size={16} /> New Project</button>
+          <Link to="/admin/dashboard/projects/new" className="flex items-center gap-1.5 px-3 py-2 bg-pacific-600 text-white rounded-lg text-sm hover:bg-pacific-700"><Plus size={16} /> New Project</Link>
         </div>
       </div>
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="border-b border-gray-100 bg-gray-50">
+            <th className="text-center px-4 py-3 font-medium text-gray-600 w-12">#</th>
             <th className="text-left px-4 py-3 font-medium text-gray-600">Title</th>
             <th className="text-left px-4 py-3 font-medium text-gray-600">Client</th>
             <th className="text-left px-4 py-3 font-medium text-gray-600">Location</th>
@@ -53,10 +60,11 @@ const ProjectsPage: React.FC = () => {
             <th className="px-4 py-3" />
           </tr></thead>
           <tbody className="divide-y divide-gray-50">
-            {isLoading ? [...Array(5)].map((_, i) => <tr key={i}>{[...Array(6)].map((_, j) => <td key={j} className="px-4 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>)}</tr>)
-              : projects.length === 0 ? <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400">No projects yet</td></tr>
-              : projects.map((p) => (
+            {isLoading ? [...Array(5)].map((_, i) => <tr key={i}>{[...Array(7)].map((_, j) => <td key={j} className="px-4 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>)}</tr>)
+              : projects.length === 0 ? <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400">No projects yet</td></tr>
+              : projects.map((p, idx) => (
                 <tr key={p.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-center font-mono text-xs text-gray-400">{(page - 1) * 20 + idx + 1}</td>
                   <td className="px-4 py-3 font-medium text-gray-900">{p.title}</td>
                   <td className="px-4 py-3"><div className="text-gray-700">{p.clientName}</div>{p.clientCompany && <div className="text-xs text-gray-400">{p.clientCompany}</div>}</td>
                   <td className="px-4 py-3 text-gray-500">{p.location || '—'}</td>
@@ -65,7 +73,7 @@ const ProjectsPage: React.FC = () => {
                   <td className="px-4 py-3">
                     <div className="flex gap-2 justify-end">
                       <button className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-pacific-600"><Edit size={14} /></button>
-                      <button onClick={() => handleDelete(p.id)} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
+                      <button onClick={() => handleDelete(p.id, p.title)} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600 cursor-pointer" title="Delete Project"><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>

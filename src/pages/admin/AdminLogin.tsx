@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { authApi } from "@/api/services";
 import { useNavigate } from "react-router-dom";
 // @ts-ignore
 import logo from "@/image/logo/logo.webp";
 
 /**
- * Admin login gate — uses Supabase email/password auth.
+ * Admin login gate — authenticates against Pacific Backend API and Supabase Auth.
  */
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
@@ -18,10 +19,22 @@ export default function AdminLogin() {
   // Check for existing session
   useEffect(() => {
     async function check() {
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
+      const backendToken = localStorage.getItem("pacific_access_token");
+      if (backendToken) {
         navigate("/admin/dashboard");
+        return;
       }
+
+      if (isSupabaseConfigured()) {
+        try {
+          const { data } = await supabase.auth.getSession();
+          if (data.session) {
+            navigate("/admin/dashboard");
+            return;
+          }
+        } catch (_e) {}
+      }
+
       setChecking(false);
     }
     check();
@@ -32,23 +45,60 @@ export default function AdminLogin() {
     setLoading(true);
     setError("");
 
-    if (!isSupabaseConfigured()) {
-      setError("Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.");
+    try {
+      // 1. Primary Authentication: Pacific Backend Enterprise API
+      const res = await authApi.login(email.trim(), password);
+      const authData = res.data?.data;
+
+      if (authData?.accessToken) {
+        localStorage.setItem("pacific_access_token", authData.accessToken);
+        if (authData.refreshToken) {
+          localStorage.setItem("pacific_refresh_token", authData.refreshToken);
+        }
+        if (authData.user) {
+          localStorage.setItem("pacific_user", JSON.stringify(authData.user));
+        }
+
+        // 2. Synchronize Supabase Auth session in background if available
+        if (isSupabaseConfigured()) {
+          supabase.auth.signInWithPassword({ email: email.trim(), password }).catch(() => {});
+        }
+
+        navigate("/admin/dashboard");
+        return;
+      }
+      throw new Error("Invalid response from authentication service");
+    } catch (apiErr: any) {
+      const apiMsg = apiErr.response?.data?.message || apiErr.message;
+
+      // 3. Fallback to direct Supabase Auth if backend is unreachable
+      if (isSupabaseConfigured()) {
+        try {
+          const { data: supaData, error: supaErr } = await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password,
+          });
+
+          if (!supaErr && supaData?.session) {
+            const supaUser = {
+              id: supaData.session.user.id,
+              email: supaData.session.user.email || email.trim(),
+              firstName: supaData.session.user.user_metadata?.firstName || "Pacific",
+              lastName: supaData.session.user.user_metadata?.lastName || "Admin",
+              role: supaData.session.user.user_metadata?.role || "SUPER_ADMIN",
+            };
+            localStorage.setItem("pacific_user", JSON.stringify(supaUser));
+            localStorage.setItem("pacific_access_token", supaData.session.access_token);
+            navigate("/admin/dashboard");
+            return;
+          }
+        } catch (_sErr) {}
+      }
+
+      setError(apiMsg || "Invalid email or password. Please verify your credentials.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (authError) {
-      setError(authError.message);
-    } else {
-      navigate("/admin/dashboard");
-    }
-    setLoading(false);
   };
 
   if (checking) {

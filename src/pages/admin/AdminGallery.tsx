@@ -114,8 +114,13 @@ export default function AdminGallery() {
 
   const del = async (id: string) => {
     if (!confirm("Delete this image?")) return;
-    await supabase.from("gallery_images").delete().eq("id", id);
-    refetch();
+    try {
+      const { error } = await supabase.from("gallery_images").delete().eq("id", id);
+      if (error) throw error;
+      refetch();
+    } catch (e: any) {
+      alert("Delete failed: " + (e?.message || "Unknown error"));
+    }
   };
 
   const toggle = async (img: GalleryImage) => {

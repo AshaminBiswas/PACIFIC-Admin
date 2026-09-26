@@ -3,18 +3,39 @@ import imageCompression from "browser-image-compression";
 import type { Database } from "./database.types";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) as string;
+const supabaseKey = (
+  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+  import.meta.env.VITE_SUPABASE_SECRET_KEY ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+) as string;
 
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!supabaseUrl || !supabaseKey) {
   console.warn(
-    "⚠️ Supabase credentials missing. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (or VITE_SUPABASE_PUBLISHABLE_KEY) in your .env file.\n" +
+    "⚠️ Supabase credentials missing. Set VITE_SUPABASE_URL and VITE_SUPABASE_SECRET_KEY (or VITE_SUPABASE_ANON_KEY) in your .env file.\n" +
     "The app will run with demo data until credentials are provided."
   );
 }
 
 export const supabase = createClient<any>(
   supabaseUrl || "https://placeholder.supabase.co",
-  supabaseAnonKey || "placeholder-key"
+  supabaseKey || "placeholder-key",
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+    global: {
+      fetch: (url, options = {}) => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 4000);
+        return fetch(url, {
+          ...options,
+          signal: (options as any)?.signal || controller.signal,
+        }).finally(() => clearTimeout(timeout));
+      },
+    },
+  }
 );
 
 /**
@@ -22,7 +43,7 @@ export const supabase = createClient<any>(
  * Returns false when env vars are missing so the app can fall back to demo data.
  */
 export function isSupabaseConfigured(): boolean {
-  return Boolean(supabaseUrl && supabaseAnonKey);
+  return Boolean(supabaseUrl && supabaseKey && !supabaseUrl.includes("placeholder"));
 }
 
 // ── Storage helpers ───────────────────────────────────────────

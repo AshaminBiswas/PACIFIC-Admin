@@ -14,6 +14,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { loadFAQs, saveFAQs, resetFAQs, getCategories, type FAQ } from "@/lib/faq-data";
+import { supabase } from "@/lib/supabase";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -310,7 +311,13 @@ export default function AdminFAQ() {
   };
 
   const handleDelete = (id: string) => {
+    if (!confirm("Delete this FAQ?")) return;
     persist(faqs.filter((f) => f.id !== id));
+    (async () => {
+      try {
+        await supabase.from('faqs').delete().eq('id', id);
+      } catch {}
+    })();
     showToast("FAQ deleted");
   };
 

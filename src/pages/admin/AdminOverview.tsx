@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { dashboardApi, crmApi } from "@/api/services";
 import {
   Package, FileText, Lightbulb, ImageIcon, MonitorPlay, Layers,
   LayoutTemplate, MessageSquare, Star, HelpCircle, Users, FileDown,
-  ArrowRight, TrendingUp,
+  ArrowRight, TrendingUp, ShoppingBag, Receipt, Truck, CreditCard,
+  Briefcase, QrCode, Building2
 } from "lucide-react";
 
 export default function AdminOverview() {
@@ -22,10 +24,40 @@ export default function AdminOverview() {
     faqs: 0,
     leads: 0,
   });
+  const [erpStats, setErpStats] = useState<{
+    customers: number;
+    quotations: number;
+    orders: number;
+    invoices: number;
+  }>({
+    customers: 0,
+    quotations: 0,
+    orders: 0,
+    invoices: 0,
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchCounts() {
+      // 1. Fetch ERP stats from Pacific Backend API
+      try {
+        const [statsRes, crmRes] = await Promise.allSettled([
+          dashboardApi.getStats(),
+          crmApi.listCustomers({ limit: 1 }),
+        ]);
+
+        const statsData = statsRes.status === 'fulfilled' ? statsRes.value.data?.data?.overview : null;
+        const crmData = crmRes.status === 'fulfilled' ? crmRes.value.data?.data : null;
+
+        setErpStats({
+          customers: crmData?.total || 0,
+          quotations: statsData?.totalQuotations || 0,
+          orders: statsData?.totalProjects || 0,
+          invoices: statsData?.totalInvoices || 0,
+        });
+      } catch (_e) {}
+
+      // 2. Fetch CMS item counts
       const tables = [
         { key: "products", table: "products" },
         { key: "blogs", table: "blogs" },
@@ -35,24 +67,27 @@ export default function AdminOverview() {
         { key: "core_services", table: "core_services" },
         { key: "page_banners", table: "page_banners" },
         { key: "catalogs", table: "catalogs" },
-        { key: "contact_queries", table: "contact_queries" },
-        { key: "feedback", table: "feedback" },
+        { key: "contact_queries", table: "leads" },
+        { key: "feedback", table: "testimonials" },
         { key: "faqs", table: "faqs" },
         { key: "leads", table: "visitor_leads" },
       ];
 
-      const results = await Promise.all(
-        tables.map((t) =>
-          supabase.from(t.table).select("id", { count: "exact", head: true }).then((r) => ({
-            key: t.key,
-            count: r.count || 0,
-          }))
-        )
-      );
+      try {
+        const results = await Promise.all(
+          tables.map((t) =>
+            supabase.from(t.table).select("id", { count: "exact", head: true }).then((r) => ({
+              key: t.key,
+              count: r.count || 0,
+            }))
+          )
+        );
 
-      const newCounts: Record<string, number> = {};
-      results.forEach((r) => (newCounts[r.key] = r.count));
-      setCounts(newCounts);
+        const newCounts: Record<string, number> = {};
+        results.forEach((r) => (newCounts[r.key] = r.count));
+        setCounts(newCounts);
+      } catch (_sErr) {}
+
       setLoading(false);
     }
     fetchCounts();
@@ -90,7 +125,81 @@ export default function AdminOverview() {
         </div>
       </div>
 
-      {/* Primary Stats */}
+      {/* Section: Enterprise ERP Operations */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold text-[#7FB706] uppercase tracking-wider">Enterprise Operations (Live API)</h2>
+          <span className="text-[11px] text-gray-500 font-mono">PACIFIC-Backend :5001</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Link
+            to="/admin/dashboard/customers"
+            className="group bg-gradient-to-br from-white/[0.07] to-white/[0.02] border border-white/10 rounded-2xl p-5 hover:border-[#7FB706]/40 hover:bg-white/[0.09] transition-all"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-11 h-11 rounded-xl bg-[#7FB706]/20 flex items-center justify-center">
+                <Users className="w-5 h-5 text-[#7FB706]" />
+              </div>
+              <span className="text-3xl font-black text-white">{loading ? "—" : erpStats.customers}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-gray-300 text-sm font-medium">B2B Customers</p>
+              <ArrowRight className="w-4 h-4 text-gray-500 group-hover:text-[#7FB706] group-hover:translate-x-0.5 transition-all" />
+            </div>
+          </Link>
+
+          <Link
+            to="/admin/dashboard/sales-quotations"
+            className="group bg-gradient-to-br from-white/[0.07] to-white/[0.02] border border-white/10 rounded-2xl p-5 hover:border-blue-500/40 hover:bg-white/[0.09] transition-all"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-11 h-11 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                <FileText className="w-5 h-5 text-blue-400" />
+              </div>
+              <span className="text-3xl font-black text-white">{loading ? "—" : erpStats.quotations}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-gray-300 text-sm font-medium">Sales Quotations</p>
+              <ArrowRight className="w-4 h-4 text-gray-500 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" />
+            </div>
+          </Link>
+
+          <Link
+            to="/admin/dashboard/sales-orders"
+            className="group bg-gradient-to-br from-white/[0.07] to-white/[0.02] border border-white/10 rounded-2xl p-5 hover:border-amber-500/40 hover:bg-white/[0.09] transition-all"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-11 h-11 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                <ShoppingBag className="w-5 h-5 text-amber-400" />
+              </div>
+              <span className="text-3xl font-black text-white">{loading ? "—" : erpStats.orders}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-gray-300 text-sm font-medium">Sales Orders Hub</p>
+              <ArrowRight className="w-4 h-4 text-gray-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
+            </div>
+          </Link>
+
+          <Link
+            to="/admin/dashboard/payments"
+            className="group bg-gradient-to-br from-white/[0.07] to-white/[0.02] border border-white/10 rounded-2xl p-5 hover:border-purple-500/40 hover:bg-white/[0.09] transition-all"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-11 h-11 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                <CreditCard className="w-5 h-5 text-purple-400" />
+              </div>
+              <span className="text-3xl font-black text-white">{loading ? "—" : erpStats.invoices}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-gray-300 text-sm font-medium">Invoices & Dues</p>
+              <ArrowRight className="w-4 h-4 text-gray-500 group-hover:text-purple-400 group-hover:translate-x-0.5 transition-all" />
+            </div>
+          </Link>
+        </div>
+      </div>
+
+      {/* Section: Website CMS */}
+      <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Website & Content CMS</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {topStats.map((card) => (
           <Link

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
-  Truck, Search, Plus, Phone, Mail, Building, RefreshCw, X, Eye, Package
+  Truck, Search, Plus, Phone, Mail, Building, RefreshCw, X, Eye, Package, Trash2, Edit2
 } from 'lucide-react';
 import { vendorsApi } from '../api/services';
 import type { BusinessParty } from '../types/admin';
@@ -11,24 +12,18 @@ export default function VendorsPage() {
   const [search, setSearch] = useState('');
   const [vendorType, setVendorType] = useState('');
   const [page, setPage] = useState(1);
-  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const [formData, setFormData] = useState({
-    legalName: '',
-    tradeName: '',
-    vendorType: 'HPL_BOARDS',
-    gstin: '',
-    pan: '',
-    email: '',
-    phone: '',
-    paymentTermsDays: '30',
-    contactName: '',
-    contactPhone: '',
-    address: '',
-    city: 'Delhi',
-    state: 'Delhi',
-  });
-
+  const handleDeleteVendor = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to permanently delete supplier ${name}? This action cannot be undone.`)) return;
+    try {
+      await vendorsApi.deleteVendor(id);
+      fetchVendors();
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || 'Failed to delete supplier');
+    }
+  };
+  
+  
   const fetchVendors = useCallback(async () => {
     setLoading(true);
     try {
@@ -47,32 +42,7 @@ export default function VendorsPage() {
     fetchVendors();
   }, [fetchVendors]);
 
-  const handleCreateVendor = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await vendorsApi.createVendor({
-        legalName: formData.legalName,
-        tradeName: formData.tradeName || formData.legalName,
-        vendorType: formData.vendorType,
-        gstin: formData.gstin,
-        pan: formData.pan,
-        email: formData.email,
-        phone: formData.phone,
-        paymentTermsDays: Number(formData.paymentTermsDays),
-        contacts: formData.contactName
-          ? [{ name: formData.contactName, phone: formData.contactPhone, isPrimary: true }]
-          : [],
-        addresses: formData.address
-          ? [{ addressType: 'REGISTERED', addressLine1: formData.address, city: formData.city, state: formData.state }]
-          : [],
-      });
-      setShowCreateModal(false);
-      fetchVendors();
-    } catch (err) {
-      console.error('Failed to create vendor:', err);
-    }
-  };
-
+  
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -86,13 +56,10 @@ export default function VendorsPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-white text-sm font-semibold rounded-xl shadow-lg shadow-[#7FB706]/20 transition-all cursor-pointer"
-        >
+        <Link to="/admin/dashboard/vendors/new" className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-white text-sm font-semibold rounded-xl shadow-lg shadow-[#7FB706]/20 transition-all cursor-pointer">
           <Plus className="w-4 h-4" />
           Add Supplier
-        </button>
+        </Link>
       </div>
 
       {/* Filter Bar */}
@@ -113,10 +80,8 @@ export default function VendorsPage() {
           className="bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#7FB706]"
         >
           <option value="">All Categories</option>
-          <option value="HPL_BOARDS">HPL / Compact Boards</option>
-          <option value="HARDWARE">Cubicle Hardware (SS/Nylon)</option>
-          <option value="ALUMINIUM">Aluminium Extrusions</option>
-          <option value="RAW_MATERIALS">Raw Materials</option>
+          <option value="HPL_BOARDS">HPL Boards</option>
+          <option value="HDF_BOARDS">HDF Boards</option>
         </select>
         <button
           onClick={() => fetchVendors()}
@@ -145,23 +110,33 @@ export default function VendorsPage() {
               <table className="w-full text-left text-sm text-gray-300">
                 <thead className="bg-[#0e0e1e] text-xs uppercase tracking-wider text-gray-400 border-b border-white/5">
                   <tr>
+                    <th className="py-3 px-4 text-center w-12">#</th>
                     <th className="py-3 px-4">Supplier Name</th>
                     <th className="py-3 px-4">Category</th>
                     <th className="py-3 px-4">GSTIN</th>
                     <th className="py-3 px-4">Contact</th>
                     <th className="py-3 px-4">Payment Terms</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {vendors.map((v) => (
+                  {vendors.map((v, idx) => (
                     <tr key={v.id} className="hover:bg-white/[0.02]">
+                      <td className="py-3 px-4 text-center font-mono text-gray-400 text-xs">
+                        {(page - 1) * 15 + idx + 1}
+                      </td>
                       <td className="py-3 px-4">
-                        <div className="font-semibold text-white">{v.legalName}</div>
+                        <Link
+                          to={`/admin/dashboard/vendors/${v.id}`}
+                          className="font-semibold text-white hover:text-[#7FB706] transition-colors"
+                        >
+                          {v.legalName}
+                        </Link>
                         {v.tradeName && <div className="text-xs text-gray-500">{v.tradeName}</div>}
                       </td>
                       <td className="py-3 px-4">
-                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                          {v.vendorProfile?.vendorType || 'RAW_MATERIALS'}
+                        <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-[#7FB706]/15 text-[#7FB706] border border-[#7FB706]/30">
+                          {v.vendorProfile?.vendorType === 'HDF_BOARDS' ? 'HDF Boards' : 'HPL Boards'}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-xs font-mono">{v.gstin || 'N/A'}</td>
@@ -172,6 +147,31 @@ export default function VendorsPage() {
                       <td className="py-3 px-4 text-xs text-gray-400">
                         {v.vendorProfile?.paymentTermsDays || 30} Days
                       </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Link
+                            to={`/admin/dashboard/vendors/${v.id}`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] text-xs font-semibold rounded-lg border border-[#7FB706]/30 transition-colors cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            View
+                          </Link>
+                          <Link
+                            to={`/admin/dashboard/vendors/${v.id}/edit`}
+                            className="p-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 cursor-pointer transition-colors"
+                            title="Edit Supplier"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </Link>
+                          <button
+                            onClick={() => handleDeleteVendor(v.id, v.legalName)}
+                            className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 cursor-pointer transition-colors"
+                            title="Delete Supplier"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -180,20 +180,51 @@ export default function VendorsPage() {
 
             {/* Mobile View */}
             <div className="lg:hidden p-4 space-y-3">
-              {vendors.map((v) => (
+              {vendors.map((v, idx) => (
                 <div key={v.id} className="bg-[#0d0d1e] border border-white/5 rounded-xl p-4 space-y-2">
                   <div className="flex items-start justify-between">
                     <div>
-                      <h4 className="font-bold text-white text-base">{v.legalName}</h4>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono text-gray-400 bg-white/5 px-1.5 py-0.5 rounded">#{(page - 1) * 15 + idx + 1}</span>
+                        <Link
+                          to={`/admin/dashboard/vendors/${v.id}`}
+                          className="font-bold text-white text-base hover:text-[#7FB706] transition-colors"
+                        >
+                          {v.legalName}
+                        </Link>
+                      </div>
                       <p className="text-xs text-gray-400">GSTIN: {v.gstin || 'N/A'}</p>
                     </div>
-                    <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-blue-500/15 text-blue-400">
-                      {v.vendorProfile?.vendorType || 'SUPPLIER'}
+                    <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-[#7FB706]/15 text-[#7FB706]">
+                      {v.vendorProfile?.vendorType === 'HDF_BOARDS' ? 'HDF Boards' : 'HPL Boards'}
                     </span>
                   </div>
                   <div className="text-xs text-gray-400 pt-1 border-t border-white/5 flex items-center justify-between">
                     <span>Terms: {v.vendorProfile?.paymentTermsDays || 30} Days</span>
                     <span>{v.phone || '-'}</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 pt-2 border-t border-white/5">
+                    <Link
+                      to={`/admin/dashboard/vendors/${v.id}`}
+                      className="col-span-2 min-h-[44px] py-2 bg-[#7FB706]/10 text-[#7FB706] text-xs font-semibold rounded-xl border border-[#7FB706]/30 flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Eye className="w-4 h-4" />
+                      View
+                    </Link>
+                    <Link
+                      to={`/admin/dashboard/vendors/${v.id}/edit`}
+                      className="col-span-1 min-h-[44px] py-2 bg-blue-500/10 text-blue-400 text-xs font-semibold rounded-xl border border-blue-500/20 flex items-center justify-center gap-1 cursor-pointer"
+                      title="Edit Supplier"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Link>
+                    <button
+                      onClick={() => handleDeleteVendor(v.id, v.legalName)}
+                      className="col-span-1 min-h-[44px] py-2 bg-red-500/10 text-red-400 text-xs font-semibold rounded-xl border border-red-500/20 flex items-center justify-center gap-1 cursor-pointer"
+                      title="Delete Supplier"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -202,106 +233,7 @@ export default function VendorsPage() {
         )}
       </div>
 
-      {/* Create Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-[#121226] border border-white/10 rounded-2xl w-full max-w-xl p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-white/5 pb-3">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Plus className="w-5 h-5 text-[#7FB706]" /> New Supplier / Vendor
-              </h3>
-              <button onClick={() => setShowCreateModal(false)} className="p-1.5 rounded-lg bg-white/5 text-gray-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateVendor} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Supplier Legal Name *</label>
-                  <input
-                    required
-                    type="text"
-                    value={formData.legalName}
-                    onChange={(e) => setFormData({ ...formData, legalName: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
-                    placeholder="e.g. Pacific Laminates & Boards Ltd."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Supply Category</label>
-                  <select
-                    value={formData.vendorType}
-                    onChange={(e) => setFormData({ ...formData, vendorType: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
-                  >
-                    <option value="HPL_BOARDS">HPL / Compact Boards</option>
-                    <option value="HARDWARE">Cubicle Hardware (SS304/Nylon)</option>
-                    <option value="ALUMINIUM">Aluminium Extrusions</option>
-                    <option value="RAW_MATERIALS">Raw Materials</option>
-                    <option value="FINISHED_GOODS">Finished Goods</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">GSTIN</label>
-                  <input
-                    type="text"
-                    maxLength={15}
-                    value={formData.gstin}
-                    onChange={(e) => setFormData({ ...formData, gstin: e.target.value.toUpperCase() })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono uppercase focus:outline-none focus:border-[#7FB706]"
-                    placeholder="07AAAAA0000A1Z5"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Phone</label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
-                    placeholder="9818592113"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Email</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
-                    placeholder="supplier@pacific.com"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Factory / Office Address</label>
-                  <input
-                    type="text"
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
-                    placeholder="Plot 12, Industrial Area"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-white/5">
-                <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-400">
-                  Cancel
-                </button>
-                <button type="submit" className="px-5 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-white font-semibold text-sm rounded-xl">
-                  Save Supplier
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      
     </div>
   );
 }

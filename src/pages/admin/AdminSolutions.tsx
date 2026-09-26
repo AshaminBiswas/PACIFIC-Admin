@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useState, useRef } from "react";
 import { supabase, uploadImage } from "@/lib/supabase";
 import { useAdminSolutions } from "@/lib/hooks";
@@ -92,7 +93,16 @@ export default function AdminSolutions() {
     }
   };
 
-const del = async (id: string) => { if (!confirm("Delete?")) return; await supabase.from("solutions").delete().eq("id", id); refetch(); };
+  const del = async (id: string) => {
+    if (!confirm("Delete this solution?")) return;
+    try {
+      const { error } = await supabase.from("solutions").delete().eq("id", id);
+      if (error) throw error;
+      refetch();
+    } catch (e: any) {
+      alert("Delete failed: " + (e?.message || "Unknown error"));
+    }
+  };
   const toggle = async (s: Solution) => { await supabase.from("solutions").update({ published: !s.published } as any).eq("id", s.id); refetch(); };
 
   return (

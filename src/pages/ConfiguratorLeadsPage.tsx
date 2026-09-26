@@ -42,10 +42,15 @@ const ConfiguratorLeadsPage: React.FC = () => {
     } catch { alert('Failed to update status'); }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this design?')) return;
-    try { await configuratorApi.delete(id); fetchDesigns(); }
-    catch { alert('Failed to delete'); }
+  const handleDelete = async (id: string, name?: string) => {
+    if (!confirm(`Are you sure you want to permanently delete design submission ${name || ''}? This action cannot be undone.`)) return;
+    try {
+      await configuratorApi.delete(id);
+      setDesigns((prev) => prev.filter((d) => d.id !== id));
+      fetchDesigns();
+    } catch {
+      alert('Failed to delete');
+    }
   };
 
   return (
@@ -62,6 +67,7 @@ const ConfiguratorLeadsPage: React.FC = () => {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
+                <th className="text-center px-4 py-3 font-medium text-gray-600 w-12">#</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Design</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Lead</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Est. Price</th>
@@ -73,13 +79,14 @@ const ConfiguratorLeadsPage: React.FC = () => {
             <tbody className="divide-y divide-gray-50">
               {isLoading ? (
                 [...Array(5)].map((_, i) => (
-                  <tr key={i}>{[...Array(6)].map((_, j) => (<td key={j} className="px-4 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>))}</tr>
+                  <tr key={i}>{[...Array(7)].map((_, j) => (<td key={j} className="px-4 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>))}</tr>
                 ))
               ) : designs.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400">No configurator submissions yet</td></tr>
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400">No configurator submissions yet</td></tr>
               ) : (
-                designs.map((d) => (
+                designs.map((d, idx) => (
                   <tr key={d.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-center font-mono text-xs text-gray-400">{(page - 1) * 20 + idx + 1}</td>
                     <td className="px-4 py-3 font-medium text-gray-900">{d.designName || `Design #${d.id.slice(-6)}`}</td>
                     <td className="px-4 py-3 text-gray-600">
                       {d.lead ? `${d.lead.firstName} ${d.lead.lastName || ''}` : '—'}
@@ -105,7 +112,7 @@ const ConfiguratorLeadsPage: React.FC = () => {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2 justify-end">
                         <button className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-pacific-600"><Eye size={14} /></button>
-                        <button onClick={() => handleDelete(d.id)} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
+                        <button onClick={() => handleDelete(d.id, d.designName || d.id.slice(-6))} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600 cursor-pointer" title="Delete Design"><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { companiesApi, auditApi } from '../api/services';
 import type {
   CompanyProfile,
@@ -28,6 +28,10 @@ import {
   Check,
   ChevronRight,
   Sparkles,
+  Upload,
+  Trash2,
+  X,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 export default function CompanySettingsPage() {
@@ -71,6 +75,8 @@ export default function CompanySettingsPage() {
   });
 
   const [showSignatoryModal, setShowSignatoryModal] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const signatureInputRef = useRef<HTMLInputElement>(null);
   const [signatoryForm, setSignatoryForm] = useState({
     name: '',
     designation: '',
@@ -80,7 +86,7 @@ export default function CompanySettingsPage() {
 
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [addressForm, setAddressForm] = useState({
-    type: 'REGISTERED_OFFICE',
+    type: 'BILLING',
     addressLine1: '',
     addressLine2: '',
     city: '',
@@ -88,6 +94,8 @@ export default function CompanySettingsPage() {
     stateCode: '27',
     postalCode: '',
     phone: '',
+    gstin: '',
+    pan: '',
     isDefault: true,
   });
 
@@ -221,6 +229,29 @@ export default function CompanySettingsPage() {
     }
   };
 
+  // Signature File Upload Handler
+  const handleSignatureFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('error', 'Please upload an image file (PNG, JPG, SVG, WebP).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('error', 'Signature file must be smaller than 5MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      setSignatoryForm((prev) => ({ ...prev, signatureUrl: result }));
+      showToast('success', 'Signature image uploaded successfully.');
+    };
+    reader.readAsDataURL(file);
+    // Reset file input value so same file can be re-uploaded if needed
+    e.target.value = '';
+  };
+
   // Add Signatory
   const handleAddSignatory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,6 +260,7 @@ export default function CompanySettingsPage() {
       await companiesApi.addSignatory(selectedCompanyId, signatoryForm);
       showToast('success', 'Authorized signatory added successfully.');
       setShowSignatoryModal(false);
+      setShowUrlInput(false);
       setSignatoryForm({ name: '', designation: '', signatureUrl: '', isDefault: false });
       await loadCompanies();
     } catch (err: any) {
@@ -245,7 +277,7 @@ export default function CompanySettingsPage() {
       showToast('success', 'Address registered successfully.');
       setShowAddressModal(false);
       setAddressForm({
-        type: 'REGISTERED_OFFICE',
+        type: 'BILLING',
         addressLine1: '',
         addressLine2: '',
         city: '',
@@ -253,6 +285,8 @@ export default function CompanySettingsPage() {
         stateCode: '27',
         postalCode: '',
         phone: '',
+        gstin: '',
+        pan: '',
         isDefault: false,
       });
       await loadCompanies();
@@ -527,23 +561,53 @@ export default function CompanySettingsPage() {
 
               <div className="space-y-3 mt-4">
                 {selectedCompany?.addresses && selectedCompany.addresses.length > 0 ? (
-                  selectedCompany.addresses.map((addr) => (
-                    <div key={addr.id} className="p-3 bg-white/[0.02] border border-white/5 rounded-xl text-xs space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-white">{addr.type}</span>
-                        {addr.isDefault && (
-                          <span className="px-1.5 py-0.5 rounded bg-[#7FB706]/20 text-[#7FB706] text-[10px] font-bold">
-                            Default
+                  selectedCompany.addresses.map((addr) => {
+                    const isBilling = addr.type === 'BILLING' || addr.type === 'BILLING_ADDRESS';
+                    const isDelivery = addr.type === 'DELIVERY' || addr.type === 'DELIVERY_ADDRESS';
+                    return (
+                      <div key={addr.id} className="p-3 bg-white/[0.02] border border-white/5 rounded-xl text-xs space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide ${
+                              isBilling
+                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                : isDelivery
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                            }`}
+                          >
+                            {isBilling
+                              ? 'Billing Address'
+                              : isDelivery
+                              ? 'Delivery Address'
+                              : addr.type.replace(/_/g, ' ')}
                           </span>
+                          {addr.isDefault && (
+                            <span className="px-1.5 py-0.5 rounded bg-[#7FB706]/20 text-[#7FB706] text-[10px] font-bold">
+                              Default
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-gray-300 font-medium">{addr.addressLine1}</p>
+                        {addr.addressLine2 && <p className="text-gray-400">{addr.addressLine2}</p>}
+                        <p className="text-gray-400">
+                          {addr.city}, {addr.state} - {addr.postalCode}
+                        </p>
+                        {addr.gstin && (
+                          <p className="text-[11px] font-mono text-[#7FB706]">
+                            <span className="text-gray-400 font-sans font-semibold">GSTIN: </span>
+                            {addr.gstin}
+                          </p>
+                        )}
+                        {addr.pan && (
+                          <p className="text-[11px] font-mono text-cyan-300">
+                            <span className="text-gray-400 font-sans font-semibold">PAN: </span>
+                            {addr.pan}
+                          </p>
                         )}
                       </div>
-                      <p className="text-gray-300">{addr.addressLine1}</p>
-                      {addr.addressLine2 && <p className="text-gray-400">{addr.addressLine2}</p>}
-                      <p className="text-gray-400">
-                        {addr.city}, {addr.state} - {addr.postalCode}
-                      </p>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <p className="text-xs text-gray-500 py-4 text-center">No registered addresses added yet.</p>
                 )}
@@ -939,8 +1003,21 @@ export default function CompanySettingsPage() {
       {showSignatoryModal && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
           <div className="bg-[#0e0e24] border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-white">Add Authorized Signatory</h3>
-            <form onSubmit={handleAddSignatory} className="space-y-3">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <FileSignature className="w-5 h-5 text-[#7FB706]" />
+                Add Authorized Signatory
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowSignatoryModal(false)}
+                className="text-gray-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddSignatory} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-semibold text-gray-300 mb-1">Full Name *</label>
                 <input
@@ -963,16 +1040,83 @@ export default function CompanySettingsPage() {
                   className="w-full px-3.5 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white min-h-[44px]"
                 />
               </div>
+
+              {/* Digital Signature Upload Section */}
               <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1">Signature Image URL</label>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">
+                  Signature Image
+                </label>
+                
+                {/* Hidden File Input */}
                 <input
-                  type="text"
-                  value={signatoryForm.signatureUrl}
-                  onChange={(e) => setSignatoryForm({ ...signatoryForm, signatureUrl: e.target.value })}
-                  placeholder="https://.../signature.png"
-                  className="w-full px-3.5 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white min-h-[44px]"
+                  type="file"
+                  ref={signatureInputRef}
+                  onChange={handleSignatureFileChange}
+                  accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                  className="hidden"
                 />
+
+                {signatoryForm.signatureUrl ? (
+                  <div className="space-y-2">
+                    <div className="h-28 bg-white/10 border border-white/20 rounded-xl flex items-center justify-center p-3 relative bg-gradient-to-b from-white/10 to-white/5">
+                      <img
+                        src={signatoryForm.signatureUrl}
+                        alt="Signature Preview"
+                        className="max-h-full max-w-full object-contain filter brightness-110"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => signatureInputRef.current?.click()}
+                        className="flex-1 py-2 px-3 bg-white/5 hover:bg-white/10 text-xs text-white rounded-xl flex items-center justify-center gap-1.5 min-h-[40px] border border-white/10 transition-colors"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-[#7FB706]" /> Change Signature
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSignatoryForm({ ...signatoryForm, signatureUrl: '' })}
+                        className="py-2 px-3 bg-red-500/10 hover:bg-red-500/20 text-xs text-red-400 rounded-xl flex items-center justify-center gap-1.5 min-h-[40px] border border-red-500/20 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => signatureInputRef.current?.click()}
+                    className="border-2 border-dashed border-white/20 hover:border-[#7FB706] rounded-xl p-5 text-center cursor-pointer transition-colors bg-white/[0.02] hover:bg-[#7FB706]/5 group min-h-[110px] flex flex-col items-center justify-center"
+                  >
+                    <Upload className="w-7 h-7 mx-auto mb-2 text-gray-400 group-hover:text-[#7FB706] transition-colors" />
+                    <p className="text-xs font-semibold text-gray-200">
+                      Click to upload signature
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      PNG, JPG, SVG or WebP (transparent PNG recommended, max 5MB)
+                    </p>
+                  </div>
+                )}
+
+                <div className="mt-2 text-right">
+                  <button
+                    type="button"
+                    onClick={() => setShowUrlInput(!showUrlInput)}
+                    className="text-[11px] text-gray-400 hover:text-white underline cursor-pointer"
+                  >
+                    {showUrlInput ? 'Hide image URL option' : 'Or enter image URL manually'}
+                  </button>
+                  {showUrlInput && (
+                    <input
+                      type="text"
+                      value={signatoryForm.signatureUrl}
+                      onChange={(e) => setSignatoryForm({ ...signatoryForm, signatureUrl: e.target.value })}
+                      placeholder="https://.../signature.png"
+                      className="mt-1.5 w-full px-3.5 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white min-h-[40px]"
+                    />
+                  )}
+                </div>
               </div>
+
               <div className="flex items-center gap-2 pt-2">
                 <input
                   type="checkbox"
@@ -981,7 +1125,7 @@ export default function CompanySettingsPage() {
                   onChange={(e) => setSignatoryForm({ ...signatoryForm, isDefault: e.target.checked })}
                   className="rounded text-[#7FB706] focus:ring-[#7FB706]"
                 />
-                <label htmlFor="defaultSig" className="text-xs text-gray-300">
+                <label htmlFor="defaultSig" className="text-xs text-gray-300 cursor-pointer">
                   Set as primary authorized signatory
                 </label>
               </div>
@@ -1010,20 +1154,73 @@ export default function CompanySettingsPage() {
       {showAddressModal && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
           <div className="bg-[#0e0e24] border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-white">Add Entity Registered Address</h3>
-            <form onSubmit={handleAddAddress} className="space-y-3">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-[#7FB706]" />
+                Add Entity Registered Address
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAddressModal(false)}
+                className="text-gray-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddAddress} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1">Address Type</label>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">Address Type *</label>
                 <select
                   value={addressForm.type}
                   onChange={(e) => setAddressForm({ ...addressForm, type: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white min-h-[44px]"
+                  className="w-full px-3.5 py-2 bg-[#12122b] border border-white/10 rounded-xl text-xs text-white min-h-[44px]"
                 >
+                  <option value="BILLING">Billing Address</option>
+                  <option value="DELIVERY">Delivery Address</option>
                   <option value="REGISTERED_OFFICE">Registered Corporate Office</option>
                   <option value="FACTORY">Manufacturing & Fabrication Plant</option>
                   <option value="WAREHOUSE">Central Hardware & Board Warehouse</option>
                 </select>
               </div>
+
+              {/* Conditional GST and PAN Fields for Billing Address */}
+              {(addressForm.type === 'BILLING' || addressForm.type === 'BILLING_ADDRESS') && (
+                <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl space-y-2.5">
+                  <p className="text-[11px] font-bold text-blue-400 uppercase tracking-wider">
+                    Billing Tax Identification
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                        GST Number (GSTIN)
+                      </label>
+                      <input
+                        type="text"
+                        value={addressForm.gstin || ''}
+                        onChange={(e) => setAddressForm({ ...addressForm, gstin: e.target.value.toUpperCase() })}
+                        placeholder="27AAAAA0000A1Z5"
+                        maxLength={15}
+                        className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white font-mono uppercase min-h-[40px]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                        PAN Number
+                      </label>
+                      <input
+                        type="text"
+                        value={addressForm.pan || ''}
+                        onChange={(e) => setAddressForm({ ...addressForm, pan: e.target.value.toUpperCase() })}
+                        placeholder="AAAAA0000A"
+                        maxLength={10}
+                        className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white font-mono uppercase min-h-[40px]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-gray-300 mb-1">Address Line 1 *</label>
                 <input
@@ -1032,6 +1229,16 @@ export default function CompanySettingsPage() {
                   value={addressForm.addressLine1}
                   onChange={(e) => setAddressForm({ ...addressForm, addressLine1: e.target.value })}
                   placeholder="Plot No. 42, Industrial Area"
+                  className="w-full px-3.5 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white min-h-[44px]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">Address Line 2 (Optional)</label>
+                <input
+                  type="text"
+                  value={addressForm.addressLine2 || ''}
+                  onChange={(e) => setAddressForm({ ...addressForm, addressLine2: e.target.value })}
+                  placeholder="Building No., Floor, Suite"
                   className="w-full px-3.5 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white min-h-[44px]"
                 />
               </div>

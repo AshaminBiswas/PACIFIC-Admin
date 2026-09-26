@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Users, Search, Plus, Phone, Mail, MapPin, Building,
   FileText, CreditCard, ChevronRight, X, Eye, AlertCircle, RefreshCw, Check,
-  GitMerge, Layers, ShoppingBag, Package, Wrench, AlertTriangle, ShieldAlert
+  GitMerge, Layers, ShoppingBag, Package, Wrench, AlertTriangle, ShieldAlert, Trash2, Edit2, Clock
 } from 'lucide-react';
 import { crmApi } from '../api/services';
 import type { BusinessParty, Customer360Data } from '../types/admin';
@@ -14,8 +15,22 @@ export default function CustomersPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
+  const handleDeleteCustomer = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete customer "${name}"? This action cannot be undone.`)) return;
+    try {
+      await crmApi.deleteCustomer(id);
+      setCustomers((prev) => prev.filter((c) => c.id !== id));
+      alert(`Customer "${name}" was deleted successfully.`);
+      fetchCustomers();
+    } catch (err: any) {
+      console.error('Failed to delete customer:', err);
+      alert(err.response?.data?.message || err.message || 'Failed to delete customer');
+    }
+  };
+
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
+  
   const [selected360, setSelected360] = useState<Customer360Data | null>(null);
   const [loading360, setLoading360] = useState(false);
   const [active360Tab, setActive360Tab] = useState<'OVERVIEW' | 'TIMELINE' | 'TRANSACTIONS' | 'CONTACTS'>('OVERVIEW');
@@ -23,6 +38,8 @@ export default function CustomersPage() {
   // Deduplication & Merge State
   const [duplicateMatches, setDuplicateMatches] = useState<BusinessParty[]>([]);
   const [checkingDuplicates, setCheckingDuplicates] = useState(false);
+  
+  
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [canonicalCustomerId, setCanonicalCustomerId] = useState('');
   const [mergedCustomerId, setMergedCustomerId] = useState('');
@@ -186,10 +203,10 @@ export default function CustomersPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
             <Users className="w-6 h-6 text-[#7FB706]" />
-            B2B Customers & CRM
+            Domestic B2B Customers &amp; CRM
           </h1>
           <p className="text-xs sm:text-sm text-gray-400">
-            Enterprise customer master, contacts, credit limits, and real-time Customer 360 KPIs
+            Domestic enterprise customer master (GSTIN, PAN, Indian states), credit terms, and Customer 360 KPIs
           </p>
         </div>
 
@@ -203,13 +220,10 @@ export default function CustomersPage() {
             Merge Records
           </button>
 
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-white text-sm font-semibold rounded-xl shadow-lg shadow-[#7FB706]/20 transition-all cursor-pointer min-h-[44px]"
-          >
+          <Link to="/admin/dashboard/customers/new" className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-white text-sm font-semibold rounded-xl shadow-lg shadow-[#7FB706]/20 transition-all cursor-pointer min-h-[44px]">
             <Plus className="w-4 h-4" />
             Add Customer
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -254,6 +268,7 @@ export default function CustomersPage() {
               <table className="w-full text-left text-sm text-gray-300">
                 <thead className="bg-[#0e0e1e] text-xs uppercase tracking-wider text-gray-400 border-b border-white/5">
                   <tr>
+                    <th className="py-3 px-4 text-center w-12">#</th>
                     <th className="py-3 px-4">Company Name</th>
                     <th className="py-3 px-4">GSTIN / PAN</th>
                     <th className="py-3 px-4">Type</th>
@@ -263,10 +278,15 @@ export default function CustomersPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {customers.map((c) => (
+                  {customers.map((c, idx) => (
                     <tr key={c.id} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="py-3 px-4 text-center font-mono text-gray-400 text-xs">
+                        {(page - 1) * 15 + idx + 1}
+                      </td>
                       <td className="py-3 px-4">
-                        <div className="font-semibold text-white">{c.legalName}</div>
+                        <Link to={`/admin/dashboard/customers/${c.id}`} className="font-semibold text-white hover:text-[#7FB706] transition-colors">
+                          {c.legalName}
+                        </Link>
                         {c.tradeName && c.tradeName !== c.legalName && (
                           <div className="text-xs text-gray-500">{c.tradeName}</div>
                         )}
@@ -288,13 +308,37 @@ export default function CustomersPage() {
                         {c.customerProfile?.paymentTermsDays || 30} Days
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => handleOpen360(c.id)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] text-xs font-semibold rounded-lg border border-[#7FB706]/30 transition-colors cursor-pointer"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          Customer 360
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Link
+                            to={`/admin/dashboard/customers/${c.id}`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] text-xs font-semibold rounded-lg border border-[#7FB706]/30 transition-colors cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            Customer 360
+                          </Link>
+                          <Link
+                            to={`/admin/dashboard/customers/${c.id}/follow-up`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-semibold rounded-lg border border-amber-500/30 transition-colors cursor-pointer"
+                            title="Payment & Customer Follow-up Hub"
+                          >
+                            <Clock className="w-3.5 h-3.5" />
+                            Follow-up
+                          </Link>
+                          <Link
+                            to={`/admin/dashboard/customers/${c.id}/edit`}
+                            className="p-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 cursor-pointer transition-colors"
+                            title="Edit Customer"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </Link>
+                          <button
+                            onClick={() => handleDeleteCustomer(c.id, c.legalName)}
+                            className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 cursor-pointer transition-colors"
+                            title="Delete Customer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -304,14 +348,22 @@ export default function CustomersPage() {
 
             {/* Mobile Card View (Touch-Optimized) */}
             <div className="lg:hidden p-4 space-y-3">
-              {customers.map((c) => (
+              {customers.map((c, idx) => (
                 <div
                   key={c.id}
                   className="bg-[#0d0d1e] border border-white/5 rounded-xl p-4 space-y-3"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h4 className="font-bold text-white text-base">{c.legalName}</h4>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono text-gray-400 bg-white/5 px-1.5 py-0.5 rounded">#{(page - 1) * 15 + idx + 1}</span>
+                        <Link
+                          to={`/admin/dashboard/customers/${c.id}`}
+                          className="font-bold text-white text-base hover:text-[#7FB706] transition-colors"
+                        >
+                          {c.legalName}
+                        </Link>
+                      </div>
                       {c.tradeName && <p className="text-xs text-gray-400">{c.tradeName}</p>}
                     </div>
                     <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-[#7FB706]/15 text-[#7FB706] shrink-0">
@@ -334,13 +386,40 @@ export default function CustomersPage() {
                     )}
                   </div>
 
-                  <button
-                    onClick={() => handleOpen360(c.id)}
-                    className="w-full py-2 bg-[#7FB706]/10 text-[#7FB706] text-xs font-semibold rounded-lg border border-[#7FB706]/30 flex items-center justify-center gap-2 mt-2"
-                  >
-                    <Eye className="w-4 h-4" />
-                    View Customer 360
-                  </button>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <Link
+                      to={`/admin/dashboard/customers/${c.id}`}
+                      className="min-h-[44px] py-2 bg-[#7FB706]/10 text-[#7FB706] text-xs font-semibold rounded-xl border border-[#7FB706]/30 flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Customer 360
+                    </Link>
+                    <Link
+                      to={`/admin/dashboard/customers/${c.id}/follow-up`}
+                      className="min-h-[44px] py-2 bg-amber-500/10 text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/30 flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Clock className="w-4 h-4" />
+                      Follow-up
+                    </Link>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <Link
+                      to={`/admin/dashboard/customers/${c.id}/edit`}
+                      className="min-h-[40px] py-1.5 bg-blue-500/10 text-blue-400 text-xs font-semibold rounded-xl border border-blue-500/20 flex items-center justify-center gap-1.5 cursor-pointer"
+                      title="Edit Customer"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      Edit Profile
+                    </Link>
+                    <button
+                      onClick={() => handleDeleteCustomer(c.id, c.legalName)}
+                      className="min-h-[40px] py-1.5 bg-red-500/10 text-red-400 text-xs font-semibold rounded-xl border border-red-500/20 flex items-center justify-center gap-1.5 cursor-pointer"
+                      title="Delete Customer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -631,174 +710,7 @@ export default function CustomersPage() {
         </div>
       )}
 
-      {/* Touch-Optimized Create Customer Modal with Real-time Duplicate Warning */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-[#121226] border border-white/10 rounded-2xl w-full max-w-2xl p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-white/5 pb-3">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Plus className="w-5 h-5 text-[#7FB706]" /> New B2B Customer
-              </h3>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="p-1.5 rounded-lg bg-white/5 text-gray-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Real-time Deduplication Alert Banner */}
-            {duplicateMatches.length > 0 && (
-              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-2">
-                <div className="flex items-center gap-2 text-amber-400 font-bold">
-                  <ShieldAlert className="w-4 h-4" /> Potential Duplicate Customer(s) Detected ({duplicateMatches.length})
-                </div>
-                <p className="text-amber-200/90">
-                  Existing records match the legal name, phone, or GSTIN entered:
-                </p>
-                <div className="space-y-1.5">
-                  {duplicateMatches.map((d) => (
-                    <div key={d.id} className="p-2.5 rounded-lg bg-[#0a0a1a] border border-white/5 flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold text-white">{d.legalName}</div>
-                        <div className="text-gray-400 font-mono text-[11px]">
-                          GSTIN: {d.gstin || 'None'} | Phone: {d.phone || 'None'}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCanonicalCustomerId(d.id);
-                          setShowCreateModal(false);
-                          setShowMergeModal(true);
-                        }}
-                        className="px-2.5 py-1.5 text-[11px] font-bold bg-amber-500 hover:bg-amber-400 text-black rounded-lg min-h-[36px]"
-                      >
-                        Merge with this
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <form onSubmit={handleCreateCustomer} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Company Legal Name *</label>
-                  <input
-                    required
-                    type="text"
-                    value={formData.legalName}
-                    onChange={(e) => setFormData({ ...formData, legalName: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
-                    placeholder="e.g. Gencon Infrastructure Pvt. Ltd."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Trade Name (Optional)</label>
-                  <input
-                    type="text"
-                    value={formData.tradeName}
-                    onChange={(e) => setFormData({ ...formData, tradeName: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
-                    placeholder="e.g. Gencon"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Customer Category</label>
-                  <select
-                    value={formData.customerType}
-                    onChange={(e) => setFormData({ ...formData, customerType: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
-                  >
-                    <option value="CONTRACTOR">General Contractor</option>
-                    <option value="ARCHITECT">Architect / Consultant</option>
-                    <option value="CORPORATE">Corporate Client</option>
-                    <option value="INSTITUTIONAL">Institutional / Hospital</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">GSTIN (15 Characters)</label>
-                  <input
-                    type="text"
-                    maxLength={15}
-                    value={formData.gstin}
-                    onChange={(e) => setFormData({ ...formData, gstin: e.target.value.toUpperCase() })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono uppercase focus:outline-none focus:border-[#7FB706]"
-                    placeholder="e.g. 07AAAAG1234A1Z5"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">PAN Number</label>
-                  <input
-                    type="text"
-                    maxLength={10}
-                    value={formData.pan}
-                    onChange={(e) => setFormData({ ...formData, pan: e.target.value.toUpperCase() })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono uppercase focus:outline-none focus:border-[#7FB706]"
-                    placeholder="e.g. AAAAG1234A"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Email</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
-                    placeholder="procurement@gencon.com"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Mobile / Phone</label>
-                  <input
-                    type="tel"
-                    inputMode="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
-                    placeholder="9818592113"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Billing Address Line</label>
-                  <input
-                    type="text"
-                    value={formData.billingAddress}
-                    onChange={(e) => setFormData({ ...formData, billingAddress: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
-                    placeholder="Floor 4, Tower B, Business Park"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 text-sm text-gray-400 hover:text-white"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-white font-semibold text-sm rounded-xl"
-                >
-                  Save Customer
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      
 
       {/* Customer Merge Tool Modal */}
       {showMergeModal && (

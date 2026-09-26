@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useState, useRef } from "react";
 import { supabase, uploadFile, uploadImage } from "@/lib/supabase";
 import { useAdminCatalogs, useAdminProducts } from "@/lib/hooks";
@@ -165,8 +166,13 @@ export default function AdminCatalogs() {
 
   const del = async (id: string) => {
     if (!confirm("Delete this catalog?")) return;
-    await supabase.from("catalogs").delete().eq("id", id);
-    refetch();
+    try {
+      const { error } = await supabase.from("catalogs").delete().eq("id", id);
+      if (error) throw error;
+      refetch();
+    } catch (e: any) {
+      alert("Delete failed: " + (e?.message || "Unknown error"));
+    }
   };
 
   const toggle = async (item: Catalog) => {

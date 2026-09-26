@@ -1,0 +1,58 @@
+{
+  "name": "Pacific Admin Console",
+  "short_name": "Pacific Admin",
+  "description": "Pacific Restroom Cubicle Enterprise ERP & Management Console",
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "window-controls-overlay"],
+  "background_color": "#030213",
+  "theme_color": "#030213",
+  "orientation": "any",
+  "prefer_related_applications": false,
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Create Quotation",
+      "url": "/admin/dashboard/sales-quotations/new",
+      "description": "Draft a new formal sales quotation"
+    },
+    {
+      "name": "Products & Models",
+      "url": "/admin/dashboard/products",
+      "description": "Browse and manage product catalog models"
+    },
+    {
+      "name": "Scan QR Code",
+      "url": "/admin/dashboard/qr-center",
+      "description": "Launch camera QR scanner"
+    }
+  ]
+}

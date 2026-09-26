@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useState, useRef } from "react";
 import { supabase, uploadImage } from "@/lib/supabase";
 import { useAdminBlogs } from "@/lib/hooks";
@@ -68,17 +69,26 @@ export default function AdminBlogs() {
     } catch (e: any) { setErr(e.message); } finally { setSaving(false); }
   };
 
-  const del = async (id: string) => { if (!confirm("Delete this blog post?")) return; await supabase.from("blogs").delete().eq("id", id); refetch(); };
+  const del = async (id: string) => {
+    if (!confirm("Delete this blog post?")) return;
+    try {
+      const { error } = await supabase.from("blogs").delete().eq("id", id);
+      if (error) throw error;
+      refetch();
+    } catch (e: any) {
+      alert("Delete failed: " + (e?.message || "Unknown error"));
+    }
+  };
   const toggle = async (b: Blog) => { const u: Partial<Blog> = { published: !b.published }; if (!b.published) u.published_at = new Date().toISOString(); await supabase.from("blogs").update(u).eq("id", b.id); refetch(); };
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">Blog Posts</h1>
-        <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-[#7FB706] text-white rounded-xl hover:bg-[#6fa005] text-sm font-medium"><Plus className="w-4 h-4" />New Post</button>
+        <Link to="/admin/dashboard/blogs/new" className="flex items-center gap-2 px-4 py-2 bg-[#7FB706] text-white rounded-xl hover:bg-[#6fa005] text-sm font-medium"><Plus className="w-4 h-4" />New Post</Link>
       </div>
       {loading ? <div className="text-gray-400 text-center py-20">Loading…</div> : blogs.length === 0 ? (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-12 text-center"><p className="text-gray-400 mb-4">No posts yet</p><button onClick={openCreate} className="text-[#7FB706] hover:underline text-sm">Write your first post →</button></div>
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-12 text-center"><p className="text-gray-400 mb-4">No posts yet</p><Link to="/admin/dashboard/blogs/new" className="text-[#7FB706] hover:underline text-sm">Write your first post →</Link></div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {blogs.map(b => (

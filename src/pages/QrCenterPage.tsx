@@ -15,7 +15,6 @@ import {
   Sparkles,
   Download,
   Printer,
-  Copy,
   Check,
   ShieldCheck,
   FileText,
@@ -44,7 +43,6 @@ export default function QrCenterPage() {
   const [genEntityId, setGenEntityId] = useState('');
   const [generating, setGenerating] = useState(false);
   const [generatedQr, setGeneratedQr] = useState<any | null>(null);
-  const [copied, setCopied] = useState(false);
 
   // Video & Canvas refs
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -232,11 +230,7 @@ export default function QrCenterPage() {
     }
   };
 
-  const copyQrLink = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+
 
   return (
     <div className="space-y-6">
@@ -608,14 +602,6 @@ export default function QrCenterPage() {
                 </div>
 
                 <div className="flex items-center justify-center gap-2 pt-2">
-                  <button
-                    onClick={() => copyQrLink(generatedQr.qrData || generatedQr.token)}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs text-gray-300 transition-colors min-h-[44px]"
-                  >
-                    {copied ? <Check className="w-3.5 h-3.5 text-[#7FB706]" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copied ? 'Copied' : 'Copy URL'}
-                  </button>
-
                   <a
                     href={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(
                       generatedQr.qrData || `http://localhost:5176/verify/${generatedQr.token}`
@@ -623,7 +609,7 @@ export default function QrCenterPage() {
                     download={`QR_${generatedQr.token}.png`}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-1.5 px-3 py-2 bg-[#7FB706] hover:bg-[#6fa005] rounded-xl text-xs font-semibold text-white transition-colors min-h-[44px]"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-[#7FB706] hover:bg-[#6fa005] rounded-xl text-xs font-semibold text-white transition-colors min-h-[44px]"
                   >
                     <Download className="w-3.5 h-3.5" />
                     Download PNG

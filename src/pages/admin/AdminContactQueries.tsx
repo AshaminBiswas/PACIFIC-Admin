@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { Download, Search, Edit2, Trash2, Plus, X } from "lucide-react";
@@ -28,16 +29,37 @@ export default function AdminContactQueries() {
 
   const fetchQueries = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let items: any[] = [];
+    // Try contact_queries table
+    const { data: cqData, error: cqErr } = await supabase
       .from('contact_queries')
       .select('*')
       .order('created_at', { ascending: false });
       
-    if (error) {
-      console.error("Error fetching queries:", error);
+    if (!cqErr && cqData && cqData.length > 0) {
+      items = cqData;
     } else {
-      setQueries(data || []);
+      // Fallback to leads table
+      const { data: leadData } = await supabase
+        .from('leads')
+        .select('*')
+        .order('createdAt', { ascending: false });
+
+      if (leadData) {
+        items = leadData.map((l: any) => ({
+          ...l,
+          name: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Inquiry Contact',
+          email: l.email || '',
+          phone: l.phone || '',
+          company: l.company || '',
+          requirement: l.requirement || l.notes || 'General Inquiry',
+          message: l.message || '',
+          status: l.status?.toLowerCase() || 'new',
+          created_at: l.createdAt || l.created_at || new Date().toISOString(),
+        }));
+      }
     }
+    setQueries(items);
     setLoading(false);
   };
 
@@ -126,11 +148,13 @@ export default function AdminContactQueries() {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("Are you sure you want to permanently delete this query?")) return;
-    const { error } = await supabase.from('contact_queries').delete().eq('id', id);
-    if (!error) {
+    try {
+      await supabase.from('contact_queries').delete().eq('id', id);
+      await supabase.from('leads').delete().eq('id', id);
+      setQueries((prev) => prev.filter((q) => q.id !== id));
       fetchQueries();
-    } else {
-      alert("Failed to delete: " + error.message);
+    } catch (error: any) {
+      alert("Failed to delete: " + (error?.message || "Unknown error"));
     }
   };
 

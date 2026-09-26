@@ -14,16 +14,33 @@ export default function AdminFeedback() {
 
   const fetchFeedback = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('feedback')
+    let rows: any[] = [];
+    // Try testimonials table first
+    const { data: tData, error: tErr } = await supabase
+      .from('testimonials')
       .select('*')
-      .order('created_at', { ascending: false });
-      
-    if (error) {
-      console.error("Error fetching feedback:", error);
+      .order('createdAt', { ascending: false });
+
+    if (!tErr && tData) {
+      rows = tData;
     } else {
-      setFeedbackList(data || []);
+      // Fallback to feedback table
+      const { data: fData } = await supabase
+        .from('feedback')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (fData) rows = fData;
     }
+
+    // Normalize records
+    const normalized = rows.map((r) => ({
+      ...r,
+      name: r.clientName || r.name || 'Client',
+      stars: r.rating ?? r.stars ?? 5,
+      created_at: r.createdAt || r.created_at || new Date().toISOString(),
+    }));
+
+    setFeedbackList(normalized);
     setLoading(false);
   };
 
@@ -32,9 +49,9 @@ export default function AdminFeedback() {
     const headers = ['Date', 'Name', 'Company', 'Rating', 'Message'];
     const rows = feedbackList.map(f => [
       new Date(f.created_at).toLocaleDateString(),
-      `"${(f.name || '').replace(/"/g, '""')}"`,
+      `"${(f.name || f.clientName || '').replace(/"/g, '""')}"`,
       `"${(f.company || '').replace(/"/g, '""')}"`,
-      f.stars,
+      f.stars ?? f.rating ?? 5,
       `"${(f.message || '').replace(/"/g, '""')}"`,
     ]);
     
@@ -52,18 +69,20 @@ export default function AdminFeedback() {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("Are you sure you want to permanently delete this feedback?")) return;
-    const { error } = await supabase.from('feedback').delete().eq('id', id);
-    if (!error) {
+    try {
+      await supabase.from('testimonials').delete().eq('id', id);
+      await supabase.from('feedback').delete().eq('id', id);
+      setFeedbackList((prev) => prev.filter((item) => item.id !== id));
       fetchFeedback();
-    } else {
-      alert("Failed to delete: " + error.message);
+    } catch (error: any) {
+      alert("Failed to delete: " + (error?.message || "Unknown error"));
     }
   };
 
   const filteredFeedback = feedbackList.filter(f => 
-    f.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    f.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    f.message?.toLowerCase().includes(searchTerm.toLowerCase())
+    (f.name || f.clientName || '')?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (f.company || '')?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (f.message || '')?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (

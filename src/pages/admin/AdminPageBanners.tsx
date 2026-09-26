@@ -11,6 +11,7 @@ import {
   Save,
   Pencil,
   Monitor,
+  Trash2,
 } from "lucide-react";
 
 // Predefined specs per page slug
@@ -85,6 +86,21 @@ export default function AdminPageBanners() {
     } as any).eq("id", banner.id);
     if (err) showToast("error", "Failed to save text.");
     else { showToast("success", "Text updated!"); refetch(); setEditingSlug(null); }
+    setSavingSlug(null);
+  }
+
+  async function handleDeleteBanner(slug: string) {
+    if (!confirm(`Delete banner image for ${PAGE_SPECS[slug]?.label || slug}?`)) return;
+    const banner = getBanner(slug);
+    if (!banner) return;
+    setSavingSlug(slug);
+    const { error: err } = await supabase.from("page_banners").delete().eq("id", banner.id);
+    if (err) {
+      showToast("error", "Failed to delete banner: " + err.message);
+    } else {
+      showToast("success", `${PAGE_SPECS[slug]?.label || slug} banner deleted.`);
+      refetch();
+    }
     setSavingSlug(null);
   }
 
@@ -201,14 +217,26 @@ export default function AdminPageBanners() {
                       onChange={(e) => handleUpload(slug, e)}
                       className="hidden"
                     />
-                    <button
-                      onClick={() => fileInputRefs.current[slug]?.click()}
-                      disabled={isUploading}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-[#7FB706]/40 hover:border-[#7FB706] text-[#7FB706] hover:bg-[#7FB706]/5 text-sm font-semibold rounded-xl transition-all disabled:opacity-60"
-                    >
-                      {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                      {banner?.image_url ? "Replace Image" : "Upload Image"}
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => fileInputRefs.current[slug]?.click()}
+                        disabled={isUploading}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-[#7FB706]/40 hover:border-[#7FB706] text-[#7FB706] hover:bg-[#7FB706]/5 text-sm font-semibold rounded-xl transition-all disabled:opacity-60"
+                      >
+                        {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                        {banner?.image_url ? "Replace Image" : "Upload Image"}
+                      </button>
+                      {banner && (
+                        <button
+                          onClick={() => handleDeleteBanner(slug)}
+                          disabled={isUploading || isSaving}
+                          className="p-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 transition-colors"
+                          title="Delete Banner"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-400 text-center mt-1.5">
                       Recommended: {spec.size} ({spec.ratio}) · Max 10 MB
                     </p>

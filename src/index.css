@@ -3,24 +3,72 @@
 @tailwind utilities;
 
 @layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
   body {
-    @apply bg-gray-50 text-gray-900;
+    background-color: #0a0a1a;
+    color: #f3f4f6;
     font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
 }
 
-/* Smooth scrollbar */
+/* Custom dark scrollbar for independent scroll areas */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 9999px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: rgba(127, 183, 6, 0.6);
+}
+
+/* Utility to hide scrollbars while retaining full scrollability */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none !important; /* IE and Edge */
+  scrollbar-width: none !important; /* Firefox */
+}
+
+/* ─── Global Scrollbar Removal for Small & Touch Devices (Mobile & Tablets) ─── */
+@media (max-width: 1024px), (pointer: coarse) {
+  html,
+  body,
+  #root,
+  *,
+  *::before,
+  *::after {
+    -ms-overflow-style: none !important; /* IE & Edge */
+    scrollbar-width: none !important; /* Firefox */
+  }
+
+  *::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+  }
 }

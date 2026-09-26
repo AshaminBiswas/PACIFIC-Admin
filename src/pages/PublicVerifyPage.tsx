@@ -164,6 +164,16 @@ export default function PublicVerifyPage() {
                       ? 'Proforma Invoice (PI)'
                       : result.document?.documentType === 'PO'
                       ? 'Purchase Order (PO)'
+                      : result.document?.documentType === 'QUOTATION'
+                      ? 'Domestic Quotation'
+                      : result.document?.documentType === 'EXPORT_QUOTATION'
+                      ? 'Export Quotation'
+                      : result.document?.documentType === 'ORDER'
+                      ? 'Sales Order'
+                      : result.document?.documentType === 'PACKING_LIST'
+                      ? 'Packing List / Dispatch Voucher'
+                      : result.document?.documentType === 'HARDWARE_ISSUE'
+                      ? 'Hardware Issue Slip'
                       : result.document?.documentType}
                   </span>
                 </div>

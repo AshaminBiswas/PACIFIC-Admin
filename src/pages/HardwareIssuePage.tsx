@@ -1,15 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Wrench, Search, Plus, Filter, Printer, CheckCircle2,
   Clock, ShieldCheck, Eye, ChevronRight, X, UserCheck,
-  FileText, RefreshCw, Layers, Edit3, CheckSquare, Sparkles
+  FileText, RefreshCw, Layers, Edit3, CheckSquare, Sparkles, Edit, Trash2
 } from 'lucide-react';
 import { hardwareIssueApi, crmApi, salesOrdersApi } from '../api/services';
+import { useAdminAuth } from '../context/AdminAuthContext';
+import DocumentFlowTimelineModal from '../components/common/DocumentFlowTimelineModal';
 import type {
   HardwareIssueList, HardwareCatalogItem, BusinessParty, SalesOrder
 } from '../types/admin';
 
 export default function HardwareIssuePage() {
+  const { user } = useAdminAuth();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
   const [activeTab, setActiveTab] = useState<'ISSUES' | 'CATALOG'>('ISSUES');
 
   // Issues State
@@ -18,6 +24,12 @@ export default function HardwareIssuePage() {
   const [issuesSearch, setIssuesSearch] = useState('');
   const [issuesPage, setIssuesPage] = useState(1);
   const [issuesTotalPages, setIssuesTotalPages] = useState(1);
+  const [selectedIssueForTimeline, setSelectedIssueForTimeline] = useState<HardwareIssueList | null>(null);
+
+  // Edit State
+  const [editingIssue, setEditingIssue] = useState<HardwareIssueList | null>(null);
+  const [editIssueForm, setEditIssueForm] = useState<any>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Catalog State
   const [catalogItems, setCatalogItems] = useState<HardwareCatalogItem[]>([]);
@@ -30,70 +42,45 @@ export default function HardwareIssuePage() {
   const [orders, setOrders] = useState<SalesOrder[]>([]);
 
   // Modals
-  const [showCreateIssueModal, setShowCreateIssueModal] = useState(false);
+  const [signModalIssue, setSignModalIssue] = useState<HardwareIssueList | null>(null);
+  const [signRole, setSignRole] = useState<string>('');
+  const [signName, setSignName] = useState('');
+  
+  interface CatalogFormState {
+    id: string;
+    name: string;
+    category: string;
+    defaultSize: string;
+    defaultColor: string;
+    sortOrder: number;
+  }
+  const [catalogForm, setCatalogForm] = useState<CatalogFormState>({ id: '', name: '', category: 'Cubicle Hardware', defaultSize: 'Standard', defaultColor: 'Black', sortOrder: 0 });
   const [showCatalogModal, setShowCatalogModal] = useState(false);
   const [previewIssue, setPreviewIssue] = useState<HardwareIssueList | null>(null);
-  const [signModalIssue, setSignModalIssue] = useState<HardwareIssueList | null>(null);
-  const [signRole, setSignRole] = useState<'storeKeeper' | 'packedBy' | 'checkedBy' | 'incharge'>('checkedBy');
-  const [signName, setSignName] = useState('');
+  const [pdfHtml, setPdfHtml] = useState<string>('');
+  const [loadingPdf, setLoadingPdf] = useState<boolean>(false);
 
-  // Catalog Item Form
-  const [catalogForm, setCatalogForm] = useState({
-    id: '',
-    name: '',
-    category: 'Cubicle Hardware',
-    defaultSize: 'Standard',
-    defaultColor: 'Black',
-    sortOrder: 0,
-  });
-
-  // Issue Creation Form
-  const [issueForm, setIssueForm] = useState({
-    customerId: '',
-    orderId: '',
-    buyerName: '',
-    buyerAddress: '',
-    projectName: 'Commercial Cubicle Installation',
-    storeKeeperName: 'Store Keeper',
-    items: [
-      {
-        serialNumber: 1,
-        hardwareCatalogItemId: '',
-        description: 'Gravity Hinges (Grade A Nylon)',
-        category: 'Cubicle Hardware',
-        color: 'Black',
-        size: 'Standard',
-        quantity: 10,
-        remarks: 'Left & Right pairs',
-        isCustomItem: false,
-        promoteToCatalog: false,
-      },
-      {
-        serialNumber: 2,
-        hardwareCatalogItemId: '',
-        description: 'Privacy Indicator Bolt Lock',
-        category: 'Cubicle Hardware',
-        color: 'Black',
-        size: 'Standard',
-        quantity: 5,
-        remarks: 'Red/Green occupancy dial',
-        isCustomItem: false,
-        promoteToCatalog: false,
-      },
-      {
-        serialNumber: 3,
-        hardwareCatalogItemId: '',
-        description: 'Coat Hook with Rubber Buffer',
-        category: 'Cubicle Hardware',
-        color: 'Black',
-        size: 'Standard',
-        quantity: 5,
-        remarks: '',
-        isCustomItem: false,
-        promoteToCatalog: false,
-      },
-    ],
-  });
+  const handleOpenPreview = async (hi: HardwareIssueList) => {
+    setPreviewIssue(hi);
+    setLoadingPdf(true);
+    try {
+      const token = localStorage.getItem('pacific_access_token');
+      const res = await fetch(hardwareIssueApi.getPdfUrl(hi.id), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const html = await res.text();
+        setPdfHtml(html);
+      } else {
+        setPdfHtml('<div style="color:red;padding:20px;font-family:sans-serif;">Failed to load Hardware Issue preview</div>');
+      }
+    } catch (e) {
+      console.error('Error loading PDF preview:', e);
+      setPdfHtml('<div style="color:red;padding:20px;font-family:sans-serif;">Error connecting to preview service</div>');
+    } finally {
+      setLoadingPdf(false);
+    }
+  };
 
   const fetchIssues = useCallback(async () => {
     setLoadingIssues(true);
@@ -151,38 +138,7 @@ export default function HardwareIssuePage() {
     loadLookups();
   }, [loadLookups]);
 
-  // Customer selection auto-fill
-  const handleCustomerSelect = (custId: string) => {
-    const cust = customers.find((c) => c.id === custId);
-    if (cust) {
-      setIssueForm((prev) => ({
-        ...prev,
-        customerId: cust.id,
-        buyerName: cust.legalName,
-        buyerAddress: cust.addresses?.[0]?.addressLine1 || '',
-        projectName: `${cust.legalName} Restroom Installation`,
-      }));
-    } else {
-      setIssueForm((prev) => ({ ...prev, customerId: custId }));
-    }
-  };
 
-  // Order selection auto-fill
-  const handleOrderSelect = (ordId: string) => {
-    const ord = orders.find((o) => o.id === ordId);
-    if (ord) {
-      setIssueForm((prev) => ({
-        ...prev,
-        orderId: ord.id,
-        customerId: ord.customerId,
-        buyerName: ord.customer?.legalName || '',
-        buyerAddress: ord.siteAddress || ord.customer?.addresses?.[0]?.addressLine1 || '',
-        projectName: ord.siteName || `${ord.customer?.legalName} Installation`,
-      }));
-    } else {
-      setIssueForm((prev) => ({ ...prev, orderId: ordId }));
-    }
-  };
 
   // Sign step
   const handleSignStep = async () => {
@@ -197,6 +153,53 @@ export default function HardwareIssuePage() {
       fetchIssues();
     } catch (err: any) {
       alert(err.response?.data?.message || err.message || 'Signing failed');
+    }
+  };
+
+  const handleStartEditIssue = (hi: HardwareIssueList) => {
+    setEditingIssue(hi);
+    setEditIssueForm({
+      buyerName: hi.buyerName || '',
+      buyerAddress: hi.buyerAddress || '',
+      projectName: hi.projectName || '',
+      storeKeeperName: hi.storeKeeperName || '',
+      packedByName: hi.packedByName || '',
+      checkedByName: hi.checkedByName || '',
+      inchargeName: hi.inchargeName || '',
+      status: hi.status || 'ISSUED',
+      items: hi.items ? hi.items.map((it: any) => ({
+        id: it.id,
+        description: it.description || '',
+        category: it.category || 'Cubicle Hardware',
+        color: it.color || '',
+        size: it.size || '',
+        quantity: Number(it.quantity) || 1,
+        remarks: it.remarks || '',
+      })) : [],
+    });
+  };
+
+  const handleSaveIssueEdit = async () => {
+    if (!editingIssue) return;
+    setSavingEdit(true);
+    try {
+      await hardwareIssueApi.updateIssue(editingIssue.id, editIssueForm);
+      setEditingIssue(null);
+      fetchIssues();
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || 'Failed to update Hardware Issue List');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDeleteIssue = async (id: string, num: string) => {
+    if (!confirm(`Are you sure you want to permanently delete Hardware Issue ${num}? This action cannot be undone.`)) return;
+    try {
+      await hardwareIssueApi.deleteIssue(id);
+      fetchIssues();
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || 'Failed to delete Hardware Issue List');
     }
   };
 
@@ -220,57 +223,7 @@ export default function HardwareIssuePage() {
     }
   };
 
-  // Add Item to Issue
-  const addIssueItemRow = () => {
-    setIssueForm((prev) => ({
-      ...prev,
-      items: [
-        ...prev.items,
-        {
-          serialNumber: prev.items.length + 1,
-          hardwareCatalogItemId: '',
-          description: 'Adjustable Supporting Leg / Shoebox',
-          category: 'Cubicle Hardware',
-          color: 'Black',
-          size: '100-150mm',
-          quantity: 2,
-          remarks: '',
-          isCustomItem: false,
-          promoteToCatalog: false,
-        },
-      ],
-    }));
-  };
 
-  const removeIssueItemRow = (idx: number) => {
-    if (issueForm.items.length <= 1) return;
-    setIssueForm((prev) => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== idx).map((it, n) => ({ ...it, serialNumber: n + 1 })),
-    }));
-  };
-
-  const handleIssueItemChange = (idx: number, field: string, val: any) => {
-    setIssueForm((prev) => {
-      const updated = [...prev.items];
-      updated[idx] = { ...updated[idx], [field]: val };
-      return { ...prev, items: updated };
-    });
-  };
-
-  const handleCreateIssue = async () => {
-    try {
-      if (!issueForm.customerId) {
-        alert('Please select a customer');
-        return;
-      }
-      await hardwareIssueApi.createIssue(issueForm);
-      setShowCreateIssueModal(false);
-      fetchIssues();
-    } catch (err: any) {
-      alert(err.response?.data?.message || err.message || 'Failed to create issue list');
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -292,13 +245,13 @@ export default function HardwareIssuePage() {
 
         <div className="flex items-center gap-2">
           {activeTab === 'ISSUES' ? (
-            <button
-              onClick={() => setShowCreateIssueModal(true)}
+            <Link
+              to="/admin/dashboard/issue-lists/new"
               className="inline-flex items-center justify-center gap-2 px-5 py-3 min-h-[48px] bg-[#7FB706] hover:bg-[#6fa005] text-white font-semibold rounded-xl shadow-lg shadow-[#7FB706]/20 transition-all cursor-pointer"
             >
               <Plus className="w-5 h-5" />
               Issue Hardware Set
-            </button>
+            </Link>
           ) : (
             <button
               onClick={() => {
@@ -383,6 +336,7 @@ export default function HardwareIssuePage() {
                   <table className="w-full text-left text-sm text-gray-300">
                     <thead className="bg-[#0a0a1a] text-xs uppercase text-gray-500 border-b border-white/5">
                       <tr>
+                        <th className="py-3 px-4 text-center w-12">#</th>
                         <th className="py-3 px-4">Issue Ref</th>
                         <th className="py-3 px-4">Buyer & Project</th>
                         <th className="py-3 px-4">Date</th>
@@ -393,10 +347,17 @@ export default function HardwareIssuePage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {issues.map((hi) => {
+                      {issues.map((hi, idx) => {
                         const totalPieces = hi.items.reduce((s, it) => s + Number(it.quantity), 0);
                         return (
-                          <tr key={hi.id} className="hover:bg-white/[0.02] transition-colors">
+                          <tr
+                            key={hi.id}
+                            onClick={() => setSelectedIssueForTimeline(hi)}
+                            className="hover:bg-white/[0.02] transition-colors cursor-pointer"
+                          >
+                            <td className="py-3 px-4 text-center font-mono text-gray-400 text-xs">
+                              {(issuesPage - 1) * 15 + idx + 1}
+                            </td>
                             <td className="py-3 px-4">
                               <div className="font-mono font-semibold text-white">{hi.issueNumber}</div>
                               {hi.order && (
@@ -429,10 +390,18 @@ export default function HardwareIssuePage() {
                                 {hi.status}
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-right">
+                            <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-1.5">
                                 <button
-                                  onClick={() => setPreviewIssue(hi)}
+                                  onClick={() => setSelectedIssueForTimeline(hi)}
+                                  className="p-2 rounded-lg bg-[#7FB706]/15 hover:bg-[#7FB706]/25 text-[#B5F823] border border-[#7FB706]/30 cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center transition-colors shadow-sm"
+                                  title="View Document Flow Timeline (Status & Next Steps)"
+                                >
+                                  <Layers className="w-4 h-4" />
+                                </button>
+
+                                <button
+                                  onClick={() => handleOpenPreview(hi)}
                                   className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center"
                                   title="Preview Checklist"
                                 >
@@ -447,6 +416,22 @@ export default function HardwareIssuePage() {
                                 >
                                   <Printer className="w-4 h-4" />
                                 </a>
+                                <button
+                                  onClick={() => handleStartEditIssue(hi)}
+                                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-amber-300 cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center"
+                                  title="Edit Issue List"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+
+                                <button
+                                  onClick={() => handleDeleteIssue(hi.id, hi.issueNumber)}
+                                  className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center"
+                                  title="Delete Issue List"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+
                                 {hi.status !== 'VERIFIED' && (
                                   <button
                                     onClick={() => {
@@ -472,13 +457,16 @@ export default function HardwareIssuePage() {
 
                 {/* Mobile Cards View */}
                 <div className="md:hidden divide-y divide-white/5">
-                  {issues.map((hi) => {
+                  {issues.map((hi, idx) => {
                     const totalPieces = hi.items.reduce((s, it) => s + Number(it.quantity), 0);
                     return (
                       <div key={hi.id} className="p-4 space-y-3">
                         <div className="flex items-start justify-between">
                           <div>
-                            <div className="font-mono font-bold text-white">{hi.issueNumber}</div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-mono text-gray-400 bg-white/5 px-1.5 py-0.5 rounded">#{(issuesPage - 1) * 15 + idx + 1}</span>
+                              <div className="font-mono font-bold text-white">{hi.issueNumber}</div>
+                            </div>
                             <div className="text-xs text-gray-400">{hi.buyerName}</div>
                           </div>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -491,12 +479,18 @@ export default function HardwareIssuePage() {
                           <div>{totalPieces} Pieces ({hi.items.length} SKUs)</div>
                           <div>{new Date(hi.date).toLocaleDateString('en-GB')}</div>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
+                        <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-white/5">
                           <button
-                            onClick={() => setPreviewIssue(hi)}
-                            className="min-h-[44px] flex items-center justify-center gap-1.5 text-xs font-semibold bg-white/5 hover:bg-white/10 text-white rounded-xl"
+                            onClick={() => setSelectedIssueForTimeline(hi)}
+                            className="min-h-[44px] flex items-center justify-center gap-1 text-xs font-semibold bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30 rounded-xl"
                           >
-                            <Eye className="w-4 h-4" /> Preview
+                            <Layers className="w-3.5 h-3.5" /> Flow
+                          </button>
+                          <button
+                            onClick={() => handleOpenPreview(hi)}
+                            className="min-h-[44px] flex items-center justify-center gap-1 text-xs font-semibold bg-white/5 hover:bg-white/10 text-white rounded-xl"
+                          >
+                            <Eye className="w-3.5 h-3.5" /> View
                           </button>
                           {hi.status !== 'VERIFIED' ? (
                             <button
@@ -520,6 +514,21 @@ export default function HardwareIssuePage() {
                               <Printer className="w-4 h-4" /> Print PDF
                             </a>
                           )}
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                          <button
+                            onClick={() => handleStartEditIssue(hi)}
+                            className="flex-1 min-h-[40px] flex items-center justify-center gap-1.5 text-xs font-semibold bg-white/5 hover:bg-white/10 text-amber-300 rounded-xl cursor-pointer"
+                          >
+                            <Edit className="w-3.5 h-3.5" /> Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteIssue(hi.id, hi.issueNumber)}
+                            className="flex-1 min-h-[40px] flex items-center justify-center gap-1.5 text-xs font-semibold bg-red-500/10 text-red-400 rounded-xl cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                          </button>
                         </div>
                       </div>
                     );
@@ -570,6 +579,7 @@ export default function HardwareIssuePage() {
                 <table className="w-full text-left text-sm text-gray-300">
                   <thead className="bg-[#0a0a1a] text-xs uppercase text-gray-500 border-b border-white/5">
                     <tr>
+                      <th className="py-3 px-4 text-center w-12">#</th>
                       <th className="py-3 px-4">Item Name</th>
                       <th className="py-3 px-4">Category</th>
                       <th className="py-3 px-4">Default Size</th>
@@ -581,8 +591,9 @@ export default function HardwareIssuePage() {
                   <tbody className="divide-y divide-white/5">
                     {catalogItems
                       .filter((c) => !catalogSearch || c.name.toLowerCase().includes(catalogSearch.toLowerCase()))
-                      .map((item) => (
+                      .map((item, idx) => (
                         <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
+                          <td className="py-3 px-4 text-center font-mono text-gray-400 text-xs">{idx + 1}</td>
                           <td className="py-3 px-4 font-semibold text-white">{item.name}</td>
                           <td className="py-3 px-4 text-xs text-gray-400">{item.category}</td>
                           <td className="py-3 px-4 text-xs font-mono">{item.defaultSize || '-'}</td>
@@ -767,157 +778,6 @@ export default function HardwareIssuePage() {
         </div>
       )}
 
-      {/* Create Issue Modal */}
-      {showCreateIssueModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/75 backdrop-blur-md overflow-y-auto">
-          <div className="bg-[#121226] border border-white/10 rounded-2xl w-full max-w-4xl p-5 sm:p-6 space-y-4 max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Wrench className="w-5 h-5 text-[#7FB706]" /> Issue Hardware Package (PPS/HIL/...)
-              </h3>
-              <button onClick={() => setShowCreateIssueModal(false)} className="text-gray-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Customer *</label>
-                  <select
-                    value={issueForm.customerId}
-                    onChange={(e) => handleCustomerSelect(e.target.value)}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white min-h-[44px]"
-                  >
-                    <option value="">-- Select Customer --</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>{c.legalName}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Linked Order (Optional)</label>
-                  <select
-                    value={issueForm.orderId}
-                    onChange={(e) => handleOrderSelect(e.target.value)}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white min-h-[44px]"
-                  >
-                    <option value="">-- Standalone / Select Order --</option>
-                    {orders.map((o) => (
-                      <option key={o.id} value={o.id}>{o.orderNumber} - {o.customer?.legalName}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Project Name</label>
-                  <input
-                    type="text"
-                    value={issueForm.projectName}
-                    onChange={(e) => setIssueForm({ ...issueForm, projectName: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white min-h-[44px]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Store Keeper Signatory</label>
-                  <input
-                    type="text"
-                    value={issueForm.storeKeeperName}
-                    onChange={(e) => setIssueForm({ ...issueForm, storeKeeperName: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white min-h-[44px]"
-                  />
-                </div>
-              </div>
-
-              {/* Items List */}
-              <div className="space-y-3 pt-2">
-                <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">
-                  Hardware Pieces to Issue
-                </span>
-                {issueForm.items.map((it, idx) => (
-                  <div key={idx} className="p-3 bg-[#0a0a1a] border border-white/10 rounded-xl space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-mono font-bold text-[#7FB706]">Piece #{it.serialNumber}</span>
-                      {issueForm.items.length > 1 && (
-                        <button type="button" onClick={() => removeIssueItemRow(idx)} className="text-xs text-red-400 p-1">
-                          Remove
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <input
-                        type="text"
-                        value={it.description}
-                        onChange={(e) => handleIssueItemChange(idx, 'description', e.target.value)}
-                        placeholder="Hardware Description"
-                        className="w-full bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-xs text-white min-h-[44px]"
-                      />
-                      <input
-                        type="text"
-                        value={it.color}
-                        onChange={(e) => handleIssueItemChange(idx, 'color', e.target.value)}
-                        placeholder="Color (e.g. Black, SS)"
-                        className="w-full bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-xs text-white min-h-[44px]"
-                      />
-                      <input
-                        type="text"
-                        value={it.size}
-                        onChange={(e) => handleIssueItemChange(idx, 'size', e.target.value)}
-                        placeholder="Size"
-                        className="w-full bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-xs text-white min-h-[44px]"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 items-center">
-                      <input
-                        type="number"
-                        min="1"
-                        value={it.quantity}
-                        onChange={(e) => handleIssueItemChange(idx, 'quantity', Number(e.target.value))}
-                        placeholder="Quantity"
-                        className="w-full bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-xs text-white min-h-[44px]"
-                      />
-                      <input
-                        type="text"
-                        value={it.remarks}
-                        onChange={(e) => handleIssueItemChange(idx, 'remarks', e.target.value)}
-                        placeholder="Remarks / Box Label"
-                        className="col-span-2 w-full bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-xs text-white min-h-[44px]"
-                      />
-                    </div>
-                  </div>
-                ))}
-
-                <button
-                  type="button"
-                  onClick={addIssueItemRow}
-                  className="w-full py-2 border-2 border-dashed border-white/10 hover:border-[#7FB706]/40 text-gray-400 hover:text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 min-h-[44px]"
-                >
-                  <Plus className="w-4 h-4" /> Add Hardware Piece
-                </button>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-white/10">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateIssueModal(false)}
-                  className="px-4 py-2 bg-white/5 text-gray-300 rounded-xl text-xs min-h-[44px]"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCreateIssue}
-                  className="px-6 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-white font-bold rounded-xl text-xs min-h-[44px]"
-                >
-                  Issue Hardware Checklist
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Vector A4 Printable Preview Modal */}
       {previewIssue && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md">
@@ -933,32 +793,314 @@ export default function HardwareIssuePage() {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <a
-                  href={hardwareIssueApi.getPdfUrl(previewIssue.id)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs font-bold rounded-lg flex items-center gap-1.5 min-h-[40px]"
+                <button
+                  onClick={() => {
+                    const printWindow = window.open('', '_blank');
+                    if (printWindow && pdfHtml) {
+                      printWindow.document.write(pdfHtml);
+                      printWindow.document.close();
+                      printWindow.focus();
+                      printWindow.print();
+                    } else {
+                      window.open(hardwareIssueApi.getPdfUrl(previewIssue.id), '_blank');
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs font-bold rounded-lg flex items-center gap-1.5 min-h-[40px] cursor-pointer"
                 >
                   <Printer className="w-4 h-4" /> Print / PDF
-                </a>
+                </button>
                 <button
-                  onClick={() => setPreviewIssue(null)}
-                  className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-white"
+                  onClick={() => {
+                    setPreviewIssue(null);
+                    setPdfHtml('');
+                  }}
+                  className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-white cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 bg-gray-900 p-2 sm:p-4 overflow-hidden">
-              <iframe
-                src={hardwareIssueApi.getPdfUrl(previewIssue.id)}
-                title="Hardware Issue List Preview"
-                className="w-full h-full bg-white rounded-lg shadow-2xl border-0"
-              />
+            <div className="flex-1 bg-gray-900 p-2 sm:p-4 overflow-hidden flex items-center justify-center">
+              {loadingPdf ? (
+                <div className="text-gray-400 text-sm animate-pulse">Loading hardware issue preview...</div>
+              ) : (
+                <iframe
+                  srcDoc={pdfHtml}
+                  title="Hardware Issue List Preview"
+                  className="w-full h-full bg-white rounded-lg shadow-2xl border-0"
+                />
+              )}
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit Hardware Issue Modal */}
+      {editingIssue && editIssueForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md">
+          <div className="bg-[#121226] border border-white/10 rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-[#0a0a1a]">
+              <div className="flex items-center gap-2">
+                <Edit className="w-5 h-5 text-amber-400" />
+                <h3 className="text-sm font-bold text-white">
+                  Edit Hardware Issue — <span className="font-mono text-[#7FB706]">{editingIssue.issueNumber}</span>
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingIssue(null)}
+                className="p-1 rounded-lg text-gray-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-gray-300 mb-1">Buyer / Consignee Name *</label>
+                  <input
+                    type="text"
+                    value={editIssueForm.buyerName}
+                    onChange={(e) => setEditIssueForm({ ...editIssueForm, buyerName: e.target.value })}
+                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2.5 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-gray-300 mb-1">Project Name</label>
+                  <input
+                    type="text"
+                    value={editIssueForm.projectName}
+                    onChange={(e) => setEditIssueForm({ ...editIssueForm, projectName: e.target.value })}
+                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2.5 text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-300 mb-1">Buyer Address</label>
+                <input
+                  type="text"
+                  value={editIssueForm.buyerAddress}
+                  onChange={(e) => setEditIssueForm({ ...editIssueForm, buyerAddress: e.target.value })}
+                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2.5 text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block font-semibold text-gray-300 mb-1">Store Keeper</label>
+                  <input
+                    type="text"
+                    value={editIssueForm.storeKeeperName}
+                    onChange={(e) => setEditIssueForm({ ...editIssueForm, storeKeeperName: e.target.value })}
+                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-gray-300 mb-1">Packed By</label>
+                  <input
+                    type="text"
+                    value={editIssueForm.packedByName}
+                    onChange={(e) => setEditIssueForm({ ...editIssueForm, packedByName: e.target.value })}
+                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-gray-300 mb-1">Checked By</label>
+                  <input
+                    type="text"
+                    value={editIssueForm.checkedByName}
+                    onChange={(e) => setEditIssueForm({ ...editIssueForm, checkedByName: e.target.value })}
+                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-gray-300 mb-1">Incharge</label>
+                  <input
+                    type="text"
+                    value={editIssueForm.inchargeName}
+                    onChange={(e) => setEditIssueForm({ ...editIssueForm, inchargeName: e.target.value })}
+                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-300 mb-1">Status</label>
+                <select
+                  value={editIssueForm.status}
+                  onChange={(e) => setEditIssueForm({ ...editIssueForm, status: e.target.value })}
+                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2.5 text-white"
+                >
+                  <option value="ISSUED">ISSUED</option>
+                  <option value="PACKED">PACKED</option>
+                  <option value="CHECKED">CHECKED</option>
+                  <option value="VERIFIED">VERIFIED</option>
+                </select>
+              </div>
+
+              {/* Items Section */}
+              <div className="pt-2 border-t border-white/10">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold text-gray-200">Hardware Items ({editIssueForm.items?.length || 0})</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = [...(editIssueForm.items || [])];
+                      updated.push({
+                        description: '',
+                        category: 'Cubicle Hardware',
+                        color: 'Black',
+                        size: 'Standard',
+                        quantity: 1,
+                        remarks: '',
+                      });
+                      setEditIssueForm({ ...editIssueForm, items: updated });
+                    }}
+                    className="text-xs text-[#7FB706] hover:text-[#90ce08] font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Piece
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {editIssueForm.items?.map((item: any, idx: number) => (
+                    <div key={idx} className="p-2.5 bg-[#0a0a1a] border border-white/5 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-mono text-gray-400">Piece #{idx + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = editIssueForm.items.filter((_: any, i: number) => i !== idx);
+                            setEditIssueForm({ ...editIssueForm, items: updated });
+                          }}
+                          className="text-red-400 hover:text-red-300 p-1 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <input
+                          type="text"
+                          placeholder="Description"
+                          value={item.description}
+                          onChange={(e) => {
+                            const updated = [...editIssueForm.items];
+                            updated[idx].description = e.target.value;
+                            setEditIssueForm({ ...editIssueForm, items: updated });
+                          }}
+                          className="col-span-1 sm:col-span-2 bg-[#121226] border border-white/10 rounded-lg p-2 text-white text-xs"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Category"
+                          value={item.category}
+                          onChange={(e) => {
+                            const updated = [...editIssueForm.items];
+                            updated[idx].category = e.target.value;
+                            setEditIssueForm({ ...editIssueForm, items: updated });
+                          }}
+                          className="bg-[#121226] border border-white/10 rounded-lg p-2 text-white text-xs"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <input
+                          type="text"
+                          placeholder="Color"
+                          value={item.color}
+                          onChange={(e) => {
+                            const updated = [...editIssueForm.items];
+                            updated[idx].color = e.target.value;
+                            setEditIssueForm({ ...editIssueForm, items: updated });
+                          }}
+                          className="bg-[#121226] border border-white/10 rounded-lg p-2 text-white text-xs"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Size"
+                          value={item.size}
+                          onChange={(e) => {
+                            const updated = [...editIssueForm.items];
+                            updated[idx].size = e.target.value;
+                            setEditIssueForm({ ...editIssueForm, items: updated });
+                          }}
+                          className="bg-[#121226] border border-white/10 rounded-lg p-2 text-white text-xs"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Qty"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => {
+                            const updated = [...editIssueForm.items];
+                            updated[idx].quantity = Number(e.target.value) || 1;
+                            setEditIssueForm({ ...editIssueForm, items: updated });
+                          }}
+                          className="bg-[#121226] border border-white/10 rounded-lg p-2 text-white text-xs"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Remarks"
+                          value={item.remarks}
+                          onChange={(e) => {
+                            const updated = [...editIssueForm.items];
+                            updated[idx].remarks = e.target.value;
+                            setEditIssueForm({ ...editIssueForm, items: updated });
+                          }}
+                          className="bg-[#121226] border border-white/10 rounded-lg p-2 text-white text-xs"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-5 py-3 border-t border-white/10 bg-[#0a0a1a]">
+              <button
+                type="button"
+                onClick={() => setEditingIssue(null)}
+                className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveIssueEdit}
+                disabled={savingEdit}
+                className="px-5 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-white font-bold rounded-xl text-xs disabled:opacity-50 cursor-pointer"
+              >
+                {savingEdit ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Flow Timeline Modal for Individual Issue Lists */}
+      {selectedIssueForTimeline && (
+        <DocumentFlowTimelineModal
+          isOpen={!!selectedIssueForTimeline}
+          onClose={() => setSelectedIssueForTimeline(null)}
+          title="Hardware Store Issue (HIL)"
+          stage={7}
+          documentRef={selectedIssueForTimeline.issueNumber}
+          currentStatus={selectedIssueForTimeline.status}
+          statusDescription="Store picklist for 44 cubicle hardware catalog items with sequential 4-role installer sign-off protocol."
+          linkedDocs={{
+            issueListId: selectedIssueForTimeline.id,
+            hilNumber: selectedIssueForTimeline.issueNumber,
+            orderId: selectedIssueForTimeline.order?.id,
+            orderNumber: selectedIssueForTimeline.order?.orderNumber,
+          }}
+          primaryDetailUrl={
+            selectedIssueForTimeline.order?.id
+              ? `/admin/dashboard/sales-orders/${selectedIssueForTimeline.order.id}`
+              : undefined
+          }
+        />
       )}
     </div>
   );

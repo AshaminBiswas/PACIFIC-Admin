@@ -9,21 +9,31 @@ export default function ProtectedRoute() {
   const [status, setStatus] = useState<"checking" | "authenticated" | "unauthenticated">("checking");
 
   useEffect(() => {
-    if (!isSupabaseConfigured()) {
-      setStatus("unauthenticated");
+    // 1. Primary check: Pacific Backend JWT token
+    const token = localStorage.getItem("pacific_access_token");
+    if (token) {
+      setStatus("authenticated");
       return;
     }
 
-    supabase.auth.getSession().then(({ data }) => {
-      setStatus(data.session ? "authenticated" : "unauthenticated");
-    });
+    // 2. Fallback check: Supabase Auth session
+    if (isSupabaseConfigured()) {
+      supabase.auth.getSession().then(({ data }) => {
+        setStatus(data.session ? "authenticated" : "unauthenticated");
+      }).catch(() => {
+        setStatus("unauthenticated");
+      });
 
-    // Keep the guard reactive to sign-out/sign-in events from other tabs.
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setStatus(session ? "authenticated" : "unauthenticated");
-    });
+      const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (!localStorage.getItem("pacific_access_token")) {
+          setStatus(session ? "authenticated" : "unauthenticated");
+        }
+      });
 
-    return () => listener.subscription.unsubscribe();
+      return () => listener.subscription.unsubscribe();
+    } else {
+      setStatus("unauthenticated");
+    }
   }, []);
 
   if (status === "checking") {

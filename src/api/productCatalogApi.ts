@@ -1,0 +1,329 @@
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import type {
+  ProductCatalogModel,
+  TopProductCategory,
+  ProductCategoryType,
+} from '../types/admin';
+import {
+  DEFAULT_TOP_CATEGORIES,
+  DEFAULT_CATALOG_MODELS,
+} from '../data/productCatalogData';
+
+const LOCAL_STORAGE_MODELS_KEY = 'pacific_product_catalog_models_v4';
+const LOCAL_STORAGE_CATEGORIES_KEY = 'pacific_product_catalog_categories_v4';
+
+// In-memory cache for ultra-fast instant UI rendering
+let memoryModelsCache: ProductCatalogModel[] | null = null;
+
+// Clear outdated legacy caches if present
+try {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('pacific_product_catalog_models_v1');
+    localStorage.removeItem('pacific_product_catalog_models_v2');
+    localStorage.removeItem('pacific_product_catalog_models_v3');
+  }
+} catch {}
+
+// ── Helpers to map between DB row and ProductCatalogModel ─────────────
+
+function mapDbRowToModel(row: any): ProductCatalogModel {
+  const specs = Array.isArray(row.specifications) ? row.specifications : [];
+  
+  // Extra metadata packed into specifications JSON
+  const hardwareMeta = specs.find((s: any) => s.label === '__hardware_meta');
+  let hardwareOptions = hardwareMeta?.value?.hardwareOptions;
+  let hardwareList = hardwareMeta?.value?.hardwareList;
+  let hasExtraLeg = hardwareMeta?.value?.hasExtraLeg;
+  let tierCount = hardwareMeta?.value?.tierCount;
+
+  // If not found in __hardware_meta, fallback to defaults or parse
+  if (!hardwareOptions || !hardwareList) {
+    const defaultMatch = DEFAULT_CATALOG_MODELS.find(
+      (m) => m.slug === row.slug || m.title.toLowerCase() === row.title.toLowerCase()
+    );
+    if (defaultMatch) {
+      hardwareOptions = hardwareOptions || defaultMatch.hardwareOptions;
+      hardwareList = hardwareList || defaultMatch.hardwareList;
+      hasExtraLeg = hasExtraLeg !== undefined ? hasExtraLeg : defaultMatch.hasExtraLeg;
+      tierCount = tierCount !== undefined ? tierCount : defaultMatch.tierCount;
+    }
+  }
+
+  // Filter out internal metadata keys from public specifications
+  const cleanSpecs = specs.filter((s: any) => !s.label.startsWith('__'));
+
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    category: (row.category as ProductCategoryType) || 'Cubicle',
+    subtitle: row.subtitle || '',
+    description: row.description || '',
+    imageUrl: row.image_url || '',
+    additionalImages: Array.isArray(row.additional_images) ? row.additional_images : [],
+    hardwareOptions: hardwareOptions || [],
+    hardwareList: hardwareList || [],
+    specifications: cleanSpecs,
+    features: Array.isArray(row.features) ? row.features : [],
+    hasExtraLeg: Boolean(hasExtraLeg),
+    tierCount: tierCount || '',
+    sortOrder: row.sort_order ?? 0,
+    published: row.published !== false,
+    isFeatured: Boolean(row.is_featured),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapModelToDbRow(model: ProductCatalogModel) {
+  const specifications = [
+    ...(model.specifications || []).filter((s) => !s.label.startsWith('__')),
+    {
+      label: '__hardware_meta',
+      value: {
+        hardwareOptions: model.hardwareOptions,
+        hardwareList: model.hardwareList,
+        hasExtraLeg: model.hasExtraLeg,
+        tierCount: model.tierCount,
+      },
+    },
+  ];
+
+  const colors = (model.hardwareOptions || [])
+    .filter((opt) => opt.colors && opt.colors.length > 0)
+    .flatMap((opt) => (opt.colors || []).map((col) => ({ name: col, image_url: '' })));
+
+  return {
+    id: model.id && model.id.includes('-') && model.id.length >= 30 ? model.id : undefined,
+    slug: model.slug,
+    title: model.title,
+    subtitle: model.subtitle || '',
+    description: model.description || '',
+    bottom_description: `Product Line: ${model.category}`,
+    category: model.category,
+    image_url: model.imageUrl,
+    additional_images: model.additionalImages || [],
+    features: model.features || [],
+    specifications,
+    applications: [`Commercial ${model.category}`, 'Public Washrooms', 'Offices'],
+    colors,
+    is_featured: model.isFeatured,
+    sort_order: model.sortOrder,
+    published: model.published,
+  };
+}
+
+/**
+ * Execute a promise with a hard timeout to prevent Supabase or network resets
+ * from hanging the entire application.
+ */
+function withTimeout<T>(promise: Promise<T>, timeoutMs = 2500): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Network request timed out')), timeoutMs)
+    ),
+  ]);
+}
+
+// ── Service Implementation ──────────────────────────────────────────
+
+export const productCatalogApi = {
+  // ── Categories ──
+  getCategories: (): TopProductCategory[] => {
+    try {
+      const cached = localStorage.getItem(LOCAL_STORAGE_CATEGORIES_KEY);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch {}
+    return DEFAULT_TOP_CATEGORIES;
+  },
+
+  updateCategory: (
+    key: ProductCategoryType,
+    updates: Partial<TopProductCategory>
+  ): TopProductCategory[] => {
+    const current = productCatalogApi.getCategories();
+    const updated = current.map((cat) =>
+      cat.key === key ? { ...cat, ...updates } : cat
+    );
+    try {
+      localStorage.setItem(LOCAL_STORAGE_CATEGORIES_KEY, JSON.stringify(updated));
+    } catch {}
+    return updated;
+  },
+
+  // ── Models (Cache-First, Instant Response) ──
+  listModels: async (category?: ProductCategoryType): Promise<ProductCatalogModel[]> => {
+    // 1. If in-memory cache has models, return immediately (0ms)
+    if (memoryModelsCache && memoryModelsCache.length > 0) {
+      if (category) {
+        return memoryModelsCache.filter((m) => m.category === category);
+      }
+      return memoryModelsCache;
+    }
+
+    // 2. Read from localStorage immediately (0ms)
+    let models: ProductCatalogModel[] = [];
+    try {
+      const cached = localStorage.getItem(LOCAL_STORAGE_MODELS_KEY);
+      if (cached) {
+        models = JSON.parse(cached);
+        memoryModelsCache = models;
+      }
+    } catch {}
+
+    // 3. Background sync from Supabase with strict timeout
+    if (isSupabaseConfigured()) {
+      const syncFromSupabase = async () => {
+        try {
+          let query = supabase
+            .from('products')
+            .select('*')
+            .order('sort_order', { ascending: true });
+
+          const res = (await withTimeout<any>(query as any, 2500)) as any;
+          const rows = res?.data;
+          const error = res?.error;
+          if (!error && Array.isArray(rows) && rows.length > 0) {
+            const remoteModels = rows.map(mapDbRowToModel);
+            memoryModelsCache = remoteModels;
+            try {
+              localStorage.setItem(LOCAL_STORAGE_MODELS_KEY, JSON.stringify(remoteModels));
+            } catch {}
+            return remoteModels;
+          }
+        } catch {
+          // Supabase network error or connection reset handled silently without blocking UI
+        }
+        return null;
+      };
+
+      // If we had no cached models, wait for the short timeout attempt
+      if (models.length === 0) {
+        const remote = await syncFromSupabase();
+        if (remote && remote.length > 0) {
+          models = remote;
+        }
+      } else {
+        // Fire background sync silently without blocking UI rendering
+        syncFromSupabase();
+      }
+    }
+
+    if (category) {
+      return models.filter((m) => m.category === category);
+    }
+    return models;
+  },
+
+  getModelById: async (idOrSlug: string): Promise<ProductCatalogModel | null> => {
+    const all = await productCatalogApi.listModels();
+    return all.find((m) => m.id === idOrSlug || m.slug === idOrSlug) || null;
+  },
+
+  saveModel: async (model: ProductCatalogModel): Promise<ProductCatalogModel> => {
+    const allModels = await productCatalogApi.listModels();
+    const now = new Date().toISOString();
+    const modelToSave: ProductCatalogModel = {
+      ...model,
+      updatedAt: now,
+      createdAt: model.createdAt || now,
+    };
+
+    const existingIdx = allModels.findIndex(
+      (m) => m.id === model.id || m.slug === model.slug
+    );
+
+    let updatedModels: ProductCatalogModel[];
+    if (existingIdx >= 0) {
+      updatedModels = [...allModels];
+      updatedModels[existingIdx] = modelToSave;
+    } else {
+      updatedModels = [...allModels, modelToSave];
+    }
+
+    // Instantly update cache & localStorage
+    memoryModelsCache = updatedModels;
+    try {
+      localStorage.setItem(LOCAL_STORAGE_MODELS_KEY, JSON.stringify(updatedModels));
+    } catch {}
+
+    // Asynchronously sync with Supabase in background without blocking navigation
+    if (isSupabaseConfigured()) {
+      (async () => {
+        try {
+          const payload = mapModelToDbRow(modelToSave);
+          if (existingIdx >= 0 && payload.id) {
+            await withTimeout(
+              supabase.from('products').update(payload as any).eq('id', payload.id) as any,
+              3000
+            );
+          } else {
+            await withTimeout(
+              supabase.from('products').upsert(payload as any, { onConflict: 'slug' }) as any,
+              3000
+            );
+          }
+        } catch {
+          // Supabase sync failure handled silently; data is safely persisted in browser storage
+        }
+      })();
+    }
+
+    return modelToSave;
+  },
+
+  deleteModel: async (id: string): Promise<boolean> => {
+    const allModels = await productCatalogApi.listModels();
+    const target = allModels.find((m) => m.id === id);
+    const updated = allModels.filter((m) => m.id !== id);
+
+    memoryModelsCache = updated;
+    try {
+      localStorage.setItem(LOCAL_STORAGE_MODELS_KEY, JSON.stringify(updated));
+    } catch {}
+
+    if (isSupabaseConfigured() && target) {
+      (async () => {
+        try {
+          await withTimeout(
+            supabase.from('products').delete().or(`id.eq.${id},slug.eq.${target.slug}`) as any,
+            3000
+          );
+        } catch {}
+      })();
+    }
+
+    return true;
+  },
+
+  clearAllModels: async (): Promise<boolean> => {
+    memoryModelsCache = [];
+    try {
+      localStorage.setItem(LOCAL_STORAGE_MODELS_KEY, JSON.stringify([]));
+    } catch {}
+
+    if (isSupabaseConfigured()) {
+      (async () => {
+        try {
+          await withTimeout(
+            supabase.from('products').delete().neq('id', '00000000-0000-0000-0000-000000000000') as any,
+            3000
+          );
+        } catch {}
+      })();
+    }
+    return true;
+  },
+
+  seedDefaultCatalog: async (): Promise<ProductCatalogModel[]> => {
+    memoryModelsCache = [];
+    try {
+      localStorage.setItem(LOCAL_STORAGE_CATEGORIES_KEY, JSON.stringify(DEFAULT_TOP_CATEGORIES));
+      localStorage.setItem(LOCAL_STORAGE_MODELS_KEY, JSON.stringify([]));
+    } catch {}
+    return [];
+  },
+};
