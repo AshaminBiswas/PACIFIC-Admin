@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Save, RotateCcw, CheckCircle2, Users, ShieldAlert, Plus, MapPin, Truck } from 'lucide-react';
+import { ArrowLeft, Save, RotateCcw, CheckCircle2, Users, ShieldAlert, Plus } from 'lucide-react';
 import { crmApi } from '../api/services';
 import type { BusinessParty } from '../types/admin';
 
@@ -20,18 +20,9 @@ interface CustomerFormData {
   contactPhone: string;
   contactEmail: string;
   billingAddress: string;
-  billingAddress2: string;
   billingCity: string;
   billingState: string;
   billingStateCode: string;
-  billingPostalCode: string;
-  sameAsBilling: boolean;
-  deliveryAddress: string;
-  deliveryAddress2: string;
-  deliveryCity: string;
-  deliveryState: string;
-  deliveryStateCode: string;
-  deliveryPostalCode: string;
 }
 
 const INITIAL_FORM_DATA: CustomerFormData = {
@@ -48,18 +39,9 @@ const INITIAL_FORM_DATA: CustomerFormData = {
   contactPhone: '',
   contactEmail: '',
   billingAddress: '',
-  billingAddress2: '',
   billingCity: 'Delhi',
   billingState: 'Delhi',
   billingStateCode: '07',
-  billingPostalCode: '',
-  sameAsBilling: true,
-  deliveryAddress: '',
-  deliveryAddress2: '',
-  deliveryCity: 'Delhi',
-  deliveryState: 'Delhi',
-  deliveryStateCode: '07',
-  deliveryPostalCode: '',
 };
 
 export default function CreateCustomerPage() {
@@ -140,39 +122,16 @@ export default function CreateCustomerPage() {
         contacts: formData.contactName
           ? [{ name: formData.contactName, phone: formData.contactPhone, email: formData.contactEmail, isPrimary: true }]
           : [],
-        addresses: (() => {
-          const list: any[] = [];
-          const bLine = formData.billingAddress.trim();
-          if (bLine) {
-            list.push({
+        addresses: formData.billingAddress
+          ? [{
               addressType: 'BILLING',
-              addressLine1: bLine,
-              addressLine2: formData.billingAddress2.trim() || undefined,
-              city: formData.billingCity.trim() || 'Delhi',
-              state: formData.billingState.trim() || 'Delhi',
-              stateCode: formData.billingStateCode.trim() || '07',
-              postalCode: formData.billingPostalCode.trim() || undefined,
+              addressLine1: formData.billingAddress,
+              city: formData.billingCity,
+              state: formData.billingState,
+              stateCode: formData.billingStateCode,
               isDefaultBilling: true,
-              isDefaultShipping: false,
-            });
-          }
-
-          const dLine = (formData.sameAsBilling ? bLine : formData.deliveryAddress.trim()) || bLine;
-          if (dLine) {
-            list.push({
-              addressType: 'SHIPPING',
-              addressLine1: dLine,
-              addressLine2: (formData.sameAsBilling ? formData.billingAddress2.trim() : formData.deliveryAddress2.trim()) || undefined,
-              city: (formData.sameAsBilling ? formData.billingCity.trim() : formData.deliveryCity.trim()) || 'Delhi',
-              state: (formData.sameAsBilling ? formData.billingState.trim() : formData.deliveryState.trim()) || 'Delhi',
-              stateCode: (formData.sameAsBilling ? formData.billingStateCode.trim() : formData.deliveryStateCode.trim()) || '07',
-              postalCode: (formData.sameAsBilling ? formData.billingPostalCode.trim() : formData.deliveryPostalCode.trim()) || undefined,
-              isDefaultBilling: false,
-              isDefaultShipping: true,
-            });
-          }
-          return list;
-        })(),
+            }]
+          : [],
       });
       localStorage.removeItem(LOCAL_STORAGE_KEY);
       alert(`Customer created successfully!`);
@@ -324,235 +283,15 @@ export default function CreateCustomerPage() {
             />
           </div>
 
-          {/* Primary Billing Address */}
-          <div className="sm:col-span-2 pt-3 border-t border-white/10 space-y-4">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-emerald-400" />
-              Primary Billing Address
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-gray-300 mb-1.5">Billing Address Line 1 *</label>
-                <input
-                  type="text"
-                  value={formData.billingAddress}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setFormData(prev => ({
-                      ...prev,
-                      billingAddress: val,
-                      deliveryAddress: prev.sameAsBilling ? val : prev.deliveryAddress,
-                    }));
-                  }}
-                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
-                  placeholder="Floor 4, Tower B, Business Park"
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-gray-300 mb-1.5">Billing Address Line 2</label>
-                <input
-                  type="text"
-                  value={formData.billingAddress2}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setFormData(prev => ({
-                      ...prev,
-                      billingAddress2: val,
-                      deliveryAddress2: prev.sameAsBilling ? val : prev.deliveryAddress2,
-                    }));
-                  }}
-                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
-                  placeholder="Sector 62, Near Metro Station"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1.5">City</label>
-                <input
-                  type="text"
-                  value={formData.billingCity}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setFormData(prev => ({
-                      ...prev,
-                      billingCity: val,
-                      deliveryCity: prev.sameAsBilling ? val : prev.deliveryCity,
-                    }));
-                  }}
-                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
-                  placeholder="Delhi"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1.5">State</label>
-                <input
-                  type="text"
-                  value={formData.billingState}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setFormData(prev => ({
-                      ...prev,
-                      billingState: val,
-                      deliveryState: prev.sameAsBilling ? val : prev.deliveryState,
-                    }));
-                  }}
-                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
-                  placeholder="Delhi"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1.5">State Code (e.g. 07 for Delhi)</label>
-                <input
-                  type="text"
-                  maxLength={2}
-                  value={formData.billingStateCode}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setFormData(prev => ({
-                      ...prev,
-                      billingStateCode: val,
-                      deliveryStateCode: prev.sameAsBilling ? val : prev.deliveryStateCode,
-                    }));
-                  }}
-                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-[#7FB706]"
-                  placeholder="07"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1.5">Postal Code (PIN)</label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={formData.billingPostalCode}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setFormData(prev => ({
-                      ...prev,
-                      billingPostalCode: val,
-                      deliveryPostalCode: prev.sameAsBilling ? val : prev.deliveryPostalCode,
-                    }));
-                  }}
-                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-[#7FB706]"
-                  placeholder="110094"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Delivery / Site Installation Address */}
-          <div className="sm:col-span-2 pt-4 border-t border-white/10 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Truck className="w-4 h-4 text-sky-400" />
-                Delivery / Site Installation Address *
-              </h3>
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-sky-400 hover:text-sky-300 font-medium">
-                <input
-                  type="checkbox"
-                  checked={formData.sameAsBilling}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setFormData(prev => ({
-                      ...prev,
-                      sameAsBilling: checked,
-                      ...(checked
-                        ? {
-                            deliveryAddress: prev.billingAddress,
-                            deliveryAddress2: prev.billingAddress2,
-                            deliveryCity: prev.billingCity,
-                            deliveryState: prev.billingState,
-                            deliveryStateCode: prev.billingStateCode,
-                            deliveryPostalCode: prev.billingPostalCode,
-                          }
-                        : {}),
-                    }));
-                  }}
-                  className="rounded border-white/20 text-[#7FB706] focus:ring-0 focus:ring-offset-0 bg-[#0a0a1a]"
-                />
-                <span>Delivery address is same as billing address</span>
-              </label>
-            </div>
-
-            {formData.sameAsBilling ? (
-              <div className="p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-xs text-sky-300 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 shrink-0 text-sky-400" />
-                <span>Delivery / Site Installation address is currently synchronized with the Billing Address.</span>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Delivery Address Line 1 *</label>
-                  <input
-                    type="text"
-                    value={formData.deliveryAddress}
-                    onChange={(e) => setFormData({ ...formData, deliveryAddress: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-sky-400"
-                    placeholder="Project Site, Plot No. 88, Industrial Area"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Delivery Address Line 2</label>
-                  <input
-                    type="text"
-                    value={formData.deliveryAddress2}
-                    onChange={(e) => setFormData({ ...formData, deliveryAddress2: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-sky-400"
-                    placeholder="Gate No. 2, Receiving Bay"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Delivery City</label>
-                  <input
-                    type="text"
-                    value={formData.deliveryCity}
-                    onChange={(e) => setFormData({ ...formData, deliveryCity: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-sky-400"
-                    placeholder="Delhi"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Delivery State</label>
-                  <input
-                    type="text"
-                    value={formData.deliveryState}
-                    onChange={(e) => setFormData({ ...formData, deliveryState: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-sky-400"
-                    placeholder="Delhi"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Delivery State Code (e.g. 07)</label>
-                  <input
-                    type="text"
-                    maxLength={2}
-                    value={formData.deliveryStateCode}
-                    onChange={(e) => setFormData({ ...formData, deliveryStateCode: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-sky-400"
-                    placeholder="07"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Delivery Postal Code (PIN)</label>
-                  <input
-                    type="text"
-                    maxLength={6}
-                    value={formData.deliveryPostalCode}
-                    onChange={(e) => setFormData({ ...formData, deliveryPostalCode: e.target.value })}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-sky-400"
-                    placeholder="110094"
-                  />
-                </div>
-              </div>
-            )}
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-semibold text-gray-300 mb-1.5">Billing Address Line</label>
+            <input
+              type="text"
+              value={formData.billingAddress}
+              onChange={(e) => setFormData({ ...formData, billingAddress: e.target.value })}
+              className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
+              placeholder="Floor 4, Tower B, Business Park"
+            />
           </div>
         </div>
 

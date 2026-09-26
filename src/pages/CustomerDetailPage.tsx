@@ -29,7 +29,6 @@ import {
   History,
   Copy,
   Check,
-  Truck,
 } from 'lucide-react';
 import { crmApi, financeApi } from '../api/services';
 import type { Customer360Data, BusinessParty, CustomerLedgerStatement } from '../types/admin';
@@ -759,53 +758,36 @@ export default function CustomerDetailPage() {
             )}
           </div>
 
-          {/* Registered Billing & Delivery Addresses */}
+          {/* Primary Billing Address */}
           <div className="bg-[#09071a] border border-white/10 rounded-2xl p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-emerald-400" />
-                Registered Addresses
-              </h3>
-              <Link
-                to={`/admin/dashboard/customers/${customer.id}/edit`}
-                className="text-[11px] text-[#7FB706] hover:underline font-semibold"
-              >
-                Edit Addresses ↗
-              </Link>
-            </div>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+              <MapPin className="w-4 h-4 text-sky-400" />
+              Registered Addresses
+            </h3>
             {customer.addresses && customer.addresses.length > 0 ? (
               <div className="space-y-3">
-                {customer.addresses.map((addr, idx) => {
-                  const isDelivery = addr.addressType === 'SHIPPING' || addr.isDefaultShipping;
-                  return (
-                    <div key={addr.id || idx} className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 text-xs space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className={`font-bold uppercase text-[10px] tracking-wider flex items-center gap-1.5 ${isDelivery ? 'text-sky-400' : 'text-emerald-400'}`}>
-                          {isDelivery ? <Truck className="w-3.5 h-3.5" /> : <MapPin className="w-3.5 h-3.5" />}
-                          {isDelivery ? 'DELIVERY / SITE' : 'BILLING'} ADDRESS
+                {customer.addresses.map((addr, idx) => (
+                  <div key={addr.id || idx} className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white uppercase text-[10px] tracking-wider text-sky-400">
+                        {addr.addressType} ADDRESS
+                      </span>
+                      {addr.isDefaultBilling && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] bg-sky-500/10 text-sky-300 border border-sky-500/20">
+                          Default Billing
                         </span>
-                        {addr.isDefaultBilling && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-semibold">
-                            Default Billing
-                          </span>
-                        )}
-                        {addr.isDefaultShipping && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] bg-sky-500/10 text-sky-300 border border-sky-500/20 font-semibold">
-                            Default Delivery
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-gray-200 font-medium">{addr.addressLine1}</p>
-                      {addr.addressLine2 && <p className="text-gray-400">{addr.addressLine2}</p>}
-                      <p className="text-gray-400">
-                        {addr.city}, {addr.state} {addr.postalCode ? `- ${addr.postalCode}` : ''}
-                      </p>
-                      {addr.gstin && (
-                        <p className="text-gray-400 font-mono text-[11px]">GSTIN: {addr.gstin}</p>
                       )}
                     </div>
-                  );
-                })}
+                    <p className="text-gray-300">{addr.addressLine1}</p>
+                    {addr.addressLine2 && <p className="text-gray-400">{addr.addressLine2}</p>}
+                    <p className="text-gray-400">
+                      {addr.city}, {addr.state} {addr.postalCode ? `- ${addr.postalCode}` : ''}
+                    </p>
+                    {addr.gstin && (
+                      <p className="text-gray-400 font-mono text-[11px]">GSTIN: {addr.gstin}</p>
+                    )}
+                  </div>
+                ))}
               </div>
             ) : (
               <p className="text-xs text-gray-500 italic py-4 text-center">No addresses registered yet.</p>
@@ -1112,39 +1094,30 @@ export default function CustomerDetailPage() {
             </div>
             {customer.addresses && customer.addresses.length > 0 ? (
               <div className="space-y-3">
-                {customer.addresses.map((a, idx) => {
-                  const isDelivery = a.addressType === 'SHIPPING' || a.isDefaultShipping;
-                  return (
-                    <div key={a.id || idx} className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 text-xs space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className={`font-bold uppercase text-[10px] tracking-wider flex items-center gap-1.5 ${isDelivery ? 'text-sky-400' : 'text-emerald-400'}`}>
-                          {isDelivery ? <Truck className="w-3.5 h-3.5" /> : <MapPin className="w-3.5 h-3.5" />}
-                          {isDelivery ? 'DELIVERY / SITE' : 'BILLING'} ADDRESS
+                {customer.addresses.map((a, idx) => (
+                  <div key={a.id || idx} className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sky-400 uppercase text-[10px] tracking-wider">
+                        {a.addressType} ADDRESS
+                      </span>
+                      {a.isDefaultBilling && (
+                        <span className="px-2 py-0.5 rounded text-[9px] bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                          Default Billing
                         </span>
-                        {a.isDefaultBilling && (
-                          <span className="px-2 py-0.5 rounded text-[9px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold">
-                            Default Billing
-                          </span>
-                        )}
-                        {a.isDefaultShipping && (
-                          <span className="px-2 py-0.5 rounded text-[9px] bg-sky-500/15 text-sky-300 border border-sky-500/30 font-semibold">
-                            Default Delivery
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-white font-medium">{a.addressLine1}</p>
-                      {a.addressLine2 && <p className="text-gray-400">{a.addressLine2}</p>}
-                      <p className="text-gray-300">
-                        {a.city}, {a.state} {a.postalCode ? `- ${a.postalCode}` : ''}
-                      </p>
-                      {a.gstin && (
-                        <p className="text-gray-400 font-mono text-[11px] pt-1 border-t border-white/5">
-                          GSTIN: {a.gstin}
-                        </p>
                       )}
                     </div>
-                  );
-                })}
+                    <p className="text-white font-medium">{a.addressLine1}</p>
+                    {a.addressLine2 && <p className="text-gray-400">{a.addressLine2}</p>}
+                    <p className="text-gray-300">
+                      {a.city}, {a.state} {a.postalCode ? `- ${a.postalCode}` : ''}
+                    </p>
+                    {a.gstin && (
+                      <p className="text-gray-400 font-mono text-[11px] pt-1 border-t border-white/5">
+                        GSTIN: {a.gstin}
+                      </p>
+                    )}
+                  </div>
+                ))}
               </div>
             ) : (
               <p className="text-xs text-gray-500 italic py-8 text-center">No addresses registered.</p>
