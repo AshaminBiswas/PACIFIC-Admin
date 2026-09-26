@@ -9,6 +9,7 @@ import { salesQuotationsApi } from '../api/salesQuotationsApi';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import QuotationFollowupModal from '../components/quotations/QuotationFollowupModal';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
+import { calculateGstSplit } from '../utils/tax';
 
 interface QuotationDetail {
   id: string;
@@ -567,12 +568,48 @@ export default function SalesQuotationDetailPage() {
                 <span className="text-gray-300 font-mono">₹ {Number(quotation.freightAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
             )}
-            <div className="flex justify-between text-xs">
-              <span className="text-gray-400">
-                {isSez ? 'GST (SEZ Exempt 0%)' : `GST @ ${quotation.gstRate ?? 18}%`}
-              </span>
-              <span className="text-gray-300 font-mono">₹ {gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            </div>
+            {(() => {
+              const breakdown = calculateGstSplit(
+                basicPrice + Number(quotation.installationCharge || 0) + Number(quotation.freightAmount || 0),
+                null,
+                null,
+                isSez,
+                Number(quotation.gstRate ?? 18),
+                (quotation.customer as any)?.gstin,
+                quotation.recipientAddress
+              );
+
+              if (breakdown.isSez) {
+                return (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-400">GST (SEZ Exempt 0%)</span>
+                    <span className="text-gray-300 font-mono">₹ 0.00</span>
+                  </div>
+                );
+              }
+
+              if (breakdown.isDelhi) {
+                return (
+                  <>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">CGST (9%)</span>
+                      <span className="text-gray-300 font-mono">₹ {breakdown.cgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">SGST (9%)</span>
+                      <span className="text-gray-300 font-mono">₹ {breakdown.sgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </>
+                );
+              }
+
+              return (
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-400">IGST ({quotation.gstRate ?? 18}%)</span>
+                  <span className="text-gray-300 font-mono">₹ {breakdown.igstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+              );
+            })()}
             <div className="flex justify-between pt-2 border-t border-white/5">
               <span className="font-bold text-white">Grand Total ({quotation.currency})</span>
               <span className="font-bold text-[#7FB706] text-lg font-mono">

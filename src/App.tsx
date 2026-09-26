@@ -50,6 +50,7 @@ const QuotationFollowupPage = lazyWithRetry(() => import('./pages/QuotationFollo
 const DraftQuotationPage = lazyWithRetry(() => import('./pages/DraftQuotationPage'));
 const SalesOrdersPage = lazyWithRetry(() => import('./pages/SalesOrdersPage'));
 const SalesOrderDetailPage = lazyWithRetry(() => import('./pages/SalesOrderDetailPage'));
+const EditSalesOrderPage = lazyWithRetry(() => import('./pages/EditSalesOrderPage'));
 const SalesOrderTimelinePage = lazyWithRetry(() => import('./pages/SalesOrderTimelinePage'));
 const SalesOrderFollowupPage = lazyWithRetry(() => import('./pages/SalesOrderFollowupPage'));
 const PackingListsPage = lazyWithRetry(() => import('./pages/PackingListsPage'));
@@ -308,6 +309,14 @@ export default function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <SalesOrderDetailPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="sales-orders/:id/edit"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <EditSalesOrderPage />
                 </Suspense>
               }
             />

@@ -12,6 +12,7 @@ import {
   Phone,
   Mail,
   RefreshCw,
+  Truck,
 } from 'lucide-react';
 import { crmApi } from '../api/services';
 import type { BusinessParty } from '../types/admin';
@@ -40,12 +41,21 @@ export default function EditCustomerPage() {
     contactDesignation: '',
     contactPhone: '',
     contactEmail: '',
+    // Billing Address
     billingAddress: '',
     billingAddress2: '',
     billingCity: 'Delhi',
     billingState: 'Delhi',
     billingStateCode: '07',
     billingPostalCode: '',
+    // Delivery / Site Address
+    sameAsBilling: true,
+    deliveryAddress: '',
+    deliveryAddress2: '',
+    deliveryCity: 'Delhi',
+    deliveryState: 'Delhi',
+    deliveryStateCode: '07',
+    deliveryPostalCode: '',
     notes: '',
   });
 
@@ -59,7 +69,17 @@ export default function EditCustomerPage() {
       const c = res.data?.data;
       if (c) {
         const primaryContact = c.contacts?.find((ct) => ct.isPrimary) || c.contacts?.[0];
-        const billingAddr = c.addresses?.find((a) => a.addressType === 'BILLING') || c.addresses?.[0];
+        const billingAddr = c.addresses?.find((a) => a.addressType === 'BILLING' || a.isDefaultBilling) || c.addresses?.[0];
+        const shippingAddr = c.addresses?.find((a) => a.addressType === 'SHIPPING' || a.isDefaultShipping);
+
+        const isSame = Boolean(
+          !shippingAddr || (
+            billingAddr &&
+            shippingAddr.addressLine1 === billingAddr.addressLine1 &&
+            shippingAddr.city === billingAddr.city &&
+            shippingAddr.postalCode === billingAddr.postalCode
+          )
+        );
 
         setFormData({
           legalName: c.legalName || '',
@@ -82,6 +102,13 @@ export default function EditCustomerPage() {
           billingState: billingAddr?.state || 'Delhi',
           billingStateCode: billingAddr?.stateCode || '07',
           billingPostalCode: billingAddr?.postalCode || '',
+          sameAsBilling: isSame,
+          deliveryAddress: shippingAddr?.addressLine1 || billingAddr?.addressLine1 || '',
+          deliveryAddress2: shippingAddr?.addressLine2 || billingAddr?.addressLine2 || '',
+          deliveryCity: shippingAddr?.city || billingAddr?.city || 'Delhi',
+          deliveryState: shippingAddr?.state || billingAddr?.state || 'Delhi',
+          deliveryStateCode: shippingAddr?.stateCode || billingAddr?.stateCode || '07',
+          deliveryPostalCode: shippingAddr?.postalCode || billingAddr?.postalCode || '',
           notes: c.notes || '',
         });
       } else {
@@ -135,21 +162,51 @@ export default function EditCustomerPage() {
               },
             ]
           : [],
-        addresses: formData.billingAddress.trim()
-          ? [
-              {
-                addressType: 'BILLING',
-                addressLine1: formData.billingAddress.trim(),
-                addressLine2: formData.billingAddress2.trim() || null,
-                city: formData.billingCity.trim() || 'Delhi',
-                state: formData.billingState.trim() || 'Delhi',
-                stateCode: formData.billingStateCode.trim() || '07',
-                postalCode: formData.billingPostalCode.trim() || null,
-                gstin: formData.gstin ? formData.gstin.toUpperCase().trim() : null,
-                isDefaultBilling: true,
-              },
-            ]
-          : [],
+        addresses: (() => {
+          const list = [];
+          if (formData.billingAddress.trim()) {
+            list.push({
+              addressType: 'BILLING',
+              addressLine1: formData.billingAddress.trim(),
+              addressLine2: formData.billingAddress2.trim() || null,
+              city: formData.billingCity.trim() || 'Delhi',
+              state: formData.billingState.trim() || 'Delhi',
+              stateCode: formData.billingStateCode.trim() || '07',
+              postalCode: formData.billingPostalCode.trim() || null,
+              gstin: formData.gstin ? formData.gstin.toUpperCase().trim() : null,
+              isDefaultBilling: true,
+              isDefaultShipping: false,
+            });
+          }
+          const shipLine1 = formData.sameAsBilling
+            ? formData.billingAddress.trim()
+            : formData.deliveryAddress.trim();
+          if (shipLine1) {
+            list.push({
+              addressType: 'SHIPPING',
+              addressLine1: shipLine1,
+              addressLine2: formData.sameAsBilling
+                ? formData.billingAddress2.trim() || null
+                : formData.deliveryAddress2.trim() || null,
+              city: formData.sameAsBilling
+                ? formData.billingCity.trim() || 'Delhi'
+                : formData.deliveryCity.trim() || 'Delhi',
+              state: formData.sameAsBilling
+                ? formData.billingState.trim() || 'Delhi'
+                : formData.deliveryState.trim() || 'Delhi',
+              stateCode: formData.sameAsBilling
+                ? formData.billingStateCode.trim() || '07'
+                : formData.deliveryStateCode.trim() || '07',
+              postalCode: formData.sameAsBilling
+                ? formData.billingPostalCode.trim() || null
+                : formData.deliveryPostalCode.trim() || null,
+              gstin: formData.gstin ? formData.gstin.toUpperCase().trim() : null,
+              isDefaultBilling: false,
+              isDefaultShipping: true,
+            });
+          }
+          return list;
+        })(),
       };
 
       await crmApi.updateCustomer(id, payload);
@@ -502,10 +559,114 @@ export default function EditCustomerPage() {
           </div>
         </div>
 
-        {/* Section 5: Notes & Remarks */}
+        {/* Section 5: Delivery / Site Shipping Address */}
+        <div className="bg-[#09071a] border border-white/10 rounded-2xl p-5 sm:p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-white/10 pb-3 gap-2">
+            <h2 className="text-sm font-bold text-[#7FB706] flex items-center gap-2">
+              <Truck className="w-4 h-4 text-[#7FB706]" />
+              5. Delivery / Site Shipping Address
+            </h2>
+            <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={formData.sameAsBilling}
+                onChange={(e) => setFormData({ ...formData, sameAsBilling: e.target.checked })}
+                className="w-4 h-4 accent-[#7FB706] rounded cursor-pointer"
+              />
+              <span className="font-semibold text-white">Delivery address is same as billing address</span>
+            </label>
+          </div>
+
+          {formData.sameAsBilling ? (
+            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 text-xs text-gray-400 space-y-1">
+              <p className="font-medium text-white">Delivery &amp; Site Dispatch will be routed to the Primary Billing Address:</p>
+              <p className="text-gray-300">
+                {formData.billingAddress || 'No billing address specified yet'} {formData.billingAddress2 ? `, ${formData.billingAddress2}` : ''}
+              </p>
+              <p className="text-gray-400">
+                {formData.billingCity || 'Delhi'}, {formData.billingState || 'Delhi'} - {formData.billingPostalCode || 'PIN'} (State Code: {formData.billingStateCode || '07'})
+              </p>
+              <p className="text-[11px] text-gray-500 pt-1">
+                Uncheck the box above if the goods/cubicles need to be delivered to a separate project site or depot warehouse.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label className="text-xs text-gray-300 font-medium block mb-1">Site / Delivery Address Line 1 *</label>
+                <input
+                  type="text"
+                  value={formData.deliveryAddress}
+                  onChange={(e) => setFormData({ ...formData, deliveryAddress: e.target.value })}
+                  placeholder="e.g. Project Site Gate 3, DLF Cyber City"
+                  className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706] min-h-[42px]"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="text-xs text-gray-300 font-medium block mb-1">Delivery Address Line 2 / Landmark</label>
+                <input
+                  type="text"
+                  value={formData.deliveryAddress2}
+                  onChange={(e) => setFormData({ ...formData, deliveryAddress2: e.target.value })}
+                  placeholder="e.g. Near Basement Unloading Bay"
+                  className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706] min-h-[42px]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-300 font-medium block mb-1">Delivery City</label>
+                <input
+                  type="text"
+                  value={formData.deliveryCity}
+                  onChange={(e) => setFormData({ ...formData, deliveryCity: e.target.value })}
+                  placeholder="Delhi"
+                  className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[42px]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-300 font-medium block mb-1">Delivery State</label>
+                <input
+                  type="text"
+                  value={formData.deliveryState}
+                  onChange={(e) => setFormData({ ...formData, deliveryState: e.target.value })}
+                  placeholder="Delhi"
+                  className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[42px]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-300 font-medium block mb-1">State Code (GST)</label>
+                <input
+                  type="text"
+                  maxLength={2}
+                  value={formData.deliveryStateCode}
+                  onChange={(e) => setFormData({ ...formData, deliveryStateCode: e.target.value })}
+                  placeholder="07"
+                  className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-[#7FB706] min-h-[42px]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-300 font-medium block mb-1">Delivery Postal Code (PIN)</label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={formData.deliveryPostalCode}
+                  onChange={(e) => setFormData({ ...formData, deliveryPostalCode: e.target.value })}
+                  placeholder="110020"
+                  className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-[#7FB706] min-h-[42px]"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Section 6: Notes & Remarks */}
         <div className="bg-[#09071a] border border-white/10 rounded-2xl p-5 sm:p-6 space-y-4">
           <h2 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
-            Internal Account Notes
+            6. Internal Account Notes
           </h2>
           <textarea
             rows={3}

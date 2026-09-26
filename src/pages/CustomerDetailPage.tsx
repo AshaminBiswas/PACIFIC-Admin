@@ -769,14 +769,21 @@ export default function CustomerDetailPage() {
                 {customer.addresses.map((addr, idx) => (
                   <div key={addr.id || idx} className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-xs space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-white uppercase text-[10px] tracking-wider text-sky-400">
-                        {addr.addressType} ADDRESS
+                      <span className={`font-bold uppercase text-[10px] tracking-wider ${addr.addressType === 'SHIPPING' ? 'text-[#7FB706]' : 'text-sky-400'}`}>
+                        {addr.addressType === 'SHIPPING' ? 'DELIVERY / SITE' : addr.addressType} ADDRESS
                       </span>
-                      {addr.isDefaultBilling && (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] bg-sky-500/10 text-sky-300 border border-sky-500/20">
-                          Default Billing
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {addr.isDefaultBilling && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] bg-sky-500/10 text-sky-300 border border-sky-500/20">
+                            Default Billing
+                          </span>
+                        )}
+                        {(addr.isDefaultShipping || addr.addressType === 'SHIPPING') && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] bg-lime-500/10 text-[#7FB706] border border-lime-500/20">
+                            Default Delivery
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p className="text-gray-300">{addr.addressLine1}</p>
                     {addr.addressLine2 && <p className="text-gray-400">{addr.addressLine2}</p>}
@@ -1097,14 +1104,21 @@ export default function CustomerDetailPage() {
                 {customer.addresses.map((a, idx) => (
                   <div key={a.id || idx} className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 text-xs space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-sky-400 uppercase text-[10px] tracking-wider">
-                        {a.addressType} ADDRESS
+                      <span className={`font-bold uppercase text-[10px] tracking-wider ${a.addressType === 'SHIPPING' ? 'text-[#7FB706]' : 'text-sky-400'}`}>
+                        {a.addressType === 'SHIPPING' ? 'DELIVERY / SITE' : a.addressType} ADDRESS
                       </span>
-                      {a.isDefaultBilling && (
-                        <span className="px-2 py-0.5 rounded text-[9px] bg-sky-500/15 text-sky-300 border border-sky-500/30">
-                          Default Billing
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {a.isDefaultBilling && (
+                          <span className="px-2 py-0.5 rounded text-[9px] bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                            Default Billing
+                          </span>
+                        )}
+                        {(a.isDefaultShipping || a.addressType === 'SHIPPING') && (
+                          <span className="px-2 py-0.5 rounded text-[9px] bg-lime-500/15 text-[#7FB706] border border-lime-500/30">
+                            Default Delivery
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p className="text-white font-medium">{a.addressLine1}</p>
                     {a.addressLine2 && <p className="text-gray-400">{a.addressLine2}</p>}

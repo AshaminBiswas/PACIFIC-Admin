@@ -12,8 +12,8 @@ import {
   extractModelDimensions,
 } from '../utils/quotationProductPresets';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
-import { HARDWARE_PRESETS } from './DraftQuotationPage';
 import type { ProductCatalogModel } from '../types/admin';
+import { calculateGstSplit } from '../utils/tax';
 
 interface EditItem {
   id?: string;
@@ -227,8 +227,17 @@ export default function EditSalesQuotationPage() {
   // Live totals
   const basicPrice = form.items.reduce((s, it) => s + it.quantity * it.rate, 0);
   const subtotal = basicPrice + form.installationCharge + form.freightAmount;
-  const gstAmount = form.isSezExempt ? 0 : Math.round((subtotal * (form.gstRate / 100)) * 100) / 100;
-  const grandTotal = Math.round(subtotal + gstAmount);
+  const gstBreakdown = calculateGstSplit(
+    subtotal,
+    null,
+    null,
+    Boolean(form.isSezExempt),
+    Number(form.gstRate) || 18,
+    null,
+    form.recipientAddress
+  );
+  const gstAmount = gstBreakdown.totalTax;
+  const grandTotal = gstBreakdown.grandTotal;
 
   const handleItemChange = (idx: number, field: keyof EditItem, value: string | number) => {
     const updated = [...form.items];
@@ -304,20 +313,6 @@ export default function EditSalesQuotationPage() {
     }
   };
 
-  const applyHardwarePreset = (presetId: string) => {
-    const preset = HARDWARE_PRESETS.find((p) => p.id === presetId);
-    if (!preset) return;
-    setForm((f) => ({
-      ...f,
-      selectedHardwarePreset: presetId,
-      accessoriesText: preset.accessoriesText,
-      items: f.items.map((it) => ({
-        ...it,
-        hardwarePackage: it.hardwarePackage || preset.itemSpec,
-      })),
-    }));
-  };
-
   // Handle Model Selection for line item (Auto-fetches dimensions & hardware list)
   const handleSelectModel = (idx: number, modelId: string) => {
     if (!modelId) {
@@ -361,7 +356,7 @@ export default function EditSalesQuotationPage() {
   };
 
   const addItem = () => {
-    const defaultHardware = HARDWARE_PRESETS.find((p) => p.id === form.selectedHardwarePreset)?.itemSpec || 'SS 304 Stainless Steel (Satin/Brushed)';
+    const defaultHardware = 'SS 304 Stainless Steel (Satin/Brushed)';
     setForm((f) => ({
       ...f,
       items: [
@@ -603,7 +598,16 @@ export default function EditSalesQuotationPage() {
         <div className="text-gray-400">Basic: <span className="text-white font-mono font-semibold">₹ {basicPrice.toLocaleString('en-IN')}</span></div>
         {form.installationCharge > 0 && <div className="text-gray-400">Installation: <span className="text-white font-mono font-semibold">₹ {form.installationCharge.toLocaleString('en-IN')}</span></div>}
         {form.freightAmount > 0 && <div className="text-gray-400">Freight: <span className="text-white font-mono font-semibold">₹ {form.freightAmount.toLocaleString('en-IN')}</span></div>}
-        <div className="text-gray-400">GST {form.isSezExempt ? '(0% SEZ)' : `${form.gstRate}%`}: <span className="text-white font-mono font-semibold">₹ {gstAmount.toLocaleString('en-IN')}</span></div>
+        {gstBreakdown.isSez ? (
+          <div className="text-gray-400">GST (0% SEZ): <span className="text-white font-mono font-semibold">₹ 0.00</span></div>
+        ) : gstBreakdown.isDelhi ? (
+          <>
+            <div className="text-gray-400">CGST (9%): <span className="text-white font-mono font-semibold">₹ {gstBreakdown.cgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+            <div className="text-gray-400">SGST (9%): <span className="text-white font-mono font-semibold">₹ {gstBreakdown.sgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+          </>
+        ) : (
+          <div className="text-gray-400">IGST ({form.gstRate}%): <span className="text-white font-mono font-semibold">₹ {gstBreakdown.igstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+        )}
         <div className="ml-auto font-bold text-[#7FB706] text-base font-mono">
           Total: ₹ {grandTotal.toLocaleString('en-IN')}
         </div>
@@ -1107,49 +1111,11 @@ export default function EditSalesQuotationPage() {
         </div>
       </div>
 
-      {/* Section 5: Hardware Selection Option & Inclusions */}
+      {/* Section 5: Standard Inclusions & Hardware Accessories */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2">
-          <div className="flex items-center gap-2">
-            <Wrench className="w-4 h-4 text-[#7FB706]" />
-            <h3 className="text-sm font-bold text-white">Standard Inclusions &amp; Hardware Accessories</h3>
-          </div>
-          <span className="text-xs text-gray-400">Select standard hardware package to populate technical specs</span>
-        </div>
-
-        {/* Quick Hardware Package Selection Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {HARDWARE_PRESETS.map((preset) => {
-            const isSelected = form.selectedHardwarePreset === preset.id;
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => applyHardwarePreset(preset.id)}
-                className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[90px] ${
-                  isSelected
-                    ? 'bg-[#7FB706]/15 border-[#7FB706] text-white shadow-md shadow-[#7FB706]/10'
-                    : 'bg-[#0a0a1a] border-white/10 text-gray-400 hover:border-white/25 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center justify-between w-full">
-                  <span className="text-xs font-bold text-white">{preset.name}</span>
-                  <span
-                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                      isSelected
-                        ? 'bg-[#7FB706] text-black'
-                        : 'bg-white/10 text-gray-400'
-                    }`}
-                  >
-                    {preset.badge}
-                  </span>
-                </div>
-                <div className="text-[11px] text-gray-400 mt-2 font-mono truncate">
-                  {preset.label}
-                </div>
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+          <Wrench className="w-4 h-4 text-[#7FB706]" />
+          <h3 className="text-sm font-bold text-white">Standard Inclusions &amp; Hardware Accessories</h3>
         </div>
 
         <div>

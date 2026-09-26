@@ -28,10 +28,46 @@ import {
   AlertCircle,
   ChevronRight,
   HelpCircle,
+  Wrench,
 } from 'lucide-react';
 import { piApi } from '../api/proformaApi';
 import type { ProformaInvoice, PIStatus } from '../types/admin';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
+import { calculateGstSplit, isDelhiState } from '../utils/tax';
+
+function parseItemSpecs(item: any) {
+  let mainDesc = item.description || item.itemDescription || '—';
+  const specs: { label: string; value: string }[] = [];
+
+  // Direct properties
+  if (item.cubicleSize) specs.push({ label: 'Size', value: item.cubicleSize });
+  if (item.boardColor) specs.push({ label: 'Color', value: item.boardColor });
+  if (item.boardThickness) specs.push({ label: 'Thickness', value: item.boardThickness });
+  else if (item.boardType) specs.push({ label: 'Board', value: item.boardType });
+  if (item.doorSize) specs.push({ label: 'Door', value: item.doorSize });
+  if (item.overallHeight) specs.push({ label: 'Height', value: item.overallHeight });
+  if (item.hardwarePackage) specs.push({ label: 'Hardware', value: item.hardwarePackage });
+
+  // If specs were serialized into the description string, e.g. "Pacific ...\n(Board: ... | Color: ...)"
+  if (specs.length === 0 && mainDesc.includes('(') && mainDesc.includes(')')) {
+    const match = mainDesc.match(/^(.*?)(?:\n|\s*)\((.*?)\)$/s);
+    if (match) {
+      mainDesc = match[1].trim();
+      const parts = match[2].split('|').map((s: string) => s.trim());
+      for (const part of parts) {
+        const colonIdx = part.indexOf(':');
+        if (colonIdx > -1) {
+          specs.push({
+            label: part.substring(0, colonIdx).trim(),
+            value: part.substring(colonIdx + 1).trim(),
+          });
+        }
+      }
+    }
+  }
+
+  return { mainDesc, specs };
+}
 
 export default function ProformaInvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -533,6 +569,16 @@ export default function ProformaInvoiceDetailPage() {
             {billTo.gstin && (
               <div className="text-gray-400">GSTIN: <span className="font-mono font-bold text-amber-300">{billTo.gstin}</span></div>
             )}
+            {(() => {
+              const panFromAddr = billTo.addressLine?.match(/PAN:\s*([A-Z0-9]{10})/i)?.[1];
+              const pan = (pi.customer as any)?.pan || (billTo as any).pan || panFromAddr;
+              if (!pan) return null;
+              return (
+                <div className="text-gray-400">
+                  PAN: <span className="font-mono font-bold text-gray-200">{pan}</span>
+                </div>
+              );
+            })()}
             <div className="text-gray-300 leading-relaxed pt-1">{billTo.addressLine}</div>
             <div className="text-gray-400">State: <span className="text-white">{billTo.state} ({billTo.stateCode})</span></div>
             {billTo.phone && <div className="text-gray-400">Phone: <span className="text-white">{billTo.phone}</span></div>}
@@ -561,63 +607,104 @@ export default function ProformaInvoiceDetailPage() {
         </div>
       </div>
 
-      {/* ── Products & Line Items Table ────────────────────────── */}
+      {/* ── Line Items (Matches Quotation UI) ───────────────────── */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl overflow-hidden shadow-xl">
-        <div className="p-4 border-b border-white/5 flex items-center justify-between">
+        <div className="px-5 py-3 border-b border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-[#7FB706]" />
-            <h4 className="text-sm font-bold text-white">Commercial Line Items &amp; Technical Specifications</h4>
+            <h3 className="text-sm font-bold text-white">Line Items</h3>
           </div>
           <span className="text-xs font-mono text-gray-400">{pi.items?.length || 0} line items</span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-[#0a0a1a] text-gray-400 uppercase tracking-wider border-b border-white/5">
+        {/* Desktop */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm text-gray-300">
+            <thead className="bg-[#0a0a1a] text-xs uppercase text-gray-500 border-b border-white/5">
               <tr>
-                <th className="py-3 px-4 text-center w-12">#</th>
-                <th className="py-3 px-4">Item Description</th>
-                <th className="py-3 px-4">HSN/SAC</th>
-                <th className="py-3 px-4 text-center">Qty</th>
-                <th className="py-3 px-4 text-center">Unit</th>
-                <th className="py-3 px-4 text-right">Rate (₹)</th>
-                <th className="py-3 px-4 text-right">Taxable (₹)</th>
-                <th className="py-3 px-4 text-center">GST</th>
-                <th className="py-3 px-4 text-right">Total Amount (₹)</th>
+                <th className="py-3 px-4 text-center w-10">S.No</th>
+                <th className="py-3 px-4">Description</th>
+                <th className="py-3 px-4 text-center w-16">Unit</th>
+                <th className="py-3 px-4 text-right w-16">Qty</th>
+                <th className="py-3 px-4 text-right w-28">Rate (₹)</th>
+                <th className="py-3 px-4 text-right w-28">Amount (₹)</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5 text-gray-300">
+            <tbody className="divide-y divide-white/5">
               {pi.items && pi.items.length > 0 ? (
-                pi.items.map((it, idx) => (
-                  <tr key={it.id || idx} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="py-3 px-4 text-center font-mono text-gray-500">{it.serialNumber || idx + 1}</td>
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-white">{it.description}</div>
-                      {it.product?.name && it.product.name !== it.description && (
-                        <div className="text-[11px] text-gray-400 mt-0.5">SKU: {it.product.sku || it.product.name}</div>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 font-mono text-gray-400">{it.hsnSac || '9403'}</td>
-                    <td className="py-3 px-4 text-center font-bold text-white">{Number(it.quantity)}</td>
-                    <td className="py-3 px-4 text-center text-gray-400">{it.unit || 'NOS'}</td>
-                    <td className="py-3 px-4 text-right font-mono">₹{Number(it.rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                    <td className="py-3 px-4 text-right font-mono">₹{Number(it.taxableAmount || (Number(it.quantity) * Number(it.rate))).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                    <td className="py-3 px-4 text-center">
-                      <span className="px-2 py-0.5 rounded bg-white/5 font-mono text-gray-300 font-semibold">{Number(it.gstRate || 18)}%</span>
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-white">
-                      ₹{Number(it.totalAmount || (Number(it.quantity) * Number(it.rate) * 1.18)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                ))
+                pi.items.map((it, idx) => {
+                  const rate = Number(it.rate ?? 0);
+                  const qty = Number(it.quantity ?? 0);
+                  const amount = Number(it.taxableAmount ?? (qty * rate));
+                  const { mainDesc, specs } = parseItemSpecs(it);
+                  return (
+                    <tr key={it.id ?? idx} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="py-3 px-4 text-center font-mono text-gray-400">{it.serialNumber ?? idx + 1}</td>
+                      <td className="py-3 px-4">
+                        <div className="font-medium text-white">{mainDesc}</div>
+                        {specs.length > 0 && (
+                          <div className="mt-1 text-[11px] text-gray-500 space-y-0.5">
+                            {specs.map((s, sIdx) => (
+                              <div key={sIdx}>• {s.label}: {s.value}</div>
+                            ))}
+                          </div>
+                        )}
+                        {it.product?.name && it.product.name !== mainDesc && (
+                          <div className="text-[11px] text-gray-400 mt-1 font-mono">SKU: {it.product.sku || it.product.name}</div>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-center text-gray-400">{it.unit || 'NOS'}</td>
+                      <td className="py-3 px-4 text-right font-mono">{qty}</td>
+                      <td className="py-3 px-4 text-right font-mono">
+                        {rate.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-semibold text-white">
+                        {amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-gray-500">No line items recorded on this Proforma Invoice.</td>
+                  <td colSpan={6} className="py-8 text-center text-gray-500">No line items recorded on this Proforma Invoice.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+
+          {/* Mobile */}
+          <div className="md:hidden divide-y divide-white/5">
+            {pi.items?.map((it, idx) => {
+              const rate = Number(it.rate ?? 0);
+              const qty = Number(it.quantity ?? 0);
+              const amount = Number(it.taxableAmount ?? (qty * rate));
+              const { mainDesc, specs } = parseItemSpecs(it);
+              return (
+                <div key={it.id ?? idx} className="p-4 space-y-1">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <span className="text-xs text-gray-500 font-mono">#{it.serialNumber ?? idx + 1}</span>
+                      <div className="font-medium text-white text-sm">{mainDesc}</div>
+                      {specs.length > 0 && (
+                        <div className="mt-1 text-[11px] text-gray-500 space-y-0.5">
+                          {specs.map((s, sIdx) => (
+                            <div key={sIdx}>• {s.label}: {s.value}</div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="font-bold text-[#7FB706] font-mono text-sm ml-3">
+                      ₹ {amount.toLocaleString('en-IN')}
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {qty} {it.unit || 'NOS'} × ₹{rate.toLocaleString('en-IN')}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
         {/* ── Tax Summary & Financial Breakdown Dock ────────── */}
         <div className="p-5 bg-[#0a0a1a] border-t border-white/5 flex flex-col md:flex-row justify-between gap-6">
@@ -658,24 +745,53 @@ export default function ProformaInvoiceDetailPage() {
                 <span className="font-mono">₹{Number(pi.freightAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
             )}
-            {Number(pi.cgstAmount) > 0 && (
-              <div className="flex items-center justify-between text-gray-400">
-                <span>CGST:</span>
-                <span className="font-mono">₹{Number(pi.cgstAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-              </div>
-            )}
-            {Number(pi.sgstAmount) > 0 && (
-              <div className="flex items-center justify-between text-gray-400">
-                <span>SGST:</span>
-                <span className="font-mono">₹{Number(pi.sgstAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-              </div>
-            )}
-            {Number(pi.igstAmount) > 0 && (
-              <div className="flex items-center justify-between text-gray-400">
-                <span>IGST:</span>
-                <span className="font-mono">₹{Number(pi.igstAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-              </div>
-            )}
+            {(() => {
+              const totalTax = Number(pi.totalTaxAmount || (pi as any).taxAmount || 0);
+              const subtotalNum = Number(pi.subtotal || (pi as any).taxableAmount || 0);
+
+              const breakdown = calculateGstSplit(
+                subtotalNum,
+                pi.placeOfSupplyStateCode || billTo.stateCode,
+                pi.placeOfSupply || billTo.state,
+                false,
+                18,
+                pi.customer?.gstin || billTo.gstin,
+                billTo.addressLine || billTo.state
+              );
+
+              const isDelhi = breakdown.isDelhi || isDelhiState(
+                pi.placeOfSupplyStateCode || billTo.stateCode,
+                pi.placeOfSupply || billTo.state,
+                pi.customer?.gstin || billTo.gstin,
+                billTo.addressLine
+              );
+
+              if (isDelhi) {
+                const halfTax = totalTax > 0 ? totalTax / 2 : breakdown.cgstAmount;
+                const cgst = Number(pi.cgstAmount || 0) > 0 ? Number(pi.cgstAmount) : halfTax;
+                const sgst = Number(pi.sgstAmount || 0) > 0 ? Number(pi.sgstAmount) : halfTax;
+                return (
+                  <>
+                    <div className="flex items-center justify-between text-blue-400">
+                      <span>CGST (9%):</span>
+                      <span className="font-mono font-semibold">₹{cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-blue-400">
+                      <span>SGST (9%):</span>
+                      <span className="font-mono font-semibold">₹{sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </>
+                );
+              }
+
+              const igst = Number(pi.igstAmount || 0) > 0 ? Number(pi.igstAmount) : (totalTax > 0 ? totalTax : breakdown.igstAmount);
+              return (
+                <div className="flex items-center justify-between text-purple-400">
+                  <span>IGST (18%):</span>
+                  <span className="font-mono font-semibold">₹{igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+              );
+            })()}
             {Number(pi.roundingAdjustment) !== 0 && (
               <div className="flex items-center justify-between text-gray-400">
                 <span>Rounding Adjustment:</span>
@@ -690,6 +806,37 @@ export default function ProformaInvoiceDetailPage() {
         </div>
       </div>
 
+      {/* ── Standard Inclusions & Hardware Accessories Card ───── */}
+      {(() => {
+        const hardwareTerm = pi.terms?.find(
+          (t) =>
+            t.text?.toLowerCase().includes('hardware accessories') ||
+            t.text?.toLowerCase().includes('standard inclusions')
+        );
+        if (!hardwareTerm) return null;
+        const content = hardwareTerm.text
+          .replace(/^Standard Inclusions & Hardware Accessories:\s*/i, '')
+          .trim();
+        return (
+          <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-white/5">
+              <div className="flex items-center gap-2">
+                <Wrench className="w-4 h-4 text-[#7FB706]" />
+                <h4 className="text-sm font-bold text-white uppercase tracking-wider">
+                  Standard Inclusions &amp; Hardware Accessories
+                </h4>
+              </div>
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#7FB706]/10 text-[#7FB706] font-semibold">
+                Factory Specifications
+              </span>
+            </div>
+            <div className="text-xs text-gray-300 whitespace-pre-line leading-relaxed bg-[#0a0a1a] p-4 rounded-xl border border-white/5 font-sans">
+              {content}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Terms & Conditions Card ────────────────────────────── */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-white/5">
@@ -697,20 +844,35 @@ export default function ProformaInvoiceDetailPage() {
             <FileText className="w-4 h-4 text-amber-400" />
             <h4 className="text-sm font-bold text-white uppercase tracking-wider">Commercial Terms &amp; Conditions</h4>
           </div>
-          <span className="text-xs text-gray-500 font-mono">{pi.terms?.length || 0} Clauses</span>
+          <span className="text-xs text-gray-500 font-mono">
+            {((pi.terms || []).filter(
+              (t) =>
+                !t.text?.toLowerCase().includes('hardware accessories') &&
+                !t.text?.toLowerCase().includes('standard inclusions')
+            )).length} Clauses
+          </span>
         </div>
 
         <div className="space-y-1.5 text-xs text-gray-300">
-          {pi.terms && pi.terms.length > 0 ? (
-            pi.terms.map((t, idx) => (
-              <div key={idx} className="flex items-start gap-2">
-                <span className="font-mono text-gray-500 shrink-0">{t.clauseNumber || idx + 1}.</span>
-                <p className="leading-relaxed">{t.text}</p>
-              </div>
-            ))
-          ) : (
-            <p className="text-gray-500 italic">Standard statutory terms apply (Goods once sold will not be returned; 18% p.a. interest on overdue; Subject to Delhi jurisdiction).</p>
-          )}
+          {(() => {
+            const standardTerms = (pi.terms || []).filter(
+              (t) =>
+                !t.text?.toLowerCase().includes('hardware accessories') &&
+                !t.text?.toLowerCase().includes('standard inclusions')
+            );
+            return standardTerms.length > 0 ? (
+              standardTerms.map((t, idx) => (
+                <div key={idx} className="flex items-start gap-2">
+                  <span className="font-mono text-gray-500 shrink-0">{idx + 1}.</span>
+                  <p className="leading-relaxed">{t.text}</p>
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500 italic">
+                Standard statutory terms apply (Goods once sold will not be returned; 18% p.a. interest on overdue; Subject to Delhi jurisdiction).
+              </p>
+            );
+          })()}
         </div>
       </div>
 

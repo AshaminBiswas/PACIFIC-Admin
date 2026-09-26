@@ -625,9 +625,13 @@ export function formatModelHardwareInclusions(model: ProductCatalogModel): strin
   // Itemized components
   if (model.hardwareList && model.hardwareList.length > 0) {
     model.hardwareList.forEach((h) => {
-      const mat = h.material && h.material !== 'Standard' && h.material !== 'Both' ? ` [${h.material}]` : '';
-      const notes = h.notes ? ` (${h.notes})` : '';
-      lines.push(`• ${h.name}${mat}${notes}`);
+      const cleanName = h.name.replace(/\s*\[SS Hardware\]\s*/gi, ' ').trim();
+      const mat =
+        h.material && h.material !== 'Standard' && h.material !== 'Both' && h.material !== 'SS Hardware'
+          ? ` [${h.material}]`
+          : '';
+      const cleanNotes = h.notes ? ` (${h.notes.replace(/\s*\[SS Hardware\]\s*/gi, ' ').trim()})` : '';
+      lines.push(`• ${cleanName}${mat}${cleanNotes}`);
     });
   } else {
     // Default fallback hardware components by category

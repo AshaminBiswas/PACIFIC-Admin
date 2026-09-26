@@ -184,6 +184,7 @@ D:\PACIFIC-Admin\
 | `/admin/dashboard/sales-orders` | `SalesOrdersPage` | Protected | Central Sales Order Hub (`PPS/ORD/2026-27/...`), cross-document universal search & timeline |
 | `/admin/dashboard/sales-orders/new` | `CreateSalesOrderPage` | Protected | Dedicated create page with localStorage auto-save |
 | `/admin/dashboard/sales-orders/:id` | `SalesOrderDetailPage` | Protected | Dedicated Sales Order 360 overview, 5-stage lifecycle stepper, specs, audit history & linked docs |
+| `/admin/dashboard/sales-orders/:id/edit` | `EditSalesOrderPage` | Protected | Dedicated Sales Order Editor with full specifications, delivery site & commercial terms |
 | `/admin/dashboard/sales-orders/:id/timeline` | `SalesOrderTimelinePage` | Protected | Dedicated 5-stage interactive document lifecycle pipeline, status badges & cross-document links |
 | `/admin/dashboard/sales-orders/:id/follow-up` | `SalesOrderFollowupPage` | Protected | Dedicated full-page Order Follow-Up & Discussion Hub (Call, WhatsApp, SMS, Resend Email, Timeline) |
 | `/admin/dashboard/proforma-invoices` | `ProformaInvoicesPage`| Protected | Central Proforma Invoices Hub (`PPS/PI/2026-27/...`), Stage 02 timeline, advance tracking & clickable 360 rows |
@@ -1203,5 +1204,220 @@ The admin console implements an enterprise dual-layer auto-refresh engine to pre
      - Deficit calculation and Recommended Minimum Order Quantity.
      - Direct Action Box for Immediate Purchase Order issuance.
    - **Live Verification**: Verified end-to-end with live Resend delivery resulting in successful transmission to all 5 operational mailboxes.
+
+
+
+---
+
+## 30. Delivery Address Master Architecture & 07 Delhi GST Split Rule
+
+1. **Delivery Address Master Architecture for Every Customer**:
+   - **Data Model**: Sourced from party_addresses with addressType: 'SHIPPING' (isDefaultShipping: true) alongside addressType: 'BILLING' (isDefaultBilling: true).
+   - **Customer Onboarding (CreateCustomerPage.tsx)**:
+     - Form includes distinct Section 2 (Primary Billing Address) and Section 3 (Delivery / Site Shipping Address).
+     - Features [x] Delivery address is same as billing address toggle that auto-syncs or unlocks custom delivery location fields.
+     - Submits both addresses in parallel so delivery coordinates are saved from day one.
+   - **Customer Management (EditCustomerPage.tsx)**:
+     - Displays dedicated fields for Delivery Address Line 1 & 2, City, State, State Code, and Postal Code.
+     - Loads both billing and shipping records without erasing existing delivery addresses.
+   - **Customer 360 View (CustomerDetailPage.tsx)**:
+     - Quick Details sidebar and Addresses tab render both the Default Billing badge and a distinct green Default Delivery badge (DELIVERY / SITE ADDRESS).
+   - **Cross-Document Auto-Population**:
+     - Selecting a customer automatically populates the recipient's Delivery / Site Address in Quotation (DraftQuotationPage.tsx), Proforma Invoice (CreateProformaPage.tsx), Sales Order (CreateSalesOrderPage.tsx), and Tax Invoice (CreateInvoicePage.tsx).
+
+2. **07 Delhi GST Split Rule (CGST 9% + SGST 9% vs IGST 18%)**:
+   - **Statutory Logic**: Pacific Restroom Cubicles operates from Mandoli, New Delhi (07). If the place of supply, recipient billing state, or delivery site is within Delhi (State Code 07 or state containing 'Delhi'):
+     - **Intra-State Supply**: Total 18% GST splits equally into CGST @ 9% + SGST @ 9% (IGST = 0%).
+     - **Inter-State Supply**: Outside Delhi applies IGST @ 18% (CGST = 0%, SGST = 0%).
+   - **Centralized Engine (src/utils/tax.ts)**:
+     - calculateGstSplit provides uniform tax determination across all client views.
+     - Backend tax engine (tax.engine.ts) enhanced with normalizeStateCode() for robust mapping of '07', 'Delhi', 'DELHI (07)'.
+   - **Uniform Implementation Across 4 Core Documents**:
+     1. **Quotation**:
+        - DraftQuotationPage.tsx & EditSalesQuotationPage.tsx: Live summary dock splits taxes into CGST (9%) + SGST (9%) for Delhi or IGST (18%) for inter-state.
+        - SalesQuotationDetailPage.tsx: Financial summary card highlights Delhi supply with CGST 9% and SGST 9% rows.
+        - PDF Generator (generateQuotationPdfHtml): A4 printout dynamically displays CGST 9% and SGST 9% rows for Delhi supplies.
+     2. **Proforma Invoice (PI)**:
+        - CreateProformaPage.tsx & EditProformaInvoicePage.tsx: Floating summary bar displays live CGST 9% and SGST 9% lines.
+        - ProformaInvoiceDetailPage.tsx: Financial breakdown card splits GST for 07 Delhi.
+        - PDF Generator (generatePiHtml): Tax table renders explicit CGST (9%): and SGST (9%): rows.
+     3. **Sales Order (Direct & Quotation-linked)**:
+        - CreateSalesOrderPage.tsx: Live calculation dock calculates and renders CGST 9% and SGST 9% when site/billing is Delhi.
+        - SalesOrderDetailPage.tsx: Financial Value card renders Delhi Supply badge with CGST 9% and SGST 9% lines.
+        - PDF Generator (generateSalesOrderPdfHtml): Order confirmation PDF prints CGST (9%) and SGST (9%) or IGST (18%).
+     4. **Tax Invoice / Bill (Stage 4)**:
+        - CreateInvoicePage.tsx: Form features customer picker, delivery address snapshot, and statutory tax breakdown dock.
+        - PDF Generator (generateTaxInvoicePdfHtml): Renders two-column BILLED TO (RECEIVER) and SHIPPED TO (DELIVERY / SITE) header, and splits tax rows into CGST (9%): + SGST (9%): for Delhi recipients.
+
+---
+
+## 31. Proforma Invoice (PI) UI/UX Realignment & Technical Hardware Specifications Synchronization
+
+1. **Quotation to Proforma Invoice Conversion Specifications Preservation**:
+   - **Backend (`pi.service.ts` `createFromQuotation`)**:
+     - Preserves all standard inclusions & hardware accessories by prepending them to the PI terms clauses (`Standard Inclusions & Hardware Accessories:\n${quotation.accessoriesText}`).
+     - Concatenates item technical specifications (`boardType`, `boardThickness`, `boardColor`, `cubicleSize`, `doorSize`, `overallHeight`, `hardwarePackage`) directly into `description` with `\n(Board: ... | Hardware: ...)`.
+     - Maps customer `pan` and `pincode` into `billTo.addressLine` alongside legal GSTIN.
+     - Preserves delivery coordinates from customer shipping address or quotation recipient address.
+     - Robustly identifies Delhi supplies (`isDelhi`) and assigns `placeOfSupplyStateCode = '07'`, triggering statutory CGST 9% and SGST 9% tax breakdown.
+
+2. **Proforma Invoice Detail View (`ProformaInvoiceDetailPage.tsx`)**:
+   - **Delhi CGST 9% & SGST 9% Split**: Displays explicit `CGST (9%)` and `SGST (9%)` in dedicated blue monospace badges whenever supply is within Delhi (`07`), bypassing legacy single-rate IGST fallback.
+   - **Dedicated Hardware Inclusions Card**: Extracts factory accessories from terms and renders a prominent, styled **Standard Inclusions & Hardware Accessories** card with `Wrench` icon above commercial terms.
+   - **Item Specifications Rendering**: Added `whitespace-pre-line leading-relaxed` formatting so multi-line technical dimensions and board/hardware specifications display cleanly.
+   - **PAN Display in Billing Party**: Extracts and highlights customer PAN from profile or formatted address line.
+
+3. **Complete PI Creation UI Alignment (`CreateProformaPage.tsx`)**:
+   - Upgraded to match `DraftQuotationPage.tsx` with:
+     - **Client Master & Company Entity Selection**: Customer dropdown auto-populates legal name, trade name, GSTIN, PAN, and billing/shipping addresses.
+     - **Quotation Fast-Import**: Dropdown to import approved quotations directly into PI line items and specifications.
+     - **Billing Address (Customer Legal Entity)**: Dedicated fields for Legal Name, GSTIN (15 chars), PAN (10 chars), Address Line, City, Pincode (6 digits), State & Code, Phone & Email.
+     - **Delivery Address (Site / Ship To)**: Consignee name, delivery address line, city, pincode, state, phone, and 1-click **"Same as Billing"** sync button.
+     - **Transport & Logistics**: Place of supply, state code, mode of transport, vehicle number, GR/LR number, linked PO number & date, freight amount, advance %, and RCM toggle.
+     - **4 Interactive Hardware Presets (`HARDWARE_PRESETS`)**: SS 304 Stainless Steel (`SS_304`), Black Polyamide Nylon (`NYLON_BLACK`), SS 316 Marine Grade (`SS_316`), and Heavy-Duty Aluminium (`ALUMINIUM`).
+     - **Quotation Line Items Layout**:
+       - Quick Boilerplate Presets (`Standard Cubicle`, `Urinal Partition`, `Hpl Locker`).
+       - Product Model Catalog Selector (`getMergedQuotationModels`: Cubicles, Lockers, Urinal Partitions) which auto-fills dimensions, board thickness, and hardware inclusions.
+       - Clean 3-column row (`Unit`, `Quantity *`, `Rate (₹) *`) removing extraneous in-row HSN/SAC and GST inputs (defaulting silently to `9403` and `18%`).
+       - Cubicle Technical Specifications Sub-Card (Board Type, Board Thickness, Board Color, Cubicle Size, Door Size, Overall Height, and Hardware Package).
+       - Right-aligned `Line Total: ₹ ...` display card per item.
+     - **Commercial Terms & Conditions**: Numbered clause manager with add/remove actions.
+     - **Live Financial & GST Split Floating Dock**: Live basic price, freight, taxable total, Delhi CGST 9% + SGST 9% (or IGST 18%), grand total, and required advance amount.
+
+4. **Complete PI Edit UI Alignment (`EditProformaInvoicePage.tsx`)**:
+   - Upgraded to replicate the exact same rich, responsive interface when editing existing PIs:
+     - Customer assignment & lifecycle status switcher (`DRAFT`, `ISSUED`, `PARTIALLY_PAID`, `PAID`, `CANCELLED`).
+     - Billing Address with GSTIN, PAN, and Pincode fields.
+     - Delivery Address with Pincode and "Same as Billing" 1-click sync.
+     - 4 Interactive Hardware Presets and Standard Inclusions editor.
+     - Exact Quotation Line Items structure with Quick Boilerplate Presets, 3-column pricing row (`Unit`, `Quantity`, `Rate`), technical specification sub-card, and bottom-right Line Total.
+     - Delhi CGST 9% + SGST 9% live floating dock with advance clearance progress.
+
+5. **PI Detail View Line Items (`ProformaInvoiceDetailPage.tsx`)**:
+   - Replaced legacy 9-column commercial table with Quotation's clean 6-column Line Items table (`S.No`, `Description`, `Unit`, `Qty`, `Rate (₹)`, `Amount (₹)`).
+   - Structured specification parser (`parseItemSpecs`) that renders neat bullet points under each product title (`• Size:`, `• Color:`, `• Thickness:`, `• Door:`, `• Height:`, `• Hardware:`).
+   - Responsive mobile card transformation with item amount badge and unit $\times$ rate calculation.
+   - Preserves GST summary dock, Delhi CGST 9% + SGST 9% split badges, and Standard Inclusions & Hardware Accessories card.
+
+6. **Database Schema Synchronization & Header Simplification**:
+   - **PostgreSQL Database & Prisma Schema (`schema.prisma`)**:
+     - Added dedicated specification columns (`boardType`, `boardThickness`, `boardColor`, `cubicleSize`, `doorSize`, `overallHeight`, `hardwarePackage`) directly to `proforma_invoice_items` and `sales_quotation_items`.
+     - Altered live PostgreSQL database tables (`ALTER TABLE proforma_invoice_items ...`) and regenerated Prisma client across both backend and frontend workspaces (`npx prisma generate`).
+     - Updated backend `pi.service.ts` (`create`, `update`, `createFromQuotation`) to directly persist and return individual technical specification fields.
+   - **Top Navigation Simplification**:
+     - Removed redundant top action header ("Edit Proforma Invoice / Create Proforma Invoice", document number pills, Cancel, and duplicate Save buttons) from both `CreateProformaPage.tsx` and `EditProformaInvoicePage.tsx`.
+     - Replaced with a single clean, high-contrast back button (`Back to PI Details` / `Back to Proforma Invoices`), ensuring that all primary actions and financial metrics stay unified in the bottom floating dock.
+
+7. **Grand Total Form Footer Placement & Formal Vector PDF Template Realignment**:
+   - **Form Footer Financial Summary**:
+     - Moved the full Statutory GST Breakdown & Grand Total card to the bottom form footer (positioned between Card 6 Commercial Terms & Conditions and the sticky bottom action bar) in both `CreateProformaPage.tsx` and `EditProformaInvoicePage.tsx`.
+     - Displays live Basic Price, Freight, Taxable Value, Delhi CGST 9% + SGST 9% (or IGST 18%), Grand Total, and Advance Required amount without cluttering the top of the form.
+   - **Vector A4 Proforma Invoice PDF Template (`pdf.service.ts` & `pi.service.ts`)**:
+     - Redesigned `generatePiHtml` in backend `pdf.service.ts` to visually match the formal Quotation PDF layout.
+     - **Company Logo Integration**: Dynamically resolves and embeds the official Pacific logo via `resolveCompanyLogoDataUri(data.logoUrl)` (reading base64 asset directly from disk or profile).
+     - **Header & Verification**: Crisp single-line `#000000` vector border, company address, phone, GSTIN, PAN, `PROFORMA INVOICE` title badge, document reference, date, place of supply, dispatch details, and document QR code.
+     - **Dual-Party Grid**: Formal side-by-side **Bill To (Buyer)** and **Ship To (Delivery Site)** party tables displaying buyer legal name, full street address, state code, GSTIN, and PAN.
+     - **Items Table & Technical Specs**: 6-column pricing table with auto-parsed bullet points for board type, board thickness, board color, cubicle size, door size, overall height, and hardware package under each line item description.
+     - **Statutory Delhi GST Breakdown**: Displays explicit `CGST @ 9%` and `SGST @ 9%` for Delhi transactions (`07`) or `IGST @ 18%` for interstate supplies, with exact rounding adjustments and amount in words.
+     - **Standard Inclusions & Hardware Accessories Box**: Renders the complete standard SS 304 hardware package and factory inclusions.
+     - **Entity Bank Remittance Details**: Prominently displays primary bank account name, bank name, account number, IFSC code, and branch for electronic payment transfers (RTGS / NEFT / IMPS).
+     - **Signatory Sign-off**: Dual signature footer featuring Client Acceptance signature line on the left and authorized signatory signature image, name, designation, and mobile contact on the right.
+
+---
+
+## 32. Sales Order Parity, CRUD Realignment & Conversion Synchronization
+
+1. **Relational Database Schema & Prisma Migration**:
+   - **PostgreSQL Database & Prisma Schema (`schema.prisma`)**:
+     - Added dedicated hardware specification columns (`boardType`, `boardThickness`, `boardColor`, `cubicleSize`, `doorSize`, `overallHeight`, `hardwarePackage`) directly to `sales_order_items`.
+     - Added statutory tax, logistics, accessories, and terms columns (`placeOfSupply`, `placeOfSupplyStateCode`, `freightAmount`, `cgstAmount`, `sgstAmount`, `igstAmount`, `accessoriesText`, `termsJson`) directly to `sales_orders`.
+     - Altered live PostgreSQL database tables (`ALTER TABLE sales_order_items ...`, `ALTER TABLE sales_orders ...`) and regenerated Prisma client across both backend and frontend workspaces (`npx prisma generate`).
+
+2. **Backend Order Lifecycle & Conversion Synchronization (`orders.service.ts`)**:
+   - **Quotation to Sales Order Conversion (`createFromQuotation`)**:
+     - Extracts and persists all 7 technical hardware specifications (`boardType`, `boardThickness`, `boardColor`, `cubicleSize`, `doorSize`, `overallHeight`, `hardwarePackage`) from quotation line items.
+     - Preserves standard inclusions and hardware accessories text (`accessoriesText`), customer delivery site coordinates, and commercial terms.
+     - Automatically evaluates statutory place of supply (`isDelhi` / `07`) and splits taxes into CGST @ 9% + SGST @ 9% for Delhi transactions or IGST @ 18% for interstate supplies.
+   - **Proforma Invoice to Sales Order Conversion (`createFromProforma`)**:
+     - Extracts and maps line item specifications, linked PO numbers/dates, billing & shipping party snapshots, accessories, and terms.
+     - Automatically carries forward freight, subtotal, and Delhi statutory CGST/SGST tax split amounts.
+   - **Direct Creation & Update Endpoints (`createDirect` & `update`)**:
+     - Submits and persists all 7 technical dimensions per line item alongside unit, quantity, rate, and total amount.
+     - Full update capability on existing sales orders via `PATCH /api/v1/orders/:id`, synchronizing customer profiles, dual addresses, technical specifications, and commercial terms.
+
+3. **Sales Order Detail View Parity (`SalesOrderDetailPage.tsx`)**:
+   - **Dual-Column Address Cards**: Prominently renders **Billing Party (Customer)** (with Legal/Trade Name, GSTIN, PAN, Pincode, Address, Phone, Email) alongside **Delivery Site / Shipping Party** (with Site Name, Address, Pincode, State, Phone).
+   - **Technical Hardware Specifications Breakdown**: Structured specification parser (`parseItemSpecs`) that renders clean bullet points under each product title (`• Size:`, `• Color:`, `• Thickness:`, `• Door:`, `• Height:`, `• Hardware:`).
+   - **Statutory Delhi GST Breakdown Dock**: Displays live Subtotal, Freight, Delhi CGST 9% + SGST 9% (or IGST 18%), and Grand Total with Delhi intra-state supply highlight badge.
+   - **Standard Inclusions & Hardware Accessories Card**: Renders the complete factory hardware inclusions and accessories package.
+   - **Commercial Terms & Conditions Card**: Itemized list of agreed operational and delivery terms.
+   - **Direct Edit Navigation**: Replaced legacy small modal trigger with a direct action button navigating to `/admin/dashboard/sales-orders/:id/edit`.
+
+4. **Dedicated Full-Page Sales Order Editor (`EditSalesOrderPage.tsx`)**:
+   - Accessible via `/admin/dashboard/sales-orders/:id/edit`.
+   - **Customer Assignment & Lifecycle Status**: Live status switcher (`DRAFT`, `CONFIRMED`, `IN_PRODUCTION`, `READY_FOR_DISPATCH`, `DISPATCHED`, `COMPLETED`, `CANCELLED`).
+   - **Dual-Column Billing & Shipping Form**: Dedicated fields for Legal Name, GSTIN, PAN, Pincode, Address Line, City, State & Code, Phone, and Email, with a 1-click **"Same as Billing"** delivery address sync button.
+   - **4 Interactive Hardware Presets (`HARDWARE_PRESETS`)**: SS 304 Stainless Steel (`SS_304`), Black Polyamide Nylon (`NYLON_BLACK`), SS 316 Marine Grade (`SS_316`), and Heavy-Duty Aluminium (`ALUMINIUM`).
+   - **Line Items Structure**:
+     - Quick Boilerplate Presets (`Standard Cubicle`, `Urinal Partition`, `Hpl Locker`).
+     - Product Model Catalog Selector (`getMergedQuotationModels`) which auto-populates dimensions, board thickness, and hardware inclusions.
+     - 3-column pricing row (`Unit`, `Quantity *`, `Rate (₹) *`).
+     - Cubicle Technical Specifications Sub-Card (Board Type, Board Thickness, Board Color, Cubicle Size, Door Size, Overall Height, and Hardware Package).
+     - Duplicate item and remove item actions.
+   - **Commercial Terms & Conditions Manager**: Numbered clause editor with add/remove actions.
+   - **Sticky Bottom Financial Dock**: Live Basic Price, Freight, Taxable Total, Delhi CGST 9% + SGST 9% (or IGST 18%), and Grand Total.
+
+5. **Create Sales Order Page Upgrade (`CreateSalesOrderPage.tsx`)**:
+   - **Quotation & PI Fast-Import**: Dropdowns to import accepted quotations or issued Proforma Invoices with 1-click auto-population of all specs, prices, and terms.
+   - Complete visual and functional parity with `DraftQuotationPage.tsx` and `CreateProformaPage.tsx`.
+   - Dedicated Billing Party and Delivery Site cards, 4 interactive hardware presets, product catalog model selector, technical specifications sub-card per item, and Delhi GST split dock.
+
+6. **Sales Order PDF Vector A4 Alignment (`generateSalesOrderPdfHtml` in `pdf.service.ts`)**:
+   - Replaced legacy basic HTML layout with the vector A4 single-page template matching `generateQuotationPdfHtml` and `generatePiHtml`.
+   - **Header & Verification**: Brand logo (`resolveCompanyLogoDataUri`), crisp dark header styling, order date, order number, revision tag, and verified document QR code.
+   - **Order Details Grid**: Client PO number & PO date, payment terms, and Place of Supply with statutory State Code.
+   - **Dual-Party Cards**: Distinct **Bill To** and **Ship To** addresses with Legal Name, full address, GSTIN, PAN, and contact details.
+   - **6-Column Line Items Table**: `#`, `Item Description & Specifications`, `HSN/SAC`, `Qty`, `Unit Rate (₹)`, `Total Amount (₹)`. Automatically renders 7-dimension technical specifications (Board Type, Thickness, Color, Cubicle Size, Door Size, Height, Hardware Package) as bullet points beneath the product description.
+   - **Statutory Delhi GST Split**: Computes and displays `CGST @ 9%` and `SGST @ 9%` for intra-state (Delhi `07`) or `IGST @ 18%` for inter-state orders, with exact amounts and Amount in Words.
+   - **Standard Inclusions & Hardware Accessories Box**: Renders factory hardware inclusions matching Quotation/PI.
+   - **Entity Bank Remittance Details**: Displays entity bank coordinates (Bank Name, Account Number, IFSC, Branch) for wire/RTGS transfers.
+   - **Commercial Order Terms & Sign-off**: Dual signatures with Client Acceptance on the left and Authorized Signatory with seal/signature image on the right.
+
+---
+
+## 33. Hardware Preset Tabs Removal & Hardware List Sanitization
+
+1. **Removal of Redundant Hardware Preset Cards**:
+   - Removed the 4 interactive preset tabs/cards (`SS 304 Satin Finish / Most Popular / SS 304 Stainless Steel`, `Grade A Nylon / High Impact / Black Polyamide Nylon`, `SS 316 Marine / Coastal & Pool / SS 316 Marine Grade`, and `Aluminium Alloy / Architectural Grade / Aluminium Heavy-Duty`) and their subtitle across:
+     - Quotation Creation (`DraftQuotationPage.tsx`) & Quotation Edit (`EditSalesQuotationPage.tsx`)
+     - Proforma Invoice Creation (`CreateProformaPage.tsx`) & Proforma Invoice Edit (`EditProformaInvoicePage.tsx`)
+     - Sales Order Creation (`CreateSalesOrderPage.tsx`) & Sales Order Edit (`EditSalesOrderPage.tsx`)
+   - Simplified Section: Retained the clean section header and standard full-width textarea for `Standard Inclusions & Hardware Accessories *`, populated directly from model selections via `formatModelHardwareInclusions` or default baseline package.
+
+2. **Sanitization of `[SS Hardware]` Tag from Hardware Lists & PDFs**:
+   - In `formatModelHardwareInclusions` (`quotationProductPresets.ts`): Filtered out `SS Hardware` from the material tag formatter (`mat`) and stripped any occurrence of `[SS Hardware]` from hardware component names or notes.
+   - In Backend PDF Generator (`pdf.service.ts`): Added sanitization regex (`replace(/\[SS Hardware\]/gi, '').replace(/\s{2,}/g, ' ').trim()`) to `generatePiHtml`, `generateQuotationPdfHtml`, and `generateSalesOrderPdfHtml` to ensure no `[SS Hardware]` tags ever appear in generated customer PDFs.
+
+---
+
+## 34. Customer Search Combobox, Listed Models Constraint & Boilerplate Presets Removal
+
+1. **Multi-Attribute Searchable Customer Combobox (`CustomerSearchSelect.tsx`)**:
+   - Built a dedicated, reusable dropdown combobox component (`src/components/common/CustomerSearchSelect.tsx`) to replace standard `<select>` elements for Customer Party selection.
+   - **Multi-Field Real-Time Search**: Filters across Legal Name, Trade Name, Email / `contactEmail`, GSTIN, PAN, Phone / `contactPhone`, and Contact Name.
+   - **Rich Dropdown Item Presentation**: Renders party name, address city/state, emerald GSTIN badge (`FileText`), blue email badge (`Mail`), phone badge (`Phone`), and selection checkmark (`Check`).
+   - **Auto-Fill Integration**: Automatically populates customer billing party details (Party Name, GSTIN, PAN, Address Line, City, State, State Code, Phone, Email) and shipping party details upon selection across:
+     - Proforma Invoice Creation (`CreateProformaPage.tsx`) & Edit (`EditProformaInvoicePage.tsx`)
+     - Sales Order Creation (`CreateSalesOrderPage.tsx`) & Edit (`EditSalesOrderPage.tsx`)
+
+2. **Strict Listed Product Models Constraint in PI and Sales Order**:
+   - **Removed `CUSTOM` / Manual Text Input**: Eliminated the `<option value="CUSTOM">Custom / Manual Description</option>` option and the manual text description input field from line items in `CreateSalesOrderPage.tsx`, `CreateProformaPage.tsx`, `EditSalesOrderPage.tsx`, and `EditProformaInvoicePage.tsx`.
+   - **Full-Width Categorized Selector**: Rendered a full-width select dropdown grouped into catalog optgroups (`Restroom Cubicles`, `Modular Lockers`, `Urinal Partitions`).
+   - **Description Persistence & Feedback**: Selecting any listed model automatically assigns the formatted model name (`Pacific ${selected.title} (${selected.category})`), populates dimensions (cubicle size, door size, height, board thickness, board type, hardware package), auto-generates accessories text, and shows a crisp **Selected Model** indicator beneath the select element.
+
+3. **Complete Removal of "Quick Boilerplate Presets"**:
+   - Removed the `"Quick Boilerplate Presets"` toolbar (`Standard Cubicle`, `Urinal Partition`, `Hpl Locker`) and the `applyBoilerplatePreset` helper function across `CreateSalesOrderPage.tsx`, `CreateProformaPage.tsx`, `EditSalesOrderPage.tsx`, and `EditProformaInvoicePage.tsx`.
+   - Line items are cleanly added via **"Add Item Row"** and configured using catalog product model presets.
+
 
 

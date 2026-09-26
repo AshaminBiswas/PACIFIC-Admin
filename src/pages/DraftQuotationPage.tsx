@@ -15,6 +15,7 @@ import {
 } from '../utils/quotationProductPresets';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import type { BusinessParty, CompanyProfile, ProductCatalogModel } from '../types/admin';
+import { calculateGstSplit } from '../utils/tax';
 
 export interface CreateItem {
   modelId?: string;
@@ -58,50 +59,14 @@ export interface CreateFormData {
   generalTerms: string;
   otherTerms: string;
   notes: string;
-  selectedHardwarePreset: string;
+  selectedHardwarePreset?: string;
   items: CreateItem[];
 }
 
 const LOCAL_STORAGE_KEY = 'pacific_create_quotation_v2';
 
-export const HARDWARE_PRESETS = [
-  {
-    id: 'SS_304',
-    name: 'SS 304 Stainless Steel',
-    label: 'SS 304 Satin Finish',
-    badge: 'Most Popular',
-    itemSpec: 'SS 304 Stainless Steel (Satin/Brushed)',
-    accessoriesText:
-      '• Gravity Hinges: Self-closing SS 304 stainless steel gravity hinges with nylon cam mechanism.\n• Indicator Lock: SS 304 surface-mounted privacy lock with external red/white occupancy indicator and emergency release.\n• Supporting Shoe/Legs: SS 304 adjustable height support legs (100mm to 150mm ground clearance).\n• Coat Hook: SS 304 heavy-duty coat hook with integrated rubber door buffer.\n• Fasteners: Grade 304 stainless steel tamper-proof screws and expanding anchors.',
-  },
-  {
-    id: 'NYLON_BLACK',
-    name: 'Black Polyamide Nylon',
-    label: 'Grade A Nylon',
-    badge: 'High Impact',
-    itemSpec: 'Grade A Black Polyamide Nylon',
-    accessoriesText:
-      '• Gravity Hinges: High-impact engineered Black Polyamide Nylon (Grade 6) self-closing hinges.\n• Indicator Lock: Ergonomic nylon privacy bolt lock with color-coded occupancy indicator and emergency release.\n• Supporting Shoe/Legs: Heavy-duty adjustable nylon support feet (100mm to 150mm floor clearance).\n• Coat Hook: Color-matched polyamide nylon coat hook with rubber shock absorber.\n• Fasteners: High-tensile fasteners with nylon finishing caps.',
-  },
-  {
-    id: 'SS_316',
-    name: 'SS 316 Marine Grade',
-    label: 'SS 316 Marine',
-    badge: 'Coastal & Pool',
-    itemSpec: 'SS 316 Marine Grade Stainless Steel',
-    accessoriesText:
-      '• Premium Grade 316 Austenitic Stainless Steel hardware package.\n• Specifically engineered for coastal, high-humidity, marine, and chlorinated swimming pool environments.\n• Includes SS 316 heavy-duty self-closing hinges, indicator thumb-turn lock, adjustable shoe plinths, and coat hooks.\n• Maximum corrosion resistance against saline atmospheres and aggressive cleaning chemicals.',
-  },
-  {
-    id: 'ALUMINIUM',
-    name: 'Aluminium Heavy-Duty',
-    label: 'Aluminium Alloy',
-    badge: 'Architectural Grade',
-    itemSpec: 'Aluminium Satin / Black Anodised',
-    accessoriesText:
-      '• Architectural extruded Grade 6063-T6 Aluminium alloy hardware in Satin Silver Anodised or Black Matte finish.\n• Heavy-duty continuous aluminium U-channels and top rail headrail system.\n• Complementary matching indicator lock and self-closing pivot hinge hardware set.',
-  },
-];
+export const DEFAULT_ACCESSORIES_TEXT =
+  '• Gravity Hinges: Self-closing SS 304 stainless steel gravity hinges with nylon cam mechanism.\n• Indicator Lock: SS 304 surface-mounted privacy lock with external red/white occupancy indicator and emergency release.\n• Supporting Shoe/Legs: SS 304 adjustable height support legs (100mm to 150mm ground clearance).\n• Coat Hook: SS 304 heavy-duty coat hook with integrated rubber door buffer.\n• Fasteners: Grade 304 stainless steel tamper-proof screws and expanding anchors.';
 
 const INITIAL_FORM_STATE: CreateFormData = {
   customerId: '',
@@ -126,7 +91,7 @@ const INITIAL_FORM_STATE: CreateFormData = {
   paymentTerms: '50% Advance along with confirmed Purchase Order. Balance 50% prior to dispatch.',
   deliveryTerms: '2-3 weeks from receipt of advance, approved shop drawings, and color confirmation.',
   warrantyText: 'We provide ten (10) years of warranty for partitions against any moisture-related defects and one (1) year warranty for workmanship and hardware against manufacturing defects.',
-  accessoriesText: HARDWARE_PRESETS[0].accessoriesText,
+  accessoriesText: DEFAULT_ACCESSORIES_TEXT,
   generalTerms: '1. Price Basis: Ex-works New Delhi factory.\n2. Taxes: GST as applicable at the time of invoice.\n3. Unloading & Safe Storage: In buyer’s scope at site.\n4. Site Readiness: Finished floor level and plumb walls required prior to installation.',
   otherTerms: '',
   notes: '',
@@ -239,9 +204,11 @@ export default function DraftQuotationPage() {
   const handleCustomerSelect = (custId: string) => {
     const cust = customers.find((c) => c.id === custId);
     if (cust) {
-      const addr = cust.addresses?.[0]?.addressLine1 || '';
-      const city = cust.addresses?.[0]?.city || '';
-      const fullAddr = addr ? (city ? `${addr}, ${city}` : addr) : '';
+      const deliveryAddr = cust.addresses?.find((a: any) => a.addressType === 'SHIPPING' || a.isDefaultShipping);
+      const billingAddr = cust.addresses?.find((a: any) => a.addressType === 'BILLING' || a.isDefaultBilling) || cust.addresses?.[0];
+      const preferredAddr = deliveryAddr || billingAddr;
+      const fullAddr = preferredAddr ? [preferredAddr.addressLine1, preferredAddr.addressLine2, preferredAddr.city].filter(Boolean).join(', ') : '';
+
       setForm((f) => ({
         ...f,
         customerId: cust.id,
@@ -258,21 +225,6 @@ export default function DraftQuotationPage() {
     clearFieldError('customerId');
     clearFieldError('recipientName');
     clearFieldError('projectName');
-  };
-
-  // Hardware Preset Selection
-  const applyHardwarePreset = (presetId: string) => {
-    const preset = HARDWARE_PRESETS.find((p) => p.id === presetId);
-    if (!preset) return;
-    setForm((f) => ({
-      ...f,
-      selectedHardwarePreset: preset.id,
-      accessoriesText: preset.accessoriesText,
-      items: f.items.map((it) => ({
-        ...it,
-        hardwarePackage: it.hardwarePackage || preset.itemSpec,
-      })),
-    }));
   };
 
   // Quick Boilerplate Presets
@@ -395,7 +347,7 @@ export default function DraftQuotationPage() {
   };
 
   const addItem = () => {
-    const defaultHardware = HARDWARE_PRESETS.find((p) => p.id === form.selectedHardwarePreset)?.itemSpec || 'SS 304 Stainless Steel (Satin/Brushed)';
+    const defaultHardware = 'SS 304 Stainless Steel (Satin/Brushed)';
     setForm((f) => ({
       ...f,
       items: [
@@ -444,8 +396,17 @@ export default function DraftQuotationPage() {
   const gstRate = form.isSezExempt ? 0 : Number(form.gstRate) || 18;
 
   const taxable = basicPrice + installationCharge + (form.freightTerms === 'Fixed' || (form.freightTerms === 'Extra as Actual / To pay' && freightAmount > 0) ? freightAmount : 0);
-  const gstAmount = form.isSezExempt ? 0 : Math.round(taxable * (gstRate / 100) * 100) / 100;
-  const grandTotal = Math.round(taxable + gstAmount);
+  const gstBreakdown = calculateGstSplit(
+    taxable,
+    null,
+    null,
+    Boolean(form.isSezExempt),
+    gstRate,
+    null,
+    form.recipientAddress
+  );
+  const gstAmount = gstBreakdown.totalTax;
+  const grandTotal = gstBreakdown.grandTotal;
 
   // Field validation
   const validateForm = (): boolean => {
@@ -685,10 +646,24 @@ export default function DraftQuotationPage() {
             Freight: <span className="text-white font-mono font-semibold">₹ {freightAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
           </div>
         )}
-        <div className="text-gray-400">
-          GST {form.isSezExempt ? '(0% SEZ)' : `${gstRate}%`}:{' '}
-          <span className="text-white font-mono font-semibold">₹ {gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-        </div>
+        {gstBreakdown.isSez ? (
+          <div className="text-gray-400">
+            GST (0% SEZ): <span className="text-white font-mono font-semibold">₹ 0.00</span>
+          </div>
+        ) : gstBreakdown.isDelhi ? (
+          <>
+            <div className="text-gray-400">
+              CGST (9%): <span className="text-white font-mono font-semibold">₹ {gstBreakdown.cgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            </div>
+            <div className="text-gray-400">
+              SGST (9%): <span className="text-white font-mono font-semibold">₹ {gstBreakdown.sgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            </div>
+          </>
+        ) : (
+          <div className="text-gray-400">
+            IGST ({gstRate}%): <span className="text-white font-mono font-semibold">₹ {gstBreakdown.igstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+          </div>
+        )}
         <div className="ml-auto font-bold text-[#7FB706] text-base sm:text-lg font-mono">
           Total: ₹ {grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
         </div>
@@ -1256,49 +1231,11 @@ export default function DraftQuotationPage() {
         </div>
       </div>
 
-      {/* Section 5: Hardware Selection Option & Inclusions */}
+      {/* Section 5: Standard Inclusions & Hardware Accessories */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2">
-          <div className="flex items-center gap-2">
-            <Wrench className="w-4 h-4 text-[#7FB706]" />
-            <h3 className="text-sm font-bold text-white">Standard Inclusions &amp; Hardware Accessories</h3>
-          </div>
-          <span className="text-xs text-gray-400">Select standard hardware package to populate technical specs</span>
-        </div>
-
-        {/* Quick Hardware Package Selection Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {HARDWARE_PRESETS.map((preset) => {
-            const isSelected = form.selectedHardwarePreset === preset.id;
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => applyHardwarePreset(preset.id)}
-                className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[90px] ${
-                  isSelected
-                    ? 'bg-[#7FB706]/15 border-[#7FB706] text-white shadow-md shadow-[#7FB706]/10'
-                    : 'bg-[#0a0a1a] border-white/10 text-gray-400 hover:border-white/25 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center justify-between w-full">
-                  <span className="text-xs font-bold text-white">{preset.name}</span>
-                  <span
-                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                      isSelected
-                        ? 'bg-[#7FB706] text-black'
-                        : 'bg-white/10 text-gray-400'
-                    }`}
-                  >
-                    {preset.badge}
-                  </span>
-                </div>
-                <div className="text-[11px] text-gray-400 mt-2 font-mono truncate">
-                  {preset.label}
-                </div>
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+          <Wrench className="w-4 h-4 text-[#7FB706]" />
+          <h3 className="text-sm font-bold text-white">Standard Inclusions &amp; Hardware Accessories</h3>
         </div>
 
         <div>

@@ -1216,11 +1216,13 @@ export interface SalesOrderItem {
   gstAmount?: number;
   amount?: number;
   totalAmount?: number;
+  boardType?: string;
   cubicleSize?: string;
   boardColor?: string;
   boardThickness?: string;
   doorSize?: string;
   overallHeight?: string;
+  hardwarePackage?: string;
   specsJson?: any;
 }
 
@@ -1253,9 +1255,15 @@ export interface SalesOrder {
   customerPoDate?: string;
   siteName?: string;
   siteAddress?: string;
+  placeOfSupply?: string;
+  placeOfSupplyStateCode?: string;
   subtotal: number;
+  freightAmount?: number;
   discountAmount?: number;
   taxableAmount?: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
   taxAmount?: number;
   totalTax?: number;
   grandTotal: number;
@@ -1271,6 +1279,8 @@ export interface SalesOrder {
   cancelledAt?: string;
   cancellationReason?: string;
   notes?: string;
+  accessoriesText?: string | null;
+  termsJson?: any;
   termsAndConditions?: string;
   billingAddressSnapshot?: any;
   shippingAddressSnapshot?: any;

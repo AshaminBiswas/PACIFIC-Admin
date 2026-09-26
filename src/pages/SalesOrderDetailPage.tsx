@@ -39,6 +39,49 @@ import { hardwareIssueApi } from '../api/hardwareIssueApi';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import type { SalesOrder, SalesOrderStatus } from '../types/admin';
+import { calculateGstSplit, isDelhiState } from '../utils/tax';
+
+function parseItemSpecs(item: any) {
+  let mainDesc = item.description || item.itemDescription || 'Pacific Restroom Cubicle Item';
+  const specs: { label: string; value: string }[] = [];
+
+  const specsJson = item.specsJson || {};
+
+  const boardType = item.boardType || specsJson.boardType;
+  const boardThickness = item.boardThickness || specsJson.boardThickness;
+  const boardColor = item.boardColor || specsJson.boardColor;
+  const cubicleSize = item.cubicleSize || specsJson.cubicleSize;
+  const doorSize = item.doorSize || specsJson.doorSize;
+  const overallHeight = item.overallHeight || specsJson.overallHeight;
+  const hardwarePackage = item.hardwarePackage || specsJson.hardwarePackage;
+
+  if (boardType) specs.push({ label: 'Board Type', value: boardType });
+  if (boardThickness) specs.push({ label: 'Board Thickness', value: boardThickness });
+  if (boardColor) specs.push({ label: 'Board Color', value: boardColor });
+  if (cubicleSize) specs.push({ label: 'Cubicle Size', value: cubicleSize });
+  if (doorSize) specs.push({ label: 'Door Size', value: doorSize });
+  if (overallHeight) specs.push({ label: 'Overall Height', value: overallHeight });
+  if (hardwarePackage) specs.push({ label: 'Hardware Package', value: hardwarePackage });
+
+  if (specs.length === 0 && mainDesc.includes('(') && mainDesc.includes(')')) {
+    const match = mainDesc.match(/^(.*?)(?:\n|\s*)\((.*?)\)$/s);
+    if (match) {
+      mainDesc = match[1].trim();
+      const parts = match[2].split('|').map((s: string) => s.trim());
+      for (const part of parts) {
+        const colonIdx = part.indexOf(':');
+        if (colonIdx > -1) {
+          specs.push({
+            label: part.substring(0, colonIdx).trim(),
+            value: part.substring(colonIdx + 1).trim(),
+          });
+        }
+      }
+    }
+  }
+
+  return { mainDesc, specs };
+}
 
 const STATUS_CONFIG: Record<
   string,
@@ -379,6 +422,56 @@ export default function SalesOrderDetailPage() {
   const quotationRefNum = order?.quotationRef || order?.quotation?.referenceNumber;
   const piRefNum = order?.piNumber || (order as any)?.proformaInvoice?.piNumber;
 
+  const billTo = useMemo(() => {
+    const snap = (order?.billingAddressSnapshot as any) || {};
+    const custAddr =
+      (order?.customer as any)?.addresses?.find((a: any) => a.addressType === 'BILLING' || a.isDefaultBilling) ||
+      (order?.customer as any)?.addresses?.[0];
+    const partyName = snap.partyName || order?.customer?.legalName || order?.customer?.tradeName || 'Valued Client';
+    const gstin = snap.gstin || order?.customer?.gstin;
+    const pan = snap.pan || order?.customer?.pan || (gstin && gstin.length === 15 ? gstin.substring(2, 12) : undefined);
+    const addressLine = snap.address || snap.addressLine || custAddr?.addressLine1 || 'Registered Billing Address';
+    const state = snap.state || custAddr?.state || order?.placeOfSupply || 'Delhi';
+    const stateCode = snap.stateCode || custAddr?.stateCode || order?.placeOfSupplyStateCode || '07';
+    const pincode = snap.pincode || snap.postalCode || custAddr?.postalCode;
+    const phone = snap.phone || order?.customer?.phone;
+    const email = snap.email || order?.customer?.email;
+    return { partyName, gstin, pan, addressLine, state, stateCode, pincode, phone, email };
+  }, [order]);
+
+  const shipTo = useMemo(() => {
+    const snap = (order?.shippingAddressSnapshot as any) || {};
+    const custAddr =
+      (order?.customer as any)?.addresses?.find((a: any) => a.addressType === 'SHIPPING' || a.isDefaultShipping) ||
+      (order?.customer as any)?.addresses?.[0];
+    const partyName = snap.partyName || snap.recipient || snap.siteName || order?.siteName || billTo.partyName;
+    const gstin = snap.gstin || billTo.gstin;
+    const addressLine =
+      snap.address || snap.addressLine || snap.siteAddress || order?.siteAddress || custAddr?.addressLine1 || billTo.addressLine;
+    const state = snap.state || custAddr?.state || billTo.state;
+    const stateCode = snap.stateCode || custAddr?.stateCode || billTo.stateCode;
+    const pincode = snap.pincode || snap.postalCode || custAddr?.postalCode || billTo.pincode;
+    const phone = snap.phone || (order as any)?.siteContactSnapshot?.contactPhone || billTo.phone;
+    return { partyName, gstin, addressLine, state, stateCode, pincode, phone };
+  }, [order, billTo]);
+
+  const orderGst = useMemo(() => {
+    if (!order) return null;
+    const subtotal = Number(order.subtotal || 0);
+    const freight = Number(order.freightAmount || 0);
+    const taxableTotal = subtotal + freight;
+
+    return calculateGstSplit(
+      taxableTotal,
+      order.placeOfSupplyStateCode || billTo.stateCode,
+      order.placeOfSupply || billTo.state,
+      false,
+      18,
+      billTo.gstin,
+      billTo.addressLine
+    );
+  }, [order, billTo]);
+
   // Follow-up timing badge
   const renderFollowupBadge = () => {
     if (!order) return null;
@@ -566,12 +659,13 @@ export default function SalesOrderDetailPage() {
           </button>
 
           {/* Edit Order */}
-          <button
-            onClick={() => setShowEditModal(true)}
+          <Link
+            to={`/admin/dashboard/sales-orders/${id}/edit`}
             className="inline-flex items-center gap-1.5 px-3.5 py-2.5 min-h-[44px] bg-white/5 hover:bg-white/10 text-amber-300 rounded-xl text-sm font-semibold transition-all cursor-pointer"
+            title="Edit Order line items, technical specifications, addresses, and terms"
           >
             <Edit className="w-4 h-4" /> Edit
-          </button>
+          </Link>
 
           {/* Print Acknowledgement */}
           <button
@@ -621,14 +715,15 @@ export default function SalesOrderDetailPage() {
         }}
       />
 
-      {/* 4 Information KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* Card 1: Customer Coordinates */}
-        <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3">
-          <div className="flex items-center justify-between border-b border-white/5 pb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
-              <Building2 className="w-4 h-4 text-[#7FB706]" /> Customer Details
-            </span>
+      {/* ── Bill To & Ship To 2-Column Grid ────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Bill To */}
+        <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3 shadow-xl">
+          <div className="flex items-center justify-between pb-2 border-b border-white/5">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-[#7FB706]" />
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Billing Party (Customer)</h4>
+            </div>
             {order.customer?.id && (
               <Link
                 to={`/admin/dashboard/customers`}
@@ -638,32 +733,84 @@ export default function SalesOrderDetailPage() {
               </Link>
             )}
           </div>
-
-          <div className="space-y-1.5 text-xs">
-            <div className="font-bold text-white text-sm">{customerName}</div>
-            {order.customer?.gstin && (
-              <div className="text-gray-400 font-mono">GSTIN: {order.customer.gstin}</div>
+          <div className="space-y-1 text-xs">
+            <div className="text-base font-bold text-white">{billTo.partyName}</div>
+            {billTo.gstin && (
+              <div className="text-gray-400">
+                GSTIN: <span className="font-mono font-bold text-amber-300">{billTo.gstin}</span>
+              </div>
             )}
-            <div className="flex items-start gap-1.5 text-gray-400 pt-1">
-              <MapPin className="w-3.5 h-3.5 text-gray-500 flex-shrink-0 mt-0.5" />
-              <span>{siteInfo}</span>
+            {billTo.pan && (
+              <div className="text-gray-400">
+                PAN: <span className="font-mono font-bold text-gray-200">{billTo.pan}</span>
+              </div>
+            )}
+            <div className="text-gray-300 leading-relaxed pt-1">{billTo.addressLine}</div>
+            <div className="text-gray-400">
+              State: <span className="text-white">{billTo.state} ({billTo.stateCode})</span>
             </div>
-            {rawPhone && (
-              <div className="flex items-center gap-1.5 text-gray-400 pt-0.5">
-                <Phone className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
-                <a href={`tel:${cleanPhone}`} className="hover:text-white font-mono">
-                  {rawPhone}
-                </a>
+            {billTo.pincode && (
+              <div className="text-gray-400">
+                Pincode: <span className="text-white font-mono">{billTo.pincode}</span>
+              </div>
+            )}
+            {billTo.phone && <div className="text-gray-400">Phone: <span className="text-white">{billTo.phone}</span></div>}
+            {billTo.email && <div className="text-gray-400">Email: <span className="text-white">{billTo.email}</span></div>}
+          </div>
+        </div>
+
+        {/* Ship To */}
+        <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3 shadow-xl">
+          <div className="flex items-center justify-between pb-2 border-b border-white/5">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-cyan-400" />
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Delivery Site / Shipping Party</h4>
+            </div>
+            <span className="text-[10px] text-gray-500 font-mono">Site Consignee</span>
+          </div>
+          <div className="space-y-1 text-xs">
+            <div className="text-base font-bold text-white">{shipTo.partyName}</div>
+            {shipTo.gstin && (
+              <div className="text-gray-400">
+                GSTIN: <span className="font-mono font-bold text-amber-300">{shipTo.gstin}</span>
+              </div>
+            )}
+            <div className="text-gray-300 leading-relaxed pt-1">{shipTo.addressLine}</div>
+            <div className="text-gray-400">
+              State: <span className="text-white">{shipTo.state} ({shipTo.stateCode})</span>
+            </div>
+            {shipTo.pincode && (
+              <div className="text-gray-400">
+                Pincode: <span className="text-white font-mono">{shipTo.pincode}</span>
+              </div>
+            )}
+            {shipTo.phone && (
+              <div className="text-gray-400">Site Contact Phone: <span className="text-white">{shipTo.phone}</span></div>
+            )}
+            {(order.customerPoNumber || order.clientPoNumber) && (
+              <div className="text-gray-400 pt-0.5">
+                Client PO:{' '}
+                <span className="font-mono font-bold text-amber-300">
+                  {order.customerPoNumber || order.clientPoNumber}
+                </span>
+                {(order.customerPoDate || order.clientPoDate) && (
+                  <span className="text-gray-500 text-[10px] ml-1">
+                    ({new Date(order.customerPoDate || order.clientPoDate || '').toLocaleDateString('en-GB')})
+                  </span>
+                )}
               </div>
             )}
           </div>
         </div>
+      </div>
 
-        {/* Card 2: Order Reference & Client PO */}
+      {/* 3 Information KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Card 1: Order Reference & Lifecycle Metadata */}
         <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3">
           <div className="flex items-center justify-between border-b border-white/5 pb-2">
             <span className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
-              <FileText className="w-4 h-4 text-purple-400" /> Reference & PO
+              <FileText className="w-4 h-4 text-purple-400" /> Reference & Document ID
             </span>
           </div>
 
@@ -671,19 +818,6 @@ export default function SalesOrderDetailPage() {
             <div>
               <div className="text-gray-500 text-[11px]">Order Number</div>
               <div className="font-mono font-bold text-white text-sm">{order.orderNumber}</div>
-            </div>
-
-            <div>
-              <div className="text-gray-500 text-[11px]">Client PO Number</div>
-              <div className="font-mono font-bold text-amber-300">
-                {order.clientPoNumber || order.customerPoNumber || 'No PO Recorded'}
-              </div>
-              {(order.clientPoDate || order.customerPoDate) && (
-                <div className="text-gray-500 text-[10px] mt-0.5">
-                  Date:{' '}
-                  {new Date(order.clientPoDate || order.customerPoDate || '').toLocaleDateString('en-GB')}
-                </div>
-              )}
             </div>
 
             <div>
@@ -696,15 +830,27 @@ export default function SalesOrderDetailPage() {
                 })}
               </div>
             </div>
+
+            <div>
+              <div className="text-gray-500 text-[11px]">Place of Supply</div>
+              <div className="text-gray-300 font-medium">
+                {order.placeOfSupply || billTo.state || 'Delhi'} ({order.placeOfSupplyStateCode || billTo.stateCode || '07'})
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Card 3: Financial Summary */}
+        {/* Card 2: Financial Summary */}
         <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3">
           <div className="flex items-center justify-between border-b border-white/5 pb-2">
             <span className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
               <CreditCard className="w-4 h-4 text-emerald-400" /> Financial Value
             </span>
+            {orderGst && (
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${orderGst.isDelhi ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'}`}>
+                {orderGst.isDelhi ? 'Delhi Supply' : 'Inter-State'}
+              </span>
+            )}
           </div>
 
           <div className="space-y-1.5 text-xs">
@@ -714,12 +860,37 @@ export default function SalesOrderDetailPage() {
                 ₹ {Number(order.subtotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
             </div>
-            <div className="flex justify-between text-gray-400">
-              <span>GST / Taxes:</span>
-              <span className="font-mono font-semibold text-white">
-                ₹ {Number(order.taxAmount || order.totalTax || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-              </span>
-            </div>
+            {Number(order.freightAmount) > 0 && (
+              <div className="flex justify-between text-gray-400">
+                <span>Freight:</span>
+                <span className="font-mono font-semibold text-white">
+                  ₹ {Number(order.freightAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
+            {orderGst?.isDelhi ? (
+              <>
+                <div className="flex justify-between text-blue-400">
+                  <span>CGST (9%):</span>
+                  <span className="font-mono font-semibold">
+                    ₹ {(Number(order.cgstAmount) || orderGst.cgstAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between text-blue-400">
+                  <span>SGST (9%):</span>
+                  <span className="font-mono font-semibold">
+                    ₹ {(Number(order.sgstAmount) || orderGst.sgstAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="flex justify-between text-purple-400">
+                <span>IGST (18%):</span>
+                <span className="font-mono font-semibold">
+                  ₹ {(Number(order.igstAmount) || orderGst?.igstAmount || Number(order.taxAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
             <div className="pt-2 border-t border-white/5 flex justify-between items-baseline">
               <span className="font-bold text-gray-300 text-xs">Grand Total:</span>
               <span className="font-mono font-extrabold text-[#7FB706] text-lg">
@@ -730,7 +901,7 @@ export default function SalesOrderDetailPage() {
           </div>
         </div>
 
-        {/* Card 4: Fulfillment & Follow-Up Pulse */}
+        {/* Card 3: Fulfillment & Follow-Up Pulse */}
         <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3">
           <div className="flex items-center justify-between border-b border-white/5 pb-2">
             <span className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
@@ -809,14 +980,7 @@ export default function SalesOrderDetailPage() {
                     const balance = Math.max(0, ordered - dispatched);
                     const rate = Number(it.rate || it.unitPrice || 0);
                     const amount = Number(it.amount || it.totalAmount || ordered * rate);
-                    const desc = it.description || it.itemDescription || 'Cubicle Line Item';
-
-                    const specs = it.specsJson || {};
-                    const cubicleSize = it.cubicleSize || specs.cubicleSize;
-                    const boardColor = it.boardColor || specs.boardColor;
-                    const boardThickness = it.boardThickness || specs.boardThickness;
-                    const doorSize = it.doorSize || specs.doorSize;
-                    const overallHeight = it.overallHeight || specs.overallHeight;
+                    const { mainDesc, specs } = parseItemSpecs(it);
 
                     return (
                       <tr key={it.id || idx} className="hover:bg-white/[0.02] transition-colors">
@@ -824,14 +988,14 @@ export default function SalesOrderDetailPage() {
                           {idx + 1}
                         </td>
                         <td className="py-3 px-4">
-                          <div className="font-semibold text-white">{desc}</div>
-                          {(cubicleSize || boardColor || boardThickness || doorSize || overallHeight) && (
+                          <div className="font-semibold text-white">{mainDesc}</div>
+                          {specs.length > 0 && (
                             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-400">
-                              {cubicleSize && <span>• Size: <strong className="text-gray-300">{cubicleSize}</strong></span>}
-                              {boardColor && <span>• Color: <strong className="text-gray-300">{boardColor}</strong></span>}
-                              {boardThickness && <span>• Thickness: <strong className="text-gray-300">{boardThickness}</strong></span>}
-                              {doorSize && <span>• Door: <strong className="text-gray-300">{doorSize}</strong></span>}
-                              {overallHeight && <span>• Height: <strong className="text-gray-300">{overallHeight}</strong></span>}
+                              {specs.map((s, sIdx) => (
+                                <span key={sIdx}>
+                                  • {s.label}: <strong className="text-gray-300">{s.value}</strong>
+                                </span>
+                              ))}
                             </div>
                           )}
                         </td>
@@ -860,19 +1024,29 @@ export default function SalesOrderDetailPage() {
                 const balance = Math.max(0, ordered - dispatched);
                 const rate = Number(it.rate || it.unitPrice || 0);
                 const amount = Number(it.amount || it.totalAmount || ordered * rate);
-                const desc = it.description || it.itemDescription || 'Cubicle Line Item';
+                const { mainDesc, specs } = parseItemSpecs(it);
 
                 return (
                   <div key={it.id || idx} className="p-4 space-y-2">
                     <div className="flex justify-between items-start gap-2">
                       <div className="font-semibold text-white text-sm">
                         <span className="font-mono text-gray-500 mr-1.5">#{idx + 1}</span>
-                        {desc}
+                        {mainDesc}
                       </div>
                       <div className="font-mono font-bold text-[#7FB706] text-sm whitespace-nowrap">
                         ₹ {amount.toLocaleString('en-IN')}
                       </div>
                     </div>
+
+                    {specs.length > 0 && (
+                      <div className="text-[11px] text-gray-400 space-y-0.5">
+                        {specs.map((s, sIdx) => (
+                          <div key={sIdx}>
+                            • {s.label}: <span className="text-gray-300">{s.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-3 gap-2 p-2 rounded-xl bg-white/[0.02] text-xs">
                       <div>
@@ -892,11 +1066,138 @@ export default function SalesOrderDetailPage() {
                 );
               })}
             </div>
+
+            {/* ── Tax Summary & Financial Breakdown Dock ────────── */}
+            <div className="p-5 bg-[#0a0a1a] border-t border-white/5 flex flex-col md:flex-row justify-between gap-6">
+              <div className="space-y-2 flex-1">
+                <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider">GST Tax Summary</h5>
+                <p className="text-xs text-gray-400">
+                  Place of Supply: <strong className="text-white">{order.placeOfSupply || billTo.state || 'Delhi'}</strong> ({order.placeOfSupplyStateCode || billTo.stateCode || '07'}) • {orderGst?.isDelhi ? 'Intra-State GST (CGST 9% + SGST 9%)' : 'Inter-State GST (IGST 18%)'}
+                </p>
+              </div>
+
+              <div className="w-full md:w-80 space-y-2 text-xs">
+                <div className="flex items-center justify-between text-gray-300">
+                  <span>Subtotal:</span>
+                  <span className="font-mono">₹{Number(order.subtotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+                {Number(order.freightAmount) > 0 && (
+                  <div className="flex items-center justify-between text-gray-300">
+                    <span>Freight &amp; Handling:</span>
+                    <span className="font-mono">₹{Number(order.freightAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                {orderGst?.isDelhi ? (
+                  <>
+                    <div className="flex items-center justify-between text-blue-400">
+                      <span>CGST (9%):</span>
+                      <span className="font-mono font-semibold">
+                        ₹{(Number(order.cgstAmount) || orderGst.cgstAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-blue-400">
+                      <span>SGST (9%):</span>
+                      <span className="font-mono font-semibold">
+                        ₹{(Number(order.sgstAmount) || orderGst.sgstAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-between text-purple-400">
+                    <span>IGST (18%):</span>
+                    <span className="font-mono font-semibold">
+                      ₹{(Number(order.igstAmount) || orderGst?.igstAmount || Number(order.taxAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-base font-bold text-[#7FB706] pt-2 border-t border-white/10">
+                  <span>Grand Total:</span>
+                  <span className="font-mono">₹{Number(order.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+            </div>
           </>
         ) : (
           <div className="p-8 text-center text-gray-500 text-sm">No line items recorded for this order.</div>
         )}
       </div>
+
+      {/* ── Standard Inclusions & Hardware Accessories Card ───── */}
+      {(() => {
+        const content =
+          order.accessoriesText ||
+          (Array.isArray(order.termsJson)
+            ? order.termsJson.find((t: any) =>
+                (typeof t === 'string' ? t : t.text || '').toLowerCase().includes('hardware accessories') ||
+                (typeof t === 'string' ? t : t.text || '').toLowerCase().includes('standard inclusions')
+              )
+            : null);
+        if (!content) return null;
+        const cleanContent =
+          typeof content === 'string'
+            ? content.replace(/^Standard Inclusions & Hardware Accessories:\s*/i, '').trim()
+            : (content.text || '').replace(/^Standard Inclusions & Hardware Accessories:\s*/i, '').trim();
+        if (!cleanContent) return null;
+
+        return (
+          <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3 shadow-xl">
+            <div className="flex items-center justify-between pb-2 border-b border-white/5">
+              <div className="flex items-center gap-2">
+                <Wrench className="w-4 h-4 text-[#7FB706]" />
+                <h4 className="text-sm font-bold text-white uppercase tracking-wider">
+                  Standard Inclusions &amp; Hardware Accessories
+                </h4>
+              </div>
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#7FB706]/10 text-[#7FB706] font-semibold">
+                Factory Specifications
+              </span>
+            </div>
+            <div className="text-xs text-gray-300 whitespace-pre-line leading-relaxed bg-[#0a0a1a] p-4 rounded-xl border border-white/5 font-sans">
+              {cleanContent}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Commercial Terms & Conditions Card ────────────────── */}
+      {(() => {
+        const termsList = Array.isArray(order.termsJson)
+          ? order.termsJson.map((t: any) => (typeof t === 'string' ? t : t.text || String(t)))
+          : [];
+        const filteredTerms = termsList.filter(
+          (t: string) =>
+            !t.toLowerCase().includes('hardware accessories') &&
+            !t.toLowerCase().includes('standard inclusions')
+        );
+        if (filteredTerms.length === 0) return null;
+
+        return (
+          <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3 shadow-xl">
+            <div className="flex items-center justify-between pb-2 border-b border-white/5">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-amber-400" />
+                <h4 className="text-sm font-bold text-white uppercase tracking-wider">
+                  Commercial Terms &amp; Conditions
+                </h4>
+              </div>
+              <span className="text-xs text-gray-400 font-mono">
+                {filteredTerms.length} clause(s)
+              </span>
+            </div>
+            <div className="space-y-2 text-xs">
+              {filteredTerms.map((term: string, idx: number) => (
+                <div
+                  key={idx}
+                  className="flex items-start gap-2.5 p-2.5 rounded-xl bg-[#0a0a1a] border border-white/5"
+                >
+                  <span className="text-gray-500 font-mono font-bold">{idx + 1}.</span>
+                  <span className="text-gray-300 leading-relaxed">{term}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Linked Documents & Status History Split */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

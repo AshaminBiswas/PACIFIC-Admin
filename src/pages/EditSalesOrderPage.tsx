@@ -1,30 +1,27 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ShoppingBag,
   ArrowLeft,
   Save,
   Plus,
   Trash2,
+  RefreshCw,
   Building2,
   Truck,
   Layers,
   FileText,
-  RotateCcw,
   Sparkles,
   CheckCircle2,
-  CreditCard,
+  DollarSign,
+  HelpCircle,
   MapPin,
   Wrench,
   Copy,
   AlertTriangle,
-  Download,
 } from 'lucide-react';
 import { salesOrdersApi } from '../api/salesOrdersApi';
-import { piApi } from '../api/proformaApi';
-import { salesQuotationsApi } from '../api/salesQuotationsApi';
 import { crmApi } from '../api/crmApi';
-import { companiesApi } from '../api/companyApi';
 import { productCatalogApi } from '../api/productCatalogApi';
 import {
   getMergedQuotationModels,
@@ -32,7 +29,8 @@ import {
   extractModelDimensions,
 } from '../utils/quotationProductPresets';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
-import type { BusinessParty, CompanyProfile, ProductCatalogModel, SalesQuotation, ProformaInvoice } from '../types/admin';
+import CustomerSearchSelect from '../components/common/CustomerSearchSelect';
+import type { BusinessParty, ProductCatalogModel, SalesOrder } from '../types/admin';
 import { calculateGstSplit, isDelhiState } from '../utils/tax';
 import {
   DEFAULT_ACCESSORIES_TEXT,
@@ -40,45 +38,63 @@ import {
   type BillingAddressData,
   type DeliveryAddressData,
 } from './CreateProformaPage';
-import CustomerSearchSelect from '../components/common/CustomerSearchSelect';
 
-const LOCAL_STORAGE_KEY = 'pacific_create_sales_order_v2';
-
-export interface CreateSalesOrderFormData {
-  customerId: string;
-  companyProfileId: string;
-  quotationId: string;
-  quotationRef: string;
-  proformaInvoiceId: string;
-  piNumber: string;
-  clientPoNumber: string;
-  clientPoDate: string;
-  placeOfSupply: string;
-  placeOfSupplyStateCode: string;
-  freightAmount: number;
-  selectedHardwarePreset?: string;
-  accessoriesText: string;
-  billingAddress: BillingAddressData;
-  deliveryAddress: DeliveryAddressData;
-  items: CreateItem[];
-  terms: string[];
+function parseItemSpecsFromText(desc: string) {
+  const specs: Record<string, string> = {};
+  if (!desc) return specs;
+  const match = desc.match(/\((.*?)\)/s);
+  if (match) {
+    const parts = match[1].split('|').map((s) => s.trim());
+    for (const part of parts) {
+      const c = part.indexOf(':');
+      if (c > -1) {
+        const k = part.substring(0, c).trim().toLowerCase();
+        const v = part.substring(c + 1).trim();
+        if (k.includes('board') || k.includes('type')) specs.boardType = v;
+        if (k.includes('thick')) specs.boardThickness = v;
+        if (k.includes('color')) specs.boardColor = v;
+        if (k.includes('cubicle') || k.includes('size')) specs.cubicleSize = v;
+        if (k.includes('door')) specs.doorSize = v;
+        if (k.includes('height')) specs.overallHeight = v;
+        if (k.includes('hardware')) specs.hardwarePackage = v;
+      }
+    }
+  }
+  return specs;
 }
 
-const INITIAL_FORM: CreateSalesOrderFormData = {
-  customerId: '',
-  companyProfileId: '',
-  quotationId: '',
-  quotationRef: '',
-  proformaInvoiceId: '',
-  piNumber: '',
-  clientPoNumber: '',
-  clientPoDate: '',
-  placeOfSupply: 'Delhi',
-  placeOfSupplyStateCode: '07',
-  freightAmount: 0,
-  selectedHardwarePreset: 'SS_304',
-  accessoriesText: DEFAULT_ACCESSORIES_TEXT,
-  billingAddress: {
+export default function EditSalesOrderPage() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Lookups
+  const [customers, setCustomers] = useState<BusinessParty[]>([]);
+  const [catalogModels, setCatalogModels] = useState<ProductCatalogModel[]>([]);
+
+  // Metadata
+  const [orderNumber, setOrderNumber] = useState('');
+  const [orderDate, setOrderDate] = useState('');
+  const [status, setStatus] = useState('APPROVED');
+  const [customerId, setCustomerId] = useState('');
+  const [clientPoNumber, setClientPoNumber] = useState('');
+  const [clientPoDate, setClientPoDate] = useState('');
+  const [placeOfSupply, setPlaceOfSupply] = useState('Delhi');
+  const [placeOfSupplyStateCode, setPlaceOfSupplyStateCode] = useState('07');
+  const [freightAmount, setFreightAmount] = useState<number>(0);
+  const [quotationId, setQuotationId] = useState<string | undefined>(undefined);
+  const [quotationRef, setQuotationRef] = useState<string | undefined>(undefined);
+  const [piNumber, setPiNumber] = useState<string | undefined>(undefined);
+
+  // Hardware & Inclusions
+  const [selectedHardwarePreset, setSelectedHardwarePreset] = useState<string>('SS_304');
+  const [accessoriesText, setAccessoriesText] = useState<string>(DEFAULT_ACCESSORIES_TEXT);
+
+  // Addresses
+  const [billingAddress, setBillingAddress] = useState<BillingAddressData>({
     partyName: '',
     gstin: '',
     pan: '',
@@ -89,8 +105,9 @@ const INITIAL_FORM: CreateSalesOrderFormData = {
     stateCode: '07',
     phone: '',
     email: '',
-  },
-  deliveryAddress: {
+  });
+
+  const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddressData>({
     partyName: '',
     addressLine: '',
     city: 'New Delhi',
@@ -98,61 +115,13 @@ const INITIAL_FORM: CreateSalesOrderFormData = {
     state: 'Delhi',
     stateCode: '07',
     phone: '',
-  },
-  items: [
-    {
-      description: 'Pacific Classique Restroom Cubicle System (12mm Compact Laminate)',
-      hsnSac: '940320',
-      quantity: 1,
-      unit: 'NOS',
-      rate: 22000,
-      gstRate: 18,
-      boardType: '12mm Compact Laminate HPL Board',
-      boardThickness: '12mm (Tolerance +/- 0.3mm)',
-      boardColor: 'Solid / Woodgrain Finish',
-      cubicleSize: '1000mm (W) x 1200mm (D) x 1980mm (H)',
-      doorSize: '600mm x 1800mm',
-      overallHeight: '1980mm including 100mm-150mm ground gap',
-      hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
-    },
-  ],
-  terms: [
-    'Goods once dispatched will not be taken back or exchanged.',
-    'Interest @ 18% per annum will be charged if payment is delayed beyond agreed terms.',
-    'Pacific is not responsible for transit damage after handover to carrier.',
-    'Site readiness, civil unloading, and electricity for installation to be provided by client.',
-    'Subject to Delhi jurisdiction only.',
-  ],
-};
-
-export default function CreateSalesOrderPage() {
-  const navigate = useNavigate();
-  const [submitting, setSubmitting] = useState(false);
-  const [loadingLookups, setLoadingLookups] = useState(false);
-  const [lastSaved, setLastSaved] = useState('');
-
-  // Lookups
-  const [customers, setCustomers] = useState<BusinessParty[]>([]);
-  const [companies, setCompanies] = useState<CompanyProfile[]>([]);
-  const [quotations, setQuotations] = useState<SalesQuotation[]>([]);
-  const [proformaInvoices, setProformaInvoices] = useState<ProformaInvoice[]>([]);
-  const [catalogModels, setCatalogModels] = useState<ProductCatalogModel[]>([]);
-
-  // Selected imports
-  const [selectedQuoteId, setSelectedQuoteId] = useState('');
-  const [selectedPiId, setSelectedPiId] = useState('');
-
-  // Form State
-  const [formData, setFormData] = useState<CreateSalesOrderFormData>(() => {
-    try {
-      const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (cached) return { ...INITIAL_FORM, ...JSON.parse(cached) };
-    } catch {}
-    return INITIAL_FORM;
   });
 
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  // Items & Terms
+  const [items, setItems] = useState<CreateItem[]>([]);
+  const [terms, setTerms] = useState<string[]>([]);
   const [newTermText, setNewTermText] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const cubicleModels = useMemo(
     () => catalogModels.filter((m) => m.category === 'Cubicle'),
@@ -167,271 +136,185 @@ export default function CreateSalesOrderPage() {
     [catalogModels]
   );
 
-  // Load Lookups
-  const loadLookups = useCallback(async () => {
-    setLoadingLookups(true);
+  // Load Order and lookups
+  const loadData = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
     try {
-      const [custRes, compRes, quoteRes, piRes, modelsList] = await Promise.all([
-        crmApi.listCustomers({ limit: 100 }),
-        companiesApi.list().catch(() => ({ data: { data: [] } })),
-        salesQuotationsApi.list({ limit: 50 }).catch(() => ({ data: { data: { items: [] } } })),
-        piApi.list({ limit: 50 }).catch(() => ({ data: { data: { items: [] } } })),
+      const [orderRes, custRes, modelsList] = await Promise.all([
+        salesOrdersApi.getById(id),
+        crmApi.listCustomers({ limit: 100 }).catch(() => ({ data: { data: { items: [] } } })),
         productCatalogApi.listModels().catch(() => []),
       ]);
 
-      if (custRes.data?.data?.items) setCustomers(custRes.data.data.items);
-      const companyList = compRes.data?.data;
-      if (companyList && companyList.length > 0) {
-        setCompanies(companyList);
-        setFormData((prev) => ({
-          ...prev,
-          companyProfileId: prev.companyProfileId || companyList[0].id,
-        }));
-      }
-      setQuotations(quoteRes.data?.data?.items || (quoteRes.data as any)?.items || []);
-      setProformaInvoices(piRes.data?.data?.items || (piRes.data as any)?.items || []);
+      const data: SalesOrder = (orderRes.data?.data ?? orderRes.data) as any;
+      setCustomers(custRes.data?.data?.items || []);
       setCatalogModels(getMergedQuotationModels(modelsList || []));
-    } catch (err) {
-      console.error('Failed to load lookups:', err);
-    } finally {
-      setLoadingLookups(false);
-    }
-  }, []);
 
-  useEffect(() => {
-    loadLookups();
-  }, [loadLookups]);
+      setOrderNumber(data.orderNumber || '');
+      setOrderDate(data.orderDate ? new Date(data.orderDate).toISOString().split('T')[0] : '');
+      setStatus(data.status || 'APPROVED');
+      setCustomerId(data.customerId || '');
+      setClientPoNumber(data.customerPoNumber || data.clientPoNumber || '');
+      setClientPoDate(
+        data.customerPoDate
+          ? new Date(data.customerPoDate).toISOString().split('T')[0]
+          : data.clientPoDate
+          ? new Date(data.clientPoDate).toISOString().split('T')[0]
+          : ''
+      );
+      setPlaceOfSupply(data.placeOfSupply || 'Delhi');
+      setPlaceOfSupplyStateCode(data.placeOfSupplyStateCode || '07');
+      setFreightAmount(Number(data.freightAmount) || 0);
+      setQuotationId(data.quotationId || undefined);
+      setQuotationRef(data.quotationRef || undefined);
+      setPiNumber(data.piNumber || undefined);
 
-  // Save to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(formData));
-      setLastSaved(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    } catch {}
-  }, [formData]);
+      if (data.accessoriesText) {
+        setAccessoriesText(data.accessoriesText);
+      }
 
-  const handleResetDraft = () => {
-    if (confirm('Reset draft? All inputs will be cleared.')) {
-      try {
-        localStorage.removeItem(LOCAL_STORAGE_KEY);
-      } catch {}
-      setFormData({
-        ...INITIAL_FORM,
-        companyProfileId: companies[0]?.id || '',
+      // Billing Address Snapshot
+      const bSnap = (data.billingAddressSnapshot as any) || {};
+      const cust = data.customer || custRes.data?.data?.items?.find((c: any) => c.id === data.customerId);
+      const custBillingAddr = cust?.addresses?.find((a: any) => a.addressType === 'BILLING' || a.isDefaultBilling) || cust?.addresses?.[0];
+
+      setBillingAddress({
+        partyName: bSnap.partyName || cust?.legalName || '',
+        gstin: bSnap.gstin || cust?.gstin || '',
+        pan: bSnap.pan || cust?.pan || (cust?.gstin && cust.gstin.length === 15 ? cust.gstin.substring(2, 12) : ''),
+        addressLine: bSnap.address || bSnap.addressLine || custBillingAddr?.addressLine1 || '',
+        city: bSnap.city || custBillingAddr?.city || 'New Delhi',
+        pincode: bSnap.pincode || bSnap.postalCode || custBillingAddr?.postalCode || '',
+        state: bSnap.state || custBillingAddr?.state || 'Delhi',
+        stateCode: bSnap.stateCode || custBillingAddr?.stateCode || '07',
+        phone: bSnap.phone || cust?.phone || '',
+        email: bSnap.email || cust?.email || '',
       });
-      setSelectedQuoteId('');
-      setSelectedPiId('');
-      setFieldErrors({});
-    }
-  };
 
-  // Customer Select
-  const handleCustomerSelect = (cId: string) => {
-    const cust = customers.find((c) => c.id === cId);
-    if (!cust) {
-      setFormData((prev) => ({ ...prev, customerId: cId }));
-      return;
+      // Shipping Address Snapshot
+      const sSnap = (data.shippingAddressSnapshot as any) || {};
+      const custShipAddr = cust?.addresses?.find((a: any) => a.addressType === 'SHIPPING' || a.isDefaultShipping) || custBillingAddr;
+
+      setDeliveryAddress({
+        partyName: sSnap.partyName || sSnap.recipient || sSnap.siteName || cust?.legalName || '',
+        addressLine: sSnap.address || sSnap.addressLine || sSnap.siteAddress || custShipAddr?.addressLine1 || '',
+        city: sSnap.city || custShipAddr?.city || 'New Delhi',
+        pincode: sSnap.pincode || sSnap.postalCode || custShipAddr?.postalCode || '',
+        state: sSnap.state || custShipAddr?.state || 'Delhi',
+        stateCode: sSnap.stateCode || custShipAddr?.stateCode || '07',
+        phone: sSnap.phone || cust?.phone || '',
+      });
+
+      // Line items with 7 technical specs
+      if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+        setItems(
+          data.items.map((it: any, idx: number) => {
+            const fb = parseItemSpecsFromText(it.description || it.itemDescription || '');
+            const specs = it.specsJson || {};
+            return {
+              id: it.id || `item-${idx}`,
+              description: it.description || it.itemDescription || 'Pacific Restroom Cubicle',
+              hsnSac: it.hsnSac || '940320',
+              quantity: Number(it.quantity) || 1,
+              unit: it.unit || 'NOS',
+              rate: Number(it.rate || it.unitPrice || 0),
+              gstRate: Number(it.gstRate || 18),
+              boardType: it.boardType || specs.boardType || fb.boardType || '12mm Compact Laminate HPL Board',
+              boardThickness: it.boardThickness || specs.boardThickness || fb.boardThickness || '12mm (Tolerance +/- 0.3mm)',
+              boardColor: it.boardColor || specs.boardColor || fb.boardColor || 'Solid / Woodgrain Finish',
+              cubicleSize: it.cubicleSize || specs.cubicleSize || fb.cubicleSize || '1000mm (W) x 1200mm (D) x 1980mm (H)',
+              doorSize: it.doorSize || specs.doorSize || fb.doorSize || '600mm x 1800mm',
+              overallHeight: it.overallHeight || specs.overallHeight || fb.overallHeight || '1980mm including 100mm-150mm ground gap',
+              hardwarePackage: it.hardwarePackage || specs.hardwarePackage || fb.hardwarePackage || 'SS 304 Stainless Steel (Satin/Brushed)',
+            };
+          })
+        );
+      } else {
+        setItems([
+          {
+            id: 'item-0',
+            description: 'Pacific Classique Restroom Cubicle System',
+            hsnSac: '940320',
+            quantity: 1,
+            unit: 'NOS',
+            rate: 22000,
+            gstRate: 18,
+            boardType: '12mm Compact Laminate HPL Board',
+            boardThickness: '12mm (Tolerance +/- 0.3mm)',
+            boardColor: 'Solid / Woodgrain Finish',
+            cubicleSize: '1000mm (W) x 1200mm (D) x 1980mm (H)',
+            doorSize: '600mm x 1800mm',
+            overallHeight: '1980mm including 100mm-150mm ground gap',
+            hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
+          },
+        ]);
+      }
+
+      // Terms
+      if (data.termsJson && Array.isArray(data.termsJson) && data.termsJson.length > 0) {
+        setTerms(data.termsJson.map((t: any) => (typeof t === 'string' ? t : t.text || String(t))));
+      } else {
+        setTerms([
+          'Goods once dispatched will not be taken back or exchanged.',
+          'Interest @ 18% per annum will be charged if payment is delayed beyond agreed terms.',
+          'Pacific is not responsible for transit damage after handover to carrier.',
+          'Site readiness, civil unloading, and electricity for installation to be provided by client.',
+          'Subject to Delhi jurisdiction only.',
+        ]);
+      }
+    } catch (err: any) {
+      console.error('Failed to load Sales Order data:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to load Sales Order');
+    } finally {
+      setLoading(false);
     }
+  }, [id]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Customer change auto-fill
+  const handleCustomerSelect = (cId: string) => {
+    setCustomerId(cId);
+    const cust = customers.find((c) => c.id === cId);
+    if (!cust) return;
 
     const bAddr = cust.addresses?.find((a: any) => a.addressType === 'BILLING' || a.isDefaultBilling) || cust.addresses?.[0];
     const sAddr = cust.addresses?.find((a: any) => a.addressType === 'SHIPPING' || a.isDefaultShipping) || bAddr;
 
-    const bState = bAddr?.state || 'Delhi';
-    const bStateCode = bAddr?.stateCode || (bState.toLowerCase().includes('delhi') ? '07' : '07');
+    setBillingAddress({
+      partyName: cust.legalName || cust.tradeName || '',
+      gstin: cust.gstin || '',
+      pan: cust.pan || (cust.gstin && cust.gstin.length === 15 ? cust.gstin.substring(2, 12) : ''),
+      addressLine: bAddr?.addressLine1 || '',
+      city: bAddr?.city || 'New Delhi',
+      pincode: bAddr?.postalCode || '',
+      state: bAddr?.state || 'Delhi',
+      stateCode: bAddr?.stateCode || '07',
+      phone: cust.phone || '',
+      email: cust.email || '',
+    });
 
-    setFormData((prev) => ({
-      ...prev,
-      customerId: cId,
-      placeOfSupply: bState,
-      placeOfSupplyStateCode: bStateCode,
-      billingAddress: {
-        partyName: cust.legalName || cust.tradeName || prev.billingAddress.partyName,
-        gstin: cust.gstin || prev.billingAddress.gstin,
-        pan: cust.pan || (cust.gstin && cust.gstin.length === 15 ? cust.gstin.substring(2, 12) : prev.billingAddress.pan),
-        addressLine: [bAddr?.addressLine1, bAddr?.addressLine2].filter(Boolean).join(', ') || prev.billingAddress.addressLine,
-        city: bAddr?.city || prev.billingAddress.city,
-        pincode: bAddr?.postalCode || (bAddr as any)?.pincode || prev.billingAddress.pincode,
-        state: bState,
-        stateCode: bStateCode,
-        phone: cust.phone || (cust as any).contactPhone || prev.billingAddress.phone,
-        email: cust.email || (cust as any).contactEmail || prev.billingAddress.email,
-      },
-      deliveryAddress: {
-        partyName: cust.tradeName || cust.legalName || prev.deliveryAddress.partyName,
-        addressLine: [sAddr?.addressLine1, sAddr?.addressLine2].filter(Boolean).join(', ') || prev.deliveryAddress.addressLine,
-        city: sAddr?.city || prev.deliveryAddress.city,
-        pincode: sAddr?.postalCode || (sAddr as any)?.pincode || prev.deliveryAddress.pincode,
-        state: sAddr?.state || bState,
-        stateCode: sAddr?.stateCode || bStateCode,
-        phone: cust.phone || (cust as any).contactPhone || prev.deliveryAddress.phone,
-      },
-    }));
-  };
+    setDeliveryAddress({
+      partyName: cust.tradeName || cust.legalName || '',
+      addressLine: sAddr?.addressLine1 || '',
+      city: sAddr?.city || 'New Delhi',
+      pincode: sAddr?.postalCode || '',
+      state: sAddr?.state || 'Delhi',
+      stateCode: sAddr?.stateCode || '07',
+      phone: cust.phone || '',
+    });
 
-  // Copy Billing to Delivery
-  const handleCopyBillingToDelivery = () => {
-    setFormData((prev) => ({
-      ...prev,
-      deliveryAddress: {
-        partyName: prev.billingAddress.partyName,
-        addressLine: prev.billingAddress.addressLine,
-        city: prev.billingAddress.city,
-        pincode: prev.billingAddress.pincode,
-        state: prev.billingAddress.state,
-        stateCode: prev.billingAddress.stateCode,
-        phone: prev.billingAddress.phone,
-      },
-    }));
-  };
-
-  // Import from accepted Quotation
-  const handleImportQuotation = async (quoteId: string) => {
-    setSelectedQuoteId(quoteId);
-    if (!quoteId) return;
-    try {
-      const res = await salesQuotationsApi.getById(quoteId);
-      const q = res.data?.data ?? (res.data as any);
-      if (!q) return;
-
-      const clientName = q.recipientName || q.recipientCompany || q.customer?.legalName || '';
-      const address = q.recipientAddress || q.customer?.addresses?.[0]?.addressLine1 || '';
-      const phone = q.recipientPhone || q.customer?.phone || '';
-      const email = q.recipientEmail || q.customer?.email || '';
-      const gstin = q.customerGstin || q.customer?.gstin || '';
-      const pan = (q.customer as any)?.pan || (gstin.length === 15 ? gstin.substring(2, 12) : '');
-
-      const quoteItems: CreateItem[] = (q.items || []).map((it: any) => ({
-        description: it.description || it.itemDescription || 'Pacific Restroom Cubicle System',
-        hsnSac: '940320',
-        quantity: Number(it.quantity) || 1,
-        unit: it.unit || 'NOS',
-        rate: Number(it.rate ?? it.unitPrice ?? 0),
-        gstRate: Number(q.gstRate || 18),
-        boardType: it.boardType || '12mm Compact Laminate HPL Board',
-        boardThickness: it.boardThickness || '12mm (Tolerance +/- 0.3mm)',
-        boardColor: it.boardColor || 'Solid / Woodgrain Finish',
-        cubicleSize: it.cubicleSize || '1000mm (W) x 1200mm (D) x 1980mm (H)',
-        doorSize: it.doorSize || '600mm x 1800mm',
-        overallHeight: it.overallHeight || '1980mm including 100mm-150mm ground gap',
-        hardwarePackage: it.hardwarePackage || 'SS 304 Stainless Steel (Satin/Brushed)',
-      }));
-
-      const isDel = isDelhiState(q.recipientAddress, gstin);
-      const posState = isDel ? 'Delhi' : (q.recipientAddress?.split(',').pop()?.trim() || 'Delhi');
-      const posCode = isDel ? '07' : '07';
-
-      setFormData((prev) => ({
-        ...prev,
-        customerId: q.customerId || prev.customerId,
-        quotationId: q.id,
-        quotationRef: q.referenceNumber,
-        placeOfSupply: posState,
-        placeOfSupplyStateCode: posCode,
-        freightAmount: Number(q.freightAmount) || 0,
-        accessoriesText: q.accessoriesText || prev.accessoriesText,
-        billingAddress: {
-          ...prev.billingAddress,
-          partyName: clientName,
-          gstin,
-          pan,
-          addressLine: address,
-          phone,
-          email,
-          state: posState,
-          stateCode: posCode,
-        },
-        deliveryAddress: {
-          ...prev.deliveryAddress,
-          partyName: clientName,
-          addressLine: address,
-          phone,
-          state: posState,
-          stateCode: posCode,
-        },
-        items: quoteItems.length > 0 ? quoteItems : prev.items,
-      }));
-
-      alert(`Specifications and pricing imported from Quotation ${q.referenceNumber}!`);
-    } catch (err) {
-      alert('Failed to import quotation details.');
+    if (bAddr?.state) {
+      setPlaceOfSupply(bAddr.state);
+      setPlaceOfSupplyStateCode(bAddr.stateCode || '07');
     }
   };
 
-  // Import from Proforma Invoice
-  const handleImportProforma = async (piId: string) => {
-    setSelectedPiId(piId);
-    if (!piId) return;
-    try {
-      const res = await piApi.getById(piId);
-      const pi = res.data?.data ?? (res.data as any);
-      if (!pi) return;
-
-      const billParty = pi.parties?.find((p: any) => p.partyRole === 'BILL_TO');
-      const shipParty = pi.parties?.find((p: any) => p.partyRole === 'SHIP_TO') || billParty;
-
-      const piItems: CreateItem[] = (pi.items || []).map((it: any) => ({
-        description: it.description || 'Pacific Restroom Cubicle System',
-        hsnSac: it.hsnSac || '940320',
-        quantity: Number(it.quantity) || 1,
-        unit: it.unit || 'NOS',
-        rate: Number(it.rate ?? 0),
-        gstRate: Number(it.gstRate || 18),
-        boardType: it.boardType || '12mm Compact Laminate HPL Board',
-        boardThickness: it.boardThickness || '12mm (Tolerance +/- 0.3mm)',
-        boardColor: it.boardColor || 'Solid / Woodgrain Finish',
-        cubicleSize: it.cubicleSize || '1000mm (W) x 1200mm (D) x 1980mm (H)',
-        doorSize: it.doorSize || '600mm x 1800mm',
-        overallHeight: it.overallHeight || '1980mm including 100mm-150mm ground gap',
-        hardwarePackage: it.hardwarePackage || 'SS 304 Stainless Steel (Satin/Brushed)',
-      }));
-
-      const termsList = Array.isArray(pi.terms) ? pi.terms.map((t: any) => t.text || t) : formData.terms;
-
-      setFormData((prev) => ({
-        ...prev,
-        customerId: pi.customerId || prev.customerId,
-        proformaInvoiceId: pi.id,
-        piNumber: pi.piNumber,
-        quotationId: pi.quotationId || prev.quotationId,
-        quotationRef: pi.quotationRef || prev.quotationRef,
-        placeOfSupply: pi.placeOfSupply || 'Delhi',
-        placeOfSupplyStateCode: pi.placeOfSupplyStateCode || '07',
-        clientPoNumber: pi.linkedPoNumber || prev.clientPoNumber,
-        clientPoDate: pi.linkedPoDate ? new Date(pi.linkedPoDate).toISOString().split('T')[0] : prev.clientPoDate,
-        freightAmount: Number(pi.freightAmount) || 0,
-        accessoriesText: pi.accessoriesText || prev.accessoriesText,
-        billingAddress: {
-          partyName: billParty?.partyName || pi.customer?.legalName || prev.billingAddress.partyName,
-          gstin: billParty?.gstin || pi.customer?.gstin || '',
-          pan: (billParty as any)?.pan || pi.customer?.pan || '',
-          addressLine: billParty?.addressLine || '',
-          city: (billParty as any)?.city || 'New Delhi',
-          pincode: (billParty as any)?.pincode || '',
-          state: billParty?.state || 'Delhi',
-          stateCode: billParty?.stateCode || '07',
-          phone: billParty?.phone || pi.customer?.phone || '',
-          email: billParty?.email || pi.customer?.email || '',
-        },
-        deliveryAddress: {
-          partyName: shipParty?.partyName || billParty?.partyName || prev.deliveryAddress.partyName,
-          addressLine: shipParty?.addressLine || '',
-          city: (shipParty as any)?.city || 'New Delhi',
-          pincode: (shipParty as any)?.pincode || '',
-          state: shipParty?.state || 'Delhi',
-          stateCode: shipParty?.stateCode || '07',
-          phone: shipParty?.phone || '',
-        },
-        items: piItems.length > 0 ? piItems : prev.items,
-        terms: termsList,
-      }));
-
-      alert(`Specifications and commercial details imported from PI ${pi.piNumber}!`);
-    } catch (err) {
-      alert('Failed to import Proforma Invoice details.');
-    }
-  };
-
-  // Model Selection for item (only listed models)
+  // Model Preset Selection for an Item (matching Quotation item selection)
   const handleSelectModel = (idx: number, modelId: string) => {
     if (!modelId) {
       handleItemChange(idx, 'modelId', '');
@@ -444,8 +327,8 @@ export default function CreateSalesOrderPage() {
     const dims = extractModelDimensions(selected);
     const hwText = formatModelHardwareInclusions(selected);
 
-    setFormData((prev: CreateSalesOrderFormData) => {
-      const nextItems = [...prev.items];
+    setItems((prev) => {
+      const nextItems = [...prev];
       nextItems[idx] = {
         ...nextItems[idx],
         modelId: selected.id,
@@ -457,117 +340,106 @@ export default function CreateSalesOrderPage() {
         boardType: dims.boardType,
         hardwarePackage: dims.hardwarePackage,
       };
-
-      // Auto-fetch and replace Standard Inclusions & Hardware Accessories
-      return {
-        ...prev,
-        accessoriesText: hwText,
-        items: nextItems,
-      };
+      return nextItems;
     });
+
+    // Auto-fetch and replace Standard Inclusions & Hardware Accessories
+    setAccessoriesText(hwText);
   };
 
-  // Item Row operations
-  const handleItemChange = (idx: number, field: keyof CreateItem, val: any) => {
-    setFormData((prev) => {
-      const updated = [...prev.items];
-      updated[idx] = { ...updated[idx], [field]: val };
-      return { ...prev, items: updated };
+  // Item row operations
+  const handleItemChange = (idx: number, field: keyof CreateItem, value: any) => {
+    setItems((prev) => {
+      const updated = [...prev];
+      updated[idx] = { ...updated[idx], [field]: value };
+      return updated;
     });
   };
 
   const handleAddItem = () => {
-    setFormData((prev) => ({
+    setItems((prev) => [
       ...prev,
-      items: [
-        ...prev.items,
-        {
-          description: 'Pacific Restroom Cubicle System',
-          hsnSac: '940320',
-          quantity: 1,
-          unit: 'NOS',
-          rate: 20000,
-          gstRate: 18,
-          boardType: '12mm Compact Laminate HPL Board',
-          boardThickness: '12mm (Tolerance +/- 0.3mm)',
-          boardColor: 'Solid / Woodgrain Finish',
-          cubicleSize: '1000mm (W) x 1200mm (D) x 1980mm (H)',
-          doorSize: '600mm x 1800mm',
-          overallHeight: '1980mm including 100mm-150mm ground gap',
-          hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
-        },
-      ],
-    }));
+      {
+        id: `item-${Date.now()}`,
+        description: 'Pacific Restroom Cubicle System',
+        hsnSac: '940320',
+        quantity: 1,
+        unit: 'NOS',
+        rate: 20000,
+        gstRate: 18,
+        boardType: '12mm Compact Laminate HPL Board',
+        boardThickness: '12mm (Tolerance +/- 0.3mm)',
+        boardColor: 'Solid / Woodgrain Finish',
+        cubicleSize: '1000mm (W) x 1200mm (D) x 1980mm (H)',
+        doorSize: '600mm x 1800mm',
+        overallHeight: '1980mm including 100mm-150mm ground gap',
+        hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
+      },
+    ]);
   };
 
   const handleDuplicateItem = (idx: number) => {
-    setFormData((prev) => {
-      const copy = { ...prev.items[idx] };
-      const updated = [...prev.items];
+    setItems((prev) => {
+      const copy = { ...prev[idx], id: `item-${Date.now()}` };
+      const updated = [...prev];
       updated.splice(idx + 1, 0, copy);
-      return { ...prev, items: updated };
+      return updated;
     });
   };
 
   const handleRemoveItem = (idx: number) => {
-    if (formData.items.length <= 1) {
+    if (items.length <= 1) {
       alert('Order must contain at least one line item.');
       return;
     }
-    setFormData((prev) => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== idx),
-    }));
+    setItems((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // Terms handlers
+  // Term operations
   const handleAddTerm = () => {
     if (!newTermText.trim()) return;
-    setFormData((prev) => ({ ...prev, terms: [...prev.terms, newTermText.trim()] }));
+    setTerms((prev) => [...prev, newTermText.trim()]);
     setNewTermText('');
   };
 
   const handleRemoveTerm = (tIdx: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      terms: prev.terms.filter((_, i) => i !== tIdx),
-    }));
+    setTerms((prev) => prev.filter((_, i) => i !== tIdx));
   };
 
-  // Calculations
+  // GST & Totals
   const subtotal = useMemo(
-    () => formData.items.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.rate) || 0), 0),
-    [formData.items]
+    () => items.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.rate) || 0), 0),
+    [items]
   );
 
-  const taxableTotal = subtotal + Number(formData.freightAmount || 0);
+  const taxableTotal = subtotal + Number(freightAmount || 0);
 
   const gstBreakdown = useMemo(() => {
     return calculateGstSplit(
       taxableTotal,
-      formData.placeOfSupplyStateCode || formData.billingAddress.stateCode,
-      formData.placeOfSupply || formData.billingAddress.state,
+      placeOfSupplyStateCode || billingAddress.stateCode,
+      placeOfSupply || billingAddress.state,
       false,
       18,
-      formData.billingAddress.gstin,
-      formData.billingAddress.addressLine
+      billingAddress.gstin,
+      billingAddress.addressLine
     );
-  }, [taxableTotal, formData.placeOfSupplyStateCode, formData.placeOfSupply, formData.billingAddress]);
+  }, [taxableTotal, placeOfSupplyStateCode, placeOfSupply, billingAddress]);
 
   const grandTotal = Math.round(taxableTotal + gstBreakdown.totalTax);
 
-  // Submit Handler
+  // Form Submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!id) return;
 
     const errors: Record<string, string> = {};
-    if (!formData.customerId) errors.customerId = 'Please select a customer';
-    if (!formData.companyProfileId && companies.length > 0) formData.companyProfileId = companies[0].id;
-    if (!formData.billingAddress.partyName) errors.billingParty = 'Billing party name is required';
-    if (!formData.billingAddress.addressLine) errors.billingAddress = 'Billing address line is required';
-    if (formData.items.length === 0) errors.items = 'At least one line item is required';
+    if (!customerId) errors.customerId = 'Please select a customer';
+    if (!billingAddress.partyName) errors.billingParty = 'Billing party name is required';
+    if (!billingAddress.addressLine) errors.billingAddress = 'Billing address line is required';
+    if (items.length === 0) errors.items = 'At least one line item is required';
 
-    formData.items.forEach((it, idx) => {
+    items.forEach((it, idx) => {
       if (!it.description?.trim()) errors[`item_${idx}_desc`] = 'Description required';
       if ((Number(it.quantity) || 0) <= 0) errors[`item_${idx}_qty`] = 'Quantity must be > 0';
       if ((Number(it.rate) || 0) <= 0) errors[`item_${idx}_rate`] = 'Rate must be > 0';
@@ -575,56 +447,46 @@ export default function CreateSalesOrderPage() {
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      alert('Please fill all required fields before creating the Sales Order.');
+      alert('Please correct the validation errors before saving.');
       return;
     }
 
     setSubmitting(true);
     try {
       const payload = {
-        customerId: formData.customerId,
-        companyProfileId: formData.companyProfileId || companies[0]?.id,
-        source: formData.proformaInvoiceId
-          ? 'CONVERTED_PROFORMA'
-          : formData.quotationId
-          ? 'CONVERTED_QUOTATION'
-          : 'DIRECT_ENTRY',
-        quotationId: formData.quotationId || null,
-        quotationRef: formData.quotationRef || null,
-        proformaInvoiceId: formData.proformaInvoiceId || null,
-        piNumber: formData.piNumber || null,
-        customerPoNumber: formData.clientPoNumber || null,
-        customerPoDate: formData.clientPoDate ? new Date(formData.clientPoDate).toISOString() : null,
-        placeOfSupply: formData.placeOfSupply,
-        placeOfSupplyStateCode: formData.placeOfSupplyStateCode,
-        freightAmount: Number(formData.freightAmount) || 0,
+        orderDate: orderDate ? new Date(orderDate).toISOString() : new Date().toISOString(),
+        customerId,
+        customerPoNumber: clientPoNumber || null,
+        customerPoDate: clientPoDate ? new Date(clientPoDate).toISOString() : null,
+        placeOfSupply,
+        placeOfSupplyStateCode,
+        freightAmount: Number(freightAmount) || 0,
         taxRate: 18,
-        accessoriesText: formData.accessoriesText,
-        terms: formData.terms,
-        requiresApproval: false,
-        billingAddress: {
-          partyName: formData.billingAddress.partyName,
-          gstin: formData.billingAddress.gstin,
-          pan: formData.billingAddress.pan,
-          address: formData.billingAddress.addressLine,
-          city: formData.billingAddress.city,
-          pincode: formData.billingAddress.pincode,
-          state: formData.billingAddress.state,
-          stateCode: formData.billingAddress.stateCode,
-          phone: formData.billingAddress.phone,
-          email: formData.billingAddress.email,
+        accessoriesText,
+        terms,
+        billingAddressSnapshot: {
+          partyName: billingAddress.partyName,
+          gstin: billingAddress.gstin,
+          pan: billingAddress.pan,
+          address: billingAddress.addressLine,
+          city: billingAddress.city,
+          pincode: billingAddress.pincode,
+          state: billingAddress.state,
+          stateCode: billingAddress.stateCode,
+          phone: billingAddress.phone,
+          email: billingAddress.email,
         },
-        shippingAddress: {
-          partyName: formData.deliveryAddress.partyName || formData.billingAddress.partyName,
-          recipient: formData.deliveryAddress.partyName || formData.billingAddress.partyName,
-          address: formData.deliveryAddress.addressLine,
-          city: formData.deliveryAddress.city,
-          pincode: formData.deliveryAddress.pincode,
-          state: formData.deliveryAddress.state,
-          stateCode: formData.deliveryAddress.stateCode,
-          phone: formData.deliveryAddress.phone,
+        shippingAddressSnapshot: {
+          partyName: deliveryAddress.partyName || billingAddress.partyName,
+          recipient: deliveryAddress.partyName || billingAddress.partyName,
+          address: deliveryAddress.addressLine,
+          city: deliveryAddress.city,
+          pincode: deliveryAddress.pincode,
+          state: deliveryAddress.state,
+          stateCode: deliveryAddress.stateCode,
+          phone: deliveryAddress.phone,
         },
-        items: formData.items.map((it) => ({
+        items: items.map((it) => ({
           description: it.description,
           hsnSac: it.hsnSac || '940320',
           quantity: Number(it.quantity) || 1,
@@ -649,21 +511,43 @@ export default function CreateSalesOrderPage() {
         })),
       };
 
-      const res = await salesOrdersApi.createDirect(payload);
-      const created = res.data?.data ?? (res.data as any);
-      try {
-        localStorage.removeItem(LOCAL_STORAGE_KEY);
-      } catch {}
-
-      alert('Sales Order generated successfully!');
-      navigate(`/admin/dashboard/sales-orders/${created.id}`);
+      await salesOrdersApi.update(id, payload);
+      alert('Sales Order updated successfully!');
+      navigate(`/admin/dashboard/sales-orders/${id}`);
     } catch (err: any) {
-      console.error('Failed to create Sales Order:', err);
-      alert(err.response?.data?.message || err.message || 'Failed to create Sales Order');
+      console.error('Failed to update Sales Order:', err);
+      alert(err.response?.data?.message || err.message || 'Failed to update Sales Order');
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-8">
+        <div className="w-10 h-10 border-4 border-[#7FB706]/20 border-t-[#7FB706] rounded-full animate-spin mb-4" />
+        <p className="text-gray-400 text-sm">Loading Sales Order for editing...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-2xl mx-auto p-6 bg-[#121226] border border-red-500/20 rounded-2xl text-center space-y-4">
+        <div className="w-12 h-12 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center mx-auto">
+          <AlertTriangle className="w-6 h-6" />
+        </div>
+        <h2 className="text-xl font-bold text-white">Error Loading Order</h2>
+        <p className="text-sm text-gray-400">{error}</p>
+        <Link
+          to={`/admin/dashboard/sales-orders/${id}`}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-sm font-semibold"
+        >
+          <ArrowLeft className="w-4 h-4" /> Return to Order
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 pb-28 max-w-7xl mx-auto">
@@ -672,9 +556,9 @@ export default function CreateSalesOrderPage() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => navigate('/admin/dashboard/sales-orders')}
+            onClick={() => navigate(`/admin/dashboard/sales-orders/${id}`)}
             className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer"
-            title="Back to Sales Orders Hub"
+            title="Back to Order Detail"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
@@ -682,19 +566,24 @@ export default function CreateSalesOrderPage() {
             <div className="flex items-center gap-2.5 flex-wrap">
               <h1 className="text-xl font-black text-white font-mono flex items-center gap-2">
                 <ShoppingBag className="w-6 h-6 text-[#7FB706]" />
-                Create New Sales Order
+                Edit Order: {orderNumber}
               </h1>
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                Direct / Converted Entry
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                {status}
               </span>
-              {lastSaved && (
-                <span className="text-[11px] text-gray-500 font-mono">
-                  Auto-saved {lastSaved}
+              {quotationRef && (
+                <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                  Quote: {quotationRef}
+                </span>
+              )}
+              {piNumber && (
+                <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                  PI: {piNumber}
                 </span>
               )}
             </div>
             <p className="text-xs text-gray-400 mt-1">
-              Create an official confirmed sales order with full technical hardware specifications and dual GST breakdown.
+              Modify line items, technical specifications, billing & delivery addresses, and commercial terms.
             </p>
           </div>
         </div>
@@ -702,17 +591,17 @@ export default function CreateSalesOrderPage() {
         <div className="flex items-center gap-2.5">
           <button
             type="button"
-            onClick={handleResetDraft}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white text-xs font-semibold transition-colors cursor-pointer"
+            onClick={() => navigate(`/admin/dashboard/sales-orders/${id}`)}
+            className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-semibold transition-colors cursor-pointer"
           >
-            <RotateCcw className="w-3.5 h-3.5" /> Reset
+            Cancel
           </button>
           <button
             type="submit"
             disabled={submitting}
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-[#030213] font-bold rounded-xl text-xs transition-all shadow-lg shadow-[#7FB706]/20 cursor-pointer disabled:opacity-50"
           >
-            <Save className="w-4 h-4" /> {submitting ? 'Generating Order...' : 'Generate Sales Order'}
+            <Save className="w-4 h-4" /> {submitting ? 'Saving Order...' : 'Save Sales Order'}
           </button>
         </div>
       </div>
@@ -720,64 +609,16 @@ export default function CreateSalesOrderPage() {
       {/* ── Document Flow Timeline (Stage 3) ───────────────────── */}
       <DocumentFlowTimeline
         currentStage={3}
-        documentRef="NEW ORDER"
-        currentStatus="DRAFT"
+        documentRef={orderNumber}
+        currentStatus={status}
         linkedDocs={{
-          quotationId: formData.quotationId,
-          quotationRef: formData.quotationRef,
-          piNumber: formData.piNumber,
+          quotationId,
+          quotationRef,
+          orderId: id,
+          orderNumber,
+          piNumber,
         }}
       />
-
-      {/* ── Fast Import Toolbar (From Quotation or PI) ──────────── */}
-      <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3">
-        <div className="flex items-center gap-2 pb-2 border-b border-white/5">
-          <Download className="w-4 h-4 text-[#7FB706]" />
-          <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">
-            Fast Document Import (Pre-populate full specs & commercial terms)
-          </h3>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-          {/* Import from Quotation */}
-          <div className="space-y-1.5">
-            <label className="text-gray-400 font-medium flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5 text-amber-400" /> Import from Accepted Sales Quotation
-            </label>
-            <select
-              value={selectedQuoteId}
-              onChange={(e) => handleImportQuotation(e.target.value)}
-              className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:border-[#7FB706] focus:outline-none"
-            >
-              <option value="">-- Choose Accepted Quotation --</option>
-              {quotations.map((q) => (
-                <option key={q.id} value={q.id}>
-                  {q.referenceNumber} • {q.recipientName || q.recipientCompany || 'Customer'} (₹{Number(q.grandTotal || 0).toLocaleString('en-IN')})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Import from Proforma Invoice */}
-          <div className="space-y-1.5">
-            <label className="text-gray-400 font-medium flex items-center gap-1.5">
-              <CreditCard className="w-3.5 h-3.5 text-indigo-400" /> Import from Issued Proforma Invoice
-            </label>
-            <select
-              value={selectedPiId}
-              onChange={(e) => handleImportProforma(e.target.value)}
-              className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:border-[#7FB706] focus:outline-none"
-            >
-              <option value="">-- Choose Proforma Invoice --</option>
-              {proformaInvoices.map((pi) => (
-                <option key={pi.id} value={pi.id}>
-                  {pi.piNumber} • {pi.customer?.legalName || 'Client'} (₹{Number(pi.grandTotal || 0).toLocaleString('en-IN')})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
 
       {/* ── Customer & Order Reference Metadata Card ───────────── */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
@@ -790,28 +631,23 @@ export default function CreateSalesOrderPage() {
           {/* Customer Selection */}
           <CustomerSearchSelect
             customers={customers}
-            selectedCustomerId={formData.customerId}
+            selectedCustomerId={customerId}
             onSelectCustomer={(cId) => handleCustomerSelect(cId)}
             error={fieldErrors.customerId}
-            label="Customer Party"
+            label="Customer Party *"
             placeholder="Search party name, email, GST, phone..."
             required
           />
 
-          {/* Company Profile */}
+          {/* Order Date */}
           <div className="space-y-1.5">
-            <label className="text-gray-400 font-medium">Issuer Company Profile</label>
-            <select
-              value={formData.companyProfileId}
-              onChange={(e) => setFormData({ ...formData, companyProfileId: e.target.value })}
+            <label className="text-gray-400 font-medium">Order Date</label>
+            <input
+              type="date"
+              value={orderDate}
+              onChange={(e) => setOrderDate(e.target.value)}
               className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:border-[#7FB706] focus:outline-none"
-            >
-              {companies.map((cp) => (
-                <option key={cp.id} value={cp.id}>
-                  {cp.companyName}
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           {/* Client PO Number */}
@@ -820,8 +656,8 @@ export default function CreateSalesOrderPage() {
             <input
               type="text"
               placeholder="e.g. PO-2026-8941"
-              value={formData.clientPoNumber}
-              onChange={(e) => setFormData({ ...formData, clientPoNumber: e.target.value })}
+              value={clientPoNumber}
+              onChange={(e) => setClientPoNumber(e.target.value)}
               className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:border-[#7FB706] focus:outline-none font-mono"
             />
           </div>
@@ -831,8 +667,8 @@ export default function CreateSalesOrderPage() {
             <label className="text-gray-400 font-medium">Client PO Date</label>
             <input
               type="date"
-              value={formData.clientPoDate}
-              onChange={(e) => setFormData({ ...formData, clientPoDate: e.target.value })}
+              value={clientPoDate}
+              onChange={(e) => setClientPoDate(e.target.value)}
               className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:border-[#7FB706] focus:outline-none"
             />
           </div>
@@ -856,13 +692,8 @@ export default function CreateSalesOrderPage() {
               <label className="text-gray-400 block mb-1">Company / Legal Name *</label>
               <input
                 type="text"
-                value={formData.billingAddress.partyName}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    billingAddress: { ...formData.billingAddress, partyName: e.target.value },
-                  })
-                }
+                value={billingAddress.partyName}
+                onChange={(e) => setBillingAddress({ ...billingAddress, partyName: e.target.value })}
                 className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:border-[#7FB706] focus:outline-none"
                 placeholder="Company Name"
               />
@@ -874,24 +705,15 @@ export default function CreateSalesOrderPage() {
                 <input
                   type="text"
                   maxLength={15}
-                  value={formData.billingAddress.gstin}
+                  value={billingAddress.gstin}
                   onChange={(e) => {
                     const gstin = e.target.value.toUpperCase();
-                    const pan = gstin.length >= 12 ? gstin.substring(2, 12) : formData.billingAddress.pan;
-                    const stCode = gstin.length >= 2 ? gstin.substring(0, 2) : formData.billingAddress.stateCode;
-                    const stName = stCode === '07' ? 'Delhi' : formData.billingAddress.state;
-                    setFormData({
-                      ...formData,
-                      placeOfSupply: stName,
-                      placeOfSupplyStateCode: stCode,
-                      billingAddress: {
-                        ...formData.billingAddress,
-                        gstin,
-                        pan,
-                        stateCode: stCode,
-                        state: stName,
-                      },
-                    });
+                    const pan = gstin.length >= 12 ? gstin.substring(2, 12) : billingAddress.pan;
+                    const stCode = gstin.length >= 2 ? gstin.substring(0, 2) : billingAddress.stateCode;
+                    const stName = stCode === '07' ? 'Delhi' : billingAddress.state;
+                    setBillingAddress({ ...billingAddress, gstin, pan, stateCode: stCode, state: stName });
+                    setPlaceOfSupply(stName);
+                    setPlaceOfSupplyStateCode(stCode);
                   }}
                   className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-amber-300 text-xs font-mono focus:border-[#7FB706] focus:outline-none"
                   placeholder="07AAAAA0000A1Z5"
@@ -903,13 +725,8 @@ export default function CreateSalesOrderPage() {
                 <input
                   type="text"
                   maxLength={10}
-                  value={formData.billingAddress.pan}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      billingAddress: { ...formData.billingAddress, pan: e.target.value.toUpperCase() },
-                    })
-                  }
+                  value={billingAddress.pan}
+                  onChange={(e) => setBillingAddress({ ...billingAddress, pan: e.target.value.toUpperCase() })}
                   className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono focus:border-[#7FB706] focus:outline-none"
                   placeholder="ABCDE1234F"
                 />
@@ -920,13 +737,8 @@ export default function CreateSalesOrderPage() {
               <label className="text-gray-400 block mb-1">Registered Address *</label>
               <textarea
                 rows={2}
-                value={formData.billingAddress.addressLine}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    billingAddress: { ...formData.billingAddress, addressLine: e.target.value },
-                  })
-                }
+                value={billingAddress.addressLine}
+                onChange={(e) => setBillingAddress({ ...billingAddress, addressLine: e.target.value })}
                 className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:border-[#7FB706] focus:outline-none"
                 placeholder="Plot / Building, Street, Area"
               />
@@ -937,13 +749,8 @@ export default function CreateSalesOrderPage() {
                 <label className="text-gray-400 block mb-1">City</label>
                 <input
                   type="text"
-                  value={formData.billingAddress.city}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      billingAddress: { ...formData.billingAddress, city: e.target.value },
-                    })
-                  }
+                  value={billingAddress.city}
+                  onChange={(e) => setBillingAddress({ ...billingAddress, city: e.target.value })}
                   className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs"
                 />
               </div>
@@ -951,16 +758,13 @@ export default function CreateSalesOrderPage() {
                 <label className="text-gray-400 block mb-1">State</label>
                 <input
                   type="text"
-                  value={formData.billingAddress.state}
+                  value={billingAddress.state}
                   onChange={(e) => {
                     const st = e.target.value;
-                    const code = st.toLowerCase().includes('delhi') ? '07' : formData.billingAddress.stateCode;
-                    setFormData({
-                      ...formData,
-                      placeOfSupply: st,
-                      placeOfSupplyStateCode: code,
-                      billingAddress: { ...formData.billingAddress, state: st, stateCode: code },
-                    });
+                    const code = st.toLowerCase().includes('delhi') ? '07' : billingAddress.stateCode;
+                    setBillingAddress({ ...billingAddress, state: st, stateCode: code });
+                    setPlaceOfSupply(st);
+                    setPlaceOfSupplyStateCode(code);
                   }}
                   className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs"
                 />
@@ -969,13 +773,8 @@ export default function CreateSalesOrderPage() {
                 <label className="text-gray-400 block mb-1">Pincode</label>
                 <input
                   type="text"
-                  value={formData.billingAddress.pincode}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      billingAddress: { ...formData.billingAddress, pincode: e.target.value },
-                    })
-                  }
+                  value={billingAddress.pincode}
+                  onChange={(e) => setBillingAddress({ ...billingAddress, pincode: e.target.value })}
                   className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono"
                   placeholder="110001"
                 />
@@ -987,13 +786,8 @@ export default function CreateSalesOrderPage() {
                 <label className="text-gray-400 block mb-1">Phone</label>
                 <input
                   type="text"
-                  value={formData.billingAddress.phone}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      billingAddress: { ...formData.billingAddress, phone: e.target.value },
-                    })
-                  }
+                  value={billingAddress.phone}
+                  onChange={(e) => setBillingAddress({ ...billingAddress, phone: e.target.value })}
                   className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs"
                 />
               </div>
@@ -1001,13 +795,8 @@ export default function CreateSalesOrderPage() {
                 <label className="text-gray-400 block mb-1">Email</label>
                 <input
                   type="email"
-                  value={formData.billingAddress.email}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      billingAddress: { ...formData.billingAddress, email: e.target.value },
-                    })
-                  }
+                  value={billingAddress.email}
+                  onChange={(e) => setBillingAddress({ ...billingAddress, email: e.target.value })}
                   className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs"
                 />
               </div>
@@ -1024,7 +813,17 @@ export default function CreateSalesOrderPage() {
             </div>
             <button
               type="button"
-              onClick={handleCopyBillingToDelivery}
+              onClick={() => {
+                setDeliveryAddress({
+                  partyName: billingAddress.partyName,
+                  addressLine: billingAddress.addressLine,
+                  city: billingAddress.city,
+                  pincode: billingAddress.pincode,
+                  state: billingAddress.state,
+                  stateCode: billingAddress.stateCode,
+                  phone: billingAddress.phone,
+                });
+              }}
               className="text-[11px] text-[#7FB706] hover:underline flex items-center gap-1 cursor-pointer font-semibold"
             >
               <Copy className="w-3 h-3" /> Same as Billing
@@ -1036,13 +835,8 @@ export default function CreateSalesOrderPage() {
               <label className="text-gray-400 block mb-1">Consignee / Site Name *</label>
               <input
                 type="text"
-                value={formData.deliveryAddress.partyName}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    deliveryAddress: { ...formData.deliveryAddress, partyName: e.target.value },
-                  })
-                }
+                value={deliveryAddress.partyName}
+                onChange={(e) => setDeliveryAddress({ ...deliveryAddress, partyName: e.target.value })}
                 className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:border-[#7FB706] focus:outline-none"
                 placeholder="Consignee or Project Site Name"
               />
@@ -1052,13 +846,8 @@ export default function CreateSalesOrderPage() {
               <label className="text-gray-400 block mb-1">Site Delivery Address *</label>
               <textarea
                 rows={2}
-                value={formData.deliveryAddress.addressLine}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    deliveryAddress: { ...formData.deliveryAddress, addressLine: e.target.value },
-                  })
-                }
+                value={deliveryAddress.addressLine}
+                onChange={(e) => setDeliveryAddress({ ...deliveryAddress, addressLine: e.target.value })}
                 className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:border-[#7FB706] focus:outline-none"
                 placeholder="Plot / Project Location, Landmark"
               />
@@ -1069,13 +858,8 @@ export default function CreateSalesOrderPage() {
                 <label className="text-gray-400 block mb-1">City</label>
                 <input
                   type="text"
-                  value={formData.deliveryAddress.city}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      deliveryAddress: { ...formData.deliveryAddress, city: e.target.value },
-                    })
-                  }
+                  value={deliveryAddress.city}
+                  onChange={(e) => setDeliveryAddress({ ...deliveryAddress, city: e.target.value })}
                   className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs"
                 />
               </div>
@@ -1083,14 +867,11 @@ export default function CreateSalesOrderPage() {
                 <label className="text-gray-400 block mb-1">State</label>
                 <input
                   type="text"
-                  value={formData.deliveryAddress.state}
+                  value={deliveryAddress.state}
                   onChange={(e) => {
                     const st = e.target.value;
-                    const code = st.toLowerCase().includes('delhi') ? '07' : formData.deliveryAddress.stateCode;
-                    setFormData({
-                      ...formData,
-                      deliveryAddress: { ...formData.deliveryAddress, state: st, stateCode: code },
-                    });
+                    const code = st.toLowerCase().includes('delhi') ? '07' : deliveryAddress.stateCode;
+                    setDeliveryAddress({ ...deliveryAddress, state: st, stateCode: code });
                   }}
                   className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs"
                 />
@@ -1099,13 +880,8 @@ export default function CreateSalesOrderPage() {
                 <label className="text-gray-400 block mb-1">Pincode</label>
                 <input
                   type="text"
-                  value={formData.deliveryAddress.pincode}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      deliveryAddress: { ...formData.deliveryAddress, pincode: e.target.value },
-                    })
-                  }
+                  value={deliveryAddress.pincode}
+                  onChange={(e) => setDeliveryAddress({ ...deliveryAddress, pincode: e.target.value })}
                   className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono"
                   placeholder="110001"
                 />
@@ -1117,13 +893,8 @@ export default function CreateSalesOrderPage() {
                 <label className="text-gray-400 block mb-1">Site Contact Phone</label>
                 <input
                   type="text"
-                  value={formData.deliveryAddress.phone}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      deliveryAddress: { ...formData.deliveryAddress, phone: e.target.value },
-                    })
-                  }
+                  value={deliveryAddress.phone}
+                  onChange={(e) => setDeliveryAddress({ ...deliveryAddress, phone: e.target.value })}
                   className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs"
                   placeholder="+91-XXXXX-XXXXX"
                 />
@@ -1132,14 +903,11 @@ export default function CreateSalesOrderPage() {
                 <label className="text-gray-400 block mb-1">Place of Supply (GST)</label>
                 <input
                   type="text"
-                  value={formData.placeOfSupply}
+                  value={placeOfSupply}
                   onChange={(e) => {
                     const val = e.target.value;
-                    setFormData({
-                      ...formData,
-                      placeOfSupply: val,
-                      placeOfSupplyStateCode: val.toLowerCase().includes('delhi') ? '07' : formData.placeOfSupplyStateCode,
-                    });
+                    setPlaceOfSupply(val);
+                    if (val.toLowerCase().includes('delhi')) setPlaceOfSupplyStateCode('07');
                   }}
                   className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-medium"
                 />
@@ -1165,13 +933,12 @@ export default function CreateSalesOrderPage() {
           </label>
           <textarea
             rows={4}
-            value={formData.accessoriesText}
-            onChange={(e) => setFormData({ ...formData, accessoriesText: e.target.value })}
+            value={accessoriesText}
+            onChange={(e) => setAccessoriesText(e.target.value)}
             className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-3 text-white text-xs leading-relaxed font-sans focus:border-[#7FB706] focus:outline-none"
           />
         </div>
       </div>
-
 
 
       {/* ── Line Items & Fabrication Specifications ────────────── */}
@@ -1198,9 +965,9 @@ export default function CreateSalesOrderPage() {
 
         {/* Items List matching Quotation UI */}
         <div className="space-y-4">
-          {formData.items.map((item, idx) => (
+          {items.map((item, idx) => (
             <div
-              key={idx}
+              key={item.id || idx}
               className="p-4 rounded-xl bg-[#0a0a1a] border border-white/5 hover:border-white/10 space-y-3 transition-colors"
             >
               <div className="flex items-center justify-between">
@@ -1214,7 +981,7 @@ export default function CreateSalesOrderPage() {
                   >
                     <Copy className="w-3.5 h-3.5" />
                   </button>
-                  {formData.items.length > 1 && (
+                  {items.length > 1 && (
                     <button
                       type="button"
                       onClick={() => handleRemoveItem(idx)}
@@ -1227,7 +994,7 @@ export default function CreateSalesOrderPage() {
                 </div>
               </div>
 
-              {/* Product Model Selection */}
+              {/* Product Model Selection & Description */}
               <div className="space-y-1.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                   <label className="text-xs font-semibold text-gray-300">Product Model Selection &amp; Description *</label>
@@ -1426,11 +1193,11 @@ export default function CreateSalesOrderPage() {
               Commercial Terms &amp; Conditions
             </h4>
           </div>
-          <span className="text-xs text-gray-400 font-mono">{formData.terms.length} clause(s)</span>
+          <span className="text-xs text-gray-400 font-mono">{terms.length} clause(s)</span>
         </div>
 
         <div className="space-y-2 text-xs">
-          {formData.terms.map((term, tIdx) => (
+          {terms.map((term, tIdx) => (
             <div
               key={tIdx}
               className="flex items-start justify-between gap-3 p-2.5 rounded-xl bg-[#0a0a1a] border border-white/5"
@@ -1493,8 +1260,8 @@ export default function CreateSalesOrderPage() {
                 <input
                   type="number"
                   min={0}
-                  value={formData.freightAmount}
-                  onChange={(e) => setFormData({ ...formData, freightAmount: Number(e.target.value) || 0 })}
+                  value={freightAmount}
+                  onChange={(e) => setFreightAmount(Number(e.target.value) || 0)}
                   className="w-24 bg-[#121226] border border-white/10 rounded px-2 py-1 text-white font-mono text-xs"
                 />
               </div>
@@ -1536,7 +1303,7 @@ export default function CreateSalesOrderPage() {
           <div className="flex items-center gap-2.5">
             <button
               type="button"
-              onClick={() => navigate('/admin/dashboard/sales-orders')}
+              onClick={() => navigate(`/admin/dashboard/sales-orders/${id}`)}
               className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-semibold cursor-pointer"
             >
               Cancel
@@ -1546,7 +1313,7 @@ export default function CreateSalesOrderPage() {
               disabled={submitting}
               className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-[#030213] font-bold rounded-xl text-xs transition-all shadow-lg shadow-[#7FB706]/20 cursor-pointer disabled:opacity-50"
             >
-              <Save className="w-4 h-4" /> {submitting ? 'Generating Order...' : 'Generate Sales Order'}
+              <Save className="w-4 h-4" /> {submitting ? 'Saving Order...' : 'Save Sales Order'}
             </button>
           </div>
         </div>

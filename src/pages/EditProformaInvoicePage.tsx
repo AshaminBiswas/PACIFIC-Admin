@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   CreditCard,
@@ -11,27 +11,28 @@ import {
   Truck,
   Layers,
   FileText,
-  AlertTriangle,
+  Sparkles,
   CheckCircle2,
   DollarSign,
   HelpCircle,
+  MapPin,
+  Wrench,
+  Copy,
+  AlertTriangle,
 } from 'lucide-react';
 import { piApi } from '../api/proformaApi';
 import { crmApi } from '../api/crmApi';
-import { productsMasterApi } from '../api/productsApi';
+import { productCatalogApi } from '../api/productCatalogApi';
+import {
+  getMergedQuotationModels,
+  formatModelHardwareInclusions,
+  extractModelDimensions,
+} from '../utils/quotationProductPresets';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
-import type { ProformaInvoice, BusinessParty, Product } from '../types/admin';
-
-interface FormItem {
-  id?: string;
-  productId?: string;
-  description: string;
-  hsnSac: string;
-  quantity: number;
-  unit: string;
-  rate: number;
-  gstRate: number;
-}
+import CustomerSearchSelect from '../components/common/CustomerSearchSelect';
+import type { BusinessParty, ProductCatalogModel } from '../types/admin';
+import { calculateGstSplit, isDelhiState } from '../utils/tax';
+import { DEFAULT_ACCESSORIES_TEXT, type CreateItem, type BillingAddressData, type DeliveryAddressData } from './CreateProformaPage';
 
 export default function EditProformaInvoicePage() {
   const { id } = useParams<{ id: string }>();
@@ -41,14 +42,14 @@ export default function EditProformaInvoicePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reference lists
+  // Lookups
   const [customers, setCustomers] = useState<BusinessParty[]>([]);
-  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [catalogModels, setCatalogModels] = useState<ProductCatalogModel[]>([]);
 
-  // Form State
+  // Metadata
   const [piNumber, setPiNumber] = useState('');
+  const [status, setStatus] = useState('DRAFT');
   const [customerId, setCustomerId] = useState('');
-  const [piDate, setPiDate] = useState('');
   const [placeOfSupply, setPlaceOfSupply] = useState('Delhi');
   const [placeOfSupplyStateCode, setPlaceOfSupplyStateCode] = useState('07');
   const [reverseCharge, setReverseCharge] = useState(false);
@@ -59,56 +60,75 @@ export default function EditProformaInvoicePage() {
   const [linkedPoDate, setLinkedPoDate] = useState('');
   const [freightAmount, setFreightAmount] = useState<number>(0);
   const [advancePercentage, setAdvancePercentage] = useState<number>(50);
-  const [advanceReceivedAmount, setAdvanceReceivedAmount] = useState<number>(0);
   const [quotationId, setQuotationId] = useState<string | undefined>(undefined);
   const [quotationRef, setQuotationRef] = useState<string | undefined>(undefined);
-  const [status, setStatus] = useState<string>('DRAFT');
 
-  // Parties
-  const [billTo, setBillTo] = useState({
+  // Hardware & Inclusions
+  const [selectedHardwarePreset, setSelectedHardwarePreset] = useState<string>('SS_304');
+  const [accessoriesText, setAccessoriesText] = useState<string>(DEFAULT_ACCESSORIES_TEXT);
+
+  // Addresses
+  const [billingAddress, setBillingAddress] = useState<BillingAddressData>({
     partyName: '',
     gstin: '',
+    pan: '',
     addressLine: '',
+    city: 'New Delhi',
+    pincode: '',
     state: 'Delhi',
     stateCode: '07',
     phone: '',
     email: '',
   });
 
-  const [shipTo, setShipTo] = useState({
+  const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddressData>({
     partyName: '',
-    gstin: '',
     addressLine: '',
+    city: 'New Delhi',
+    pincode: '',
     state: 'Delhi',
     stateCode: '07',
     phone: '',
   });
 
-  // Items
-  const [items, setItems] = useState<FormItem[]>([]);
-
-  // Terms
+  // Items & Terms
+  const [items, setItems] = useState<CreateItem[]>([]);
   const [terms, setTerms] = useState<string[]>([]);
   const [newTermText, setNewTermText] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
+  const cubicleModels = useMemo(
+    () => catalogModels.filter((m) => m.category === 'Cubicle'),
+    [catalogModels]
+  );
+  const lockerModels = useMemo(
+    () => catalogModels.filter((m) => m.category === 'Lockers'),
+    [catalogModels]
+  );
+  const urinalModels = useMemo(
+    () => catalogModels.filter((m) => m.category === 'Urinal Partitions'),
+    [catalogModels]
+  );
+
+  // Load PI and lookups
   const loadData = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     setError(null);
     try {
-      const [piRes, custRes, prodRes] = await Promise.all([
+      const [piRes, custRes, modelsList] = await Promise.all([
         piApi.getById(id),
         crmApi.listCustomers({ limit: 100 }).catch(() => ({ data: { data: { items: [] } } })),
-        productsMasterApi.list({ limit: 100 }).catch(() => ({ data: { data: { items: [] } } })),
+        productCatalogApi.listModels().catch(() => []),
       ]);
 
       const data = piRes.data?.data ?? (piRes.data as any);
       setCustomers(custRes.data?.data?.items || []);
-      setCatalogProducts(prodRes.data?.data?.items || []);
+      setCatalogModels(getMergedQuotationModels(modelsList || []));
 
       setPiNumber(data.piNumber || '');
+      setStatus(data.status || 'DRAFT');
       setCustomerId(data.customerId || '');
-      setPiDate(data.piDate ? new Date(data.piDate).toISOString().split('T')[0] : '');
       setPlaceOfSupply(data.placeOfSupply || 'Delhi');
       setPlaceOfSupplyStateCode(data.placeOfSupplyStateCode || '07');
       setReverseCharge(Boolean(data.reverseCharge));
@@ -119,59 +139,131 @@ export default function EditProformaInvoicePage() {
       setLinkedPoDate(data.linkedPoDate ? new Date(data.linkedPoDate).toISOString().split('T')[0] : '');
       setFreightAmount(Number(data.freightAmount) || 0);
       setAdvancePercentage(Number(data.advancePercentage) || 50);
-      setAdvanceReceivedAmount(Number(data.advanceReceivedAmount) || 0);
       setQuotationId(data.quotationId || undefined);
       setQuotationRef(data.quotationRef || undefined);
-      setStatus(data.status || 'DRAFT');
 
-      // Parties
+      // Extract Parties
       const bParty = data.parties?.find((p: any) => p.partyRole === 'BILL_TO');
-      if (bParty) {
-        setBillTo({
-          partyName: bParty.partyName || '',
-          gstin: bParty.gstin || '',
-          addressLine: bParty.addressLine || '',
-          state: bParty.state || 'Delhi',
-          stateCode: bParty.stateCode || '07',
-          phone: bParty.phone || '',
-          email: bParty.email || '',
-        });
-      }
-
       const sParty = data.parties?.find((p: any) => p.partyRole === 'SHIP_TO');
-      if (sParty) {
-        setShipTo({
-          partyName: sParty.partyName || '',
-          gstin: sParty.gstin || '',
-          addressLine: sParty.addressLine || '',
-          state: sParty.state || 'Delhi',
-          stateCode: sParty.stateCode || '07',
-          phone: sParty.phone || '',
-        });
+
+      // Extract PAN & PIN from addressLine if formatted
+      const bAddr = bParty?.addressLine || '';
+      const panMatch = bAddr.match(/PAN:\s*([A-Z0-9]{10})/i);
+      const pinMatch = bAddr.match(/PIN:\s*(\d{6})/i);
+      const cleanBAddr = bAddr.replace(/,\s*(PAN:\s*[A-Z0-9]{10}|PIN:\s*\d{6})/gi, '').trim();
+
+      const customerPan = (data.customer as any)?.pan || '';
+      const bGstin = bParty?.gstin || data.customer?.gstin || '';
+      const bPan = panMatch ? panMatch[1] : (customerPan || (bGstin.length === 15 ? bGstin.slice(2, 12) : ''));
+      const bPincode = pinMatch ? pinMatch[1] : (data.customer?.addresses?.[0]?.postalCode || '');
+
+      setBillingAddress({
+        partyName: bParty?.partyName || data.customer?.legalName || '',
+        gstin: bGstin,
+        pan: bPan,
+        addressLine: cleanBAddr,
+        city: 'New Delhi',
+        pincode: bPincode,
+        state: bParty?.state || data.placeOfSupply || 'Delhi',
+        stateCode: bParty?.stateCode || data.placeOfSupplyStateCode || '07',
+        phone: bParty?.phone || data.customer?.phone || '',
+        email: bParty?.email || data.customer?.email || '',
+      });
+
+      const sAddr = sParty?.addressLine || '';
+      const sPinMatch = sAddr.match(/PIN:\s*(\d{6})/i);
+      const cleanSAddr = sAddr.replace(/,\s*PIN:\s*\d{6}/gi, '').trim();
+
+      setDeliveryAddress({
+        partyName: sParty?.partyName || bParty?.partyName || data.customer?.legalName || '',
+        addressLine: cleanSAddr || cleanBAddr,
+        city: 'New Delhi',
+        pincode: sPinMatch ? sPinMatch[1] : bPincode,
+        state: sParty?.state || bParty?.state || 'Delhi',
+        stateCode: sParty?.stateCode || bParty?.stateCode || '07',
+        phone: sParty?.phone || bParty?.phone || '',
+      });
+
+      // Extract Hardware Inclusions from Terms
+      const termsList: string[] = Array.isArray(data.terms) ? data.terms.map((t: any) => t.text) : [];
+      const hardwareTerm = termsList.find(
+        (t) =>
+          t.toLowerCase().includes('hardware accessories') ||
+          t.toLowerCase().includes('standard inclusions')
+      );
+
+      if (hardwareTerm) {
+        const cleanHw = hardwareTerm.replace(/^Standard Inclusions & Hardware Accessories:\s*/i, '').trim();
+        setAccessoriesText(cleanHw);
+        setTerms(termsList.filter((t) => t !== hardwareTerm));
+      } else {
+        setTerms(termsList);
       }
 
-      // Items
+      // Extract Items & Specifications
       if (data.items && Array.isArray(data.items)) {
         setItems(
-          data.items.map((it: any) => ({
-            id: it.id,
-            productId: it.productId,
-            description: it.description,
-            hsnSac: it.hsnSac || '9403',
-            quantity: Number(it.quantity) || 1,
-            unit: it.unit || 'NOS',
-            rate: Number(it.rate) || 0,
-            gstRate: Number(it.gstRate ?? 18),
-          }))
+          data.items.map((it: any) => {
+            const rawDesc: string = it.description || '';
+            let mainDesc = rawDesc;
+            let boardType = 'HPL';
+            let boardThickness = '12mm';
+            let boardColor = 'D.No. 123 – Oyster White';
+            let cubicleSize = '1000mm W × 1500mm D';
+            let doorSize = '600mm × 1785mm';
+            let overallHeight = '1980mm (incl. 100mm ground clearance)';
+            let hardwarePackage = 'SS 304 Stainless Steel (Satin/Brushed)';
+
+            // Parse specs from \n(Board: ... | Hardware: ...)
+            if (rawDesc.includes('(') && rawDesc.includes(')')) {
+              const specSection = rawDesc.slice(rawDesc.indexOf('(') + 1, rawDesc.lastIndexOf(')'));
+              mainDesc = rawDesc.slice(0, rawDesc.indexOf('(')).trim();
+
+              const parts = specSection.split('|').map((s) => s.trim());
+              parts.forEach((p) => {
+                const [k, ...vParts] = p.split(':');
+                const v = vParts.join(':').trim();
+                const keyLower = k.toLowerCase().trim();
+                if (keyLower.includes('board')) {
+                  const bTokens = v.split(' ');
+                  if (bTokens[0]) boardType = bTokens[0];
+                  if (bTokens[1]) boardThickness = bTokens.slice(1).join(' ');
+                } else if (keyLower.includes('color')) {
+                  boardColor = v;
+                } else if (keyLower.includes('size')) {
+                  cubicleSize = v;
+                } else if (keyLower.includes('door')) {
+                  doorSize = v;
+                } else if (keyLower.includes('height')) {
+                  overallHeight = v;
+                } else if (keyLower.includes('hardware')) {
+                  hardwarePackage = v;
+                }
+              });
+            }
+
+            return {
+              id: it.id,
+              modelId: it.productId,
+              description: mainDesc,
+              hsnSac: it.hsnSac || '9403',
+              quantity: Number(it.quantity) || 1,
+              unit: it.unit || 'NOS',
+              rate: Number(it.rate) || 0,
+              gstRate: Number(it.gstRate ?? 18),
+              boardType,
+              boardThickness,
+              boardColor,
+              cubicleSize,
+              doorSize,
+              overallHeight,
+              hardwarePackage,
+            };
+          })
         );
       }
-
-      // Terms
-      if (data.terms && Array.isArray(data.terms)) {
-        setTerms(data.terms.map((t: any) => t.text));
-      }
     } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || 'Failed to load PI for editing.');
+      setError(err?.response?.data?.message || err?.message || 'Failed to load Proforma Invoice for editing.');
     } finally {
       setLoading(false);
     }
@@ -181,37 +273,122 @@ export default function EditProformaInvoicePage() {
     loadData();
   }, [loadData]);
 
-  // Customer change auto-fill
-  const handleCustomerChange = (cId: string) => {
+  // Customer selection auto-fill
+  const handleCustomerSelect = (cId: string) => {
     setCustomerId(cId);
     const selected = customers.find((c) => c.id === cId);
-    if (selected) {
-      setBillTo((prev) => ({
-        ...prev,
-        partyName: selected.legalName,
-        gstin: selected.gstin || '',
-        phone: selected.phone || selected.contactPhone || '',
-        email: selected.email || selected.contactEmail || '',
-      }));
-    }
+    if (!selected) return;
+
+    const billing = selected.addresses?.find((a: any) => a.addressType === 'BILLING' || a.isDefaultBilling) || selected.addresses?.[0];
+    const shipping = selected.addresses?.find((a: any) => a.addressType === 'SHIPPING' || a.isDefaultShipping) || billing;
+
+    const bState = billing?.state || 'Delhi';
+    const bStateCode = billing?.stateCode || (bState.toLowerCase().includes('delhi') ? '07' : '07');
+
+    setPlaceOfSupply(bState);
+    setPlaceOfSupplyStateCode(bStateCode);
+
+    setBillingAddress((prev) => ({
+      ...prev,
+      partyName: selected.legalName || selected.tradeName || prev.partyName,
+      gstin: selected.gstin || prev.gstin,
+      pan: selected.pan || prev.pan,
+      addressLine: [billing?.addressLine1, billing?.addressLine2].filter(Boolean).join(', ') || prev.addressLine,
+      city: billing?.city || prev.city,
+      pincode: billing?.postalCode || (billing as any)?.pincode || prev.pincode,
+      state: bState,
+      stateCode: bStateCode,
+      phone: selected.phone || (selected as any).contactPhone || prev.phone,
+      email: selected.email || (selected as any).contactEmail || prev.email,
+    }));
+
+    setDeliveryAddress((prev) => ({
+      ...prev,
+      partyName: selected.legalName || selected.tradeName || prev.partyName,
+      addressLine: [shipping?.addressLine1, shipping?.addressLine2].filter(Boolean).join(', ') || prev.addressLine,
+      city: shipping?.city || prev.city,
+      pincode: shipping?.postalCode || (shipping as any)?.pincode || prev.pincode,
+      state: shipping?.state || bState,
+      stateCode: shipping?.stateCode || bStateCode,
+      phone: selected.phone || (selected as any).contactPhone || prev.phone,
+    }));
   };
 
-  // Add Item
+  // Copy Billing Address to Delivery Address
+  const handleCopyBillingToDelivery = () => {
+    setDeliveryAddress({
+      partyName: billingAddress.partyName,
+      addressLine: billingAddress.addressLine,
+      city: billingAddress.city,
+      pincode: billingAddress.pincode,
+      state: billingAddress.state,
+      stateCode: billingAddress.stateCode,
+      phone: billingAddress.phone,
+    });
+  };
+
+  // Line item handlers
+  const handleItemChange = (idx: number, field: keyof CreateItem, val: any) => {
+    setItems((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: val };
+      return next;
+    });
+  };
+
+  const handleSelectModel = (idx: number, modelId: string) => {
+    if (!modelId) {
+      handleItemChange(idx, 'modelId', '');
+      return;
+    }
+
+    const selected = catalogModels.find((m) => m.id === modelId || m.slug === modelId);
+    if (!selected) return;
+
+    const dims = extractModelDimensions(selected);
+    const hwText = formatModelHardwareInclusions(selected);
+
+    setItems((prev) => {
+      const next = [...prev];
+      next[idx] = {
+        ...next[idx],
+        modelId: selected.id,
+        description: `Pacific ${selected.title} (${selected.category})`,
+        cubicleSize: dims.cubicleSize,
+        doorSize: dims.doorSize,
+        overallHeight: dims.overallHeight,
+        boardThickness: dims.boardThickness,
+        boardType: dims.boardType,
+        hardwarePackage: dims.hardwarePackage,
+      };
+      return next;
+    });
+
+    setAccessoriesText(hwText);
+  };
+
   const handleAddItem = () => {
+    const defaultHardware = 'SS 304 Stainless Steel (Satin/Brushed)';
     setItems((prev) => [
       ...prev,
       {
-        description: 'Modular Restroom Cubicle Partition 12mm Compact Laminate',
+        description: '',
         hsnSac: '9403',
-        quantity: 1,
         unit: 'NOS',
+        quantity: 1,
         rate: 18500,
         gstRate: 18,
+        boardType: 'HPL',
+        boardThickness: '12mm',
+        boardColor: 'D.No. 123 – Oyster White',
+        cubicleSize: '1000mm W × 1500mm D',
+        doorSize: '600mm × 1785mm',
+        overallHeight: '1980mm (incl. 100mm ground clearance)',
+        hardwarePackage: defaultHardware,
       },
     ]);
   };
 
-  // Remove Item
   const handleRemoveItem = (index: number) => {
     if (items.length <= 1) {
       alert('A Proforma Invoice must have at least one line item.');
@@ -220,48 +397,139 @@ export default function EditProformaInvoicePage() {
     setItems((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Select Catalog Product for Item
-  const handleSelectProduct = (index: number, productId: string) => {
-    const prod = catalogProducts.find((p) => p.id === productId);
-    if (!prod) return;
-    setItems((prev) =>
-      prev.map((it, i) =>
-        i === index
-          ? {
-              ...it,
-              productId: prod.id,
-              description: prod.name,
-              hsnSac: prod.hsnSac || it.hsnSac,
-              rate: prod.basePrice ? Number(prod.basePrice) : it.rate,
-              gstRate: prod.gstRate ? Number(prod.gstRate) : it.gstRate,
-            }
-          : it
-      )
-    );
+  // Terms handlers
+  const handleAddTerm = () => {
+    if (!newTermText.trim()) return;
+    setTerms((prev) => [...prev, newTermText.trim()]);
+    setNewTermText('');
   };
 
-  // Financial Calculations
-  const subtotal = items.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.rate) || 0), 0);
-  const totalTaxable = subtotal + Number(freightAmount || 0);
-  const totalGst = items.reduce((sum, it) => {
-    const itemAmount = (Number(it.quantity) || 0) * (Number(it.rate) || 0);
-    return sum + itemAmount * ((Number(it.gstRate) || 18) / 100);
-  }, 0) + (Number(freightAmount || 0) * 0.18);
-  const grandTotal = Math.round(totalTaxable + totalGst);
+  const handleRemoveTerm = (index: number) => {
+    setTerms((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Math Computations
+  const basicPrice = items.reduce(
+    (sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.rate) || 0),
+    0
+  );
+  const totalTaxable = basicPrice + Number(freightAmount || 0);
+
+  const gstBreakdown = calculateGstSplit(
+    totalTaxable,
+    billingAddress.stateCode,
+    billingAddress.state,
+    false,
+    18,
+    billingAddress.gstin,
+    billingAddress.addressLine
+  );
+  const grandTotal = gstBreakdown.grandTotal;
   const requiredAdvance = Math.round(grandTotal * (Number(advancePercentage || 50) / 100));
+
+  // Field validation
+  const validateForm = (): boolean => {
+    const errs: Record<string, string> = {};
+
+    if (!billingAddress.partyName.trim()) {
+      errs.partyName = 'Billing Party Name is required.';
+    }
+
+    if (billingAddress.gstin && billingAddress.gstin.trim().length !== 15) {
+      errs.gstin = 'GSTIN must be exactly 15 characters (e.g. 07AAAAA0000A1Z5).';
+    }
+
+    if (billingAddress.pan && billingAddress.pan.trim().length !== 10) {
+      errs.pan = 'PAN must be exactly 10 alphanumeric characters (e.g. ABCDE1234F).';
+    }
+
+    if (items.length === 0) {
+      errs.items = 'At least one line item is required.';
+    } else {
+      items.forEach((it, idx) => {
+        if (!it.description.trim()) {
+          errs[`item_${idx}_desc`] = `Item #${idx + 1} description is required.`;
+        }
+        if (Number(it.quantity) <= 0) {
+          errs[`item_${idx}_qty`] = `Item #${idx + 1} quantity must be greater than 0.`;
+        }
+        if (Number(it.rate) < 0) {
+          errs[`item_${idx}_rate`] = `Item #${idx + 1} rate cannot be negative.`;
+        }
+      });
+    }
+
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
 
   // Submit Update
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id || submitting) return;
 
-    if (items.length === 0) {
-      alert('Please add at least one line item.');
+    if (!validateForm()) {
+      alert('Please fill in all required fields and correct the errors marked in red.');
       return;
     }
 
     setSubmitting(true);
     try {
+      // Build clean structured address lines containing PIN and PAN
+      const billAddrParts = [
+        billingAddress.addressLine,
+        billingAddress.city,
+        billingAddress.pincode ? `PIN: ${billingAddress.pincode}` : '',
+        billingAddress.pan ? `PAN: ${billingAddress.pan.toUpperCase().trim()}` : '',
+      ].filter(Boolean);
+      const billToAddressFormatted = billAddrParts.join(', ');
+
+      const shipAddrParts = [
+        deliveryAddress.addressLine,
+        deliveryAddress.city,
+        deliveryAddress.pincode ? `PIN: ${deliveryAddress.pincode}` : '',
+      ].filter(Boolean);
+      const shipToAddressFormatted = shipAddrParts.join(', ');
+
+      // Prepare terms with Standard Inclusions & Hardware Accessories
+      const finalTerms = [
+        `Standard Inclusions & Hardware Accessories:\n${accessoriesText}`,
+        ...terms.filter(
+          (t) =>
+            !t.toLowerCase().includes('hardware accessories') &&
+            !t.toLowerCase().includes('standard inclusions')
+        ),
+      ];
+
+      // Enrich item descriptions with specifications so they persist to DB, PDF, and Detail views
+      const enrichedItems = items.map((it) => {
+        let desc = it.description;
+        const specParts = [];
+        if (it.boardType || it.boardThickness) {
+          specParts.push(`Board: ${[it.boardType, it.boardThickness].filter(Boolean).join(' ')}`);
+        }
+        if (it.boardColor) specParts.push(`Color: ${it.boardColor}`);
+        if (it.cubicleSize) specParts.push(`Size: ${it.cubicleSize}`);
+        if (it.doorSize) specParts.push(`Door: ${it.doorSize}`);
+        if (it.overallHeight) specParts.push(`Height: ${it.overallHeight}`);
+        if (it.hardwarePackage) specParts.push(`Hardware: ${it.hardwarePackage}`);
+
+        if (specParts.length > 0 && !desc.includes('Board:')) {
+          desc = `${desc}\n(${specParts.join(' | ')})`;
+        }
+
+        return {
+          id: it.id,
+          productId: it.modelId || undefined,
+          description: desc,
+          hsnSac: it.hsnSac || '9403',
+          quantity: Number(it.quantity) || 1,
+          unit: it.unit || 'NOS',
+          rate: Number(it.rate) || 0,
+          gstRate: Number(it.gstRate || 18),
+        };
+      });
+
       await piApi.update(id, {
         customerId,
         placeOfSupply,
@@ -276,10 +544,25 @@ export default function EditProformaInvoicePage() {
         advancePercentage,
         advanceRequiredAmount: requiredAdvance,
         status,
-        billTo,
-        shipTo,
-        items,
-        terms,
+        billTo: {
+          partyName: billingAddress.partyName,
+          gstin: billingAddress.gstin ? billingAddress.gstin.toUpperCase().trim() : undefined,
+          addressLine: billToAddressFormatted,
+          state: billingAddress.state,
+          stateCode: billingAddress.stateCode,
+          phone: billingAddress.phone || undefined,
+          email: billingAddress.email || undefined,
+        },
+        shipTo: {
+          partyName: deliveryAddress.partyName || billingAddress.partyName,
+          gstin: billingAddress.gstin ? billingAddress.gstin.toUpperCase().trim() : undefined,
+          addressLine: shipToAddressFormatted || billToAddressFormatted,
+          state: deliveryAddress.state || billingAddress.state,
+          stateCode: deliveryAddress.stateCode || billingAddress.stateCode,
+          phone: deliveryAddress.phone || billingAddress.phone || undefined,
+        },
+        items: enrichedItems,
+        terms: finalTerms,
         notes: `Updated on ${new Date().toLocaleString('en-GB')}`,
       });
 
@@ -291,6 +574,14 @@ export default function EditProformaInvoicePage() {
       setSubmitting(false);
     }
   };
+
+  const inputCls =
+    'w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706] transition-colors';
+  const labelCls = 'block text-xs font-semibold text-gray-400 mb-1';
+  const getInputCls = (key: string) =>
+    fieldErrors[key]
+      ? 'w-full bg-[#0a0a1a] border border-red-500 rounded-xl p-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-400 transition-colors'
+      : inputCls;
 
   if (loading) {
     return (
@@ -308,487 +599,746 @@ export default function EditProformaInvoicePage() {
         <h2 className="text-xl font-bold text-white">Error Loading PI</h2>
         <p className="text-sm text-gray-400">{error}</p>
         <Link
-          to={`/admin/dashboard/proforma-invoices/${id}`}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-semibold"
+          to="/admin/dashboard/proforma-invoices"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-sm font-semibold transition"
         >
-          <ArrowLeft className="w-4 h-4" /> Cancel &amp; Return
+          <ArrowLeft className="w-4 h-4" /> Back to List
         </Link>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 pb-24 max-w-7xl mx-auto">
-      {/* ── Action Bar ─────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sticky top-0 z-20 bg-[#0a0a1a]/95 backdrop-blur-md py-3 border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(`/admin/dashboard/proforma-invoices/${id}`)}
-            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white"
-            title="Cancel edit"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <div>
-            <h1 className="text-xl font-black font-mono text-white flex items-center gap-2">
-              Edit Proforma Invoice: {piNumber}
-            </h1>
-            <p className="text-xs text-gray-400">Update specifications, line items, delivery site &amp; commercial terms.</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => navigate(`/admin/dashboard/proforma-invoices/${id}`)}
-            className="px-4 py-2.5 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-semibold"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="px-6 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-[#030213] font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-lg shadow-[#7FB706]/20 cursor-pointer disabled:opacity-50"
-          >
-            <Save className="w-4 h-4" />
-            {submitting ? 'Saving Changes...' : 'Save Proforma Invoice'}
-          </button>
-        </div>
+    <form onSubmit={handleSubmit} className="space-y-6 pb-24 max-w-6xl mx-auto">
+      {/* ── Top Back Button ────────────────────────────────────── */}
+      <div className="py-2">
+        <Link
+          to={`/admin/dashboard/proforma-invoices/${id}`}
+          className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to PI Details
+        </Link>
       </div>
 
       {/* ── Document Flow Timeline (Stage 02) ───────────────────── */}
       <DocumentFlowTimeline
         currentStage={2}
-        linkedDocs={{
-          piId: id,
-          piNumber,
-          quotationId,
-          quotationRef,
-        }}
         advanceInfo={{
           grandTotal,
           advanceRequired: requiredAdvance,
-          advanceReceived: advanceReceivedAmount,
-          advancePaymentStatus: status === 'ADVANCE_CLEARED' ? 'CLEARED' : 'PENDING',
+          advancePaymentStatus: status === 'ISSUED' ? 'PENDING' : 'DRAFT',
         }}
       />
 
-      {/* ── 1. Basic Information & Customer ────────────────────── */}
+      {/* ── Client Selection ────────────────────────────────────── */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
-        <div className="flex items-center gap-2 pb-2 border-b border-white/5">
-          <Building2 className="w-4 h-4 text-[#7FB706]" />
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Client &amp; Destination Details</h3>
+        <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2">
+          <Building2 className="w-4 h-4 text-[#7FB706]" /> Client Master Assignment
+        </h3>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <CustomerSearchSelect
+            customers={customers}
+            selectedCustomerId={customerId}
+            onSelectCustomer={(cId) => handleCustomerSelect(cId)}
+            label="Customer Party"
+            placeholder="Search party name, email, GST, phone..."
+            required={false}
+          />
+
+          <div>
+            <label className={labelCls}>Lifecycle Status</label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className={inputCls + ' font-semibold text-amber-300'}
+            >
+              <option value="DRAFT">DRAFT (Drafting &amp; Internal Review)</option>
+              <option value="ISSUED">ISSUED (Official Commercial Demand)</option>
+              <option value="PARTIALLY_PAID">PARTIALLY_PAID</option>
+              <option value="PAID">PAID</option>
+              <option value="CANCELLED">CANCELLED</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Card 2: Billing & Delivery Addresses (with GST, PAN, PIN) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Billing Address Card */}
+        <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-white/5 pb-2">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-[#7FB706]" /> Billing Address (Customer)
+            </h3>
+            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-[#7FB706]/10 text-[#7FB706]">
+              Tax Target
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <label className={labelCls}>Legal / Entity Name *</label>
+              <input
+                type="text"
+                value={billingAddress.partyName}
+                onChange={(e) => {
+                  setBillingAddress((prev) => ({ ...prev, partyName: e.target.value }));
+                  if (fieldErrors.partyName) {
+                    setFieldErrors((prev) => {
+                      const { partyName, ...rest } = prev;
+                      return rest;
+                    });
+                  }
+                }}
+                placeholder="Customer registered company name"
+                className={getInputCls('partyName')}
+                required
+              />
+              {fieldErrors.partyName && (
+                <p className="mt-1 text-xs text-red-400">{fieldErrors.partyName}</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>GSTIN Number (15 Digits)</label>
+                <input
+                  type="text"
+                  maxLength={15}
+                  value={billingAddress.gstin}
+                  onChange={(e) => {
+                    const val = e.target.value.toUpperCase();
+                    const stateCode = val.length >= 2 && /^\d{2}$/.test(val.slice(0, 2)) ? val.slice(0, 2) : billingAddress.stateCode;
+                    const state = stateCode === '07' ? 'Delhi' : billingAddress.state;
+                    setPlaceOfSupply(state);
+                    setPlaceOfSupplyStateCode(stateCode);
+                    setBillingAddress((prev) => ({
+                      ...prev,
+                      gstin: val,
+                      stateCode,
+                      state,
+                    }));
+                  }}
+                  placeholder="e.g. 07AAAAA0000A1Z5"
+                  className={getInputCls('gstin') + ' font-mono'}
+                />
+                {fieldErrors.gstin && (
+                  <p className="mt-1 text-xs text-red-400">{fieldErrors.gstin}</p>
+                )}
+              </div>
+
+              <div>
+                <label className={labelCls}>PAN Number (10 Digits)</label>
+                <input
+                  type="text"
+                  maxLength={10}
+                  value={billingAddress.pan}
+                  onChange={(e) => {
+                    const val = e.target.value.toUpperCase();
+                    setBillingAddress((prev) => ({ ...prev, pan: val }));
+                  }}
+                  placeholder="e.g. ABCDE1234F"
+                  className={getInputCls('pan') + ' font-mono'}
+                />
+                {fieldErrors.pan && (
+                  <p className="mt-1 text-xs text-red-400">{fieldErrors.pan}</p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className={labelCls}>Address Line (Premises, Street, Area)</label>
+              <input
+                type="text"
+                value={billingAddress.addressLine}
+                onChange={(e) =>
+                  setBillingAddress((prev) => ({ ...prev, addressLine: e.target.value }))
+                }
+                placeholder="Building No, Industrial Area, Street"
+                className={inputCls}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className={labelCls}>City</label>
+                <input
+                  type="text"
+                  value={billingAddress.city}
+                  onChange={(e) =>
+                    setBillingAddress((prev) => ({ ...prev, city: e.target.value }))
+                  }
+                  placeholder="New Delhi"
+                  className={inputCls}
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>Pincode</label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={billingAddress.pincode}
+                  onChange={(e) =>
+                    setBillingAddress((prev) => ({ ...prev, pincode: e.target.value }))
+                  }
+                  placeholder="110020"
+                  className={inputCls + ' font-mono'}
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>State &amp; Code</label>
+                <input
+                  type="text"
+                  value={`${billingAddress.state} (${billingAddress.stateCode})`}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setBillingAddress((prev) => ({ ...prev, state: val }));
+                  }}
+                  className={inputCls}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Billing Phone</label>
+                <input
+                  type="text"
+                  value={billingAddress.phone}
+                  onChange={(e) =>
+                    setBillingAddress((prev) => ({ ...prev, phone: e.target.value }))
+                  }
+                  placeholder="+91 98765 43210"
+                  className={inputCls}
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>Billing Email</label>
+                <input
+                  type="email"
+                  value={billingAddress.email}
+                  onChange={(e) =>
+                    setBillingAddress((prev) => ({ ...prev, email: e.target.value }))
+                  }
+                  placeholder="accounts@company.com"
+                  className={inputCls}
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="sm:col-span-2">
-            <label className="block text-xs font-semibold text-gray-300 mb-1">Select Customer *</label>
-            <select
-              value={customerId}
-              onChange={(e) => handleCustomerChange(e.target.value)}
-              className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2.5 text-white text-xs font-semibold focus:border-[#7FB706] focus:outline-none"
+        {/* Delivery Address Card */}
+        <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-white/5 pb-2">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-cyan-400" /> Delivery Address (Ship To / Site)
+            </h3>
+            <button
+              type="button"
+              onClick={handleCopyBillingToDelivery}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 transition cursor-pointer"
+              title="Copy from Billing Address"
             >
-              <option value="">-- Choose Customer --</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.legalName} {c.gstin ? `(${c.gstin})` : ''}
-                </option>
+              <Copy className="w-3 h-3" /> Same as Billing
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <label className={labelCls}>Consignee / Site Name</label>
+              <input
+                type="text"
+                value={deliveryAddress.partyName}
+                onChange={(e) =>
+                  setDeliveryAddress((prev) => ({ ...prev, partyName: e.target.value }))
+                }
+                placeholder="Site contact or company name"
+                className={inputCls}
+              />
+            </div>
+
+            <div>
+              <label className={labelCls}>Delivery / Site Address</label>
+              <input
+                type="text"
+                value={deliveryAddress.addressLine}
+                onChange={(e) =>
+                  setDeliveryAddress((prev) => ({ ...prev, addressLine: e.target.value }))
+                }
+                placeholder="Exact site delivery location"
+                className={inputCls}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className={labelCls}>City</label>
+                <input
+                  type="text"
+                  value={deliveryAddress.city}
+                  onChange={(e) =>
+                    setDeliveryAddress((prev) => ({ ...prev, city: e.target.value }))
+                  }
+                  placeholder="New Delhi"
+                  className={inputCls}
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>Pincode</label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={deliveryAddress.pincode}
+                  onChange={(e) =>
+                    setDeliveryAddress((prev) => ({ ...prev, pincode: e.target.value }))
+                  }
+                  placeholder="110020"
+                  className={inputCls + ' font-mono'}
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>State &amp; Code</label>
+                <input
+                  type="text"
+                  value={`${deliveryAddress.state} (${deliveryAddress.stateCode})`}
+                  onChange={(e) =>
+                    setDeliveryAddress((prev) => ({ ...prev, state: e.target.value }))
+                  }
+                  className={inputCls}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className={labelCls}>Site Contact Phone</label>
+              <input
+                type="text"
+                value={deliveryAddress.phone}
+                onChange={(e) =>
+                  setDeliveryAddress((prev) => ({ ...prev, phone: e.target.value }))
+                }
+                placeholder="+91 98765 43210 (Site In-charge)"
+                className={inputCls}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Card 3: Transport & Logistics ──────────────────────── */}
+      <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
+        <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2">
+          <Truck className="w-4 h-4 text-amber-400" /> Transport, Logistics &amp; PO References
+        </h3>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div>
+            <label className={labelCls}>Place of Supply *</label>
+            <input
+              type="text"
+              value={placeOfSupply}
+              onChange={(e) => setPlaceOfSupply(e.target.value)}
+              placeholder="Delhi"
+              className={inputCls}
+              required
+            />
+          </div>
+
+          <div>
+            <label className={labelCls}>Place of Supply State Code *</label>
+            <input
+              type="text"
+              maxLength={2}
+              value={placeOfSupplyStateCode}
+              onChange={(e) => setPlaceOfSupplyStateCode(e.target.value)}
+              placeholder="07"
+              className={inputCls + ' font-mono'}
+              required
+            />
+          </div>
+
+          <div>
+            <label className={labelCls}>Mode of Transport</label>
+            <select
+              value={modeOfTransport}
+              onChange={(e) => setModeOfTransport(e.target.value)}
+              className={inputCls}
+            >
+              {['Road', 'Courier', 'Air', 'Self Pickup', 'To Pay'].map((m) => (
+                <option key={m} value={m}>{m}</option>
               ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-300 mb-1">Place of Supply (State) *</label>
-            <input
-              type="text"
-              required
-              value={placeOfSupply}
-              onChange={(e) => setPlaceOfSupply(e.target.value)}
-              className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2.5 text-white text-xs"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-300 mb-1">State Code (GST)</label>
-            <input
-              type="text"
-              required
-              value={placeOfSupplyStateCode}
-              onChange={(e) => setPlaceOfSupplyStateCode(e.target.value)}
-              className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2.5 text-white text-xs font-mono"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-          <div>
-            <label className="block text-xs font-semibold text-gray-300 mb-1">Mode of Transport</label>
-            <input
-              type="text"
-              value={modeOfTransport}
-              onChange={(e) => setModeOfTransport(e.target.value)}
-              placeholder="e.g. Road / Dedicated Vehicle"
-              className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2.5 text-white text-xs"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-300 mb-1">Vehicle Number</label>
+            <label className={labelCls}>Vehicle Number</label>
             <input
               type="text"
               value={vehicleNumber}
               onChange={(e) => setVehicleNumber(e.target.value)}
               placeholder="e.g. DL 01 AB 1234"
-              className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2.5 text-white text-xs font-mono"
+              className={inputCls + ' font-mono'}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-300 mb-1">GR / LR Number</label>
+            <label className={labelCls}>GR / LR Number</label>
             <input
               type="text"
               value={grLrNumber}
               onChange={(e) => setGrLrNumber(e.target.value)}
-              placeholder="e.g. LR-40912"
-              className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2.5 text-white text-xs font-mono"
+              placeholder="e.g. LR-987654"
+              className={inputCls + ' font-mono'}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-300 mb-1">Client PO Reference</label>
+            <label className={labelCls}>Linked PO Number</label>
             <input
               type="text"
               value={linkedPoNumber}
               onChange={(e) => setLinkedPoNumber(e.target.value)}
-              placeholder="PO-2026-X"
-              className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2.5 text-white text-xs font-mono"
+              placeholder="e.g. PO/2026/049"
+              className={inputCls}
             />
+          </div>
+
+          <div>
+            <label className={labelCls}>Linked PO Date</label>
+            <input
+              type="date"
+              value={linkedPoDate}
+              onChange={(e) => setLinkedPoDate(e.target.value)}
+              className={inputCls}
+            />
+          </div>
+
+          <div>
+            <label className={labelCls}>Freight Amount (₹)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={freightAmount}
+              onChange={(e) => setFreightAmount(Number(e.target.value) || 0)}
+              placeholder="0"
+              className={inputCls + ' font-mono'}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-white/5">
+          <div>
+            <label className={labelCls}>Advance Required (%)</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={advancePercentage}
+                onChange={(e) => setAdvancePercentage(Number(e.target.value) || 0)}
+                className={inputCls + ' font-mono max-w-[140px]'}
+              />
+              <span className="text-xs text-gray-400">
+                Amount: <strong className="text-white font-mono">₹{requiredAdvance.toLocaleString('en-IN')}</strong>
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 pt-5">
+            <input
+              type="checkbox"
+              id="reverseChargeEdit"
+              checked={reverseCharge}
+              onChange={(e) => setReverseCharge(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-700 text-[#7FB706] focus:ring-[#7FB706]"
+            />
+            <label htmlFor="reverseChargeEdit" className="text-xs text-gray-300">
+              Tax is payable on Reverse Charge basis (RCM)
+            </label>
           </div>
         </div>
       </div>
 
-      {/* ── 2. Bill To & Ship To ────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Bill To */}
-        <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3">
-          <h4 className="text-xs font-bold text-[#7FB706] uppercase tracking-wider">Billing Party (Customer Legal Details)</h4>
-          <div>
-            <label className="block text-[11px] text-gray-400 mb-1">Legal Company / Billing Name</label>
-            <input
-              type="text"
-              value={billTo.partyName}
-              onChange={(e) => setBillTo({ ...billTo, partyName: e.target.value })}
-              className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white text-xs font-semibold"
-            />
-          </div>
-          <div>
-            <label className="block text-[11px] text-gray-400 mb-1">Registered Billing Address</label>
-            <textarea
-              rows={2}
-              value={billTo.addressLine}
-              onChange={(e) => setBillTo({ ...billTo, addressLine: e.target.value })}
-              className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white text-xs"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-[11px] text-gray-400 mb-1">GSTIN</label>
-              <input
-                type="text"
-                value={billTo.gstin}
-                onChange={(e) => setBillTo({ ...billTo, gstin: e.target.value.toUpperCase() })}
-                className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white text-xs font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] text-gray-400 mb-1">Phone</label>
-              <input
-                type="text"
-                value={billTo.phone}
-                onChange={(e) => setBillTo({ ...billTo, phone: e.target.value })}
-                className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white text-xs"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Ship To */}
-        <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider">Shipping / Delivery Site</h4>
-            <button
-              type="button"
-              onClick={() => setShipTo({ ...shipTo, partyName: billTo.partyName, addressLine: billTo.addressLine, gstin: billTo.gstin, state: billTo.state, stateCode: billTo.stateCode, phone: billTo.phone })}
-              className="text-[10px] text-cyan-400 hover:underline cursor-pointer"
-            >
-              Same as Billing
-            </button>
-          </div>
-          <div>
-            <label className="block text-[11px] text-gray-400 mb-1">Site / Project Delivery Name</label>
-            <input
-              type="text"
-              value={shipTo.partyName}
-              onChange={(e) => setShipTo({ ...shipTo, partyName: e.target.value })}
-              className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white text-xs font-semibold"
-            />
-          </div>
-          <div>
-            <label className="block text-[11px] text-gray-400 mb-1">Site Delivery Address</label>
-            <textarea
-              rows={2}
-              value={shipTo.addressLine}
-              onChange={(e) => setShipTo({ ...shipTo, addressLine: e.target.value })}
-              className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white text-xs"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-[11px] text-gray-400 mb-1">Site GSTIN (if SEZ/Diff)</label>
-              <input
-                type="text"
-                value={shipTo.gstin}
-                onChange={(e) => setShipTo({ ...shipTo, gstin: e.target.value.toUpperCase() })}
-                className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white text-xs font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] text-gray-400 mb-1">Site Contact Phone</label>
-              <input
-                type="text"
-                value={shipTo.phone}
-                onChange={(e) => setShipTo({ ...shipTo, phone: e.target.value })}
-                className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white text-xs"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 3. Line Items Editor ───────────────────────────────── */}
+      {/* ── Card 4: Standard Inclusions & Hardware Accessories ── */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
-        <div className="flex items-center justify-between pb-2 border-b border-white/5">
-          <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-[#7FB706]" />
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Line Items &amp; Technical Specifications</h3>
+        <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+          <Wrench className="w-4 h-4 text-[#7FB706]" />
+          <h3 className="text-sm font-bold text-white">Standard Inclusions &amp; Hardware Accessories</h3>
+        </div>
+
+        <div>
+          <label className={labelCls}>Standard Inclusions &amp; Hardware Accessories *</label>
+          <textarea
+            rows={5}
+            value={accessoriesText}
+            onChange={(e) => setAccessoriesText(e.target.value)}
+            placeholder="Door stoppers, gravity hinges, indicator locks, coat hooks, support shoes..."
+            className={inputCls + ' font-mono text-xs leading-relaxed'}
+          />
+        </div>
+      </div>
+
+      {/* ── Card 5: Line Items Configuration ───────────────────── */}
+      <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
+        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+          <div>
+            <h3 className="text-sm font-bold text-white">Line Items</h3>
+            {fieldErrors.items && (
+              <p className="text-xs text-red-400 mt-0.5">{fieldErrors.items}</p>
+            )}
           </div>
           <button
             type="button"
             onClick={handleAddItem}
-            className="px-3 py-1.5 bg-[#7FB706]/15 hover:bg-[#7FB706]/25 text-[#7FB706] border border-[#7FB706]/30 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] rounded-lg text-xs font-bold cursor-pointer transition-colors"
           >
-            <Plus className="w-3.5 h-3.5" /> Add Line Item
+            <Plus className="w-3.5 h-3.5" /> Add Item
           </button>
         </div>
 
-        <div className="space-y-3">
-          {items.map((it, idx) => (
-            <div key={idx} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-3">
+
+
+        <div className="space-y-4">
+          {items.map((item, idx) => (
+            <div key={idx} className="bg-[#0a0a1a] border border-white/5 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-mono font-bold text-[#7FB706]">Item #{idx + 1}</span>
-                {catalogProducts.length > 0 && (
-                  <select
-                    onChange={(e) => handleSelectProduct(idx, e.target.value)}
-                    defaultValue=""
-                    className="bg-[#0a0a1a] border border-white/10 rounded-lg p-1 text-[11px] text-gray-300"
+                {items.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveItem(idx)}
+                    className="p-1 text-red-400 hover:text-red-300 cursor-pointer transition-colors"
+                    title="Remove Item"
                   >
-                    <option value="" disabled>Load from Product Master...</option>
-                    {catalogProducts.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => handleRemoveItem(idx)}
-                  className="p-1 rounded text-red-400 hover:bg-red-500/10 cursor-pointer"
-                  title="Remove Item"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
               </div>
 
-              <div>
-                <label className="block text-[11px] text-gray-400 mb-1">Description &amp; Specifications</label>
-                <input
-                  type="text"
-                  required
-                  value={it.description}
-                  onChange={(e) => setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, description: e.target.value } : item)))}
-                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white text-xs font-medium"
-                />
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <label className={labelCls}>Product Model Selection &amp; Description *</label>
+                    <span className="text-[11px] text-[#7FB706] font-medium flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> Auto-fetches hardware list, sizes &amp; height
+                    </span>
+                  </div>
+
+                  <div>
+                    <select
+                      value={item.modelId || ''}
+                      onChange={(e) => handleSelectModel(idx, e.target.value)}
+                      className="w-full bg-[#161536] border border-[#7FB706]/40 rounded-xl px-3 py-2.5 text-white font-semibold text-xs focus:border-[#7FB706] focus:outline-none"
+                      required
+                    >
+                      <option value="">-- Choose Product Model --</option>
+                      {cubicleModels.length > 0 && (
+                        <optgroup label="Restroom Cubicles (13 Models)">
+                          {cubicleModels.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.title}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {lockerModels.length > 0 && (
+                        <optgroup label="Modular Lockers (7 Models)">
+                          {lockerModels.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.title}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {urinalModels.length > 0 && (
+                        <optgroup label="Urinal Partitions (4 Models)">
+                          {urinalModels.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.title}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </select>
+                  </div>
+                  {item.description && (
+                    <div className="text-[11px] text-gray-400 font-medium px-1 flex items-center gap-1.5">
+                      <span className="text-gray-500">Selected Model:</span>
+                      <span className="text-white font-semibold">{item.description}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className={labelCls}>Unit</label>
+                    <select
+                      value={item.unit}
+                      onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                      className={inputCls}
+                    >
+                      {['NOS', 'SET', 'SQM', 'MTR', 'RMT', 'LOT'].map((u) => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>Quantity *</label>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={item.quantity}
+                      onChange={(e) => handleItemChange(idx, 'quantity', Number(e.target.value) || 0)}
+                      className={inputCls + ' font-mono'}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>Rate (₹) *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.rate}
+                      onChange={(e) => handleItemChange(idx, 'rate', Number(e.target.value) || 0)}
+                      className={inputCls + ' font-mono'}
+                      required
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                <div>
-                  <label className="block text-[11px] text-gray-400 mb-1">HSN/SAC</label>
-                  <input
-                    type="text"
-                    value={it.hsnSac}
-                    onChange={(e) => setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, hsnSac: e.target.value } : item)))}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white text-xs font-mono"
-                  />
+              {/* Cubicle Technical Specifications */}
+              <div className="bg-[#121226]/80 border border-white/5 rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <span>⚙️</span> Cubicle Technical Specifications
+                  </span>
+                  <span className="text-[11px] text-gray-400">Board type, dimensions &amp; colors</span>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] text-gray-400 mb-1">Quantity</label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={it.quantity}
-                    onChange={(e) => setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, quantity: Number(e.target.value) } : item)))}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white text-xs font-bold"
-                  />
-                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div>
+                    <label className={labelCls}>Board Type *</label>
+                    <select
+                      value={item.boardType || 'HPL'}
+                      onChange={(e) => handleItemChange(idx, 'boardType', e.target.value)}
+                      className={inputCls}
+                    >
+                      <option value="HPL">HPL (High Pressure Compact Laminate)</option>
+                      <option value="HDF">HDF (High Density Fibreboard)</option>
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="block text-[11px] text-gray-400 mb-1">Unit</label>
-                  <select
-                    value={it.unit}
-                    onChange={(e) => setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, unit: e.target.value } : item)))}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white text-xs"
-                  >
-                    <option value="NOS">NOS</option>
-                    <option value="SET">SET</option>
-                    <option value="SQFT">SQFT</option>
-                    <option value="SQM">SQM</option>
-                    <option value="RMT">RMT</option>
-                  </select>
-                </div>
+                  <div>
+                    <label className={labelCls}>Board Thickness</label>
+                    <input
+                      type="text"
+                      value={item.boardThickness || ''}
+                      onChange={(e) => handleItemChange(idx, 'boardThickness', e.target.value)}
+                      placeholder="e.g. 12mm / 18mm"
+                      className={inputCls}
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-[11px] text-gray-400 mb-1">Rate (₹)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    required
-                    value={it.rate}
-                    onChange={(e) => setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, rate: Number(e.target.value) } : item)))}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white text-xs font-mono font-bold"
-                  />
-                </div>
+                  <div>
+                    <label className={labelCls}>Board Color / Shade</label>
+                    <input
+                      type="text"
+                      value={item.boardColor || ''}
+                      onChange={(e) => handleItemChange(idx, 'boardColor', e.target.value)}
+                      placeholder="e.g. D.No. 123 – Oyster White"
+                      className={inputCls}
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-[11px] text-gray-400 mb-1">GST Rate</label>
-                  <select
-                    value={it.gstRate}
-                    onChange={(e) => setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, gstRate: Number(e.target.value) } : item)))}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2 text-white text-xs font-mono"
-                  >
-                    <option value="18">18%</option>
-                    <option value="12">12%</option>
-                    <option value="5">5%</option>
-                    <option value="28">28%</option>
-                    <option value="0">0% (SEZ/Exempt)</option>
-                  </select>
+                  <div>
+                    <label className={labelCls}>Cubicle Size</label>
+                    <input
+                      type="text"
+                      value={item.cubicleSize || ''}
+                      onChange={(e) => handleItemChange(idx, 'cubicleSize', e.target.value)}
+                      placeholder="e.g. 1000mm W × 1500mm D"
+                      className={inputCls}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>Door Size</label>
+                    <input
+                      type="text"
+                      value={item.doorSize || ''}
+                      onChange={(e) => handleItemChange(idx, 'doorSize', e.target.value)}
+                      placeholder="e.g. 600mm × 1785mm"
+                      className={inputCls}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>Overall Height</label>
+                    <input
+                      type="text"
+                      value={item.overallHeight || ''}
+                      onChange={(e) => handleItemChange(idx, 'overallHeight', e.target.value)}
+                      placeholder="e.g. 1980mm (incl. 100mm ground clearance)"
+                      className={inputCls}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2 lg:col-span-3">
+                    <label className={labelCls}>Hardware Package Specification</label>
+                    <input
+                      type="text"
+                      value={item.hardwarePackage || ''}
+                      onChange={(e) => handleItemChange(idx, 'hardwarePackage', e.target.value)}
+                      placeholder="e.g. SS 304 Stainless Steel (Satin/Brushed)"
+                      className={inputCls}
+                    />
+                  </div>
                 </div>
+              </div>
+
+              <div className="text-right text-xs text-gray-400 font-mono pt-1">
+                Line Total: <span className="font-bold text-white text-sm">
+                  ₹ {((Number(item.quantity) || 0) * (Number(item.rate) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ── 4. Advance Settings & Financial Summary Dock ───────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Advance Terms */}
-        <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3">
-          <div className="flex items-center gap-2 pb-2 border-b border-white/5">
-            <CreditCard className="w-4 h-4 text-amber-400" />
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Advance Payment Policy</h3>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1">Advance Percentage (%)</label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                value={advancePercentage}
-                onChange={(e) => setAdvancePercentage(Number(e.target.value))}
-                className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2.5 text-white font-bold text-sm focus:border-amber-400 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1">Freight &amp; Handling (₹)</label>
-              <input
-                type="number"
-                min="0"
-                value={freightAmount}
-                onChange={(e) => setFreightAmount(Number(e.target.value))}
-                className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2.5 text-white font-bold text-sm focus:border-amber-400 focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 space-y-1">
-            <div className="font-bold flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Required Advance: ₹{requiredAdvance.toLocaleString('en-IN')}
-            </div>
-            <p className="text-[11px] text-amber-400/80">
-              Client must remit this amount before the factory team queues raw material sizing and hardware kitting.
-            </p>
-          </div>
-        </div>
-
-        {/* Live Calculation Dock */}
-        <div className="bg-[#0e0e22] border border-white/10 rounded-2xl p-5 space-y-3">
-          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Financial Summary</h3>
-          <div className="space-y-2 text-xs">
-            <div className="flex justify-between text-gray-300">
-              <span>Items Subtotal:</span>
-              <span className="font-mono">₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            </div>
-            {freightAmount > 0 && (
-              <div className="flex justify-between text-gray-300">
-                <span>Freight &amp; Handling:</span>
-                <span className="font-mono">₹{freightAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-gray-300">
-              <span>Estimated GST (18%):</span>
-              <span className="font-mono">₹{totalGst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            </div>
-            <div className="flex justify-between text-base font-black text-[#7FB706] pt-2 border-t border-white/10">
-              <span>Grand Total:</span>
-              <span className="font-mono">₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            </div>
-            <div className="flex justify-between text-sm font-bold text-amber-400 pt-1 border-t border-white/5">
-              <span>Advance Due ({advancePercentage}%):</span>
-              <span className="font-mono">₹{requiredAdvance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 5. Terms & Conditions ──────────────────────────────── */}
+      {/* ── Card 6: Commercial Terms & Conditions ──────────────── */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
-        <div className="flex items-center justify-between pb-2 border-b border-white/5">
+        <div className="flex items-center justify-between border-b border-white/5 pb-2">
           <div className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-amber-400" />
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Commercial Clauses &amp; Terms</h3>
+            <h3 className="text-sm font-bold text-white">Commercial Terms &amp; Conditions</h3>
           </div>
           <span className="text-xs text-gray-500 font-mono">{terms.length} Clauses</span>
         </div>
 
         <div className="space-y-2">
-          {terms.map((t, idx) => (
-            <div key={idx} className="flex items-center gap-2 bg-[#0a0a1a] p-2.5 rounded-xl border border-white/5">
-              <span className="font-mono text-gray-500 text-xs shrink-0">{idx + 1}.</span>
-              <input
-                type="text"
-                value={t}
-                onChange={(e) => setTerms((prev) => prev.map((term, i) => (i === idx ? e.target.value : term)))}
-                className="flex-1 bg-transparent text-white text-xs focus:outline-none"
-              />
+          {terms.map((term, idx) => (
+            <div key={idx} className="flex items-start gap-3 p-2.5 rounded-xl bg-[#0a0a1a] border border-white/5">
+              <span className="text-xs font-mono text-gray-500 mt-1 shrink-0">{idx + 1}.</span>
+              <p className="text-xs text-gray-300 flex-1 leading-relaxed">{term}</p>
               <button
                 type="button"
-                onClick={() => setTerms((prev) => prev.filter((_, i) => i !== idx))}
-                className="p-1 rounded text-red-400 hover:bg-red-500/10 cursor-pointer shrink-0"
+                onClick={() => handleRemoveTerm(idx)}
+                className="text-gray-500 hover:text-red-400 p-1"
+                title="Remove clause"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -796,24 +1346,124 @@ export default function EditProformaInvoicePage() {
           ))}
         </div>
 
-        <div className="flex items-center gap-2 pt-2">
+        <div className="flex gap-2 pt-2">
           <input
             type="text"
-            placeholder="Add another customized commercial clause..."
             value={newTermText}
             onChange={(e) => setNewTermText(e.target.value)}
-            className="flex-1 bg-[#0a0a1a] border border-white/10 rounded-xl p-2.5 text-white text-xs"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAddTerm();
+              }
+            }}
+            placeholder="Add new commercial condition or delivery clause..."
+            className={inputCls + ' text-xs'}
           />
           <button
             type="button"
-            onClick={() => {
-              if (!newTermText.trim()) return;
-              setTerms([...terms, newTermText.trim()]);
-              setNewTermText('');
-            }}
-            className="px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-semibold cursor-pointer"
+            onClick={handleAddTerm}
+            className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-semibold shrink-0 cursor-pointer"
           >
             Add Clause
+          </button>
+        </div>
+      </div>
+
+      {/* ── Form Footer: Grand Total & Statutory GST Breakdown Card ── */}
+      <div className="bg-[#121226] border border-[#7FB706]/30 rounded-2xl p-5 space-y-4 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2">
+          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <DollarSign className="w-4 h-4 text-[#7FB706]" /> Financial Summary &amp; Statutory GST Breakdown
+          </h3>
+          <span className="text-xs font-mono text-[#7FB706]">
+            Place of Supply: {placeOfSupply} ({placeOfSupplyStateCode})
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="p-3 bg-[#0a0a1a] rounded-xl border border-white/5">
+            <span className="text-gray-400 block mb-1">Basic Goods Value</span>
+            <span className="text-white font-mono font-bold text-sm">
+              ₹ {basicPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+          <div className="p-3 bg-[#0a0a1a] rounded-xl border border-white/5">
+            <span className="text-gray-400 block mb-1">Freight &amp; Handling</span>
+            <span className="text-white font-mono font-bold text-sm">
+              ₹ {freightAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+          <div className="p-3 bg-[#0a0a1a] rounded-xl border border-white/5">
+            <span className="text-gray-400 block mb-1">Net Taxable Amount</span>
+            <span className="text-white font-mono font-bold text-sm">
+              ₹ {totalTaxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+          <div className="p-3 bg-[#0a0a1a] rounded-xl border border-white/5">
+            <span className="text-gray-400 block mb-1">{advancePercentage}% Required Advance</span>
+            <span className="text-amber-400 font-mono font-bold text-sm">
+              ₹ {requiredAdvance.toLocaleString('en-IN')}
+            </span>
+          </div>
+        </div>
+
+        {/* GST Tax Slabs & Grand Total Banner */}
+        <div className="p-3.5 bg-[#0a0a1a] rounded-xl border border-white/5 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-4">
+            {gstBreakdown.isDelhi ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400">CGST (9%):</span>
+                  <span className="text-blue-400 font-mono font-bold">
+                    ₹ {gstBreakdown.cgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400">SGST (9%):</span>
+                  <span className="text-blue-400 font-mono font-bold">
+                    ₹ {gstBreakdown.sgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-gray-400">IGST (18%):</span>
+                <span className="text-purple-400 font-mono font-bold">
+                  ₹ {gstBreakdown.igstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-gray-400 text-sm font-semibold">Grand Total:</span>
+            <span className="text-[#7FB706] font-mono font-bold text-lg sm:text-xl">
+              ₹ {grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Bottom Floating Action Bar ─────────────────────────── */}
+      <div className="sticky bottom-4 z-20 bg-[#121226]/95 backdrop-blur-md border border-white/10 p-4 rounded-2xl shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-4 text-xs sm:text-sm">
+          <div className="text-gray-400">
+            Grand Total: <span className="font-bold text-[#7FB706] font-mono text-base">₹ {grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+          </div>
+          <div className="text-gray-400 border-l border-white/10 pl-4">
+            Required Advance ({advancePercentage}%): <span className="font-bold text-amber-400 font-mono text-base">₹ {requiredAdvance.toLocaleString('en-IN')}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#7FB706] hover:bg-[#6fa005] text-white font-bold rounded-xl text-sm transition cursor-pointer shadow-lg shadow-[#7FB706]/20 disabled:opacity-50"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            {submitting ? 'Saving Proforma Invoice...' : 'Save Proforma Invoice'}
           </button>
         </div>
       </div>
