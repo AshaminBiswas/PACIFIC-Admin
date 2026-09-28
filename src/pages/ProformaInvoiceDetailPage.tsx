@@ -1119,8 +1119,26 @@ export default function ProformaInvoiceDetailPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => {
+                    const billingName = (
+                      pi.parties?.find((p) => p.partyRole === 'BILL_TO')?.partyName ||
+                      pi.customer?.legalName ||
+                      'Customer'
+                    )
+                      .trim()
+                      .replace(/[/\\?%*:|"<>]/g, '')
+                      .replace(/\s+/g, ' ')
+                      .trim();
+                    const cleanPiNum = (pi.piNumber || 'PI')
+                      .trim()
+                      .replace(/[/\\?%*:|"<>]/g, '')
+                      .trim();
+                    const docTitle = `${billingName}_${cleanPiNum}`;
+
                     const iframe = document.getElementById('pi-detail-pdf-iframe') as HTMLIFrameElement;
                     if (iframe && iframe.contentWindow) {
+                      if (iframe.contentDocument) {
+                        iframe.contentDocument.title = docTitle;
+                      }
                       iframe.contentWindow.focus();
                       iframe.contentWindow.print();
                       return;
@@ -1129,6 +1147,7 @@ export default function ProformaInvoiceDetailPage() {
                     if (printWindow) {
                       printWindow.document.open();
                       printWindow.document.write(pdfHtml);
+                      printWindow.document.title = docTitle;
                       printWindow.document.close();
                       printWindow.focus();
                       setTimeout(() => {

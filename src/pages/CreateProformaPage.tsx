@@ -755,12 +755,11 @@ export default function CreateProformaPage() {
 
     setSubmitting(true);
     try {
-      // Build clean structured address lines containing PIN and PAN
+      // Build clean structured address lines containing PIN
       const billAddrParts = [
         formData.billingAddress.addressLine,
         formData.billingAddress.city,
         formData.billingAddress.pincode ? `PIN: ${formData.billingAddress.pincode}` : '',
-        formData.billingAddress.pan ? `PAN: ${formData.billingAddress.pan.toUpperCase().trim()}` : '',
       ].filter(Boolean);
       const billToAddressFormatted = billAddrParts.join(', ');
 
@@ -832,6 +831,7 @@ export default function CreateProformaPage() {
         billTo: {
           partyName: formData.billingAddress.partyName,
           gstin: formData.billingAddress.gstin ? formData.billingAddress.gstin.toUpperCase().trim() : undefined,
+          pan: formData.billingAddress.pan ? formData.billingAddress.pan.toUpperCase().trim() : undefined,
           addressLine: billToAddressFormatted,
           state: formData.billingAddress.state,
           stateCode: formData.billingAddress.stateCode,

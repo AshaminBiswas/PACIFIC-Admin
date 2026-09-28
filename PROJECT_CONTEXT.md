@@ -1649,6 +1649,41 @@ The admin console implements an enterprise dual-layer auto-refresh engine to pre
    - Synced `DEFAULT_TERMS` across frontend and backend to the official 6 commercial terms.
    - Updated bank details fallback to Central Bank Of India and signatory defaults to Ejajul Shaikh, Company Head.
 
+---
+
+## 46. PI PDF Dynamic Filename, Compact Single-Line Buyer Coordinates & Edit PI Model Auto-Detection
+
+1. **Dynamic PDF Download Filename (`<Billing Company Name>_<PI Number>.pdf`)**:
+   - **Backend PDF Generation (`pdf.service.ts` & `pi.controller.ts`)**:
+     - Sanitized billing party name and reference number (`safeBillingCompanyName_safePiNumber`).
+     - Injected `<title>${safeBillingCompanyName}_${safePiNumber}</title>` into vector A4 HTML `<head>`.
+     - In `piController.getPdfHtml()`, attached `Content-Disposition: inline; filename="${billingName}_${cleanPiNumber}.pdf"`.
+   - **Frontend Iframe & Print Window Overrides (`ProformaInvoiceDetailPage.tsx` & `ProformaInvoicesPage.tsx`)**:
+     - Pre-computed target document title `${billingName}_${cleanPiNumber}` before invoking browser print dialogs.
+     - Set `iframe.contentDocument.title = docTitle` and `printWindow.document.title = docTitle`. When users click "Print / Save PDF", modern browsers default the suggested PDF file name directly to `<The Billing Company Name>_<PI number>.pdf`.
+
+2. **Compact Single-Line Buyer Coordinates Grid & Duplicate PAN Elimination (`pdf.service.ts`, `CreateProformaPage.tsx`, `EditProformaInvoicePage.tsx`)**:
+   - **Eliminated Duplicate PAN**:
+     - Removed redundant `PAN: ...` string concatenation into `addressLine` across `CreateProformaPage.tsx` and `EditProformaInvoicePage.tsx`.
+     - Passed `pan` strictly in party payloads (`billTo.pan`).
+     - Added regex sanitation in `pdf.service.ts` (`cleanBillAddress = address.replace(/,\s*PAN:\s*[A-Z0-9]+/gi, '').replace(/PAN:\s*[A-Z0-9]+/gi, '')`), ensuring even legacy records never render duplicate PAN numbers.
+   - **Single-Line Coordinates Hierarchy**:
+     - **Line 1 (Name)**: Bold billing company / buyer legal name.
+     - **Line 2 (Address, State, and PIN in a single line)**: Clean address string merged seamlessly with State & PIN (`Plot 42, Sector 18, Gurugram, PIN: 122015, State: Haryana (06)`).
+     - **Line 3 (PAN and GST in a single line)**: `GSTIN: <gstin> | PAN: <pan>` separated by a high-contrast vertical divider pipe.
+     - **Line 4 (Phone and Email in a single line)**: `Phone: <phone> | Email: <email>`.
+     - Mirrored clean single-line formatting to `SHIP TO (DELIVERY SITE)`.
+
+3. **Edit PI Page Cubicle Model & Pre-filled Info Auto-Detection (`EditProformaInvoicePage.tsx`)**:
+   - **Problem Solved**: When opening an existing PI for editing, the cubicle model dropdown previously displayed `-- Choose Product Model --` unselected, risking loss of specifications.
+   - **Intelligent Catalog Matching**:
+     - Integrated `findMatchingCatalogModel()` during `loadData()`. Matches each item against `catalogModels` via product ID, model slug, description title tokens, or category heuristics.
+     - Automatically assigns `modelId: matchedModel.id` and `parentModelId: matchedModel.id`, ensuring `<select value={item.modelId}>` is immediately pre-selected with the correct cubicle model.
+     - Added uncatalogued/custom model fallback option in the select dropdown so no model ID is ever unrepresented.
+     - Preserves all saved technical specifications (`boardType`, `boardThickness`, `boardColor`, `cubicleSize`, `doorSize`, `overallHeight`, `hardwarePackage`, `rate`, `quantity`, `unit`), falling back to catalog model defaults only when fields are unpopulated.
+     - Auto-expands individual hardware line items if editing a legacy PI where hardware was not previously itemized.
+
+
 
 
 

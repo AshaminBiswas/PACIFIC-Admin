@@ -23,6 +23,7 @@ export default function ProformaInvoicesPage() {
   // Modals
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfHtml, setPdfHtml] = useState('');
+  const [activePdfTitle, setActivePdfTitle] = useState('Proforma_Invoice');
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
@@ -56,8 +57,22 @@ export default function ProformaInvoicesPage() {
     }
   };
 
-  const handleOpenPdf = async (id: string) => {
+  const handleOpenPdf = async (target: any) => {
     setShowPdfModal(true);
+    const id = typeof target === 'string' ? target : target.id;
+    const piObj = typeof target === 'object' ? target : invoices.find((inv) => inv.id === target);
+    const billingName = (
+      piObj?.parties?.find((p: any) => p.partyRole === 'BILL_TO')?.partyName ||
+      piObj?.customer?.legalName ||
+      'Customer'
+    )
+      .trim()
+      .replace(/[/\\?%*:|"<>]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const cleanPiNum = (piObj?.piNumber || 'PI').trim().replace(/[/\\?%*:|"<>]/g, '').trim();
+    setActivePdfTitle(`${billingName}_${cleanPiNum}`);
+
     try {
       const res = await fetch(piApi.getPdfUrl(id), {
         headers: {
@@ -215,7 +230,7 @@ export default function ProformaInvoicesPage() {
                       <td className="py-2.5 sm:py-3 px-3 sm:px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
                           <button
-                            onClick={() => handleOpenPdf(pi.id)}
+                            onClick={() => handleOpenPdf(pi)}
                             className="p-1.5 sm:p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white cursor-pointer min-h-[34px] min-w-[34px] sm:min-h-[38px] sm:min-w-[38px] flex items-center justify-center transition-colors"
                             title="Preview PDF"
                           >
@@ -328,7 +343,7 @@ export default function ProformaInvoicesPage() {
                     )}
 
                     <button
-                      onClick={() => handleOpenPdf(pi.id)}
+                      onClick={() => handleOpenPdf(pi)}
                       className="min-h-[32px] sm:min-h-[36px] flex items-center justify-center gap-1 px-2.5 py-1 text-[11px] font-medium bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-lg transition-colors cursor-pointer"
                       title="Preview PDF"
                     >
@@ -398,6 +413,9 @@ export default function ProformaInvoicesPage() {
                   onClick={() => {
                     const iframe = document.getElementById('pi-list-pdf-iframe') as HTMLIFrameElement;
                     if (iframe && iframe.contentWindow) {
+                      if (iframe.contentDocument) {
+                        iframe.contentDocument.title = activePdfTitle;
+                      }
                       iframe.contentWindow.focus();
                       iframe.contentWindow.print();
                       return;
@@ -406,6 +424,7 @@ export default function ProformaInvoicesPage() {
                     if (printWindow) {
                       printWindow.document.open();
                       printWindow.document.write(pdfHtml);
+                      printWindow.document.title = activePdfTitle;
                       printWindow.document.close();
                       printWindow.focus();
                       setTimeout(() => {
@@ -413,7 +432,7 @@ export default function ProformaInvoicesPage() {
                       }, 500);
                     }
                   }}
-                  className="px-3 py-1.5 bg-[#7FB706] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer"
+                  className="px-3 py-1.5 bg-[#7FB706] text-[#030213] text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-md shadow-[#7FB706]/20"
                 >
                   <Printer className="w-3.5 h-3.5" /> Print / Save PDF
                 </button>

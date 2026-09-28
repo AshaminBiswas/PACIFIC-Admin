@@ -28,6 +28,7 @@ import {
   formatModelHardwareInclusions,
   extractModelDimensions,
   extractModelHardwareItems,
+  findMatchingCatalogModel,
 } from '../utils/quotationProductPresets';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import CustomerSearchSelect from '../components/common/CustomerSearchSelect';
@@ -125,7 +126,8 @@ export default function EditProformaInvoicePage() {
 
       const data = piRes.data?.data ?? (piRes.data as any);
       setCustomers(custRes.data?.data?.items || []);
-      setCatalogModels(getMergedQuotationModels(modelsList || []));
+      const availableModels = getMergedQuotationModels(modelsList || []);
+      setCatalogModels(availableModels);
 
       setPiNumber(data.piNumber || '');
       setStatus(data.status || 'DRAFT');
@@ -213,90 +215,124 @@ export default function EditProformaInvoicePage() {
 
       // Extract Items & Specifications
       if (data.items && Array.isArray(data.items)) {
-        setItems(
-          data.items.map((it: any) => {
-            const rawDesc: string = it.description || '';
-            let mainDesc = rawDesc;
-            let boardType = it.boardType || 'HPL';
-            let boardThickness = it.boardThickness || '12mm';
-            let boardColor = it.boardColor || 'D.No. 123 – Oyster White';
-            let cubicleSize = it.cubicleSize || '1000mm W × 1500mm D';
-            let doorSize = it.doorSize || '600mm × 1785mm';
-            let overallHeight = it.overallHeight || '1980mm (incl. 100mm ground clearance)';
-            let hardwarePackage = it.hardwarePackage || 'SS 304 Stainless Steel (Satin/Brushed)';
+        const hasHardware = data.items.some(
+          (it: any) =>
+            it.hsnSac === '8302' ||
+            it.hsnSac === '7610' ||
+            it.unit === 'PAIR' ||
+            it.unit === 'SET'
+        );
 
-            // Parse specs from \n(Board: ... | Hardware: ...)
-            if (rawDesc.includes('(') && rawDesc.includes(')')) {
-              const specSection = rawDesc.slice(rawDesc.indexOf('(') + 1, rawDesc.lastIndexOf(')'));
-              mainDesc = rawDesc.slice(0, rawDesc.indexOf('(')).trim();
+        const loadedItems: CreateItem[] = [];
 
-              const parts = specSection.split('|').map((s) => s.trim());
-              parts.forEach((p) => {
-                const [k, ...vParts] = p.split(':');
-                const v = vParts.join(':').trim();
-                const keyLower = k.toLowerCase().trim();
-                if (keyLower.includes('board')) {
-                  const bTokens = v.split(' ');
-                  if (bTokens[0]) boardType = bTokens[0];
-                  if (bTokens[1]) boardThickness = bTokens.slice(1).join(' ');
-                } else if (keyLower.includes('color')) {
-                  boardColor = v;
-                } else if (keyLower.includes('size')) {
-                  cubicleSize = v;
-                } else if (keyLower.includes('door')) {
-                  doorSize = v;
-                } else if (keyLower.includes('height')) {
-                  overallHeight = v;
-                } else if (keyLower.includes('hardware')) {
-                  hardwarePackage = v;
-                }
-              });
-            }
+        data.items.forEach((it: any) => {
+          const rawDesc: string = it.description || '';
+          let mainDesc = rawDesc;
+          let boardType = it.boardType || '';
+          let boardThickness = it.boardThickness || '';
+          let boardColor = it.boardColor || '';
+          let cubicleSize = it.cubicleSize || '';
+          let doorSize = it.doorSize || '';
+          let overallHeight = it.overallHeight || '';
+          let hardwarePackage = it.hardwarePackage || '';
 
-            const isHardware =
-              it.hsnSac === '8302' ||
-              it.hsnSac === '7610' ||
-              (!it.boardType &&
-                !rawDesc.includes('Board:') &&
-                (it.unit === 'SET' || it.unit === 'PAIR' || it.unit === 'NOS' || it.unit === 'PCS' || it.unit === 'RMT') &&
-                !mainDesc.toLowerCase().includes('cubicle') &&
-                !mainDesc.toLowerCase().includes('partition') &&
-                !mainDesc.toLowerCase().includes('locker'));
+          // Parse specs from \n(Board: ... | Hardware: ...)
+          if (rawDesc.includes('(') && rawDesc.includes(')')) {
+            const specSection = rawDesc.slice(rawDesc.indexOf('(') + 1, rawDesc.lastIndexOf(')'));
+            mainDesc = rawDesc.slice(0, rawDesc.indexOf('(')).trim();
 
-            if (isHardware) {
-              return {
-                id: it.id,
-                itemType: 'hardware',
-                isCustom: true,
-                description: mainDesc,
-                hsnSac: it.hsnSac || '8302',
-                quantity: Number(it.quantity) || 1,
-                unit: it.unit || 'SET',
-                rate: Number(it.rate) || 0,
-                gstRate: Number(it.gstRate ?? 18),
-              };
-            }
+            const parts = specSection.split('|').map((s) => s.trim());
+            parts.forEach((p) => {
+              const [k, ...vParts] = p.split(':');
+              const v = vParts.join(':').trim();
+              const keyLower = k.toLowerCase().trim();
+              if (keyLower.includes('board')) {
+                const bTokens = v.split(' ');
+                if (!boardType && bTokens[0]) boardType = bTokens[0];
+                if (!boardThickness && bTokens[1]) boardThickness = bTokens.slice(1).join(' ');
+              } else if (keyLower.includes('color') && !boardColor) {
+                boardColor = v;
+              } else if (keyLower.includes('size') && !cubicleSize) {
+                cubicleSize = v;
+              } else if (keyLower.includes('door') && !doorSize) {
+                doorSize = v;
+              } else if (keyLower.includes('height') && !overallHeight) {
+                overallHeight = v;
+              } else if (keyLower.includes('hardware') && !hardwarePackage) {
+                hardwarePackage = v;
+              }
+            });
+          }
 
-            return {
+          const isHardware =
+            it.hsnSac === '8302' ||
+            it.hsnSac === '7610' ||
+            (!it.boardType &&
+              !rawDesc.includes('Board:') &&
+              (it.unit === 'SET' || it.unit === 'PAIR' || it.unit === 'NOS' || it.unit === 'PCS' || it.unit === 'RMT') &&
+              !mainDesc.toLowerCase().includes('cubicle') &&
+              !mainDesc.toLowerCase().includes('partition') &&
+              !mainDesc.toLowerCase().includes('locker'));
+
+          if (isHardware) {
+            loadedItems.push({
               id: it.id,
-              itemType: 'cubicle',
-              modelId: it.productId,
+              itemType: 'hardware',
+              isCustom: Boolean(it.isCustom),
               description: mainDesc,
-              hsnSac: it.hsnSac || '9403',
+              hsnSac: it.hsnSac || '8302',
               quantity: Number(it.quantity) || 1,
-              unit: it.unit || 'NOS',
+              unit: it.unit || 'SET',
               rate: Number(it.rate) || 0,
               gstRate: Number(it.gstRate ?? 18),
-              boardType,
-              boardThickness,
-              boardColor,
-              cubicleSize,
-              doorSize,
-              overallHeight,
-              hardwarePackage,
-            };
-          })
-        );
+            });
+            return;
+          }
+
+          // Cubicle item: Match against availableModels using findMatchingCatalogModel
+          const matchedModel = findMatchingCatalogModel(availableModels, {
+            productId: it.productId,
+            modelId: it.modelId,
+            description: mainDesc || rawDesc,
+          });
+
+          const resolvedModelId = matchedModel?.id || it.productId || '';
+          const defaultDims = matchedModel ? extractModelDimensions(matchedModel) : null;
+          const resolvedTitle = mainDesc || (matchedModel ? `Pacific ${matchedModel.title} (${matchedModel.category})` : 'Pacific Restroom Cubicle System');
+
+          const cubicleItem: CreateItem = {
+            id: it.id,
+            itemType: 'cubicle',
+            modelId: resolvedModelId,
+            parentModelId: resolvedModelId,
+            description: resolvedTitle,
+            hsnSac: it.hsnSac || '9403',
+            quantity: Number(it.quantity) || 1,
+            unit: it.unit || 'NOS',
+            rate: Number(it.rate) || 0,
+            gstRate: Number(it.gstRate ?? 18),
+            boardType: boardType || defaultDims?.boardType || 'HPL',
+            boardThickness: boardThickness || defaultDims?.boardThickness || '12mm',
+            boardColor: boardColor || 'D.No. 123 – Oyster White',
+            cubicleSize: cubicleSize || defaultDims?.cubicleSize || '1000mm W × 1500mm D',
+            doorSize: doorSize || defaultDims?.doorSize || '600mm × 1785mm',
+            overallHeight: overallHeight || defaultDims?.overallHeight || '1980mm (incl. 100mm ground clearance)',
+            hardwarePackage: hardwarePackage || defaultDims?.hardwarePackage || 'SS 304 Stainless Steel (Satin/Brushed)',
+          };
+
+          loadedItems.push(cubicleItem);
+
+          // If legacy PI where hardware was not decomposed into separate items, auto-expand hardware items
+          if (!hasHardware && matchedModel) {
+            const hwItems = extractModelHardwareItems(matchedModel, Number(it.quantity) || 1).map((h) => ({
+              ...h,
+              parentModelId: matchedModel.id,
+            }));
+            loadedItems.push(...hwItems);
+          }
+        });
+
+        setItems(loadedItems);
       }
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'Failed to load Proforma Invoice for editing.');
@@ -405,14 +441,15 @@ export default function EditProformaInvoicePage() {
       const updatedCubicle: CreateItem = {
         ...current,
         modelId: selected.id,
+        parentModelId: selected.id,
         itemType: 'cubicle',
         description: `Pacific ${selected.title} (${selected.category})`,
-        cubicleSize: dims.cubicleSize,
-        doorSize: dims.doorSize,
-        overallHeight: dims.overallHeight,
-        boardThickness: dims.boardThickness,
-        boardType: dims.boardType,
-        hardwarePackage: dims.hardwarePackage,
+        cubicleSize: current?.cubicleSize || dims.cubicleSize,
+        doorSize: current?.doorSize || dims.doorSize,
+        overallHeight: current?.overallHeight || dims.overallHeight,
+        boardThickness: current?.boardThickness || dims.boardThickness,
+        boardType: current?.boardType || dims.boardType,
+        hardwarePackage: current?.hardwarePackage || dims.hardwarePackage,
       };
 
       // Filter out auto-generated hardware items previously linked to this model
@@ -562,12 +599,11 @@ export default function EditProformaInvoicePage() {
 
     setSubmitting(true);
     try {
-      // Build clean structured address lines containing PIN and PAN
+      // Build clean structured address lines containing PIN
       const billAddrParts = [
         billingAddress.addressLine,
         billingAddress.city,
         billingAddress.pincode ? `PIN: ${billingAddress.pincode}` : '',
-        billingAddress.pan ? `PAN: ${billingAddress.pan.toUpperCase().trim()}` : '',
       ].filter(Boolean);
       const billToAddressFormatted = billAddrParts.join(', ');
 
@@ -638,6 +674,7 @@ export default function EditProformaInvoicePage() {
         billTo: {
           partyName: billingAddress.partyName,
           gstin: billingAddress.gstin ? billingAddress.gstin.toUpperCase().trim() : undefined,
+          pan: billingAddress.pan ? billingAddress.pan.toUpperCase().trim() : undefined,
           addressLine: billToAddressFormatted,
           state: billingAddress.state,
           stateCode: billingAddress.stateCode,
@@ -1378,6 +1415,9 @@ export default function EditProformaInvoicePage() {
                               </option>
                             ))}
                           </optgroup>
+                        )}
+                        {item.modelId && !catalogModels.some((m) => m.id === item.modelId) && (
+                          <option value={item.modelId}>{item.description || item.modelId}</option>
                         )}
                       </select>
                     </div>
