@@ -1477,3 +1477,16 @@ The admin console implements an enterprise dual-layer auto-refresh engine to pre
 
 
 
+
+---
+
+## 38. Production Vercel Admin Origin Whitelist (https://pacific-admin-one.vercel.app)
+
+1. **CORS Explicit Integration**:
+   - Whitelisted `https://pacific-admin-one.vercel.app` across `PACIFIC-Backend`:
+     - `src/app.ts`: Explicit check and trailing-slash normalization (`origin.replace(/\/+$/, '')`).
+     - `src/config/env.ts`: Added to `ALLOWED_ORIGINS` and set as default `ADMIN_URL` and `CORS_ORIGIN`.
+     - `render.yaml`: Updated `ALLOWED_ORIGINS`, `CORS_ORIGIN`, and `ADMIN_URL`.
+     - `.env`: Updated environment configurations.
+   - Recompiled `dist/` with `npx tsc` and pushed to GitHub `AshaminBiswas/PACIFIC-Backend` (`main`).
+
