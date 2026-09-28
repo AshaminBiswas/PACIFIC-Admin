@@ -193,12 +193,22 @@ export default function EditProformaInvoicePage() {
           t.toLowerCase().includes('standard inclusions')
       );
 
+      const officialTerms = [
+        'Payment Terms: 50% Advance along with confirmed Purchase Order. Balance 50% prior to dispatch.',
+        'Delivery Terms: 2-3 weeks from receipt of advance, approved shop drawings, and color confirmation.',
+        'Warranty: We provide ten (10) years of warranty for partitions against any moisture-related defects and one (1) year warranty for workmanship and hardware against manufacturing defects.',
+        'Goods once fabricated to custom restroom sizes cannot be cancelled or exchanged.',
+        'GST and transport charges applicable as per statutory rates.',
+        'Subject to Delhi/NCR jurisdiction.',
+      ];
+
       if (hardwareTerm) {
         const cleanHw = hardwareTerm.replace(/^Standard Inclusions & Hardware Accessories:\s*/i, '').trim();
         setAccessoriesText(cleanHw);
-        setTerms(termsList.filter((t) => t !== hardwareTerm));
+        const filtered = termsList.filter((t) => t !== hardwareTerm);
+        setTerms(filtered.length > 0 && !filtered.some((t) => t.toLowerCase().includes('goods once sold will not be taken back')) ? filtered : officialTerms);
       } else {
-        setTerms(termsList);
+        setTerms(termsList.length > 0 && !termsList.some((t) => t.toLowerCase().includes('goods once sold will not be taken back')) ? termsList : officialTerms);
       }
 
       // Extract Items & Specifications

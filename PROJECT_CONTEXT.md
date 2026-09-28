@@ -1619,6 +1619,37 @@ The admin console implements an enterprise dual-layer auto-refresh engine to pre
 3. **Logo Data URI Conversion in PI PDF Generation (`pi.service.ts`)**:
    - Converted `companyProfile.logoUrl` to a self-contained base64 data URI via `fetchImageAsDataUri()`, ensuring the Pacific logo renders reliably in PDFs across remote hosting environments.
 
+---
+
+## 45. Proforma Invoice 2-Page PDF Architecture: Page 1 Technical Specifications & Page 2 Commercial Annexure
+
+1. **Dedicated 2-Page Layout Architecture (`pdf.service.ts`)**:
+   - **User Requirement**: All item descriptions and technical specifications on Page 1, with Bank Remittance, Commercial Terms & Conditions, and Acceptance Signatures on a dedicated Page 2.
+   - **Page 1 (Commercial Invoice & Technical Specifications)**:
+     - Document header with official Pacific logo, full registered address, statutory GSTIN, PAN, title badge, reference number, date, place of supply, and high-contrast verification QR code.
+     - Dual-party coordinates grid (Bill To & Ship To).
+     - Full line items table showing Sr No, Description & Technical Specifications (Board Type, Board Thickness, Board Color, Cubicle Size, Door Size, Overall Height, Hardware Package), HSN/SAC, Unit, Qty, Rate, and Amount.
+     - Pricing summary table rows: Basic Subtotal, Freight (if any), CGST/SGST (9% each) or IGST (18%), Rounding, Grand Total, and Advance Required.
+     - Amount in words.
+     - Bottom continuation banner: `Page 1 of 2 — Technical Specifications & Commercial Evaluation [ Continued on Page 2 for Bank Remittance, Terms & Acceptance Signatures >> ]`.
+   - **Page 2 (Commercial Annexure: Bank Remittance, Terms & Sign-off)**:
+     - Header banner with Pacific logo, company name, subtitle, Annexure title badge, PI reference, date, grand total, and advance required amount.
+     - **BANK REMITTANCE & PAYMENT DETAILS**: Boxed card with Central Bank Of India, Account Name: Pacific Restroom Cubicle & Locker Solutions, A/C No: 3466708013, IFSC Code: CBIN0283809, Branch: B-20, Ganga Vihar, Gokalpuri, Delhi - 110094.
+     - **COMMERCIAL TERMS & CONDITIONS**: 6 official numbered clauses (Payment Terms, Delivery Terms, 10-year partition & 1-year hardware warranty, custom sizing no cancellation policy, statutory GST/transport, Delhi/NCR jurisdiction).
+     - **Sign-off Block**:
+       - Left column: Client Acceptance Signature & Stamp with signature line and date.
+       - Right column: Best Regards, For Pacific Restroom Cubicle & Locker Solutions, signature graphic, Ejajul Shaikh (Company Head, Mobile: +91 9818592113 / 9882056529).
+       - Page 2 footer note.
+
+2. **Page-Break & Print CSS Synchronization (`pdf.service.ts`)**:
+   - Enforced `.page-1 { page-break-after: always !important; break-after: page !important; }` and `.page-2 { page-break-before: always !important; break-before: page !important; page-break-after: avoid !important; break-after: avoid !important; }`.
+   - Styled `@media screen` with sheet margin and shadow for realistic document viewer preview in modal iframes, while `@media print` eliminates shadows and guarantees exact 2-page print / Save as PDF output.
+
+3. **Synchronization in Frontend & Backend (`CreateProformaPage.tsx`, `EditProformaInvoicePage.tsx`, `pi.service.ts`)**:
+   - Synced `DEFAULT_TERMS` across frontend and backend to the official 6 commercial terms.
+   - Updated bank details fallback to Central Bank Of India and signatory defaults to Ejajul Shaikh, Company Head.
+
+
 
 
 

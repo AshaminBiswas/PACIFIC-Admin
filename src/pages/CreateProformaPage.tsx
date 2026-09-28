@@ -112,11 +112,12 @@ export interface CreateFormData {
 }
 
 const DEFAULT_TERMS = [
-  'Goods once sold will not be taken back or exchanged.',
-  'If the bill is not paid by the due date, interest will be charged at 18% per annum.',
-  'The seller is not responsible for any loss or damage to goods in transit.',
-  'The buyer undertakes to submit prescribed statutory declarations to seller on demand.',
-  'Subject to Delhi jurisdiction only.',
+  'Payment Terms: 50% Advance along with confirmed Purchase Order. Balance 50% prior to dispatch.',
+  'Delivery Terms: 2-3 weeks from receipt of advance, approved shop drawings, and color confirmation.',
+  'Warranty: We provide ten (10) years of warranty for partitions against any moisture-related defects and one (1) year warranty for workmanship and hardware against manufacturing defects.',
+  'Goods once fabricated to custom restroom sizes cannot be cancelled or exchanged.',
+  'GST and transport charges applicable as per statutory rates.',
+  'Subject to Delhi/NCR jurisdiction.',
 ];
 
 const INITIAL_FORM: CreateFormData = {

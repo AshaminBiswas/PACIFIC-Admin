@@ -869,7 +869,7 @@ export default function ProformaInvoiceDetailPage() {
               ))
             ) : (
               <p className="text-gray-500 italic">
-                Standard statutory terms apply (Goods once sold will not be returned; 18% p.a. interest on overdue; Subject to Delhi jurisdiction).
+                Standard terms apply (50% advance with PO, balance prior to dispatch; 2-3 weeks delivery; 10-year partition &amp; 1-year hardware warranty; Subject to Delhi/NCR jurisdiction).
               </p>
             );
           })()}
