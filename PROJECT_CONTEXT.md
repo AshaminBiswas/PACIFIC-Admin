@@ -1518,5 +1518,30 @@ The admin console implements an enterprise dual-layer auto-refresh engine to pre
    - **Hardware Item Cleanliness in PDF**: `pdfService.generatePiHtml` cleanly separates items with technical board specifications from standalone hardware items, avoiding redundant empty specification boxes and accurately presenting HSN `8302`, units, and rates.
    - **Inline Base64 QR Code Generation**: Upgraded `qrService.generateQrDataUrl` in `PACIFIC-Backend` using the official `qrcode` library to generate inline `data:image/png;base64,...` data URIs directly. This completely resolves blocked or missing QR codes caused by external HTTP calls during PDF printing or previewing in iframe modals.
 
+---
+
+## 41. Production Stability: Supabase 401 Fix & Proforma Invoice 500 FK Resolution
+
+1. **Supabase 401 Unauthorized (`UNAUTHORIZED_UNREGISTERED_API_KEY`) Fix**:
+   - **Root Cause**: An unregistered publishable key (`sb_publishable_0xZl0he-gZZ-5K9qcN5-Yg_6u9J96cs`) was configured or evaluated before the JWT key, causing Supabase PostgREST to reject all REST calls across CMS tables (`hero_images`, `gallery_images`, `testimonials`, `blogs`, `products`, `leads`, `visitor_leads`, `page_banners`, `catalogs`, etc.). Additionally, stale browser localStorage tokens (`sb-*-auth-token`) could override the Authorization header with expired session credentials.
+   - **Canonical JWT Integration (`src/lib/supabase.ts`)**:
+     - Embedded verified working Supabase JWT keys (`DEFAULT_SUPABASE_ANON_KEY` and `DEFAULT_SUPABASE_SERVICE_ROLE_KEY`).
+     - Added `isValidSupabaseKey()` filter to proactively detect and reject any unregistered keys starting with `sb_publishable_` or `sb_secret_`.
+     - Prioritized standard JWT keys starting with `eyJ...`.
+   - **Self-Healing 401 Fetch Interceptor**:
+     - Global Supabase client `fetch` wrapper intercepts HTTP 401 responses.
+     - Automatically purges stale `sb-*-auth-token` entries from browser `localStorage` and retries the request once with canonical headers (`apikey: <key>`, `Authorization: Bearer <key>`).
+     - Eliminates client 401 lockouts even across existing user browser profiles.
+   - **Environment Sync (`.env`)**: Updated `.env` with verified working JWT keys.
+
+2. **Proforma Invoice 500 Error Foreign Key (`productId` & `customerId`) Resolution**:
+   - **Root Cause**: `proforma_invoice_items.productId` maintains a strict foreign key relation to `erp_products(id)`. When catalog model slugs (e.g. `'standard-c1-ss-304'`) or custom hardware items were submitted as `productId`, PostgreSQL threw a foreign key violation, returning an unhandled 500 error from Express. Additionally, direct customer creation with unmapped `customerId` failed the `business_parties` relation.
+   - **Backend Validation & Auto-Resolution (`PACIFIC-Backend/src/modules/sales/pi.service.ts`)**:
+     - **Product FK Safeguard**: Pre-validates all candidate `productId`s against `prisma.product.findMany()`. Any identifier not present in `erp_products` is safely stored as `productId: null` while preserving all line item metadata, specifications, HSN, rates, and amounts. Applied across both `create` and `update`.
+     - **Customer Auto-Resolution**: If `customerId` is null or does not exist in `business_parties`, automatically looks up by GSTIN or legal name, or provisions a customer record from `data.billTo`.
+   - **Frontend Sanitization (`CreateProformaPage.tsx` & `EditProformaInvoicePage.tsx`)**:
+     - Sanitized `productId` submission using UUID regex verification (`/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i`), preventing catalog model slugs from being transmitted as foreign keys.
+
+
 
 

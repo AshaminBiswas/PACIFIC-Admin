@@ -597,7 +597,7 @@ export default function EditProformaInvoicePage() {
 
         return {
           id: it.id,
-          productId: it.modelId || undefined,
+          productId: (it.modelId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(it.modelId)) ? it.modelId : undefined,
           description: desc,
           hsnSac: it.hsnSac || (it.itemType === 'hardware' ? '8302' : '9403'),
           quantity: Number(it.quantity) || 1,

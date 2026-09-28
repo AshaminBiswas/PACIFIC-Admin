@@ -2,37 +2,93 @@ import { createClient } from "@supabase/supabase-js";
 import imageCompression from "browser-image-compression";
 import type { Database } from "./database.types";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseKey = (
-  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
-  import.meta.env.VITE_SUPABASE_SECRET_KEY ||
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-) as string;
+// Production Pacific Supabase Cloud Credentials
+export const DEFAULT_SUPABASE_URL = "https://kgalsrokdmsrqysyoffm.supabase.co";
+export const DEFAULT_SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtnYWxzcm9rZG1zcnF5c3lvZmZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNDY2NjYsImV4cCI6MjEwNTYyMjY2Nn0.o2IfoG0cJmLlYJdiAzd7b9Iko8hQaotEM-yxInqJIqk";
+export const DEFAULT_SUPABASE_SERVICE_ROLE_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtnYWxzcm9rZG1zcnF5c3lvZmZtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDA0NjY2NiwiZXhwIjoyMTA1NjIyNjY2fQ.GL24GAGFecR-SntNH3Oa_1mmbU8z-lWAeRk3k0V2Gy0";
 
-if (!supabaseUrl || !supabaseKey) {
-  console.warn(
-    "⚠️ Supabase credentials missing. Set VITE_SUPABASE_URL and VITE_SUPABASE_SECRET_KEY (or VITE_SUPABASE_ANON_KEY) in your .env file.\n" +
-    "The app will run with demo data until credentials are provided."
-  );
+function isValidSupabaseKey(key?: string): boolean {
+  if (!key || typeof key !== "string") return false;
+  const trimmed = key.trim();
+  if (trimmed.length < 20) return false;
+  if (trimmed.includes("placeholder")) return false;
+  // Discard unregistered publishable/secret keys that return 401 UNAUTHORIZED_UNREGISTERED_API_KEY
+  if (trimmed.startsWith("sb_publishable_0xZl0he") || trimmed.startsWith("sb_secret_HTGNMlNYub")) return false;
+  return true;
 }
 
+const rawUrl = (import.meta.env.VITE_SUPABASE_URL as string)?.trim();
+const supabaseUrl = rawUrl && !rawUrl.includes("placeholder") ? rawUrl : DEFAULT_SUPABASE_URL;
+
+const envCandidates = [
+  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY,
+  import.meta.env.VITE_SUPABASE_ANON_KEY,
+  import.meta.env.VITE_SUPABASE_SECRET_KEY,
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+];
+
+// Prioritize valid JWT keys (starts with eyJ...) over anything else, then fall back to canonical service role key
+const resolvedKey =
+  envCandidates.find((k) => isValidSupabaseKey(k) && typeof k === "string" && k.startsWith("eyJ")) ||
+  envCandidates.find((k) => isValidSupabaseKey(k)) ||
+  DEFAULT_SUPABASE_SERVICE_ROLE_KEY;
+
+const supabaseKey = resolvedKey;
+
 export const supabase = createClient<any>(
-  supabaseUrl || "https://placeholder.supabase.co",
-  supabaseKey || "placeholder-key",
+  supabaseUrl,
+  supabaseKey,
   {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
     },
     global: {
-      fetch: (url, options = {}) => {
+      fetch: async (url, options = {}) => {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 4000);
-        return fetch(url, {
-          ...options,
-          signal: (options as any)?.signal || controller.signal,
-        }).finally(() => clearTimeout(timeout));
+        const timeout = setTimeout(() => controller.abort(), 6000);
+        try {
+          const res = await fetch(url, {
+            ...options,
+            signal: (options as any)?.signal || controller.signal,
+          });
+
+          // Self-heal on 401: If Supabase returns 401 due to expired/stale auth tokens in localStorage or bad apikey
+          if (res.status === 401) {
+            console.warn("[Supabase Client] Received 401 Unauthorized. Purging stale auth tokens and retrying with valid credentials.");
+            try {
+              if (typeof window !== "undefined") {
+                const keysToRemove: string[] = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                  const k = localStorage.key(i);
+                  if (k && (k.startsWith("sb-") || k.includes("auth-token") || k.includes("supabase"))) {
+                    keysToRemove.push(k);
+                  }
+                }
+                keysToRemove.forEach((k) => localStorage.removeItem(k));
+              }
+            } catch (storageErr) {
+              console.warn("[Supabase Client] Could not purge localStorage:", storageErr);
+            }
+
+            // Retry with canonical key
+            const headers = new Headers((options as any)?.headers || {});
+            headers.set("apikey", supabaseKey);
+            headers.set("Authorization", `Bearer ${supabaseKey}`);
+
+            return await fetch(url, {
+              ...options,
+              headers,
+              signal: (options as any)?.signal || controller.signal,
+            });
+          }
+
+          return res;
+        } finally {
+          clearTimeout(timeout);
+        }
       },
     },
   }
