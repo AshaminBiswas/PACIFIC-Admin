@@ -855,3 +855,54 @@ export function extractModelHardwareItems(
   return items;
 }
 
+/**
+ * Intelligently finds the best matching catalog model from quotation item metadata,
+ * product IDs, model slugs, or item description text.
+ */
+export function findMatchingCatalogModel(
+  catalogModels: ProductCatalogModel[],
+  candidate: { productId?: string; description?: string; modelId?: string }
+): ProductCatalogModel | undefined {
+  if (!catalogModels || catalogModels.length === 0) return undefined;
+
+  // 1. Direct ID or Slug match
+  const candidateId = (candidate.productId || candidate.modelId || '').trim().toLowerCase();
+  if (candidateId) {
+    const directMatch = catalogModels.find(
+      (m) => m.id.toLowerCase() === candidateId || m.slug.toLowerCase() === candidateId
+    );
+    if (directMatch) return directMatch;
+  }
+
+  // 2. Search for model titles in description
+  const desc = (candidate.description || '').toLowerCase();
+  if (desc) {
+    for (const m of catalogModels) {
+      if (m.title && desc.includes(m.title.toLowerCase())) {
+        return m;
+      }
+      if (m.slug && desc.includes(m.slug.toLowerCase())) {
+        return m;
+      }
+    }
+
+    // 3. Category heuristics
+    if (desc.includes('locker')) {
+      const locker = catalogModels.find((m) => m.category === 'Lockers');
+      if (locker) return locker;
+    }
+    if (desc.includes('urinal') || desc.includes('screen') || desc.includes('divider')) {
+      const urinal = catalogModels.find((m) => m.category === 'Urinal Partitions');
+      if (urinal) return urinal;
+    }
+  }
+
+  // 4. Default fallback: Delight or first available cubicle model
+  const defaultCubicle =
+    catalogModels.find((m) => m.title.toLowerCase().includes('delight')) ||
+    catalogModels.find((m) => m.category === 'Cubicle') ||
+    catalogModels[0];
+
+  return defaultCubicle;
+}
+

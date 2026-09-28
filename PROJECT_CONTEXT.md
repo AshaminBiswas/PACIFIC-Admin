@@ -1592,6 +1592,34 @@ The admin console implements an enterprise dual-layer auto-refresh engine to pre
      - When the user clicks "Print / Save PDF", the handler prints directly from `iframe.contentWindow.print()` where the PDF HTML, logo, and QR code are already decoded and rendered on-screen.
      - Added a 500ms bitmap decoding buffer to popup window fallback to ensure images are fully decoded before triggering print.
 
+---
+
+## 44. PI Creation Page Streamlining & Automated Quotation-to-PI Model & Hardware Decomposition
+
+1. **Deletion of "Standard Inclusions & Hardware Accessories" Card (`CreateProformaPage.tsx` & `EditProformaInvoicePage.tsx`)**:
+   - **User Requirement**: Delete the "Standard Inclusions & Hardware Accessories" card from the PI creation and edit pages and ensure hardware is treated exclusively as individual items.
+   - **UI Streamlining**:
+     - Deleted Card 4 ("Standard Inclusions & Hardware Accessories" textarea card) from both `CreateProformaPage.tsx` and `EditProformaInvoicePage.tsx`.
+     - Renumbered subsequent cards (Line Items Configuration $\rightarrow$ Card 4, Financial Summary $\rightarrow$ Card 5, Advance & Terms $\rightarrow$ Card 6).
+   - **Terms Cleansing**:
+     - Removed the automatic injection of `Standard Inclusions & Hardware Accessories:\n...` in `finalTerms`.
+     - `finalTerms` now filters out legacy inclusions strings cleanly, completely removing redundant text from database terms and PDF documents.
+
+2. **Automated Quotation-to-PI Model & Hardware Decomposition (Frontend & Backend)**:
+   - **Quotation Import Auto-Decomposition (`CreateProformaPage.tsx`)**:
+     - Integrated `findMatchingCatalogModel()` from `quotationProductPresets.ts` to automatically detect catalog cubicle models (by ID, slug, title match, or category fallback).
+     - When converting or importing a quotation, each cubicle item automatically expands with its dimensions and generates individual hardware line items using `extractModelHardwareItems()`.
+     - Each hardware item (Gravity Hinges, Indicator Lock, Door Pull Handle, Coat Hook, Supporting Legs, Top Headrail Box Extrusion, Wall Fixing U-Channels & Fasteners) is created as an individual line item with its own rate, unit (`PAIR`, `SET`, `NOS`, `RMT`), quantity scaled by cubicle quantity, and HSN (`8302`/`7610`).
+     - Added URL parameter support: accessing `/admin/dashboard/proforma-invoices/create?quotationId=<id>` automatically loads and decomposes the quotation specifications without requiring manual interaction.
+     - Form defaults now initialize with `Pacific Delight` and its 7 standard hardware items pre-populated.
+   - **Backend 1-Click Conversion (`PACIFIC-Backend/src/modules/sales/pi.service.ts`)**:
+     - Updated `createFromQuotation()` to auto-generate the complete individual hardware line item breakdown for each cubicle item.
+     - Excluded `Standard Inclusions & Hardware Accessories` from `terms`.
+
+3. **Logo Data URI Conversion in PI PDF Generation (`pi.service.ts`)**:
+   - Converted `companyProfile.logoUrl` to a self-contained base64 data URI via `fetchImageAsDataUri()`, ensuring the Pacific logo renders reliably in PDFs across remote hosting environments.
+
+
 
 
 

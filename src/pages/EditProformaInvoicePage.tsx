@@ -568,15 +568,12 @@ export default function EditProformaInvoicePage() {
       ].filter(Boolean);
       const shipToAddressFormatted = shipAddrParts.join(', ');
 
-      // Prepare terms with Standard Inclusions & Hardware Accessories
-      const finalTerms = [
-        `Standard Inclusions & Hardware Accessories:\n${accessoriesText}`,
-        ...terms.filter(
-          (t) =>
-            !t.toLowerCase().includes('hardware accessories') &&
-            !t.toLowerCase().includes('standard inclusions')
-        ),
-      ];
+      // Prepare clean terms without legacy hardware inclusions block
+      const finalTerms = terms.filter(
+        (t) =>
+          !t.toLowerCase().includes('hardware accessories') &&
+          !t.toLowerCase().includes('standard inclusions')
+      );
 
       // Enrich item descriptions with specifications so they persist to DB, PDF, and Detail views
       const enrichedItems = items.map((it) => {
@@ -1151,26 +1148,7 @@ export default function EditProformaInvoicePage() {
         </div>
       </div>
 
-      {/* ── Card 4: Standard Inclusions & Hardware Accessories ── */}
-      <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
-        <div className="flex items-center gap-2 border-b border-white/5 pb-2">
-          <Wrench className="w-4 h-4 text-[#7FB706]" />
-          <h3 className="text-sm font-bold text-white">Standard Inclusions &amp; Hardware Accessories</h3>
-        </div>
-
-        <div>
-          <label className={labelCls}>Standard Inclusions &amp; Hardware Accessories *</label>
-          <textarea
-            rows={5}
-            value={accessoriesText}
-            onChange={(e) => setAccessoriesText(e.target.value)}
-            placeholder="Door stoppers, gravity hinges, indicator locks, coat hooks, support shoes..."
-            className={inputCls + ' font-mono text-xs leading-relaxed'}
-          />
-        </div>
-      </div>
-
-      {/* ── Card 5: Line Items Configuration ───────────────────── */}
+      {/* ── Card 4: Line Items Configuration ───────────────────── */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-2">
           <div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   CreditCard,
   ArrowLeft,
@@ -32,6 +32,7 @@ import {
   formatModelHardwareInclusions,
   extractModelDimensions,
   extractModelHardwareItems,
+  findMatchingCatalogModel,
 } from '../utils/quotationProductPresets';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import CustomerSearchSelect from '../components/common/CustomerSearchSelect';
@@ -156,19 +157,91 @@ const INITIAL_FORM: CreateFormData = {
   },
   items: [
     {
-      description: 'Pacific Restroom Cubicle System (12mm Compact Laminate)',
+      modelId: 'std-delight',
+      itemType: 'cubicle',
+      description: 'Pacific Delight (Cubicle)',
       hsnSac: '9403',
       quantity: 1,
       unit: 'NOS',
       rate: 18500,
       gstRate: 18,
-      boardType: 'HPL',
+      boardType: '12mm / 18mm Solid Compact Phenolic Laminate',
       boardThickness: '12mm',
       boardColor: 'D.No. 123 – Oyster White',
-      cubicleSize: '1000mm W × 1500mm D',
-      doorSize: '600mm × 1785mm',
-      overallHeight: '1980mm (incl. 100mm ground clearance)',
-      hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
+      cubicleSize: '1000 mm W × 1500 mm D',
+      doorSize: '600 mm (Standard) / 900 mm (Accessible/ADA)',
+      overallHeight: '1980 mm / 2000 mm (including 150mm floor gap)',
+      hardwarePackage: 'SS Hardware',
+    },
+    {
+      itemType: 'hardware',
+      parentModelId: 'std-delight',
+      description: 'Gravity Hinges (Self-Closing Pair with Nylon Cam)',
+      hsnSac: '8302',
+      quantity: 1,
+      unit: 'PAIR',
+      rate: 0,
+      gstRate: 18,
+    },
+    {
+      itemType: 'hardware',
+      parentModelId: 'std-delight',
+      description: 'Occupancy Indicator Lock with Emergency Release',
+      hsnSac: '8302',
+      quantity: 1,
+      unit: 'SET',
+      rate: 0,
+      gstRate: 18,
+    },
+    {
+      itemType: 'hardware',
+      parentModelId: 'std-delight',
+      description: 'Ergonomic Door Pull Handle / Knob',
+      hsnSac: '8302',
+      quantity: 1,
+      unit: 'NOS',
+      rate: 0,
+      gstRate: 18,
+    },
+    {
+      itemType: 'hardware',
+      parentModelId: 'std-delight',
+      description: 'Coat Hook with Integrated Rubber Buffer Stop',
+      hsnSac: '8302',
+      quantity: 1,
+      unit: 'NOS',
+      rate: 0,
+      gstRate: 18,
+    },
+    {
+      itemType: 'hardware',
+      parentModelId: 'std-delight',
+      description: 'Adjustable Supporting Legs (100–150mm ground clearance)',
+      hsnSac: '8302',
+      quantity: 2,
+      unit: 'NOS',
+      rate: 0,
+      gstRate: 18,
+    },
+    {
+      itemType: 'hardware',
+      parentModelId: 'std-delight',
+      description: 'Continuous Top Headrail Stabilizer Box Extrusion',
+      hsnSac: '7610',
+      quantity: 1,
+      unit: 'RMT',
+      rate: 0,
+      gstRate: 18,
+    },
+    {
+      itemType: 'hardware',
+      parentModelId: 'std-delight',
+      description: 'Wall Fixing U-Channels & SS 304 Fasteners Pack',
+      hsnSac: '8302',
+      quantity: 1,
+      unit: 'SET',
+      rate: 0,
+      gstRate: 18,
     },
   ],
   terms: DEFAULT_TERMS,
@@ -176,6 +249,7 @@ const INITIAL_FORM: CreateFormData = {
 
 export default function CreateProformaPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [formData, setFormData] = useState<CreateFormData>(() => {
     try {
@@ -203,7 +277,7 @@ export default function CreateProformaPage() {
   const [customers, setCustomers] = useState<BusinessParty[]>([]);
   const [companies, setCompanies] = useState<CompanyProfile[]>([]);
   const [quotations, setQuotations] = useState<SalesQuotation[]>([]);
-  const [catalogModels, setCatalogModels] = useState<ProductCatalogModel[]>([]);
+  const [catalogModels, setCatalogModels] = useState<ProductCatalogModel[]>(() => getMergedQuotationModels([]));
   const [loadingLookups, setLoadingLookups] = useState(true);
   const [selectedQuoteId, setSelectedQuoteId] = useState('');
 
@@ -359,22 +433,59 @@ export default function CreateProformaPage() {
       const gstin = q.customerGstin || q.customer?.gstin || '';
       const pan = (q.customer as any)?.pan || '';
 
-      const quoteItems: CreateItem[] = (q.items || []).map((it: any) => ({
-        modelId: it.productId,
-        description: it.description || it.itemDescription || 'Pacific Restroom Cubicle System',
-        hsnSac: '9403',
-        quantity: Number(it.quantity) || 1,
-        unit: it.unit || 'NOS',
-        rate: Number(it.rate ?? it.unitPrice ?? 0),
-        gstRate: Number(q.gstRate || 18),
-        boardType: it.boardType || 'HPL',
-        boardThickness: it.boardThickness || '12mm',
-        boardColor: it.boardColor || 'D.No. 123 – Oyster White',
-        cubicleSize: it.cubicleSize || '1000mm W × 1500mm D',
-        doorSize: it.doorSize || '600mm × 1785mm',
-        overallHeight: it.overallHeight || '1980mm (incl. 100mm ground clearance)',
-        hardwarePackage: it.hardwarePackage || 'SS 304 Stainless Steel (Satin/Brushed)',
-      }));
+      const quoteItems: CreateItem[] = [];
+      const currentModels = catalogModels.length > 0 ? catalogModels : getMergedQuotationModels([]);
+
+      (q.items || []).forEach((it: any) => {
+        const qty = Number(it.quantity) || 1;
+        const matchedModel = findMatchingCatalogModel(currentModels, {
+          productId: it.productId,
+          description: it.description || it.itemDescription,
+        });
+
+        if (matchedModel) {
+          const dims = extractModelDimensions(matchedModel);
+          const cubicleItem: CreateItem = {
+            modelId: matchedModel.id,
+            itemType: 'cubicle',
+            description: it.description || it.itemDescription || `Pacific ${matchedModel.title} (${matchedModel.category})`,
+            hsnSac: it.hsnSac || it.hsnCode || '9403',
+            quantity: qty,
+            unit: it.unit || 'NOS',
+            rate: Number(it.rate ?? it.unitPrice ?? 0),
+            gstRate: Number(it.gstRate || q.gstRate || 18),
+            boardType: it.boardType || dims.boardType || 'HPL',
+            boardThickness: it.boardThickness || dims.boardThickness || '12mm',
+            boardColor: it.boardColor || 'D.No. 123 – Oyster White',
+            cubicleSize: it.cubicleSize || dims.cubicleSize,
+            doorSize: it.doorSize || dims.doorSize,
+            overallHeight: it.overallHeight || dims.overallHeight,
+            hardwarePackage: it.hardwarePackage || dims.hardwarePackage,
+          };
+          const modelHwItems: CreateItem[] = extractModelHardwareItems(matchedModel, qty).map((h) => ({
+            ...h,
+            parentModelId: matchedModel.id,
+          }));
+          quoteItems.push(cubicleItem, ...modelHwItems);
+        } else {
+          quoteItems.push({
+            itemType: 'cubicle',
+            description: it.description || it.itemDescription || 'Pacific Restroom Cubicle System',
+            hsnSac: it.hsnSac || it.hsnCode || '9403',
+            quantity: qty,
+            unit: it.unit || 'NOS',
+            rate: Number(it.rate ?? it.unitPrice ?? 0),
+            gstRate: Number(it.gstRate || q.gstRate || 18),
+            boardType: it.boardType || 'HPL',
+            boardThickness: it.boardThickness || '12mm',
+            boardColor: it.boardColor || 'D.No. 123 – Oyster White',
+            cubicleSize: it.cubicleSize || '1000mm W × 1500mm D',
+            doorSize: it.doorSize || '600mm × 1785mm',
+            overallHeight: it.overallHeight || '1980mm (incl. 100mm ground clearance)',
+            hardwarePackage: it.hardwarePackage || 'SS 304 Stainless Steel (Satin/Brushed)',
+          });
+        }
+      });
 
       const isDel = isDelhiState(q.recipientAddress, gstin);
       const posState = isDel ? 'Delhi' : (q.recipientAddress?.split(',').pop()?.trim() || 'Delhi');
@@ -416,6 +527,13 @@ export default function CreateProformaPage() {
       alert('Failed to import quotation details.');
     }
   };
+
+  const quotationIdParam = searchParams.get('quotationId');
+  useEffect(() => {
+    if (quotationIdParam && !loadingLookups && (!formData.quotationId || formData.quotationId !== quotationIdParam)) {
+      handleImportQuotation(quotationIdParam);
+    }
+  }, [quotationIdParam, loadingLookups, formData.quotationId]);
 
   // Line item handlers
   const handleItemChange = (idx: number, field: keyof CreateItem, val: any) => {
@@ -652,15 +770,12 @@ export default function CreateProformaPage() {
       ].filter(Boolean);
       const shipToAddressFormatted = shipAddrParts.join(', ');
 
-      // Prepare terms with Standard Inclusions & Hardware Accessories
-      const finalTerms = [
-        `Standard Inclusions & Hardware Accessories:\n${formData.accessoriesText}`,
-        ...formData.terms.filter(
-          (t) =>
-            !t.toLowerCase().includes('hardware accessories') &&
-            !t.toLowerCase().includes('standard inclusions')
-        ),
-      ];
+      // Prepare clean terms without legacy hardware inclusions block
+      const finalTerms = formData.terms.filter(
+        (t) =>
+          !t.toLowerCase().includes('hardware accessories') &&
+          !t.toLowerCase().includes('standard inclusions')
+      );
 
       // Enrich item descriptions with specifications so they persist to DB, PDF, and Detail views
       const enrichedItems = formData.items.map((it) => {
@@ -1314,26 +1429,7 @@ export default function CreateProformaPage() {
         </div>
       </div>
 
-      {/* ── Card 4: Standard Inclusions & Hardware Accessories ── */}
-      <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
-        <div className="flex items-center gap-2 border-b border-white/5 pb-2">
-          <Wrench className="w-4 h-4 text-[#7FB706]" />
-          <h3 className="text-sm font-bold text-white">Standard Inclusions &amp; Hardware Accessories</h3>
-        </div>
-
-        <div>
-          <label className={labelCls}>Standard Inclusions &amp; Hardware Accessories *</label>
-          <textarea
-            rows={5}
-            value={formData.accessoriesText}
-            onChange={(e) => setFormData((prev) => ({ ...prev, accessoriesText: e.target.value }))}
-            placeholder="Door stoppers, gravity hinges, indicator locks, coat hooks, support shoes..."
-            className={inputCls + ' font-mono text-xs leading-relaxed'}
-          />
-        </div>
-      </div>
-
-      {/* ── Card 5: Line Items Configuration ───────────────────── */}
+      {/* ── Card 4: Line Items Configuration ───────────────────── */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-2">
           <div>
