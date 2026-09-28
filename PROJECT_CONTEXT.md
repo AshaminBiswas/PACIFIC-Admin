@@ -1503,4 +1503,20 @@ The admin console implements an enterprise dual-layer auto-refresh engine to pre
      - Active route highlighting: When on `/admin/dashboard/inventory/boards`, the button gains an enhanced vibrant gradient (`from-[#8fd307] to-[#d4ff4d] ring-2 ring-[#B5F823] shadow-[#7FB706]/60`) and text switches to `#B5F823`.
      - Explicit label: `Board Stock` in bold 10px type with touch target $\ge 44\text{px}$.
 
+---
+
+## 40. Proforma Invoice Individual Hardware Line Items & Offline QR Code PDF Integration
+
+1. **Hardware Items Individualization in Proforma Invoice (PI)**:
+   - **Model Selection Decomposition**: When selecting a cubicle, locker, or urinal model in either `CreateProformaPage.tsx` or `EditProformaInvoicePage.tsx`, the hardware list is automatically extracted as individual, editable line items using `extractModelHardwareItems(model, cubicleQuantity)` in `src/utils/quotationProductPresets.ts`.
+   - **Per-Item Pricing & Quantity Controls**: Each hardware component (e.g. Gravity Hinges, Indicator Locks, Door Pulls, Coat Hooks, Adjustable Supporting Legs, Headrail, Fasteners) receives its dedicated unit (`PAIR`, `SET`, `NOS`, `RMT`, etc.), HSN (`8302`/`7610`), quantity multiplier, and custom rate (₹).
+   - **Custom Hardware Line Items**: Added `+ Add Custom Hardware` button allowing arbitrary accessory/hardware items to be added with custom descriptions, HSN, unit, quantity, and rate.
+   - **Clean Distinction in UI**: Cubicle items render model selection and board technical specifications, while hardware items render dedicated lightweight cards without clutter.
+   - **Cross-Stack Calculation**: Individual line item subtotals dynamically integrate into taxable amount, CGST/SGST/IGST breakdown, and grand total calculations.
+
+2. **Proforma Invoice PDF Clean Rendering & QR Code Verification**:
+   - **Hardware Item Cleanliness in PDF**: `pdfService.generatePiHtml` cleanly separates items with technical board specifications from standalone hardware items, avoiding redundant empty specification boxes and accurately presenting HSN `8302`, units, and rates.
+   - **Inline Base64 QR Code Generation**: Upgraded `qrService.generateQrDataUrl` in `PACIFIC-Backend` using the official `qrcode` library to generate inline `data:image/png;base64,...` data URIs directly. This completely resolves blocked or missing QR codes caused by external HTTP calls during PDF printing or previewing in iframe modals.
+
+
 

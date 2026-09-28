@@ -718,3 +718,140 @@ export function extractModelDimensions(model: ProductCatalogModel) {
     hardwarePackage,
   };
 }
+
+export interface ExtractedHardwareItem {
+  id?: string;
+  itemType: 'hardware';
+  description: string;
+  hsnSac: string;
+  quantity: number;
+  unit: string;
+  rate: number;
+  gstRate: number;
+  isCustom?: boolean;
+}
+
+/**
+ * Extracts individual hardware line items from a catalog model, each with proper default unit, HSN (8302/7610), quantity, and rate.
+ */
+export function extractModelHardwareItems(
+  model: ProductCatalogModel,
+  cubicleQuantity: number = 1
+): ExtractedHardwareItem[] {
+  const items: ExtractedHardwareItem[] = [];
+
+  const resolveUnitAndHsn = (name: string): { unit: string; hsn: string; defaultQty: number } => {
+    const lower = name.toLowerCase();
+    if (lower.includes('hinge') || lower.includes('pivot')) {
+      return { unit: 'PAIR', hsn: '8302', defaultQty: 1 };
+    }
+    if (lower.includes('lock') || lower.includes('indicator') || lower.includes('turn')) {
+      return { unit: 'SET', hsn: '8302', defaultQty: 1 };
+    }
+    if (lower.includes('handle') || lower.includes('knob') || lower.includes('pull')) {
+      return { unit: 'NOS', hsn: '8302', defaultQty: 1 };
+    }
+    if (lower.includes('hook') || lower.includes('buffer')) {
+      return { unit: 'NOS', hsn: '8302', defaultQty: 1 };
+    }
+    if (lower.includes('leg') || lower.includes('shoe') || lower.includes('foot') || lower.includes('feet')) {
+      return { unit: 'NOS', hsn: '8302', defaultQty: 2 };
+    }
+    if (lower.includes('headrail') || lower.includes('rail') || lower.includes('box')) {
+      return { unit: 'RMT', hsn: '7610', defaultQty: 1 };
+    }
+    if (lower.includes('channel') || lower.includes('u-channel') || lower.includes('fastener') || lower.includes('clamp')) {
+      return { unit: 'SET', hsn: '8302', defaultQty: 1 };
+    }
+    if (lower.includes('number plate') || lower.includes('louver')) {
+      return { unit: 'NOS', hsn: '8302', defaultQty: 1 };
+    }
+    return { unit: 'SET', hsn: '8302', defaultQty: 1 };
+  };
+
+  if (model.hardwareList && model.hardwareList.length > 0) {
+    model.hardwareList.forEach((h) => {
+      const cleanName = h.name.replace(/\s*\[SS Hardware\]\s*/gi, ' ').trim();
+      const { unit, hsn, defaultQty } = resolveUnitAndHsn(cleanName);
+      items.push({
+        itemType: 'hardware',
+        description: cleanName,
+        hsnSac: hsn,
+        quantity: Math.max(1, defaultQty * (cubicleQuantity || 1)),
+        unit,
+        rate: 0,
+        gstRate: 18,
+      });
+    });
+  } else {
+    // Default fallback hardware components by category
+    if (model.category === 'Cubicle') {
+      const defaults = [
+        { name: 'Gravity Hinges (Self-Closing Pair with Nylon Cam)', unit: 'PAIR', hsn: '8302', qty: 1 },
+        { name: 'Occupancy Indicator Lock with Emergency Release', unit: 'SET', hsn: '8302', qty: 1 },
+        { name: 'Ergonomic Door Pull Handle / Knob', unit: 'NOS', hsn: '8302', qty: 1 },
+        { name: 'Coat Hook with Integrated Rubber Buffer Stop', unit: 'NOS', hsn: '8302', qty: 1 },
+        { name: 'Adjustable Supporting Legs (100–150mm ground clearance)', unit: 'NOS', hsn: '8302', qty: 2 },
+        { name: 'Continuous Top Headrail Stabilizer Box Extrusion', unit: 'RMT', hsn: '7610', qty: 1 },
+        { name: 'Wall Fixing U-Channels & SS 304 Fasteners Pack', unit: 'SET', hsn: '8302', qty: 1 },
+      ];
+      defaults.forEach((d) => {
+        items.push({
+          itemType: 'hardware',
+          description: d.name,
+          hsnSac: d.hsn,
+          quantity: Math.max(1, d.qty * (cubicleQuantity || 1)),
+          unit: d.unit,
+          rate: 0,
+          gstRate: 18,
+        });
+      });
+    } else if (model.category === 'Lockers') {
+      const defaults = [
+        { name: 'Heavy-Duty Concealed Pivot Hinges (Pair per door)', unit: 'PAIR', hsn: '8302', qty: 1 },
+        { name: 'Master-Keyed Security Cam Lock with 2 Keys', unit: 'SET', hsn: '8302', qty: 1 },
+        { name: 'Anodized Aluminum Locker Door Number Plate', unit: 'NOS', hsn: '8302', qty: 1 },
+        { name: 'Dual Air Ventilation Louvers Pack', unit: 'SET', hsn: '8302', qty: 1 },
+        { name: 'Heavy-Duty Base Plinth Leveler Legs', unit: 'NOS', hsn: '8302', qty: 4 },
+      ];
+      defaults.forEach((d) => {
+        items.push({
+          itemType: 'hardware',
+          description: d.name,
+          hsnSac: d.hsn,
+          quantity: Math.max(1, d.qty * (cubicleQuantity || 1)),
+          unit: d.unit,
+          rate: 0,
+          gstRate: 18,
+        });
+      });
+    } else if (model.category === 'Urinal Partitions') {
+      const defaults = [
+        { name: 'Heavy-Duty Grade 304 Stainless Steel Corner L-Clamps', unit: 'SET', hsn: '8302', qty: 1 },
+        { name: 'Wall Anchors & SS 304 Fasteners Pack', unit: 'SET', hsn: '8302', qty: 1 },
+      ];
+      if (model.hasExtraLeg || model.title.toLowerCase().includes('model a')) {
+        defaults.push({
+          name: 'Extra Floor Supporting Leg (100–150mm adjustable ground clearance)',
+          unit: 'NOS',
+          hsn: '8302',
+          qty: 1,
+        });
+      }
+      defaults.forEach((d) => {
+        items.push({
+          itemType: 'hardware',
+          description: d.name,
+          hsnSac: d.hsn,
+          quantity: Math.max(1, d.qty * (cubicleQuantity || 1)),
+          unit: d.unit,
+          rate: 0,
+          gstRate: 18,
+        });
+      });
+    }
+  }
+
+  return items;
+}
+
