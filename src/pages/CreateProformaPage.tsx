@@ -225,7 +225,7 @@ export default function CreateProformaPage() {
     setLoadingLookups(true);
     try {
       const [custRes, compRes, quoteRes, modelsList] = await Promise.all([
-        crmApi.listCustomers({ limit: 100 }),
+        crmApi.listCustomers({ limit: 100 }).catch(() => ({ data: { data: { items: [] } } })),
         companiesApi.list().catch(() => ({ data: { data: [] } })),
         salesQuotationsApi.list({ limit: 50 }).catch(() => ({ data: { data: { items: [] } } })),
         productCatalogApi.listModels().catch(() => []),

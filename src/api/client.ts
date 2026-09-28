@@ -13,7 +13,20 @@ export const apiClient = axios.create({
 
 // Attach token to every outgoing request
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem('pacific_access_token');
+  let token = localStorage.getItem('pacific_access_token');
+  if (!token) {
+    try {
+      const supaToken = localStorage.getItem('sb-kgalsrokdmsrqysyoffm-auth-token');
+      if (supaToken) {
+        const parsed = JSON.parse(supaToken);
+        const supaAccess = parsed?.access_token;
+        if (typeof supaAccess === 'string') {
+          token = supaAccess;
+          localStorage.setItem('pacific_access_token', supaAccess);
+        }
+      }
+    } catch {}
+  }
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }

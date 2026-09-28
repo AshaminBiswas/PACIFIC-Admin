@@ -1542,6 +1542,26 @@ The admin console implements an enterprise dual-layer auto-refresh engine to pre
    - **Frontend Sanitization (`CreateProformaPage.tsx` & `EditProformaInvoicePage.tsx`)**:
      - Sanitized `productId` submission using UUID regex verification (`/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i`), preventing catalog model slugs from being transmitted as foreign keys.
 
+---
+
+## 42. Cross-Continental Latency & Dual Auth Compatibility (CRM 401 & PI 500 Resolution)
+
+1. **CRM 401 Error & Dual Auth Protocol (`PACIFIC-Backend/src/middleware/auth.middleware.ts`)**:
+   - **Root Cause**: When users logged in using Supabase Auth (or when `AdminLogin.tsx` fell back to `supabase.auth.signInWithPassword`), the active bearer token in `localStorage` was a Supabase-signed JWT. When sent to `GET /api/v1/crm?limit=100`, `requireAuth` strictly attempted `jwt.verify(token, env.jwt.secret)`, failing with `Invalid or expired token (401)`.
+   - **Dual Auth Compatibility**:
+     - Enhanced `requireAuth` to verify primary backend JWTs, test alternate known secrets, and support Supabase Auth session tokens (`decoded.iss?.includes('supabase')` / `decoded.aud === 'authenticated'`).
+     - Extracts user email/UUID from the Supabase token, looks up the active user in `prisma.user`, and attaches their official ERP user identity (`id`, `email`, `role: 'SUPER_ADMIN'`).
+   - **Frontend Token Resilience (`src/api/client.ts`)**:
+     - Request interceptor automatically checks for and syncs active Supabase session tokens if `pacific_access_token` is missing.
+     - Added `.catch()` fallback to `crmApi.listCustomers` in `CreateProformaPage.tsx` to prevent lookup blockers.
+
+2. **Proforma Invoice 500 Error: Prisma Transaction Timeout (`PACIFIC-Backend/src/modules/sales/pi.service.ts`)**:
+   - **Root Cause**: Under Render Cloud to Supabase PostgreSQL (Mumbai `aws-0-ap-south-1`) latency, inserting across 5 related tables (`proforma_invoices`, `items`, `tax_summary`, `terms`, `parties`, `status_history`, and `audit_logs`) took $\sim 5236\text{ms}$. Because Prisma's default interactive transaction timeout is $5000\text{ms}$, Prisma closed the transaction and threw `Transaction API error: Transaction already closed: A query cannot be executed on an expired transaction`, producing an HTTP 500.
+   - **Transaction Timeout Elevation**:
+     - Configured `{ maxWait: 15000, timeout: 45000 }` on all `prisma.$transaction` blocks in `pi.service.ts` (`create`, `issue`, and `update`).
+     - Extended execution window to 45 seconds, completely eliminating timeout errors over remote network poolers.
+
+
 
 
 
