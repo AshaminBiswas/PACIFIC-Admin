@@ -1419,5 +1419,48 @@ The admin console implements an enterprise dual-layer auto-refresh engine to pre
    - Removed the `"Quick Boilerplate Presets"` toolbar (`Standard Cubicle`, `Urinal Partition`, `Hpl Locker`) and the `applyBoilerplatePreset` helper function across `CreateSalesOrderPage.tsx`, `CreateProformaPage.tsx`, `EditSalesOrderPage.tsx`, and `EditProformaInvoicePage.tsx`.
    - Line items are cleanly added via **"Add Item Row"** and configured using catalog product model presets.
 
+---
+
+## 35. Cloud & Render Deployment Resolution (`PACIFIC-Backend`)
+
+1. **Root Cause Analysis of `Error: Cannot find module '/opt/render/project/src/dist/server.js'`**:
+   - Render defaults its Node service Build Command to `npm install` (or `yarn`), which only downloads packages and skips running `npm run build` (`prisma generate && tsc`).
+   - Because `dist/` is git-ignored, Render was attempting to execute the start command (`node dist/server.js`) without compiling TypeScript source into `dist/server.js`.
+   - In production environments where `NODE_ENV=production`, `npm install` skips `devDependencies`, which could also lead to missing `tsc` or `prisma` binaries during build time.
+
+2. **Resolution Applied in Codebase**:
+   - **Production Dependencies**: Moved `prisma` and `typescript` from `devDependencies` into `dependencies` in `PACIFIC-Backend/package.json` to guarantee their availability on cloud container runners even with `NODE_ENV=production`.
+   - **Infrastructure as Code**: Added `render.yaml` defining:
+     - `buildCommand: npm install && npm run build`
+     - `startCommand: npm start` (which executes `node src/scripts/fix-db.js && node dist/server.js`)
+     - `runtime: node`
+
+3. **Required Render Dashboard Settings**:
+   - **Build Command**: `npm install && npm run build`
+   - **Start Command**: `npm start`
+
+---
+
+## 36. Render Cloud API Integration & Enhanced CORS Policy
+
+1. **Admin Panel Endpoint Alignment (`PACIFIC-Admin`)**:
+   - Set backend URL target to `https://pacific-backend-psuw.onrender.com/api/v1` in:
+     - `src/api/client.ts`: Updated default fallback `API_URL` to `https://pacific-backend-psuw.onrender.com/api/v1`.
+     - `.env`: `VITE_API_URL="https://pacific-backend-psuw.onrender.com/api/v1"`.
+     - `.env.example`: `VITE_API_URL=https://pacific-backend-psuw.onrender.com/api/v1`.
+   - Also updated storefront environment configs (`d:\frontend\.env`, `.env.production`, `.env.example`) to match the new cloud backend endpoint.
+
+2. **Backend CORS Architecture (`PACIFIC-Backend`)**:
+   - Enhanced `corsOptions` in `src/app.ts` to dynamically support:
+     - All localhost / 127.0.0.1 development ports (`http://localhost:*`, `http://127.0.0.1:*`).
+     - All Vercel preview & production deployments (`https://*.vercel.app`).
+     - All Render cloud services (`https://*.onrender.com`).
+     - All Netlify deployments (`https://*.netlify.app`).
+     - Configured `ALLOWED_ORIGINS` with dynamic origin echoing for credentials support (`credentials: true`).
+     - Extended `allowedHeaders` with `Cache-Control`, `X-Refresh-Token`, `x-client-info`, `Pragma`, `Range`.
+     - Synchronized `render.yaml` with `ALLOWED_ORIGINS` and recompiled `dist/`.
+
+
+
 
 

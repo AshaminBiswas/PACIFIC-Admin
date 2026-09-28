@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api/v1';
+export const API_URL = import.meta.env.VITE_API_URL || 'https://pacific-backend-psuw.onrender.com/api/v1';
 
 export const apiClient = axios.create({
   baseURL: API_URL,
