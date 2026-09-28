@@ -1460,6 +1460,19 @@ The admin console implements an enterprise dual-layer auto-refresh engine to pre
      - Extended `allowedHeaders` with `Cache-Control`, `X-Refresh-Token`, `x-client-info`, `Pragma`, `Range`.
      - Synchronized `render.yaml` with `ALLOWED_ORIGINS` and recompiled `dist/`.
 
+---
+
+## 37. Modern TypeScript 5/6 Migration: Deprecated `baseUrl` Removal
+
+1. **Resolution of TypeScript 7.0 Deprecation Warning**:
+   - In modern TypeScript (starting TS 5.0+ and preparing for TS 7.0), `baseUrl` has been deprecated when using `"moduleResolution": "bundler"`.
+   - Updated `d:/PACIFIC-Admin/tsconfig.json`:
+     - Removed `"baseUrl": "."`
+     - Updated path mappings to direct relative syntax: `"@/*": ["./src/*"]`
+   - Preserved all strict compiler checks and full Vite path resolution compatibility.
+   - Both `npx tsc --noEmit` and `npm run build` pass with zero errors and zero deprecation warnings.
+
+
 
 
 
