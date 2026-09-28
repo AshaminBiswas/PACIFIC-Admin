@@ -1119,12 +1119,21 @@ export default function ProformaInvoiceDetailPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => {
+                    const iframe = document.getElementById('pi-detail-pdf-iframe') as HTMLIFrameElement;
+                    if (iframe && iframe.contentWindow) {
+                      iframe.contentWindow.focus();
+                      iframe.contentWindow.print();
+                      return;
+                    }
                     const printWindow = window.open('', '_blank');
                     if (printWindow) {
+                      printWindow.document.open();
                       printWindow.document.write(pdfHtml);
                       printWindow.document.close();
                       printWindow.focus();
-                      printWindow.print();
+                      setTimeout(() => {
+                        printWindow.print();
+                      }, 500);
                     }
                   }}
                   className="px-3 py-1.5 bg-[#7FB706] text-[#030213] text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-md shadow-[#7FB706]/20"
@@ -1148,6 +1157,7 @@ export default function ProformaInvoiceDetailPage() {
                 </div>
               ) : (
                 <iframe
+                  id="pi-detail-pdf-iframe"
                   title="PDF Preview"
                   srcDoc={pdfHtml}
                   className="w-full h-full border-0 shadow-lg max-w-[210mm] min-h-[297mm]"

@@ -1561,6 +1561,38 @@ The admin console implements an enterprise dual-layer auto-refresh engine to pre
      - Configured `{ maxWait: 15000, timeout: 45000 }` on all `prisma.$transaction` blocks in `pi.service.ts` (`create`, `issue`, and `update`).
      - Extended execution window to 45 seconds, completely eliminating timeout errors over remote network poolers.
 
+---
+
+## 43. Proforma Invoice PDF Optimization: Logo Data URI, Redundant Hardware Text Removal & QR Code Print Resilience
+
+1. **Embedded Company Logo Resilience across Cloud Containers (`pdf.service.ts` & `defaultLogo.ts`)**:
+   - **Root Cause of Missing Logo on Render**: `resolveCompanyLogoDataUri()` checked local disk paths relative to `../PACIFIC-Admin/public/pacific_logo.png` or `d:/PACIFIC-Admin/public/pacific_logo.png`. Because `PACIFIC-Backend` is deployed independently on Render Cloud Linux containers (`/opt/render/project/src`), the sibling admin directory does not exist, causing `resolveCompanyLogoDataUri` to return an empty string and omitting the `<img alt="Logo" ...>` tag.
+   - **Compiled Base64 Data URI Integration (`src/modules/pdf/defaultLogo.ts`)**:
+     - Copied `pacific_logo.png` into `assets/pacific_logo.png` inside the backend repository.
+     - Generated `DEFAULT_PACIFIC_LOGO_DATA_URI` as a compiled TypeScript constant, guaranteeing that the official Pacific Restroom Cubicles logo is permanently bundled in memory.
+     - `resolveCompanyLogoDataUri()` now checks filesystem candidate paths and reliably falls back to `DEFAULT_PACIFIC_LOGO_DATA_URI`, guaranteeing 100% logo presence in PI, Tax Invoice, Sales Order, Packing List, and Hardware Issue PDFs on Render Cloud.
+
+2. **Removal of Redundant "Standard Inclusions & Hardware Accessories" Text (`pdf.service.ts`)**:
+   - **Context**: Since hardware components are now extracted and listed as individual, priced line items with distinct HSN (`8302`), units, and rates in the items table, the legacy hardcoded fallback `"Standard SS 304 Grade Hardware Package: Gravity Hinges with Nylon Bushing..."` duplicated information and cluttered the PDF.
+   - **Resolution**:
+     - Removed hardcoded SS 304 fallback from `rawAccessoriesText` in both `generatePiHtml` and `generateSoHtml`.
+     - The "Standard Inclusions & Hardware Accessories" section only renders if `data.accessoriesText` is explicitly supplied and does not match the legacy boilerplate string. When individual line items are used, the redundant block is omitted.
+
+3. **QR Code Verification Generation & Print/Download Visibility (`pi.service.ts` & `pdf.service.ts`)**:
+   - **QR Code Data URI Resilience (`pi.service.ts`)**:
+     - Wrapped `qrService.getOrCreateDocumentQr` with an inline `try-catch` and fallback to `QRCode.toDataURL(...)`. If database verification token lookup encounters a network delay, an inline base64 QR code data URI (`data:image/png;base64,...`) pointing to `/verify/<piNumber>` is immediately generated on the fly.
+   - **Print Color Adjust & High-Contrast CSS (`pdf.service.ts`)**:
+     - Added `-webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;` to `@media print` body and `img` elements.
+     - Enhanced `<img src="${data.qrDataUrl}" ... />` with `image-rendering: -webkit-optimize-contrast; image-rendering: pixelated;` and explicit print visibility so browser print preview and "Save as PDF" drivers preserve the QR bitmap without clipping or blank rendering.
+
+4. **Frontend Iframe-Direct Print & Download Execution (`ProformaInvoiceDetailPage.tsx` & `ProformaInvoicesPage.tsx`)**:
+   - **Root Cause of Missing QR in Print / Save PDF**: In `window.open('', '_blank')`, `printWindow.print()` was executed immediately after `document.write(pdfHtml)` before browser renderer bitmap decoding could complete for inline base64 image elements.
+   - **Iframe-Direct Printing**:
+     - Assigned unique IDs (`pi-detail-pdf-iframe` and `pi-list-pdf-iframe`) to the modal preview iframes.
+     - When the user clicks "Print / Save PDF", the handler prints directly from `iframe.contentWindow.print()` where the PDF HTML, logo, and QR code are already decoded and rendered on-screen.
+     - Added a 500ms bitmap decoding buffer to popup window fallback to ensure images are fully decoded before triggering print.
+
+
 
 
 

@@ -396,12 +396,21 @@ export default function ProformaInvoicesPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => {
+                    const iframe = document.getElementById('pi-list-pdf-iframe') as HTMLIFrameElement;
+                    if (iframe && iframe.contentWindow) {
+                      iframe.contentWindow.focus();
+                      iframe.contentWindow.print();
+                      return;
+                    }
                     const printWindow = window.open('', '_blank');
                     if (printWindow) {
+                      printWindow.document.open();
                       printWindow.document.write(pdfHtml);
                       printWindow.document.close();
                       printWindow.focus();
-                      printWindow.print();
+                      setTimeout(() => {
+                        printWindow.print();
+                      }, 500);
                     }
                   }}
                   className="px-3 py-1.5 bg-[#7FB706] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer"
@@ -418,6 +427,7 @@ export default function ProformaInvoicesPage() {
             </div>
             <div className="flex-1 bg-neutral-900 p-2 sm:p-4 overflow-auto flex justify-center">
               <iframe
+                id="pi-list-pdf-iframe"
                 title="PI PDF Preview"
                 srcDoc={pdfHtml}
                 className="w-full max-w-[850px] h-full bg-white rounded-lg shadow-2xl border border-neutral-700"
