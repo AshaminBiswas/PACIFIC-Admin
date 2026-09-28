@@ -1490,3 +1490,17 @@ The admin console implements an enterprise dual-layer auto-refresh engine to pre
      - `.env`: Updated environment configurations.
    - Recompiled `dist/` with `npx tsc` and pushed to GitHub `AshaminBiswas/PACIFIC-Backend` (`main`).
 
+---
+
+## 39. Mobile Bottom Navigation Dock: Restroom Board Stock Quick Action
+
+1. **Center Action Replacement (`AdminLayout.tsx`)**:
+   - Replaced legacy elevated center floating trigger (`Scan QR` / `QrCode` pointing to `/admin/dashboard/qr-center`) with a dedicated **Restroom Board Stock** trigger.
+   - **Route**: Links directly to `/admin/dashboard/inventory/boards` (`BoardInventoryPage`).
+   - **Icon**: `Layers` (`lucide-react`), aligned with the rest of the application's Restroom Boards inventory branding.
+   - **Design & Ergonomics**:
+     - Preserves elevated floating pill styling (`w-13 h-13 rounded-2xl bg-gradient-to-tr from-[#7FB706] to-[#B5F823] text-[#030213] -mt-6`).
+     - Active route highlighting: When on `/admin/dashboard/inventory/boards`, the button gains an enhanced vibrant gradient (`from-[#8fd307] to-[#d4ff4d] ring-2 ring-[#B5F823] shadow-[#7FB706]/60`) and text switches to `#B5F823`.
+     - Explicit label: `Board Stock` in bold 10px type with touch target $\ge 44\text{px}$.
+
+

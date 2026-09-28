@@ -8,7 +8,7 @@ import { useAdminAuth } from '../../context/AdminAuthContext';
 import {
   LayoutDashboard,
   Users,
-  QrCode,
+  Layers,
   Receipt,
   CreditCard,
   Clock,
@@ -202,15 +202,31 @@ export const AdminLayout: React.FC = () => {
           <span>CRM</span>
         </Link>
 
-        {/* Elevated Floating Scan QR Trigger */}
+        {/* Elevated Floating Restroom Board Stock Trigger */}
         <Link
-          to="/admin/dashboard/qr-center"
+          to="/admin/dashboard/inventory/boards"
           className="flex flex-col items-center -mt-6 group"
+          title="Restroom Board Stock"
+          aria-label="Restroom Board Stock"
         >
-          <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-[#7FB706] to-[#B5F823] text-[#030213] flex items-center justify-center shadow-lg shadow-[#7FB706]/40 group-active:scale-95 transition-transform p-3">
-            <QrCode className="w-7 h-7 stroke-[2.5]" />
+          <div
+            className={`w-13 h-13 rounded-2xl flex items-center justify-center shadow-lg group-active:scale-95 transition-all p-3 ${
+              isActive('/admin/dashboard/inventory/boards')
+                ? 'bg-gradient-to-tr from-[#8fd307] to-[#d4ff4d] text-[#030213] ring-2 ring-[#B5F823] shadow-[#7FB706]/60'
+                : 'bg-gradient-to-tr from-[#7FB706] to-[#B5F823] text-[#030213] shadow-[#7FB706]/40'
+            }`}
+          >
+            <Layers className="w-7 h-7 stroke-[2.5]" />
           </div>
-          <span className="text-[10px] font-bold text-[#7FB706] mt-1">Scan QR</span>
+          <span
+            className={`text-[10px] font-bold mt-1 text-center whitespace-nowrap transition ${
+              isActive('/admin/dashboard/inventory/boards')
+                ? 'text-[#B5F823]'
+                : 'text-[#7FB706]'
+            }`}
+          >
+            Board Stock
+          </span>
         </Link>
 
         <Link
