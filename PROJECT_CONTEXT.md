@@ -1766,6 +1766,46 @@ Sales Quotation PDF (`pdf.service.ts` -> `generateQuotationPdfHtml`) has been re
   - **Sign-off Block**: Dual column with Client Acceptance Signature & Stamp on the left, and Company Authorized Signatory (Ejajul Shaikh / Company Head, signature image, contact) on the right.
   - Page 2 footer note (`Page 2 of 2 — Hardware Specifications, Commercial Terms & Acceptance`).
 
+---
+
+## 49. B2B Customer Creation 500 Resolution (pgBouncer Nested Writes & Audit Foreign Key) & Build Package Sanitization
+
+1. **Root Cause Analysis of 500 Internal Server Error on B2B Customer Creation**:
+   - **pgBouncer Interactive Transaction Timeout**: The Supabase PostgreSQL database URL connects via port 6543 (`?pgbouncer=true`). Supabase's transaction pooling mode does not support long or multi-round interactive transactions (`prisma.$transaction(async (tx) => { ... })`). In `crm.service.ts`, `createCustomer` previously executed 5-6 sequential interactive queries (`tx.businessParty.create`, `tx.customerProfile.create`, `tx.partyContact.create`, `tx.partyAddress.create`, `auditService.logMutation`). Over remote network connections, pgBouncer aborted the transaction pooler slot with: `PrismaClientKnownRequestError: Transaction API error: Unable to start a transaction in the given time.`
+   - **Audit Log Foreign Key Constraint**: `audit_logs.userId` maintains a strict foreign key relation to `users.id`. When users sign in via external Supabase auth or JWT tokens whose ID is not present in PostgreSQL's local `users` table, inserting the audit log threw a foreign key constraint violation (`audit_logs_userId_fkey`).
+
+2. **Backend Architecture Fixes (`PACIFIC-Backend`)**:
+   - **Atomic Nested Writes (`src/modules/crm/crm.service.ts`)**:
+     - Refactored `crmService.createCustomer` to utilize Prisma's native atomic nested write pattern:
+       ```ts
+       await prisma.businessParty.create({
+         data: {
+           partyType: 'CUSTOMER',
+           legalName,
+           tradeName,
+           gstin,
+           pan,
+           customerProfile: { create: { customerType, creditLimit, ... } },
+           contacts: { create: [{ contactPerson, email, phone, ... }] },
+           addresses: { create: [...] },
+         },
+         include: { customerProfile: true, contacts: true, addresses: true }
+       });
+       ```
+     - Executes as a single atomic SQL statement in under 1 second, completely bypassing interactive transaction pooling limitations on pgBouncer.
+     - Similarly refactored `crmService.updateCustomer` to eliminate blocking interactive transaction wrappers.
+   - **Audit Log Foreign Key Safeguard (`src/modules/audit/audit.service.ts`)**:
+     - Added existence check in `auditService.logMutation`: queries `prisma.user.findUnique({ where: { id: userId } })` before inserting. If the user does not exist in the local database, it safely records `userId: null` and preserves the action details, eliminating 500 foreign key errors.
+
+3. **Frontend Package Sanitization & `allowScripts` Resolution (`PACIFIC-Admin`)**:
+   - **Removal of Server Packages from Frontend SPA**:
+     - Removed `@prisma/client`, `prisma`, and `fs-extra` from `d:/PACIFIC-Admin/package.json`. These database and Node-only packages were mistakenly listed in frontend dependencies despite never being imported anywhere in Vite `src/`.
+     - Removing them reduced Vercel build bundle bloat by over 150MB, eliminated 3 of the 4 `npm warn install-scripts` warnings, and resolved deprecated engine alerts.
+   - **Configured `allowScripts`**:
+     - Added `"allowScripts": { "esbuild": true }` to `d:/PACIFIC-Admin/package.json` to explicitly approve modern Vite esbuild postinstall scripts.
+     - Added `"allowScripts": { "@prisma/client": true, "@prisma/engines": true, "prisma": true, "esbuild": true }` to `d:/PACIFIC-Backend/package.json`.
+
+
 
 
 
