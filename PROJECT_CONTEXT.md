@@ -1683,6 +1683,66 @@ The admin console implements an enterprise dual-layer auto-refresh engine to pre
      - Preserves all saved technical specifications (`boardType`, `boardThickness`, `boardColor`, `cubicleSize`, `doorSize`, `overallHeight`, `hardwarePackage`, `rate`, `quantity`, `unit`), falling back to catalog model defaults only when fields are unpopulated.
      - Auto-expands individual hardware line items if editing a legacy PI where hardware was not previously itemized.
 
+---
+
+## 47. Optional UMP & Locker Sections in Quotation and PI Pages
+
+All four document-creation pages (`CreateProformaPage`, `EditProformaInvoicePage`, `DraftQuotationPage`, `EditSalesQuotationPage`) now feature three structured sections inside the "Line Items" card:
+
+### Section Structure (all four pages)
+
+| Section | Theme | Description |
+|---------|-------|-------------|
+| **Item #1 (Primary System)** | Green `#7FB706` | Always shown. Cubicle model selector + unit/qty/rate + technical specs. |
+| **Optional Section #2 — UMP** | Cyan `cyan-500` | Collapsible. Appears with full form only when a UMP model is selected. |
+| **Optional Section #3 — Locker** | Purple `purple-500` | Collapsible. Appears with full form only when a Locker model is selected. |
+| **Additional Cubicle Systems** | Green `#7FB706` | Any extra items added via "Add Item" button. |
+
+### Key Interfaces
+
+- **`CreateItem`** (PI pages) / **`EditItem`** (Quotation pages): Both now include:
+  ```ts
+  systemCategory?: 'cubicle' | 'ump' | 'locker';
+  ```
+  This is a **frontend-only** field — not a DB column. It persists via `customSpecsJson.systemCategory` in the API payload.
+
+### Handlers Added (all four pages)
+
+- **`handleSelectUmpModel(modelId: string)`** — Selects a UMP model, auto-populates specs from `extractModelDimensions()`, updates `accessoriesText` (Quotation pages) or adds hardware items (PI pages).
+- **`handleUmpFieldChange(field, val)`** — Updates UMP item's individual field without disturbing cubicle or locker items.
+- **`handleSelectLockerModel(modelId: string)`** — Same as above but for Locker category.
+- **`handleLockerFieldChange(field, val)`** — Updates Locker item's individual field.
+- **`buildQuotationAccessoriesText(primaryModel?, umpModel?, lockerModel?)`** — Quotation-page helper that composes the `accessoriesText` textarea content with category-aware section headers (e.g., `--- RESTROOM CUBICLE HARDWARE ---`, `--- URINAL MODESTY PARTITION HARDWARE ---`, `--- MODULAR LOCKER HARDWARE ---`).
+
+### `DEFAULT_ACCESSORIES_TEXT` Constant
+Defined at module level in `DraftQuotationPage.tsx` and `EditSalesQuotationPage.tsx`. Provides a fallback hardware inclusions text when no model is selected, ensuring the accessoriesText field is never empty.
+
+### getMergedQuotationModels Usage
+All four pages now call `getMergedQuotationModels(models || [])` when loading catalog models. This merges API models with static built-in presets, ensuring the model dropdown is always populated even if the API fails.
+
+### systemCategory Detection on Load (Edit Pages)
+`EditProformaInvoicePage.tsx` and `EditSalesQuotationPage.tsx` detect `systemCategory` from `customSpecsJson.systemCategory` when loading existing records. Falls back to keyword detection:
+- Contains `"locker"` → `'locker'`
+- Contains `"urinal"` or `"ump"` → `'ump'`
+- Otherwise → `'cubicle'`
+
+### PDF Output
+Backend `pdf.service.ts` uses `systemCategory` from `customSpecsJson` (passed as `item.customSpecsJson?.systemCategory`) to render category-aware labels in both Quotation PDF and PI PDF:
+- **Cubicle items**: "Restroom Cubicle System" heading
+- **UMP items**: "Urinal Modesty Partition" heading
+- **Locker items**: "Modular Locker System" heading
+- **Hardware items**: grouped under their parent category with badge labels
+
+### Files Changed
+| File | Change |
+|------|--------|
+| `src/pages/CreateProformaPage.tsx` | UMP/Locker sections, handlers, hardware items |
+| `src/pages/EditProformaInvoicePage.tsx` | UMP/Locker sections, handlers, hardware items |
+| `src/pages/DraftQuotationPage.tsx` | UMP/Locker sections, handlers, accessoriesText builder |
+| `src/pages/EditSalesQuotationPage.tsx` | UMP/Locker sections, handlers, accessoriesText builder |
+| `src/utils/quotationProductPresets.ts` | Source of model data, `getMergedQuotationModels`, `extractModelDimensions`, `formatModelHardwareInclusions`, `extractModelHardwareItems` |
+
+
 
 
 

@@ -18,6 +18,7 @@ import { calculateGstSplit } from '../utils/tax';
 interface EditItem {
   id?: string;
   modelId?: string;
+  systemCategory?: 'cubicle' | 'ump' | 'locker';
   description: string;
   unit: string;
   quantity: number;
@@ -60,6 +61,9 @@ interface EditFormData {
   items: EditItem[];
 }
 
+
+const DEFAULT_ACCESSORIES_TEXT = '• Gravity Hinges: Self-closing SS 304 stainless steel gravity hinges with nylon cam mechanism.\n• Indicator Lock: SS 304 surface-mounted privacy lock with external red/white occupancy indicator and emergency release.\n• Supporting Shoe/Legs: SS 304 adjustable height support legs (100mm to 150mm ground clearance).\n• Coat Hook: SS 304 heavy-duty coat hook with integrated rubber door buffer.\n• Fasteners: Grade 304 stainless steel tamper-proof screws and expanding anchors.';
+
 function getStorageKey(id: string) {
   return `pacific_edit_quotation_v1_${id}`;
 }
@@ -92,8 +96,8 @@ export default function EditSalesQuotationPage() {
   useEffect(() => {
     productCatalogApi
       .listModels()
-      .then((models) => setCatalogModels(models || []))
-      .catch(() => setCatalogModels([]));
+      .then((models) => setCatalogModels(getMergedQuotationModels(models || [])))
+      .catch(() => setCatalogModels(getMergedQuotationModels([])));
   }, []);
 
   const [form, setForm] = useState<EditFormData>({
@@ -179,6 +183,9 @@ export default function EditSalesQuotationPage() {
             doorSize: it.doorSize || '',
             overallHeight: it.overallHeight || '',
             hardwarePackage: it.hardwarePackage || it.customSpecsJson?.hardwarePackage || '',
+            systemCategory: (it.customSpecsJson?.systemCategory) ||
+              (it.description && it.description.toLowerCase().includes('locker') ? 'locker' :
+               it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump')) ? 'ump' : 'cubicle'),
             customSpecsJson: it.customSpecsJson,
           })),
         };
@@ -335,6 +342,7 @@ export default function EditSalesQuotationPage() {
       nextItems[idx] = {
         ...nextItems[idx],
         modelId: selected.id,
+        systemCategory: 'cubicle' as const,
         description: `Pacific ${selected.title} (${selected.category})`,
         cubicleSize: dims.cubicleSize,
         doorSize: dims.doorSize,
@@ -354,6 +362,136 @@ export default function EditSalesQuotationPage() {
 
     clearFieldError(`item_${idx}_desc`);
   };
+
+
+  function buildQuotationAccessoriesText(
+    primaryModel?: ProductCatalogModel,
+    umpModel?: ProductCatalogModel,
+    lockerModel?: ProductCatalogModel
+  ): string {
+    const parts: string[] = [];
+    if (umpModel || lockerModel) {
+      if (primaryModel) {
+        parts.push(`--- RESTROOM CUBICLE HARDWARE (${primaryModel.title.toUpperCase()}) ---\n${formatModelHardwareInclusions(primaryModel)}`);
+      } else {
+        parts.push(`--- RESTROOM CUBICLE HARDWARE ---\n${DEFAULT_ACCESSORIES_TEXT}`);
+      }
+      if (umpModel) {
+        parts.push(`--- URINAL MODESTY PARTITION HARDWARE (${umpModel.title.toUpperCase()}) ---\n${formatModelHardwareInclusions(umpModel)}`);
+      }
+      if (lockerModel) {
+        parts.push(`--- MODULAR LOCKER HARDWARE (${lockerModel.title.toUpperCase()}) ---\n${formatModelHardwareInclusions(lockerModel)}`);
+      }
+    } else {
+      parts.push(primaryModel ? formatModelHardwareInclusions(primaryModel) : DEFAULT_ACCESSORIES_TEXT);
+    }
+    return parts.join('\n\n');
+  }
+
+  const handleSelectUmpModel = (modelId: string) => {
+    if (!modelId) {
+      setForm((f) => {
+        const nextItems = f.items.filter((it) => it.systemCategory !== 'ump' && !(it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump'))));
+        const primaryItem = nextItems.find((it) => it.systemCategory !== 'locker') || nextItems[0];
+        const primaryModel = catalogModels.find((m) => m.id === primaryItem?.modelId);
+        const lockerItem = nextItems.find((it) => it.systemCategory === 'locker');
+        const lockerModel = catalogModels.find((m) => m.id === lockerItem?.modelId);
+        return { ...f, items: nextItems, accessoriesText: buildQuotationAccessoriesText(primaryModel, undefined, lockerModel) };
+      });
+      return;
+    }
+    const selected = urinalModels.find((m) => m.id === modelId || m.slug === modelId) || catalogModels.find((m) => m.id === modelId);
+    if (!selected) return;
+    const dims = extractModelDimensions(selected);
+    setForm((f) => {
+      const existingUmp = f.items.find((it) => it.systemCategory === 'ump' || (it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump'))));
+      const updatedUmpItem: EditItem = {
+        modelId: selected.id,
+        systemCategory: 'ump',
+        description: `Pacific ${selected.title} (Urinal Partitions)`,
+        quantity: existingUmp ? Number(existingUmp.quantity) || 1 : 1,
+        unit: existingUmp?.unit || 'NOS',
+        rate: existingUmp && existingUmp.rate > 0 ? existingUmp.rate : 5500,
+        boardType: dims.boardType || 'HPL',
+        boardThickness: dims.boardThickness || '12mm',
+        boardColor: existingUmp?.boardColor || 'D.No. 123 – Oyster White',
+        cubicleSize: dims.cubicleSize || '450mm W × 900mm H',
+        doorSize: 'N/A',
+        overallHeight: dims.overallHeight || '1200mm',
+        hardwarePackage: dims.hardwarePackage || 'Grade 304 Wall Mount Cantilever Clamps',
+      };
+      const remainingItems = f.items.filter((it) => it !== existingUmp && it.systemCategory !== 'ump');
+      const nextItems = [...remainingItems, updatedUmpItem];
+      const primaryItem = nextItems.find((it) => it.systemCategory !== 'ump' && it.systemCategory !== 'locker') || nextItems[0];
+      const primaryModel = catalogModels.find((m) => m.id === primaryItem?.modelId);
+      const lockerItem = nextItems.find((it) => it.systemCategory === 'locker');
+      const lockerModel = catalogModels.find((m) => m.id === lockerItem?.modelId);
+      return { ...f, items: nextItems, accessoriesText: buildQuotationAccessoriesText(primaryModel, selected, lockerModel) };
+    });
+  };
+
+  const handleUmpFieldChange = (field: keyof EditItem, val: any) => {
+    setForm((f) => {
+      const idx = f.items.findIndex((it) => it.systemCategory === 'ump' || (it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump'))));
+      if (idx === -1) return f;
+      const nextItems = [...f.items];
+      nextItems[idx] = { ...nextItems[idx], [field]: val };
+      return { ...f, items: nextItems };
+    });
+  };
+
+  const handleSelectLockerModel = (modelId: string) => {
+    if (!modelId) {
+      setForm((f) => {
+        const nextItems = f.items.filter((it) => it.systemCategory !== 'locker' && !(it.description && it.description.toLowerCase().includes('locker')));
+        const primaryItem = nextItems.find((it) => it.systemCategory !== 'ump') || nextItems[0];
+        const primaryModel = catalogModels.find((m) => m.id === primaryItem?.modelId);
+        const umpItem = nextItems.find((it) => it.systemCategory === 'ump');
+        const umpModel = catalogModels.find((m) => m.id === umpItem?.modelId);
+        return { ...f, items: nextItems, accessoriesText: buildQuotationAccessoriesText(primaryModel, umpModel, undefined) };
+      });
+      return;
+    }
+    const selected = lockerModels.find((m) => m.id === modelId || m.slug === modelId) || catalogModels.find((m) => m.id === modelId);
+    if (!selected) return;
+    const dims = extractModelDimensions(selected);
+    setForm((f) => {
+      const existingLocker = f.items.find((it) => it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker')));
+      const updatedLockerItem: EditItem = {
+        modelId: selected.id,
+        systemCategory: 'locker',
+        description: `Pacific ${selected.title} (Lockers)`,
+        quantity: existingLocker ? Number(existingLocker.quantity) || 1 : 1,
+        unit: existingLocker?.unit || 'NOS',
+        rate: existingLocker && existingLocker.rate > 0 ? existingLocker.rate : 14500,
+        boardType: dims.boardType || 'HPL',
+        boardThickness: dims.boardThickness || '12mm',
+        boardColor: existingLocker?.boardColor || 'D.No. 123 – Oyster White',
+        cubicleSize: dims.cubicleSize || '300mm W × 450mm D × 1800mm H',
+        doorSize: dims.doorSize || 'Tier Modular Doors as per drawing',
+        overallHeight: dims.overallHeight || '1900mm',
+        hardwarePackage: dims.hardwarePackage || 'Heavy-Duty Uniform Standard Locker Hardware',
+      };
+      const remainingItems = f.items.filter((it) => it !== existingLocker && it.systemCategory !== 'locker');
+      const nextItems = [...remainingItems, updatedLockerItem];
+      const primaryItem = nextItems.find((it) => it.systemCategory !== 'ump' && it.systemCategory !== 'locker') || nextItems[0];
+      const primaryModel = catalogModels.find((m) => m.id === primaryItem?.modelId);
+      const umpItem = nextItems.find((it) => it.systemCategory === 'ump');
+      const umpModel = catalogModels.find((m) => m.id === umpItem?.modelId);
+      return { ...f, items: nextItems, accessoriesText: buildQuotationAccessoriesText(primaryModel, umpModel, selected) };
+    });
+  };
+
+  const handleLockerFieldChange = (field: keyof EditItem, val: any) => {
+    setForm((f) => {
+      const idx = f.items.findIndex((it) => it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker')));
+      if (idx === -1) return f;
+      const nextItems = [...f.items];
+      nextItems[idx] = { ...nextItems[idx], [field]: val };
+      return { ...f, items: nextItems };
+    });
+  };
+
 
   const addItem = () => {
     const defaultHardware = 'SS 304 Stainless Steel (Satin/Brushed)';
@@ -899,215 +1037,300 @@ export default function EditSalesQuotationPage() {
           </div>
         )}
 
-        <div className="space-y-3">
-          {form.items.map((item, idx) => (
-            <div key={idx} className="bg-[#0a0a1a] border border-white/5 rounded-xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-mono text-gray-500">Item #{idx + 1}</span>
-                <button
-                  type="button"
-                  onClick={() => removeItem(idx)}
-                  className="p-1 text-red-400 hover:text-red-300 cursor-pointer transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-3 space-y-1.5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                    <label className={labelCls}>Product Model Selection &amp; Description *</label>
-                    <span className="text-[11px] text-[#7FB706] font-medium flex items-center gap-1">
-                      <Sparkles className="w-3 h-3" /> Auto-fetches hardware list, sizes &amp; height
+        <div className="space-y-5">
+          {(() => {
+            const primaryCubicleItem = form.items.find(
+              (it) => it.systemCategory !== 'ump' && it.systemCategory !== 'locker'
+            ) || form.items[0];
+            const primaryCubicleIdx = primaryCubicleItem ? form.items.indexOf(primaryCubicleItem) : 0;
+
+            const umpItem = form.items.find(
+              (it) => it.systemCategory === 'ump' || (it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump')))
+            );
+
+            const lockerItem = form.items.find(
+              (it) => it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker'))
+            );
+
+            const additionalCubicleItems = form.items.filter(
+              (it, i) => i !== primaryCubicleIdx && it !== umpItem && it !== lockerItem
+            );
+
+            return (
+              <>
+                {/* ── PRIMARY CUBICLE SYSTEM ── */}
+                {primaryCubicleItem && (
+                  <div className="bg-[#0a0a1a] border border-[#7FB706]/40 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-[#7FB706]">Item #1 (Primary System)</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/30 flex items-center gap-1">
+                        <Layers className="w-3 h-3 text-[#7FB706]" /> Cubicle Model System
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="sm:col-span-3 space-y-1.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                          <label className={labelCls}>Product Model Selection &amp; Description *</label>
+                          <span className="text-[11px] text-[#7FB706] font-medium flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" /> Auto-fetches hardware list, sizes &amp; height
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <select
+                            value={primaryCubicleItem.modelId || ''}
+                            onChange={(e) => handleSelectModel(primaryCubicleIdx, e.target.value)}
+                            className={inputCls + ' bg-[#161536] border-[#7FB706]/40 font-semibold'}
+                          >
+                            <option value="">-- Choose Product Model --</option>
+                            {cubicleModels.length > 0 && (
+                              <optgroup label="Restroom Cubicles (13 Models)">
+                                {cubicleModels.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
+                              </optgroup>
+                            )}
+                            <option value="CUSTOM">Custom / Manual Description</option>
+                          </select>
+                          <input
+                            type="text"
+                            value={primaryCubicleItem.description}
+                            onChange={(e) => { handleItemChange(primaryCubicleIdx, 'description', e.target.value); clearFieldError(`item_${primaryCubicleIdx}_desc`); }}
+                            placeholder="Description (auto-filled on model select)"
+                            className={getInputCls(`item_${primaryCubicleIdx}_desc`)}
+                            required
+                          />
+                        </div>
+                        {fieldErrors[`item_${primaryCubicleIdx}_desc`] && <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${primaryCubicleIdx}_desc`]}</p>}
+                      </div>
+
+                      <div>
+                        <label className={labelCls}>Unit</label>
+                        <select value={primaryCubicleItem.unit} onChange={(e) => handleItemChange(primaryCubicleIdx, 'unit', e.target.value)} className={inputCls}>
+                          {['NOS', 'SET', 'SQM', 'MTR', 'RMT', 'LOT'].map((u) => <option key={u} value={u}>{u}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelCls}>Quantity *</label>
+                        <input type="number" min="0.01" step="0.01" value={primaryCubicleItem.quantity} onChange={(e) => { handleItemChange(primaryCubicleIdx, 'quantity', Number(e.target.value) || 0); clearFieldError(`item_${primaryCubicleIdx}_qty`); }} className={getInputCls(`item_${primaryCubicleIdx}_qty`)} required />
+                        {fieldErrors[`item_${primaryCubicleIdx}_qty`] && <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${primaryCubicleIdx}_qty`]}</p>}
+                      </div>
+                      <div>
+                        <label className={labelCls}>Rate (₹) *</label>
+                        <input type="number" min="0" step="0.01" value={primaryCubicleItem.rate} onChange={(e) => { handleItemChange(primaryCubicleIdx, 'rate', Number(e.target.value) || 0); clearFieldError(`item_${primaryCubicleIdx}_rate`); }} className={getInputCls(`item_${primaryCubicleIdx}_rate`)} required />
+                        {fieldErrors[`item_${primaryCubicleIdx}_rate`] && <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${primaryCubicleIdx}_rate`]}</p>}
+                      </div>
+                    </div>
+
+                    <div className="bg-[#121226]/80 border border-white/5 rounded-xl p-3.5 space-y-3">
+                      <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                        <span className="text-xs font-bold text-white flex items-center gap-1.5"><span>⚙️</span> Cubicle Technical Specifications</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <div>
+                          <label className={labelCls}>Board Type *</label>
+                          <select value={primaryCubicleItem.boardType || 'HPL'} onChange={(e) => handleItemChange(primaryCubicleIdx, 'boardType', e.target.value)} className={inputCls}>
+                            <option value="HPL">HPL (High Pressure Compact Laminate)</option>
+                            <option value="HDF">HDF (High Density Fibreboard)</option>
+                          </select>
+                        </div>
+                        <div><label className={labelCls}>Board Thickness</label><input type="text" value={primaryCubicleItem.boardThickness || ''} onChange={(e) => handleItemChange(primaryCubicleIdx, 'boardThickness', e.target.value)} placeholder="e.g. 12mm / 18mm" className={inputCls} /></div>
+                        <div><label className={labelCls}>Board Color</label><input type="text" value={primaryCubicleItem.boardColor || ''} onChange={(e) => handleItemChange(primaryCubicleIdx, 'boardColor', e.target.value)} placeholder="e.g. D.No. 123 – Oyster White" className={inputCls} /></div>
+                        <div><label className={labelCls}>Cubicle Size</label><input type="text" value={primaryCubicleItem.cubicleSize || ''} onChange={(e) => handleItemChange(primaryCubicleIdx, 'cubicleSize', e.target.value)} placeholder="e.g. 1000mm W × 1500mm D" className={inputCls} /></div>
+                        <div><label className={labelCls}>Door Size</label><input type="text" value={primaryCubicleItem.doorSize || ''} onChange={(e) => handleItemChange(primaryCubicleIdx, 'doorSize', e.target.value)} placeholder="e.g. 600mm × 1785mm" className={inputCls} /></div>
+                        <div><label className={labelCls}>Overall Height</label><input type="text" value={primaryCubicleItem.overallHeight || ''} onChange={(e) => handleItemChange(primaryCubicleIdx, 'overallHeight', e.target.value)} placeholder="e.g. 1980mm (incl. 100mm ground clearance)" className={inputCls} /></div>
+                      </div>
+                    </div>
+
+                    <div className="text-right text-xs text-gray-400 font-mono">
+                      Line Total: <span className="font-bold text-white">₹ {((Number(primaryCubicleItem.quantity) || 0) * (Number(primaryCubicleItem.rate) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── OPTIONAL #2: URINAL MODESTY PARTITION ── */}
+                <div className={`rounded-xl p-4 space-y-3 transition-all ${umpItem ? 'bg-[#0a1826] border border-cyan-500/50' : 'bg-[#0a1826]/40 border border-cyan-500/20'}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-cyan-400">Optional Section #2</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                        <Layers className="w-3 h-3 text-cyan-400" /> Urinal Modesty Partition (UMP)
+                      </span>
+                    </div>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${umpItem ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'bg-gray-800 text-gray-400'}`}>
+                      {umpItem ? '✓ Active & Included' : 'Optional / Not Selected'}
                     </span>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <div>
-                      <select
-                        value={item.modelId || ''}
-                        onChange={(e) => handleSelectModel(idx, e.target.value)}
-                        className={inputCls + ' bg-[#161536] border-[#7FB706]/40 text-white font-semibold'}
-                      >
-                        <option value="">-- Choose Product Model --</option>
-                        {cubicleModels.length > 0 && (
-                          <optgroup label="Restroom Cubicles (13 Models)">
-                            {cubicleModels.map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {m.title}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                        {lockerModels.length > 0 && (
-                          <optgroup label="Modular Lockers (7 Models)">
-                            {lockerModels.map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {m.title}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                        {urinalModels.length > 0 && (
-                          <optgroup label="Urinal Partitions (4 Models)">
-                            {urinalModels.map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {m.title}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                        <option value="CUSTOM">Custom / Manual Description</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <input
-                        type="text"
-                        value={item.description}
-                        onChange={(e) => {
-                          handleItemChange(idx, 'description', e.target.value);
-                          clearFieldError(`item_${idx}_desc`);
-                        }}
-                        placeholder="Description (auto-filled on model select)"
-                        className={getInputCls(`item_${idx}_desc`)}
-                        required
-                      />
-                    </div>
-                  </div>
-                  {fieldErrors[`item_${idx}_desc`] && (
-                    <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_desc`]}</p>
-                  )}
-                </div>
-                <div>
-                  <label className={labelCls}>Unit</label>
-                  <select
-                    value={item.unit}
-                    onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
-                    className={inputCls}
-                  >
-                    {['NOS', 'SET', 'SQM', 'MTR', 'RMT', 'LOT'].map((u) => (
-                      <option key={u} value={u}>{u}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelCls}>Quantity *</label>
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={item.quantity}
-                    onChange={(e) => {
-                      handleItemChange(idx, 'quantity', Number(e.target.value) || 0);
-                      clearFieldError(`item_${idx}_qty`);
-                    }}
-                    className={getInputCls(`item_${idx}_qty`)}
-                    required
-                  />
-                  {fieldErrors[`item_${idx}_qty`] && (
-                    <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_qty`]}</p>
-                  )}
-                </div>
-                <div>
-                  <label className={labelCls}>Rate (₹) *</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={item.rate}
-                    onChange={(e) => {
-                      handleItemChange(idx, 'rate', Number(e.target.value) || 0);
-                      clearFieldError(`item_${idx}_rate`);
-                    }}
-                    className={getInputCls(`item_${idx}_rate`)}
-                    required
-                  />
-                  {fieldErrors[`item_${idx}_rate`] && (
-                    <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_rate`]}</p>
-                  )}
-                </div>
-              </div>
-              {/* Cubicle Technical Specifications */}
-              <div className="bg-[#121226]/80 border border-white/5 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                    <span>⚙️</span> Cubicle Technical Specifications
-                  </span>
-                  <span className="text-[11px] text-gray-400">Board type, dimensions &amp; colors</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div>
-                    <label className={labelCls}>Board Type *</label>
-                    <select
-                      value={item.boardType || 'HPL'}
-                      onChange={(e) => handleItemChange(idx, 'boardType', e.target.value)}
-                      className={inputCls}
-                    >
-                      <option value="HPL">HPL (High Pressure Compact Laminate)</option>
-                      <option value="HDF">HDF (High Density Fibreboard)</option>
+                    <label className={labelCls}>Urinal Partition Model Selection (Optional)</label>
+                    <select value={umpItem?.modelId || ''} onChange={(e) => handleSelectUmpModel(e.target.value)} className="w-full mt-1.5 bg-[#161536] border border-cyan-500/40 rounded-xl px-3 py-2.5 text-white font-semibold text-xs focus:border-cyan-400 focus:outline-none">
+                      <option value="">-- No Urinal Partitions Required (Optional) --</option>
+                      <optgroup label="Urinal Partitions (4 Models)">
+                        {urinalModels.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
+                      </optgroup>
                     </select>
                   </div>
-                  <div>
-                    <label className={labelCls}>Board Thickness</label>
-                    <input
-                      type="text"
-                      value={item.boardThickness || ''}
-                      onChange={(e) => handleItemChange(idx, 'boardThickness', e.target.value)}
-                      placeholder="e.g. 12mm / 18mm"
-                      className={inputCls}
-                    />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Board Color</label>
-                    <input
-                      type="text"
-                      value={item.boardColor || ''}
-                      onChange={(e) => handleItemChange(idx, 'boardColor', e.target.value)}
-                      placeholder="e.g. D.No. 123 – Oyster White"
-                      className={inputCls}
-                    />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Cubicle Size</label>
-                    <input
-                      type="text"
-                      value={item.cubicleSize || ''}
-                      onChange={(e) => handleItemChange(idx, 'cubicleSize', e.target.value)}
-                      placeholder="e.g. 1000mm W × 1500mm D"
-                      className={inputCls}
-                    />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Door Size</label>
-                    <input
-                      type="text"
-                      value={item.doorSize || ''}
-                      onChange={(e) => handleItemChange(idx, 'doorSize', e.target.value)}
-                      placeholder="e.g. 600mm × 1785mm"
-                      className={inputCls}
-                    />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Overall Height</label>
-                    <input
-                      type="text"
-                      value={item.overallHeight || ''}
-                      onChange={(e) => handleItemChange(idx, 'overallHeight', e.target.value)}
-                      placeholder="e.g. 1980mm (incl. 100mm ground clearance)"
-                      className={inputCls}
-                    />
-                  </div>
+                  {umpItem && (
+                    <div className="space-y-3 pt-2 border-t border-cyan-500/20">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className={labelCls}>Unit</label>
+                          <select value={umpItem.unit} onChange={(e) => handleUmpFieldChange('unit', e.target.value)} className={inputCls}>
+                            {['NOS', 'SET', 'SQM', 'MTR', 'LOT'].map((u) => <option key={u} value={u}>{u}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelCls}>Quantity *</label>
+                          <input type="number" min="0.01" step="0.01" value={umpItem.quantity} onChange={(e) => handleUmpFieldChange('quantity', Number(e.target.value) || 0)} className={inputCls} />
+                        </div>
+                        <div>
+                          <label className={labelCls}>Rate (₹) *</label>
+                          <input type="number" min="0" step="0.01" value={umpItem.rate} onChange={(e) => handleUmpFieldChange('rate', Number(e.target.value) || 0)} className={inputCls} />
+                        </div>
+                      </div>
+                      <div className="bg-[#121226]/80 border border-white/5 rounded-xl p-3.5">
+                        <span className="text-xs font-bold text-white flex items-center gap-1.5 mb-3"><span>⚙️</span> Urinal Partition Specifications</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          <div>
+                            <label className={labelCls}>Board Type *</label>
+                            <select value={umpItem.boardType || 'HPL'} onChange={(e) => handleUmpFieldChange('boardType', e.target.value)} className={inputCls}>
+                              <option value="HPL">HPL (High Pressure Compact Laminate)</option>
+                              <option value="HDF">HDF (High Density Fibreboard)</option>
+                            </select>
+                          </div>
+                          <div><label className={labelCls}>Board Thickness</label><input type="text" value={umpItem.boardThickness || ''} onChange={(e) => handleUmpFieldChange('boardThickness', e.target.value)} placeholder="e.g. 12mm" className={inputCls} /></div>
+                          <div><label className={labelCls}>Board Color</label><input type="text" value={umpItem.boardColor || ''} onChange={(e) => handleUmpFieldChange('boardColor', e.target.value)} placeholder="e.g. Oyster White" className={inputCls} /></div>
+                          <div><label className={labelCls}>Partition Size</label><input type="text" value={umpItem.cubicleSize || ''} onChange={(e) => handleUmpFieldChange('cubicleSize', e.target.value)} placeholder="e.g. 450mm W × 900mm H" className={inputCls} /></div>
+                          <div><label className={labelCls}>Overall Height</label><input type="text" value={umpItem.overallHeight || ''} onChange={(e) => handleUmpFieldChange('overallHeight', e.target.value)} placeholder="e.g. 1200mm" className={inputCls} /></div>
+                          <div><label className={labelCls}>Hardware Package</label><input type="text" value={umpItem.hardwarePackage || ''} onChange={(e) => handleUmpFieldChange('hardwarePackage', e.target.value)} placeholder="e.g. Grade 304 Wall Mount Clamps" className={inputCls} /></div>
+                        </div>
+                      </div>
+                      <div className="text-right font-mono text-xs text-gray-400">
+                        Line Total: <span className="font-bold text-cyan-300 text-sm">₹ {((Number(umpItem.quantity) || 0) * (Number(umpItem.rate) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
 
+                {/* ── OPTIONAL #3: MODULAR LOCKER SYSTEM ── */}
+                <div className={`rounded-xl p-4 space-y-3 transition-all ${lockerItem ? 'bg-[#140e2b] border border-purple-500/50' : 'bg-[#140e2b]/40 border border-purple-500/20'}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-purple-400">Optional Section #3</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                        <Layers className="w-3 h-3 text-purple-400" /> Modular Locker System
+                      </span>
+                    </div>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${lockerItem ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40' : 'bg-gray-800 text-gray-400'}`}>
+                      {lockerItem ? '✓ Active & Included' : 'Optional / Not Selected'}
+                    </span>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Modular Locker Model Selection (Optional)</label>
+                    <select value={lockerItem?.modelId || ''} onChange={(e) => handleSelectLockerModel(e.target.value)} className="w-full mt-1.5 bg-[#161536] border border-purple-500/40 rounded-xl px-3 py-2.5 text-white font-semibold text-xs focus:border-purple-400 focus:outline-none">
+                      <option value="">-- No Modular Lockers Required (Optional) --</option>
+                      <optgroup label="Modular Lockers (7 Models)">
+                        {lockerModels.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
+                      </optgroup>
+                    </select>
+                  </div>
+                  {lockerItem && (
+                    <div className="space-y-3 pt-2 border-t border-purple-500/20">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className={labelCls}>Unit</label>
+                          <select value={lockerItem.unit} onChange={(e) => handleLockerFieldChange('unit', e.target.value)} className={inputCls}>
+                            {['NOS', 'SET', 'BANK', 'BAY', 'LOT'].map((u) => <option key={u} value={u}>{u}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelCls}>Quantity *</label>
+                          <input type="number" min="0.01" step="0.01" value={lockerItem.quantity} onChange={(e) => handleLockerFieldChange('quantity', Number(e.target.value) || 0)} className={inputCls} />
+                        </div>
+                        <div>
+                          <label className={labelCls}>Rate (₹) *</label>
+                          <input type="number" min="0" step="0.01" value={lockerItem.rate} onChange={(e) => handleLockerFieldChange('rate', Number(e.target.value) || 0)} className={inputCls} />
+                        </div>
+                      </div>
+                      <div className="bg-[#121226]/80 border border-white/5 rounded-xl p-3.5">
+                        <span className="text-xs font-bold text-white flex items-center gap-1.5 mb-3"><span>⚙️</span> Locker Technical Specifications</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          <div>
+                            <label className={labelCls}>Board Type *</label>
+                            <select value={lockerItem.boardType || 'HPL'} onChange={(e) => handleLockerFieldChange('boardType', e.target.value)} className={inputCls}>
+                              <option value="HPL">HPL (High Pressure Compact Laminate)</option>
+                              <option value="HDF">HDF (High Density Fibreboard)</option>
+                            </select>
+                          </div>
+                          <div><label className={labelCls}>Board Thickness</label><input type="text" value={lockerItem.boardThickness || ''} onChange={(e) => handleLockerFieldChange('boardThickness', e.target.value)} placeholder="e.g. 12mm" className={inputCls} /></div>
+                          <div><label className={labelCls}>Board Color</label><input type="text" value={lockerItem.boardColor || ''} onChange={(e) => handleLockerFieldChange('boardColor', e.target.value)} placeholder="e.g. Oyster White" className={inputCls} /></div>
+                          <div><label className={labelCls}>Locker Dimension</label><input type="text" value={lockerItem.cubicleSize || ''} onChange={(e) => handleLockerFieldChange('cubicleSize', e.target.value)} placeholder="e.g. 300mm W × 450mm D × 1800mm H" className={inputCls} /></div>
+                          <div><label className={labelCls}>Door Size</label><input type="text" value={lockerItem.doorSize || ''} onChange={(e) => handleLockerFieldChange('doorSize', e.target.value)} placeholder="e.g. Tier Modular Doors as per drawing" className={inputCls} /></div>
+                          <div><label className={labelCls}>Overall Height</label><input type="text" value={lockerItem.overallHeight || ''} onChange={(e) => handleLockerFieldChange('overallHeight', e.target.value)} placeholder="e.g. 1900mm" className={inputCls} /></div>
+                          <div className="sm:col-span-2 lg:col-span-3"><label className={labelCls}>Hardware Package</label><input type="text" value={lockerItem.hardwarePackage || ''} onChange={(e) => handleLockerFieldChange('hardwarePackage', e.target.value)} placeholder="e.g. Master-Keyed Cam Lock, Concealed Pivot Hinges" className={inputCls} /></div>
+                        </div>
+                      </div>
+                      <div className="text-right font-mono text-xs text-gray-400">
+                        Line Total: <span className="font-bold text-purple-300 text-sm">₹ {((Number(lockerItem.quantity) || 0) * (Number(lockerItem.rate) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
-              <div className="text-right text-xs text-gray-400 font-mono">
-                Line Total: <span className="font-bold text-white">
-                  ₹ {(item.quantity * item.rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-            </div>
-          ))}
+                {/* ── ADDITIONAL CUBICLE SYSTEMS ── */}
+                {additionalCubicleItems.map((item, addIdx) => {
+                  const realIdx = form.items.indexOf(item);
+                  return (
+                    <div key={realIdx} className="bg-[#0a0a1a] border border-[#7FB706]/30 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-bold text-[#7FB706]">Additional System #{addIdx + 2}</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/30 flex items-center gap-1">
+                            <Layers className="w-3 h-3 text-[#7FB706]" /> Cubicle Model System
+                          </span>
+                        </div>
+                        <button type="button" onClick={() => removeItem(realIdx)} className="p-1 text-red-400 hover:text-red-300 cursor-pointer transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="sm:col-span-3 space-y-1.5">
+                          <label className={labelCls}>Product Model Selection &amp; Description *</label>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <select value={item.modelId || ''} onChange={(e) => handleSelectModel(realIdx, e.target.value)} className={inputCls + ' bg-[#161536] border-[#7FB706]/40 font-semibold'}>
+                              <option value="">-- Choose Product Model --</option>
+                              {cubicleModels.length > 0 && (
+                                <optgroup label="Restroom Cubicles">
+                                  {cubicleModels.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
+                                </optgroup>
+                              )}
+                              <option value="CUSTOM">Custom / Manual Description</option>
+                            </select>
+                            <input type="text" value={item.description} onChange={(e) => { handleItemChange(realIdx, 'description', e.target.value); clearFieldError(`item_${realIdx}_desc`); }} placeholder="Description" className={getInputCls(`item_${realIdx}_desc`)} required />
+                          </div>
+                        </div>
+                        <div>
+                          <label className={labelCls}>Unit</label>
+                          <select value={item.unit} onChange={(e) => handleItemChange(realIdx, 'unit', e.target.value)} className={inputCls}>
+                            {['NOS', 'SET', 'SQM', 'MTR', 'LOT'].map((u) => <option key={u} value={u}>{u}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelCls}>Quantity *</label>
+                          <input type="number" min="0.01" step="0.01" value={item.quantity} onChange={(e) => handleItemChange(realIdx, 'quantity', Number(e.target.value) || 0)} className={inputCls} required />
+                        </div>
+                        <div>
+                          <label className={labelCls}>Rate (₹) *</label>
+                          <input type="number" min="0" step="0.01" value={item.rate} onChange={(e) => handleItemChange(realIdx, 'rate', Number(e.target.value) || 0)} className={inputCls} required />
+                        </div>
+                      </div>
+                      <div className="text-right text-xs text-gray-400 font-mono">
+                        Line Total: <span className="font-bold text-white">₹ {((Number(item.quantity) || 0) * (Number(item.rate) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            );
+          })()}
         </div>
       </div>
 
