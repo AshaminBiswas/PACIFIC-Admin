@@ -1805,6 +1805,27 @@ Sales Quotation PDF (`pdf.service.ts` -> `generateQuotationPdfHtml`) has been re
      - Added `"allowScripts": { "esbuild": true }` to `d:/PACIFIC-Admin/package.json` to explicitly approve modern Vite esbuild postinstall scripts.
      - Added `"allowScripts": { "@prisma/client": true, "@prisma/engines": true, "prisma": true, "esbuild": true }` to `d:/PACIFIC-Backend/package.json`.
 
+---
+
+## 50. Signature Mobile Number Sanitization & Customer Deletion pgBouncer Optimization
+
+1. **Quotation & PI PDF Signature Section Mobile Number Sanitization**:
+   - **Root Cause**: In backend `pdf.service.ts` (`generateQuotationPdfHtml`) and `quotations.service.ts`, `issuingStaffPhone` previously defaulted to `+91 8010834316`.
+   - **Sanitization & Defensive Filtering**:
+     - Completely removed the hardcoded `+91 8010834316` fallback from `pdf.service.ts` and `quotations.service.ts`.
+     - Added active sanitization filter (`!phone.includes('8010834316')`) across both `pdf.service.ts` and `quotations.service.ts`. If no phone is provided (or if the phone matches the old number), the `Mobile: ...` line in the signature section is completely omitted rather than displaying an incorrect number.
+     - PI PDF fallback explicitly verified as `+91 9818592113 / 9882056529` (Company Head Ejajul Shaikh) with sanitization against `8010834316`.
+
+2. **Customer Deletion 500 Error / Transaction Timeout Resolution**:
+   - **Root Cause**: `crmService.deleteCustomer` wrapped 7 separate sequential delete queries inside `prisma.$transaction(async (tx) => { ... })`. Over remote network connections to Supabase pgBouncer on port 6543 (`?pgbouncer=true`), executing multi-round interactive transactions exceeded the 5000ms default interactive transaction limit (timing out at 5668ms with `Transaction API error: Transaction already closed: A commit cannot be executed on an expired transaction`). In addition, attempting parallel queries over pgBouncer exhausted client connection pool limits.
+   - **Native Database Cascade Delete (`src/modules/crm/crm.service.ts`)**:
+     - The PostgreSQL database schema already defines `onDelete: Cascade` on all dependent customer relations: `CustomerProfile`, `VendorProfile`, `PartyContact`, `PartyAddress`, `ExportCustomerProfile`, and `ExportCustomerBankAccount`.
+     - Refactored `deleteCustomer` to eliminate `prisma.$transaction`. It first deletes any non-cascading merge logs (`prisma.customerMergeLog.deleteMany`), and then executes `prisma.businessParty.delete({ where: { id } })`.
+     - PostgreSQL natively cascades deletions to all child profiles, contacts, and addresses in a single atomic SQL operation taking under 500ms.
+     - Added `{ timeout: 30000, maxWait: 15000 }` to `crmService.mergeCustomers` to protect customer merging from pooler timeouts.
+     - Verified end-to-end: dummy customer deletion executes with status 200 in under 800ms with zero errors.
+
+
 
 
 
