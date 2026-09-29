@@ -83,7 +83,7 @@ export default function OpenAIGalleryModal({
 
   const handleSaveApiKey = () => {
     if (!apiKey.trim()) {
-      setError('Please enter a valid OpenAI API key (starts with sk-...)');
+      setError('Please enter a valid NVIDIA NIM API key (starts with nvapi-...)');
       return;
     }
     setOpenAIApiKey(apiKey.trim());
@@ -100,7 +100,7 @@ export default function OpenAIGalleryModal({
 
     if (!hasKey && !apiKey.trim()) {
       setIsEditingKey(true);
-      setError('OpenAI API key is required. Please set VITE_OPENAI_API_KEY in .env or enter it below.');
+      setError('NVIDIA NIM API key is required. Please set VITE_NVIDIA_API_KEY in .env or enter it below.');
       return;
     }
 
@@ -195,11 +195,11 @@ export default function OpenAIGalleryModal({
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 AI Multi-Angle Gallery Studio
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#7FB706]/20 text-[#B5F823] border border-[#7FB706]/30 font-semibold uppercase tracking-wider">
-                  DALL-E 3 • 4:3 WebP
+                  NVIDIA NIM • Qwen Image Edit
                 </span>
               </h3>
               <p className="text-xs text-gray-400 mt-0.5">
-                Auto-generates 4 architectural camera angles from your cover photo & stores on ImageKit.io CDN
+                Generates 4 architectural camera angles via NVIDIA NIM qwen-image-edit & stores on ImageKit.io CDN
               </p>
             </div>
           </div>
@@ -221,9 +221,11 @@ export default function OpenAIGalleryModal({
               <div className="flex items-start gap-2.5">
                 <Key className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
                 <div className="flex-1">
-                  <h4 className="text-xs font-bold text-amber-300">OpenAI API Key Configuration</h4>
+                  <h4 className="text-xs font-bold text-amber-300">NVIDIA NIM API Key Configuration</h4>
                   <p className="text-[11px] text-gray-300 mt-0.5 leading-relaxed">
-                    Enter your OpenAI API key below or set <code className="px-1 py-0.5 bg-black/40 rounded text-amber-200">VITE_OPENAI_API_KEY</code> in your <code className="px-1 py-0.5 bg-black/40 rounded text-amber-200">.env</code> file.
+                    Enter your NVIDIA NIM API key below or set <code className="px-1 py-0.5 bg-black/40 rounded text-amber-200">VITE_NVIDIA_API_KEY</code> in your <code className="px-1 py-0.5 bg-black/40 rounded text-amber-200">.env</code> file.
+                    Get a free key at{' '}
+                    <a href="https://build.nvidia.com/" target="_blank" rel="noopener noreferrer" className="text-amber-300 underline">build.nvidia.com</a>.
                   </p>
                 </div>
               </div>
@@ -232,7 +234,7 @@ export default function OpenAIGalleryModal({
                   type="password"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="sk-proj-..."
+                  placeholder="nvapi-..."
                   className="flex-1 bg-black/60 border border-amber-500/30 rounded-xl px-3.5 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-amber-400"
                 />
                 <button
@@ -298,16 +300,16 @@ export default function OpenAIGalleryModal({
                 <AlertCircle className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
                 <div className="flex-1 leading-relaxed font-medium">{error}</div>
               </div>
-              {(error.includes('credits') || error.includes('429') || error.includes('Exhausted')) && (
+              {(error.includes('quota') || error.includes('429') || error.includes('Credit') || error.includes('Exhausted')) && (
                 <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-rose-500/20">
                   <a
-                    href="https://platform.openai.com/settings/organization/billing"
+                    href="https://build.nvidia.com/"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    Add OpenAI Credits ($5+)
+                    Add NVIDIA NIM Credits
                   </a>
                   <button
                     type="button"

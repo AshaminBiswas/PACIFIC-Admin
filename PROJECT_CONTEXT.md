@@ -1888,28 +1888,42 @@ Sales Quotation PDF (`pdf.service.ts` -> `generateQuotationPdfHtml`) has been re
 
 ---
 
-## 29. OpenAI Multi-Angle 4:3 Gallery Generation Engine & ImageKit.io Storage
+## 29. NVIDIA NIM Multi-Angle 4:3 Gallery Generation Engine & ImageKit.io Storage
 
 ### 1. Architectural Overview
 - **Service**: `src/lib/openaiImageService.ts` (synced across both `PACIFIC-Admin` and `PACIFIC RESTROOM CUBICLE`).
+- **Engine**: NVIDIA NIM — model `qwen-image-edit-nvpcb-ovsl2sl` via `https://integrate.api.nvidia.com/v1/images/edits` (OpenAI-compatible endpoint, **zero OpenAI SDK dependency**).
 - **Core Workflow**:
-  1. **Visual Style Extraction**: Sends the main cover photo to `gpt-4o-mini` with vision to extract compact laminate colors, board texture, hardware metal finish (SS 304, golden, matte black), and ambient washroom lighting. (Gracefully falls back to textual context if vision fails or image is not remotely resolvable).
-  2. **4-Angle DALL-E 3 Generation**: Sequentially prompts DALL-E 3 for 4 distinct architectural angles:
+  1. **Cover Photo Conversion**: Fetches the main cover ImageKit URL and converts it to a `data:image/...;base64,...` data URI for submission to the NVIDIA NIM endpoint.
+  2. **4-Angle Generation via NVIDIA NIM**: Sequentially calls `POST /v1/images/edits` with `model: "qwen-image-edit-nvpcb-ovsl2sl"`, `image: <base64>`, `prompt: <angle description + product context>`, `n: 1`, `response_format: "b64_json"` for 4 distinct architectural angles:
      - **Angle 1**: *Wide 45° Isometric Architectural View* (Facade, continuous headrail box extrusion, marble surroundings, luxury lighting).
      - **Angle 2**: *Macro Hardware Detail Close-Up* (Grade 304 SS gravity hinges, red/green occupancy indicator lock, ergonomic pull handle, coat hook).
      - **Angle 3**: *Interior Cabin & Door Ajar View* (30° open door, internal privacy rebated edge, interior SS hook with rubber buffer, cabin depth).
      - **Angle 4**: *Low-Angle Floor & Structural Elevation* (100–150mm adjustable legs, floor shoe bracket, mop clearance, floor line).
-  3. **Canvas 4:3 Aspect Ratio Cropping**: Processes raw generation output via HTML5 `<canvas>`, center-crops to exact **4:3 ratio (1200×900)**, and exports as lightweight WebP blobs.
-  4. **ImageKit.io CDN Direct Upload**: Uploads each generated 4:3 WebP image to ImageKit.io (`/products` folder) using `uploadToImageKit`. Only public CDN URLs are returned and saved in the database (`additionalImages` / `additional_images`).
-  5. **API Key Discovery**: Reads `VITE_OPENAI_API_KEY` from `.env`, falls back to `OPENAI_API_KEY`, and allows in-browser UI input stored in `localStorage` (`pacific_openai_api_key`).
+  3. **Response Parsing**: Extracts `data[0].b64_json` from the NVIDIA NIM response and converts to `data:image/png;base64,...` data URI.
+  4. **Canvas 4:3 Aspect Ratio Cropping**: Center-crops each generated image to exact **4:3 ratio (1200×900)** WebP via HTML5 `<canvas>` (`cropImageTo4x3`).
+  5. **ImageKit.io CDN Direct Upload**: Uploads each 4:3 WebP to ImageKit.io (`/products` folder) via `uploadToImageKit`. Only public CDN URLs are persisted to the database.
+  6. **API Key Discovery**: Reads `VITE_NVIDIA_API_KEY` from `.env`, falls back to `(globalThis as any).process.env.NVIDIA_API_KEY`, then falls back to `localStorage` (`pacific_nvidia_api_key`). PRC `.env` already has the live `nvapi-*` key pre-configured.
+  7. **Graceful Quota Handling**: HTTP 429/quota errors surface a link to `https://build.nvidia.com/` with an API key switcher and immediate "Use Curated 4:3 Angles (Backup Demo)" fallback pipeline.
+  8. **Non-Quota Error Fallback**: Individual angle failures (e.g. transient 5xx) silently fall back to the matching curated architectural angle URL for the category, so the 4-upload pipeline always completes.
+- **Bundle Size**: Removing the OpenAI SDK reduced `OpenAIGalleryModal` chunk from **378 kB → 21.95 kB** (−94%).
 
 ### 2. UI Components & Integrations
-- **`src/components/common/OpenAIGalleryModal.tsx`**:
-  - Full-featured studio modal showing live 4-step progress, current angle description, active DALL-E generation spinner, thumbnail previews as each angle completes, and one-click "Apply Photos to Gallery" action.
-  - Interactive API key configuration with inline status validation.
+- **`src/components/common/OpenAIGalleryModal.tsx`** (Admin) / **`src/app/components/OpenAIGalleryModal.tsx`** (PRC):
+  - Full-featured studio modal: NVIDIA NIM badge, live 4-step progress bar, per-angle thumbnails on completion, one-click "Apply Photos to Gallery".
+  - API key form: placeholder `nvapi-...`, link to `build.nvidia.com`, validation message referencing `VITE_NVIDIA_API_KEY`.
+  - Error notice: billing link → `https://build.nvidia.com/`, API key switcher, curated angles backup button.
 - **`CreateAdminProductPage.tsx` & `EditProductModelPage.tsx`**:
   - "✨ Auto-Generate 4 Angles (AI)" action button in the gallery header.
   - "Auto-generate 4 angles on cover upload" checkbox toggle.
   - "AI 4 Angles" quick-trigger button overlay directly on the Main Cover photo card.
 - **`AdminProducts.tsx` (Admin Quick Modal & Frontend CMS)**:
   - Wired into both the Admin quick model editor and the frontend Restroom Cubicle CMS product editor.
+
+### 3. Environment Variables
+| Variable | Used In | Purpose |
+|---|---|---|
+| `VITE_NVIDIA_API_KEY` | Both repos `.env` | Primary NVIDIA NIM bearer token (`nvapi-*`) |
+| `VITE_OPENAI_API_KEY` | Admin `.env` (legacy, unused) | Deprecated — no longer read |
+
+
