@@ -62,6 +62,22 @@ export function isOpenAIConfigured(): boolean {
  * Crop any image source (Data URL or HTTP URL) to exact 4:3 aspect ratio (1200x900)
  */
 export async function cropImageTo4x3(imageSrc: string): Promise<Blob> {
+  let resolvedUrl = imageSrc;
+  let objectUrlToRevoke: string | null = null;
+
+  if (imageSrc.startsWith("http://") || imageSrc.startsWith("https://")) {
+    try {
+      const resp = await fetch(imageSrc, { mode: "cors" });
+      if (resp.ok) {
+        const rawBlob = await resp.blob();
+        resolvedUrl = URL.createObjectURL(rawBlob);
+        objectUrlToRevoke = resolvedUrl;
+      }
+    } catch (e) {
+      console.warn("[cropImageTo4x3] fetch blob warning, trying direct url:", e);
+    }
+  }
+
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -95,6 +111,7 @@ export async function cropImageTo4x3(imageSrc: string): Promise<Blob> {
         ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, 1200, 900);
         canvas.toBlob(
           (blob) => {
+            if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
             if (blob) resolve(blob);
             else reject(new Error("Failed to process 4:3 canvas blob"));
           },
@@ -102,11 +119,15 @@ export async function cropImageTo4x3(imageSrc: string): Promise<Blob> {
           0.9
         );
       } catch (err) {
+        if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
         fetch(imageSrc).then((r) => r.blob()).then(resolve).catch(reject);
       }
     };
-    img.onerror = (e) => reject(new Error("Failed to load source image for 4:3 cropping: " + String(e)));
-    img.src = imageSrc;
+    img.onerror = (e) => {
+      if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
+      reject(new Error("Failed to load source image for 4:3 cropping: " + String(e)));
+    };
+    img.src = resolvedUrl;
   });
 }
 
@@ -132,6 +153,34 @@ export const CAMERA_ANGLES = [
     description: "Low-angle architectural elevation photograph shot from finished floor level looking upward. Highlights the adjustable 100mm to 150mm floor supporting legs, floor anchor shoe bracket, mop-clearance gap, and structural stability of the compact laminate panel.",
   },
 ];
+
+// Curated high-resolution photographic presets for when user has 0 OpenAI balance
+export const CURATED_CATEGORY_ANGLES: Record<string, string[]> = {
+  Cubicle: [
+    "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1200&q=85",
+    "https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?auto=format&fit=crop&w=1200&q=85",
+    "https://images.unsplash.com/photo-1620626011761-996317b8d101?auto=format&fit=crop&w=1200&q=85",
+    "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=85",
+  ],
+  Lockers: [
+    "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1200&q=85",
+    "https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=1200&q=85",
+    "https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1200&q=85",
+    "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1200&q=85",
+  ],
+  "Urinal Partitions": [
+    "https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&w=1200&q=85",
+    "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1200&q=85",
+    "https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?auto=format&fit=crop&w=1200&q=85",
+    "https://images.unsplash.com/photo-1620626011761-996317b8d101?auto=format&fit=crop&w=1200&q=85",
+  ],
+  "Kids Toilet": [
+    "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1200&q=85",
+    "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=85",
+    "https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?auto=format&fit=crop&w=1200&q=85",
+    "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=85",
+  ],
+};
 
 export interface GenerateModelGalleryOptions {
   mainCoverUrl: string;
@@ -195,8 +244,11 @@ export async function generate4GalleryAngles(
       max_tokens: 150,
     });
     visualAesthetic = analysisResponse.choices[0]?.message?.content?.trim() || "";
-  } catch (err) {
+  } catch (err: any) {
     console.warn("[OpenAI] Vision analysis skipped, using textual context:", err);
+    if (err?.status === 429 || err?.message?.includes("credits")) {
+      console.warn("[OpenAI] Quota reached for vision analysis, continuing with architectural descriptors.");
+    }
     visualAesthetic = `${category} system with premium solid compact laminate board and heavy-duty stainless steel 304 hardware in a luxury commercial restroom.`;
   }
 
@@ -216,17 +268,17 @@ export async function generate4GalleryAngles(
     const fullPrompt = `${angle.description} Product: "${modelTitle}" (${category}). Visual style & materials: ${visualAesthetic || description}. Ultra-realistic commercial interior architectural photography, clean professional catalog style, neutral balanced studio lighting, sharp focus, 4:3 composition. No humans, no text, no watermarks.`;
 
     try {
-      // Generate image via DALL-E 3
+      // Generate image via DALL-E 3 (No response_format parameter to ensure compatibility with all OpenAI accounts)
       const imgResponse = await openai.images.generate({
         model: "dall-e-3",
         prompt: fullPrompt,
         n: 1,
         size: "1024x1024",
-        response_format: "b64_json",
       });
 
-      const b64Json = imgResponse.data?.[0]?.b64_json;
-      if (!b64Json) {
+      const imgItem = imgResponse.data?.[0];
+      const imageSource = imgItem?.url || (imgItem?.b64_json ? `data:image/png;base64,${imgItem.b64_json}` : null);
+      if (!imageSource) {
         throw new Error(`OpenAI did not return image data for angle: ${angle.name}`);
       }
 
@@ -239,8 +291,7 @@ export async function generate4GalleryAngles(
       });
 
       // Crop to exact 4:3 ratio via Canvas
-      const rawDataUrl = `data:image/png;base64,${b64Json}`;
-      const croppedBlob = await cropImageTo4x3(rawDataUrl);
+      const croppedBlob = await cropImageTo4x3(imageSource);
 
       // Upload directly to ImageKit.io CDN
       const cleanSlug = modelTitle.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
@@ -261,7 +312,82 @@ export async function generate4GalleryAngles(
       });
     } catch (angleErr: any) {
       console.error(`[OpenAI] Failed to generate angle "${angle.name}":`, angleErr);
+      const isQuotaError = angleErr?.status === 429 || angleErr?.message?.includes("credits") || angleErr?.message?.includes("billing");
+      if (isQuotaError) {
+        throw new Error(
+          `OpenAI Credit Balance Exhausted (429): Your OpenAI account has 0 remaining credits. Please add prepaid credits at https://platform.openai.com/settings/organization/billing or switch to a funded API key.`
+        );
+      }
       throw new Error(`Failed to generate "${angle.name}": ${angleErr.message || angleErr}`);
+    }
+  }
+
+  onProgress?.({
+    step: 4,
+    total: 4,
+    currentAngle: "Completed 4 gallery angles!",
+    status: "completed",
+    resultsSoFar: [...results],
+  });
+
+  return results;
+}
+
+/**
+ * Fallback generator using curated architectural perspectives.
+ * Crops all 4 angles to exact 4:3 (1200x900) WebP and uploads directly to ImageKit.io CDN.
+ * Use when OpenAI API quota is exhausted or for immediate offline simulation.
+ */
+export async function generateCuratedGalleryAngles(
+  options: GenerateModelGalleryOptions
+): Promise<GeneratedAngleResult[]> {
+  const { modelTitle, category, onProgress } = options;
+  const curatedUrls = CURATED_CATEGORY_ANGLES[category] || CURATED_CATEGORY_ANGLES.Cubicle;
+
+  const results: GeneratedAngleResult[] = [];
+
+  for (let i = 0; i < CAMERA_ANGLES.length; i++) {
+    const angle = CAMERA_ANGLES[i];
+    const sourceUrl = curatedUrls[i % curatedUrls.length];
+
+    onProgress?.({
+      step: i + 1,
+      total: 4,
+      currentAngle: `Processing ${angle.name} in 4:3 WebP...`,
+      status: "generating",
+      resultsSoFar: [...results],
+    });
+
+    try {
+      const croppedBlob = await cropImageTo4x3(sourceUrl);
+
+      onProgress?.({
+        step: i + 1,
+        total: 4,
+        currentAngle: `Uploading ${angle.name} to ImageKit CDN...`,
+        status: "uploading",
+        resultsSoFar: [...results],
+      });
+
+      const cleanSlug = modelTitle.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
+      const fileName = `${cleanSlug}_curated_${i + 1}_${angle.key}_${Date.now()}.webp`;
+      const uploaded = await uploadToImageKit(croppedBlob, fileName, "products");
+
+      results.push({
+        angleName: angle.name,
+        url: uploaded.url,
+      });
+
+      onProgress?.({
+        step: i + 1,
+        total: 4,
+        currentAngle: angle.name,
+        status: "generating",
+        resultsSoFar: [...results],
+      });
+    } catch (err: any) {
+      console.error(`[Curated Generator] Failed on angle ${angle.name}:`, err);
+      throw new Error(`Failed to process "${angle.name}": ${err.message || err}`);
     }
   }
 

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import {
   generate4GalleryAngles,
+  generateCuratedGalleryAngles,
   getOpenAIApiKey,
   setOpenAIApiKey,
   isOpenAIConfigured,
@@ -132,6 +133,42 @@ export default function OpenAIGalleryModal({
     } catch (err: any) {
       console.error('[OpenAI Modal] Error during multi-angle generation:', err);
       setError(err.message || 'Generation failed. Please verify your OpenAI API key and balance.');
+      setProgress((prev) => ({ ...prev, status: 'error' }));
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleStartCuratedGeneration = async () => {
+    setError('');
+    setIsGenerating(true);
+    setResults([]);
+
+    try {
+      const generated = await generateCuratedGalleryAngles({
+        mainCoverUrl,
+        modelTitle: modelTitle || `${category} Model`,
+        category,
+        description,
+        onProgress: (p) => {
+          setProgress(p);
+          if (p.resultsSoFar && p.resultsSoFar.length > 0) {
+            setResults(p.resultsSoFar);
+          }
+        },
+      });
+
+      setResults(generated);
+      setProgress({
+        step: 4,
+        total: 4,
+        currentAngle: 'All 4 angles generated in 4:3 WebP and uploaded to ImageKit!',
+        status: 'completed',
+        resultsSoFar: generated,
+      });
+    } catch (err: any) {
+      console.error('[Curated Modal] Error:', err);
+      setError(err.message || 'Failed to process curated angles.');
       setProgress((prev) => ({ ...prev, status: 'error' }));
     } finally {
       setIsGenerating(false);
@@ -256,9 +293,42 @@ export default function OpenAIGalleryModal({
 
           {/* Error Notice */}
           {error && (
-            <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-start gap-2.5 text-xs text-rose-300">
-              <AlertCircle className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
-              <div className="flex-1 leading-relaxed">{error}</div>
+            <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl space-y-3 text-xs text-rose-300">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
+                <div className="flex-1 leading-relaxed font-medium">{error}</div>
+              </div>
+              {(error.includes('credits') || error.includes('429') || error.includes('Exhausted')) && (
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-rose-500/20">
+                  <a
+                    href="https://platform.openai.com/settings/organization/billing"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Add OpenAI Credits ($5+)
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingKey(true);
+                      setError('');
+                    }}
+                    className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[11px] font-semibold transition"
+                  >
+                    Switch API Key
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStartCuratedGeneration}
+                    className="px-3.5 py-1.5 bg-gradient-to-r from-[#7FB706] to-[#B5F823] hover:opacity-95 text-black rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 shadow"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-black" />
+                    Use Curated 4:3 Angles (Backup Demo)
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
