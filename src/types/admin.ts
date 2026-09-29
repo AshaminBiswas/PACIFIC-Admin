@@ -2142,7 +2142,7 @@ export interface ExportDashboardStats {
 
 // ─── Products & Models Management Catalog Types ──────────────────────────────
 
-export type ProductCategoryType = 'Cubicle' | 'Lockers' | 'Urinal Partitions';
+export type ProductCategoryType = 'Cubicle' | 'Lockers' | 'Urinal Partitions' | 'Kids Toilet';
 
 export type HardwareMaterialType = 'SS Hardware' | 'Nylon Hardware' | 'Standard' | 'Both';
 

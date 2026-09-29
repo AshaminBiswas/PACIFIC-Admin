@@ -134,7 +134,17 @@ export const productCatalogApi = {
     try {
       const cached = localStorage.getItem(LOCAL_STORAGE_CATEGORIES_KEY);
       if (cached) {
-        return JSON.parse(cached);
+        const parsed: TopProductCategory[] = JSON.parse(cached);
+        const existingKeys = new Set(parsed.map((c) => c.key));
+        const missing = DEFAULT_TOP_CATEGORIES.filter((c) => !existingKeys.has(c.key));
+        if (missing.length > 0) {
+          const merged = [...parsed, ...missing];
+          try {
+            localStorage.setItem(LOCAL_STORAGE_CATEGORIES_KEY, JSON.stringify(merged));
+          } catch {}
+          return merged;
+        }
+        return parsed;
       }
     } catch {}
     return DEFAULT_TOP_CATEGORIES;

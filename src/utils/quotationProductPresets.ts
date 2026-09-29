@@ -585,6 +585,66 @@ export const PACIFIC_STANDARD_QUOTATION_MODELS: ProductCatalogModel[] = [
       { id: 'u2', name: 'Grade 304 Wall Anchors & Fasteners Pack' },
     ],
   },
+
+  // ── 4. KIDS TOILET MODELS ──
+  {
+    id: 'std-summer-fun',
+    slug: 'kids-summer-fun',
+    title: 'Summer Fun',
+    category: 'Kids Toilet',
+    subtitle: 'Vibrant Child-Safety Restroom Cubicle with Anti-Pinch Clearance',
+    description: 'Engineered solid compact phenolic laminate cubicle partition designed specially for primary schools, kindergartens, and child care centers. Features low door height for supervisory vision, anti-finger trap rounded edges, and soft self-closing spring hinges.',
+    imageUrl: '',
+    specifications: [
+      { label: 'Standard Height', value: '1200 mm – 1500 mm (Child-Friendly Ergonomic Height)' },
+      { label: 'Standard Depth', value: '1200 mm – 1500 mm' },
+      { label: 'Door Width', value: '500 mm – 600 mm (Child Ergonomic Safety Door)' },
+      { label: 'Board Thickness', value: '12mm Solid Compact Phenolic Laminate' },
+      { label: 'Safety Feature', value: 'Anti-Pinch Hinge Gap & Outside Emergency Coin Release' },
+    ],
+    hardwareOptions: [
+      { material: 'SS Hardware', enabled: true, colors: ['golden', 'Black', 'stainless steel'] },
+      { material: 'Nylon Hardware', enabled: true, colors: [] },
+    ],
+    hardwareList: [
+      { id: 'k1', name: 'Nylon Safety Spring Hinges (Soft & Self-Closing Pair)', material: 'Both' },
+      { id: 'k2', name: 'Emergency Release Coin Latch / Safety Turn Lock', material: 'Both' },
+      { id: 'k3', name: 'Ergonomic Rounded Child Door Knob', material: 'Both' },
+      { id: 'k4', name: 'Safety Coat & Bag Hook with Soft Buffer', material: 'Both' },
+      { id: 'k5', name: 'Adjustable Floor Support Legs (100–150mm)', material: 'Both' },
+      { id: 'k6', name: 'Continuous Top Headrail Stabilizer Bar', material: 'Both' },
+      { id: 'k7', name: 'Wall Fixing U-Channels & Anti-Tamper Fasteners Pack', material: 'Both' },
+    ],
+  },
+  {
+    id: 'std-azalea-kids',
+    slug: 'kids-azalea',
+    title: 'Azalea',
+    category: 'Kids Toilet',
+    subtitle: 'Playful Bowling Pin Contoured Child Restroom Cubicle',
+    description: 'Custom-shaped decorative children restroom cubicle with bowling-pin inspired playful door profile, non-pinching safety gaps, and teacher-accessible exterior emergency release lock.',
+    imageUrl: '',
+    specifications: [
+      { label: 'Standard Height', value: '1200 mm – 1400 mm' },
+      { label: 'Standard Depth', value: '1200 mm – 1500 mm' },
+      { label: 'Door Width', value: '500 mm – 600 mm (Contoured Bowling-Pin Safety Door)' },
+      { label: 'Board Thickness', value: '12mm Solid Compact Phenolic Laminate' },
+      { label: 'Safety Feature', value: 'Rounded Anti-Collision Corners & Finger-Safe Hinges' },
+    ],
+    hardwareOptions: [
+      { material: 'SS Hardware', enabled: true, colors: ['golden', 'Black', 'stainless steel'] },
+      { material: 'Nylon Hardware', enabled: true, colors: [] },
+    ],
+    hardwareList: [
+      { id: 'k1', name: 'Nylon Safety Spring Hinges (Soft & Self-Closing Pair)', material: 'Both' },
+      { id: 'k2', name: 'Emergency Release Coin Latch / Safety Turn Lock', material: 'Both' },
+      { id: 'k3', name: 'Ergonomic Rounded Child Door Knob', material: 'Both' },
+      { id: 'k4', name: 'Safety Coat & Bag Hook with Soft Buffer', material: 'Both' },
+      { id: 'k5', name: 'Adjustable Floor Support Legs (100–150mm)', material: 'Both' },
+      { id: 'k6', name: 'Continuous Top Headrail Stabilizer Bar', material: 'Both' },
+      { id: 'k7', name: 'Wall Fixing U-Channels & Anti-Tamper Fasteners Pack', material: 'Both' },
+    ],
+  },
 ];
 
 /**
@@ -655,6 +715,14 @@ export function formatModelHardwareInclusions(model: ProductCatalogModel): strin
         lines.push('• Extra Floor Supporting Leg (100–150mm adjustable ground clearance)');
       }
       lines.push('• Wall Anchors & Fasteners with Decorative Caps');
+    } else if (model.category === 'Kids Toilet') {
+      lines.push('• Nylon Safety Spring Hinges (Soft & Self-Closing Pair)');
+      lines.push('• Emergency Release Coin Latch / Safety Turn Lock with Outside Accessibility');
+      lines.push('• Ergonomic Rounded Child Door Knob');
+      lines.push('• Safety Coat & Bag Hook with Integrated Soft Rubber Buffer');
+      lines.push('• Adjustable Floor Support Legs (100–150mm ground clearance)');
+      lines.push('• Continuous Top Headrail Stabilizer Box Extrusion');
+      lines.push('• Full-Height Wall Fixing U-Channels & Anti-Tamper Fasteners');
     }
   }
 
@@ -696,6 +764,11 @@ export function extractModelDimensions(model: ProductCatalogModel) {
     if (!doorSize) doorSize = 'N/A (Divider Screen)';
     if (!overallHeight) overallHeight = model.hasExtraLeg ? '900mm – 1200mm (floor & wall supported)' : '900mm (with 300mm floor clearance)';
     if (!boardThickness) boardThickness = '12mm Solid Compact Phenolic Laminate';
+  } else if (model.category === 'Kids Toilet') {
+    if (!cubicleSize) cubicleSize = '900mm W × 1200mm D';
+    if (!doorSize) doorSize = '500mm × 1050mm (Child Ergonomic Safety Door)';
+    if (!overallHeight) overallHeight = '1200 mm – 1500 mm (Child-Friendly Ergonomic Height)';
+    if (!boardThickness) boardThickness = '12mm Solid Compact Phenolic Laminate';
   }
 
   let hardwarePackage = '';
@@ -707,6 +780,8 @@ export function extractModelDimensions(model: ProductCatalogModel) {
     hardwarePackage = model.hasExtraLeg
       ? 'Grade 304 Wall Clamps + Extra Floor Supporting Leg'
       : 'Grade 304 Wall Mount Cantilever Clamps';
+  } else if (model.category === 'Kids Toilet') {
+    hardwarePackage = 'Child Safety Ergonomic Hardware (Anti-Finger Pinch & Emergency Release)';
   }
 
   return {
@@ -849,6 +924,27 @@ export function extractModelHardwareItems(
           gstRate: 18,
         });
       });
+    } else if (model.category === 'Kids Toilet') {
+      const defaults = [
+        { name: 'Nylon Safety Spring Hinges (Soft & Self-Closing Pair)', unit: 'PAIR', hsn: '8302', qty: 1 },
+        { name: 'Emergency Release Coin Latch / Safety Turn Lock', unit: 'SET', hsn: '8302', qty: 1 },
+        { name: 'Ergonomic Rounded Child Door Knob', unit: 'NOS', hsn: '8302', qty: 1 },
+        { name: 'Safety Coat & Bag Hook with Soft Buffer', unit: 'NOS', hsn: '8302', qty: 1 },
+        { name: 'Adjustable Floor Support Legs (100–150mm ground clearance)', unit: 'NOS', hsn: '8302', qty: 2 },
+        { name: 'Continuous Top Headrail Stabilizer Box Extrusion', unit: 'RMT', hsn: '7610', qty: 1 },
+        { name: 'Wall Fixing U-Channels & Anti-Tamper Fasteners Pack', unit: 'SET', hsn: '8302', qty: 1 },
+      ];
+      defaults.forEach((d) => {
+        items.push({
+          itemType: 'hardware',
+          description: d.name,
+          hsnSac: d.hsn,
+          quantity: Math.max(1, d.qty * (cubicleQuantity || 1)),
+          unit: d.unit,
+          rate: 0,
+          gstRate: 18,
+        });
+      });
     }
   }
 
@@ -887,6 +983,10 @@ export function findMatchingCatalogModel(
     }
 
     // 3. Category heuristics
+    if (desc.includes('kids') || desc.includes('child') || desc.includes('kindergarten') || desc.includes('school')) {
+      const kids = catalogModels.find((m) => m.category === 'Kids Toilet');
+      if (kids) return kids;
+    }
     if (desc.includes('locker')) {
       const locker = catalogModels.find((m) => m.category === 'Lockers');
       if (locker) return locker;

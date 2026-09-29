@@ -54,6 +54,10 @@ const CATEGORY_COLORS: Record<ProductCategoryType, { pill: string; text: string 
     pill: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     text: 'text-amber-400',
   },
+  'Kids Toilet': {
+    pill: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+    text: 'text-rose-400',
+  },
 };
 
 export default function ProductModelDetailPage() {

@@ -40,6 +40,15 @@ export const DEFAULT_TOP_CATEGORIES: TopProductCategory[] = [
     imageUrl: 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&w=1200&q=80',
     modelCount: 0,
   },
+  {
+    id: 'Kids Toilet',
+    key: 'Kids Toilet',
+    name: 'Kids Toilet Cubicle Systems',
+    tagline: 'Child-Friendly Ergonomic Safety Partitions with Anti-Finger Trap Design',
+    description: 'Specially engineered colorful, vibrant, and safety-focused restroom cubicles for schools, kindergartens, daycare centers, and amusement parks. Features rounded safety corners, low-height doors, and anti-pinch safety gap clearance.',
+    imageUrl: 'https://images.unsplash.com/photo-1588072432836-e10032774350?auto=format&fit=crop&w=1200&q=80',
+    modelCount: 0,
+  },
 ];
 
 // Empty by default — all models are created and managed dynamically by admin via the model builder forms

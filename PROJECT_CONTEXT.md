@@ -147,7 +147,7 @@ D:\PACIFIC-Admin\
 │           ├── AdminLogin.tsx        # Branded dark login page
 │           ├── AdminDashboard.tsx    # App Shell rendering AdminLayout
 │           ├── AdminOverview.tsx     # Operations KPI cards
-│           ├── AdminProducts.tsx     # Products & Models Hub (Cubicle, Lockers, Urinal Partitions)
+│           ├── AdminProducts.tsx     # Products & Models Hub (Cubicle, Lockers, Urinal Partitions, Kids Toilet)
 │           ├── AdminBlogs.tsx        # Blog CMS
 │           ├── AdminSolutions.tsx    # Solution pages CMS
 │           ├── AdminGallery.tsx      # Project gallery
@@ -230,7 +230,7 @@ D:\PACIFIC-Admin\
 | `/admin/dashboard/export/realization/new` | `CreateExportRealizationPage` | Protected | Dedicated realization record page with localStorage |
 | `/admin/dashboard/export/emails` | `ExportEmailHubPage` | Protected | Global trade email dispatch hub, parameterized templates, delivery logging |
 | `/admin/dashboard/export/emails/new` | `ComposeExportEmailPage` | Protected | Dedicated email compose page with localStorage |
-| `/admin/dashboard/products` | `AdminProducts` | Protected | Products & Models Management Hub: 3 core products (Cubicle, Lockers, Urinal Partitions), 24 models with SS/Nylon hardware options, model-specific BOMs, Model A extra leg, image upload & full CRUD |
+| `/admin/dashboard/products` | `AdminProducts` | Protected | Products & Models Management Hub: 4 core products (Cubicle, Lockers, Urinal Partitions, Kids Toilet), models with SS/Nylon hardware options, model-specific BOMs, Model A extra leg, Kids safety hardware, image upload & full CRUD |
 | `/admin/dashboard/products/new` | `CreateAdminProductPage` | Protected | Dedicated Model Builder page with category selection, image upload, hardware options & BOM list |
 | `/admin/dashboard/products/:id` | `ProductModelDetailPage` | Protected | Dedicated Model 360 view with photo showcase, hardware configuration & itemized BOM table |
 | `/admin/dashboard/products/:id/edit` | `EditProductModelPage` | Protected | Dedicated full-page Model Editor with hardware options & BOM builder |
@@ -801,27 +801,31 @@ The admin console implements an enterprise dual-layer auto-refresh engine to pre
 
 ---
 
-## 16. Products & Models Management Hub (Cubicle, Lockers, Urinal Partitions)
+## 16. Products & Models Management Hub (Cubicle, Lockers, Urinal Partitions, Kids Toilet)
 
-1. **Dynamic Three Core Product Lines (Form-Driven Model Catalog)**:
+1. **Dynamic Four Core Product Lines (Form-Driven Model Catalog)**:
    - **Route**: `/admin/dashboard/products` (`AdminProducts.tsx`) with dedicated builder `/admin/dashboard/products/new` (`CreateAdminProductPage.tsx`).
    - Replaced static seeded models with a pure, form-driven catalog architecture:
-     - **No Hardcoded Cards**: All 24 pre-seeded hardcoded models have been completely deleted (`DEFAULT_CATALOG_MODELS = []`). The catalog starts clean, with models created, edited, and deleted dynamically by the administrator.
+     - **No Hardcoded Cards**: Pre-seeded models are managed dynamically (`DEFAULT_CATALOG_MODELS = []`). The catalog models are created, edited, and deleted dynamically by the administrator, supported by standard presets (`PACIFIC_STANDARD_QUOTATION_MODELS`).
      - **Product 1 — Cubicle**:
        - Dual Hardware Option: **SS Hardware** (3 selectable colors: *Golden*, *Black*, *Stainless Steel*) and **Nylon Hardware**.
        - Standardized Description & 6 Engineering Specifications: Dedicated form inputs (Standard Height: 1980 mm / 2000 mm, Standard Depth: 1500 mm – 1800 mm, Door Width: 600 mm / 900 mm, Board Thickness: 12mm / 18mm Solid Compact Phenolic Laminate, Fire Rating: Class 1 / BS 476 Part 7, Water Resistance: 100% Moisture Proof).
-       - Hardware Bill of Materials (BOM) without Quantities: Component name, material applicability (SS / Nylon / Both), and technical notes.
+       - Hardware Bill of Materials (BOM): Component name, material applicability (SS / Nylon / Both), and technical notes.
      - **Product 2 — Lockers**:
        - Uniform Standard Hardware: Shared heavy-duty hardware suite with **no color options**, customizable tier counts (Tier 1–6, Z-Shape).
      - **Product 3 — Urinal Partitions**:
        - Extra Floor Leg Hardware: Dedicated extra supporting floor leg (100–150mm) option for Model A, alongside wall cantilever configurations.
+     - **Product 4 — Kids Toilet** (ID: `'Kids Toilet'`, Key: `'Kids Toilet'`):
+       - Child-Safety Ergonomic Partitions: Specially engineered for schools, kindergartens, daycare centers, and amusement parks.
+       - Key Features: Anti-finger pinch clearance gaps, low-height doors for supervisory oversight, rounded anti-collision safety corners, soft-closing nylon spring hinges, and outside emergency release coin latch for faculty safety access.
+       - Hardware Options: Supports both SS Safety Hardware (Golden, Black, SS) and vibrant Nylon Hardware.
 
 2. **Universal Image Upload Everywhere**:
    - Image upload option on **every product category** and **every single model**.
    - Dual-transport: Direct file picker uploading to Supabase Storage bucket (`products`) via `uploadImage(file, "products")` with webp optimization and client-side `FileReader` instant preview, alongside manual image URL input.
 
 3. **Interactive UI, Tabs & Full CRUD Operations**:
-   - **Product Line Tabs**: Clean direct category tabs for the 3 core products: "1. Cubicle", "2. Lockers", "3. Urinal Partitions" (the aggregate "All Products & Models" tab and hardcoded KPI counter cards have been permanently removed).
+   - **Product Line Tabs**: Clean direct category tabs for the 4 core products: "1. Cubicle", "2. Lockers", "3. Urinal Partitions", and "4. Kids Toilet".
    - **Active Product Banner**: Displays high-res cover image, tagline, and description with an "Edit Product Cover" dialog.
    - **Dual View Modes**: Switch between **Visual Cards View** and **Detailed Table View**.
    - **Dedicated Full-Page Add New Model (`/admin/dashboard/products/new`)**: `CreateAdminProductPage.tsx` provides full-page model creation with auto-drafting, category switching, hardware option configuration, image upload, and interactive BOM builder.

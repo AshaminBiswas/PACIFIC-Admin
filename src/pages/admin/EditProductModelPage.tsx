@@ -311,8 +311,8 @@ export default function EditProductModelPage() {
           <label className="block text-xs font-bold text-gray-200 uppercase tracking-wider">
             1. Product Line
           </label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {(['Cubicle', 'Lockers', 'Urinal Partitions'] as ProductCategoryType[]).map((cat) => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {(['Cubicle', 'Lockers', 'Urinal Partitions', 'Kids Toilet'] as ProductCategoryType[]).map((cat) => {
               const isSelected = category === cat;
               return (
                 <button
@@ -328,6 +328,14 @@ export default function EditProductModelPage() {
                       setBoardThickness('12mm / 18mm Solid Compact Phenolic Laminate');
                       setFireRating('Class 1 / BS 476 Part 7');
                       setWaterResistance('100% Moisture, Water & Humidity Proof');
+                    } else if (cat === 'Kids Toilet') {
+                      setDescription('Child-friendly ergonomic restroom cubicle partitions engineered with rounded safety corners, low-height doors, and anti-finger trap gaps. Ideal for kindergartens, primary schools, and play zones.');
+                      setStdHeight('1200 mm – 1500 mm (Child-Friendly Ergonomic Height)');
+                      setStdDepth('1200 mm – 1500 mm');
+                      setDoorWidth('500 mm – 600 mm (Child Ergonomic Safety Door)');
+                      setBoardThickness('12mm Solid Compact Phenolic Laminate');
+                      setFireRating('Class 1 / BS 476 Part 7');
+                      setWaterResistance('100% Moisture, Water & Humidity Proof');
                     }
                   }}
                   className={`p-4 rounded-2xl border text-left transition flex items-center justify-between min-h-[58px] ${
@@ -340,10 +348,12 @@ export default function EditProductModelPage() {
                     <div className="text-sm font-semibold">{cat}</div>
                     <div className="text-[11px] opacity-75 font-normal">
                       {cat === 'Cubicle'
-                        ? '13 Models • SS / Nylon'
+                        ? 'SS / Nylon'
                         : cat === 'Lockers'
-                        ? '7 Models • Uniform H/W'
-                        : '4 Models • Extra Leg'}
+                        ? 'Uniform H/W'
+                        : cat === 'Urinal Partitions'
+                        ? 'Extra Leg'
+                        : 'Safety Design'}
                     </div>
                   </div>
                   {isSelected && <CheckCircle2 className="w-5 h-5 text-[#7FB706]" />}
@@ -408,11 +418,11 @@ export default function EditProductModelPage() {
             />
           </div>
 
-          {category === 'Cubicle' && (
+          {(category === 'Cubicle' || category === 'Kids Toilet') && (
             <div className="pt-3 border-t border-white/5 space-y-3">
               <div className="text-xs font-bold text-[#7FB706] flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" />
-                Standard Cubicle Specifications
+                {category === 'Kids Toilet' ? 'Kids Safety Ergonomic Specifications' : 'Standard Cubicle Specifications'}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 <div>
@@ -535,8 +545,8 @@ export default function EditProductModelPage() {
             5. Hardware Options Configuration
           </label>
 
-          {/* Cubicle rules */}
-          {category === 'Cubicle' && (
+          {/* Cubicle & Kids Toilet rules */}
+          {(category === 'Cubicle' || category === 'Kids Toilet') && (
             <div className="space-y-4">
               {/* SS Hardware Toggle */}
               <div className="p-3.5 bg-black/40 border border-white/5 rounded-2xl space-y-3">

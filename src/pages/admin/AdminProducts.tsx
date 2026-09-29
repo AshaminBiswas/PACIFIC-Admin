@@ -87,6 +87,11 @@ const CATEGORY_COLORS: Record<ProductCategoryType, { pill: string; border: strin
     border: 'border-amber-500/30',
     text: 'text-amber-400',
   },
+  'Kids Toilet': {
+    pill: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+    border: 'border-rose-500/30',
+    text: 'text-rose-400',
+  },
 };
 
 export default function AdminProducts() {
@@ -202,11 +207,13 @@ export default function AdminProducts() {
     const cubicleCount = models.filter((m) => m.category === 'Cubicle').length;
     const lockerCount = models.filter((m) => m.category === 'Lockers').length;
     const urinalCount = models.filter((m) => m.category === 'Urinal Partitions').length;
+    const kidsCount = models.filter((m) => m.category === 'Kids Toilet').length;
     return {
       total: models.length,
       cubicle: cubicleCount,
       lockers: lockerCount,
       urinal: urinalCount,
+      kids: kidsCount,
     };
   }, [models]);
 
@@ -224,7 +231,9 @@ export default function AdminProducts() {
         ? 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80'
         : targetCat === 'Lockers'
         ? 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=800&q=80'
-        : 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&w=800&q=80'
+        : targetCat === 'Urinal Partitions'
+        ? 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&w=800&q=80'
+        : 'https://images.unsplash.com/photo-1588072432836-e10032774350?auto=format&fit=crop&w=800&q=80'
     );
     setFormIsFeatured(false);
     setFormPublished(true);
@@ -257,10 +266,20 @@ export default function AdminProducts() {
         { id: '5', name: 'Interior Clothes & Hat Hook', quantity: 1, unit: 'Pc', material: 'Standard' },
         { id: '6', name: 'Base Plinth Leveler Legs', quantity: 4, unit: 'Pcs', material: 'Standard' },
       ]);
-    } else {
+    } else if (targetCat === 'Urinal Partitions') {
       setFormHardwareList([
         { id: '1', name: 'Heavy Duty Wall Mounting Corner L-Clamps', quantity: 3, unit: 'Pcs', material: 'Standard' },
         { id: '2', name: 'SS Wall Fixing Screws, Anchors & Caps Pack', quantity: 1, unit: 'Pack', material: 'Standard' },
+      ]);
+    } else {
+      setFormHardwareList([
+        { id: '1', name: 'Nylon Safety Spring Hinges (Soft & Self-Closing)', quantity: 2, unit: 'Pair', material: 'Both' },
+        { id: '2', name: 'Emergency Release Coin Latch / Safety Turn Lock', quantity: 1, unit: 'Set', material: 'Both' },
+        { id: '3', name: 'Ergonomic Rounded Child Door Knob', quantity: 1, unit: 'Pc', material: 'Both' },
+        { id: '4', name: 'Safety Coat & Bag Hook with Soft Buffer', quantity: 1, unit: 'Pc', material: 'Both' },
+        { id: '5', name: 'Adjustable Floor Support Legs (100–150mm)', quantity: 2, unit: 'Pcs', material: 'Both' },
+        { id: '6', name: 'Top Stabilizing Continuous Headrail Bar', quantity: 1, unit: 'Bar', material: 'Both' },
+        { id: '7', name: 'Wall Fixing U-Channels & Anti-Tamper Fasteners', quantity: 6, unit: 'Pcs', material: 'Both' },
       ]);
     }
 
@@ -525,7 +544,7 @@ export default function AdminProducts() {
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-gray-400">
-            Configure Pacific’s 3 core product lines: <span className="text-emerald-400 font-medium">Cubicle</span>, <span className="text-indigo-400 font-medium">Lockers</span>, and <span className="text-amber-400 font-medium">Urinal Partitions</span> with complete hardware BOMs and image uploads.
+            Configure Pacific’s core product lines: <span className="text-emerald-400 font-medium">Cubicle</span>, <span className="text-indigo-400 font-medium">Lockers</span>, <span className="text-amber-400 font-medium">Urinal Partitions</span>, and <span className="text-rose-400 font-medium">Kids Toilet</span> with complete hardware BOMs and image uploads.
           </p>
         </div>
 
@@ -647,6 +666,19 @@ export default function AdminProducts() {
           >
             <span>3. Urinal Partitions</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-normal">Model A Leg</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('Kids Toilet')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition min-h-[40px] shrink-0 ${
+              activeTab === 'Kids Toilet'
+                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 shadow-sm'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <span>4. Kids Toilet</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-normal">Safety Design</span>
           </button>
         </div>
 
@@ -883,6 +915,26 @@ export default function AdminProducts() {
                           )}
                         </div>
                       )}
+
+                      {/* 4. Kids Toilet Hardware Options */}
+                      {model.category === 'Kids Toilet' && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="px-2.5 py-1 rounded-xl bg-rose-500/10 text-rose-300 border border-rose-500/20 text-[11px] font-semibold flex items-center gap-1.5">
+                            <Shield className="w-3 h-3" />
+                            Anti-Finger Pinch Safety
+                          </span>
+                          {ssOption?.enabled && (
+                            <span className="px-2 py-0.5 rounded-lg bg-white/5 text-gray-300 border border-white/10 text-[10px]">
+                              SS Hardware
+                            </span>
+                          )}
+                          {nylonOption?.enabled && (
+                            <span className="px-2 py-0.5 rounded-lg bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 text-[10px]">
+                              Nylon Safety
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -989,10 +1041,18 @@ export default function AdminProducts() {
                           </div>
                         ) : model.category === 'Lockers' ? (
                           <span className="text-indigo-400 font-medium">Standard Uniform Hardware</span>
-                        ) : (
+                        ) : model.category === 'Urinal Partitions' ? (
                           <span className={model.hasExtraLeg ? 'text-amber-400 font-bold' : 'text-gray-400'}>
                             {model.hasExtraLeg ? 'Standard + Extra Floor Leg' : 'Standard Wall Mount'}
                           </span>
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="px-2 py-0.5 rounded-lg bg-rose-500/10 text-rose-300 border border-rose-500/20 text-[10px]">
+                              Safety Ergonomics
+                            </span>
+                            {ssOption?.enabled && <span className="text-gray-300 text-[10px]">SS</span>}
+                            {nylonOption?.enabled && <span className="text-cyan-300 text-[10px]">Nylon</span>}
+                          </div>
                         )}
                       </td>
                       <td className="px-4 py-3 text-center">
@@ -1080,8 +1140,8 @@ export default function AdminProducts() {
                 <label className="block text-xs font-semibold text-gray-300 mb-2">
                   1. Select Product Line <span className="text-rose-400">*</span>
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {(['Cubicle', 'Lockers', 'Urinal Partitions'] as ProductCategoryType[]).map((cat) => (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {(['Cubicle', 'Lockers', 'Urinal Partitions', 'Kids Toilet'] as ProductCategoryType[]).map((cat) => (
                     <button
                       key={cat}
                       type="button"
@@ -1095,6 +1155,14 @@ export default function AdminProducts() {
                             { id: '4', name: 'Coat Hook & Buffer', quantity: 1, unit: 'Pc', material: 'Both' },
                             { id: '5', name: 'Adjustable Supporting Legs', quantity: 2, unit: 'Pcs', material: 'Both' },
                           ]);
+                        } else if (cat === 'Kids Toilet' && formHardwareList.length === 0) {
+                          setFormHardwareList([
+                            { id: '1', name: 'Nylon Safety Spring Hinges', quantity: 2, unit: 'Pair', material: 'Both' },
+                            { id: '2', name: 'Emergency Release Safety Turn Lock', quantity: 1, unit: 'Set', material: 'Both' },
+                            { id: '3', name: 'Ergonomic Rounded Child Door Knob', quantity: 1, unit: 'Pc', material: 'Both' },
+                            { id: '4', name: 'Safety Coat Hook with Soft Buffer', quantity: 1, unit: 'Pc', material: 'Both' },
+                            { id: '5', name: 'Adjustable Floor Support Legs (100–150mm)', quantity: 2, unit: 'Pcs', material: 'Both' },
+                          ]);
                         }
                       }}
                       className={`p-3.5 rounded-2xl border text-left transition flex items-center justify-between min-h-[52px] ${
@@ -1106,7 +1174,13 @@ export default function AdminProducts() {
                       <div>
                         <div className="text-sm font-semibold">{cat}</div>
                         <div className="text-[11px] opacity-75 font-normal">
-                          {cat === 'Cubicle' ? '13 Models • SS / Nylon' : cat === 'Lockers' ? '7 Models • Uniform H/W' : '4 Models • Extra Leg'}
+                          {cat === 'Cubicle'
+                            ? 'SS / Nylon'
+                            : cat === 'Lockers'
+                            ? 'Uniform H/W'
+                            : cat === 'Urinal Partitions'
+                            ? 'Extra Leg'
+                            : 'Safety Design'}
                         </div>
                       </div>
                       {formCategory === cat && <CheckCircle2 className="w-5 h-5 text-[#7FB706]" />}
@@ -1380,6 +1454,77 @@ export default function AdminProducts() {
                         </span>
                       </label>
                       <span className="text-[11px] text-gray-400">100–150mm Leg</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Kids Toilet Rule: Child Safety & Ergonomics */}
+                {formCategory === 'Kids Toilet' && (
+                  <div className="space-y-4">
+                    <div className="p-3 bg-rose-500/5 border border-rose-500/20 rounded-xl text-xs text-rose-300">
+                      <strong>Kids Toilet Hardware Rule:</strong> Specially designed child-safety ergonomics: Anti-finger pinch clearance, low-height doors, soft spring hinges, and exterior emergency release coin turn latch for staff safety access. Supports <strong>SS Hardware</strong> &amp; vibrant <strong>Nylon Hardware</strong> options.
+                    </div>
+
+                    {/* SS Hardware Toggle & Colors */}
+                    <div className="space-y-2 p-3 bg-black/30 border border-white/5 rounded-xl">
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-white">
+                          <input
+                            type="checkbox"
+                            checked={formSsEnabled}
+                            onChange={(e) => setFormSsEnabled(e.target.checked)}
+                            className="w-4 h-4 accent-[#7FB706] rounded cursor-pointer"
+                          />
+                          <span>Enable SS Safety Hardware</span>
+                        </label>
+                        <span className="text-[11px] text-gray-400">3 Available Finishes</span>
+                      </div>
+
+                      {formSsEnabled && (
+                        <div className="pt-2 border-t border-white/5 flex flex-wrap gap-2">
+                          {SS_COLORS.map((color) => {
+                            const isSelected = formSsColors.includes(color);
+                            return (
+                              <button
+                                key={color}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    if (formSsColors.length > 1) {
+                                      setFormSsColors(formSsColors.filter((c) => c !== color));
+                                    }
+                                  } else {
+                                    setFormSsColors([...formSsColors, color]);
+                                  }
+                                }}
+                                className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 transition min-h-[38px] ${
+                                  isSelected
+                                    ? COLOR_SWATCHES[color].bg + ' ring-1 ring-white/20'
+                                    : 'bg-white/5 border-white/10 text-gray-400 opacity-60'
+                                }`}
+                              >
+                                <span className={`w-2.5 h-2.5 rounded-full ${COLOR_SWATCHES[color].dot}`} />
+                                <span>{COLOR_SWATCHES[color].label}</span>
+                                {isSelected && <Check className="w-3 h-3 ml-1" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Nylon Hardware Toggle */}
+                    <div className="p-3 bg-black/30 border border-white/5 rounded-xl flex items-center justify-between">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-white">
+                        <input
+                          type="checkbox"
+                          checked={formNylonEnabled}
+                          onChange={(e) => setFormNylonEnabled(e.target.checked)}
+                          className="w-4 h-4 accent-[#7FB706] rounded cursor-pointer"
+                        />
+                        <span>Enable Nylon Hardware (Soft-Closing & Anti-Pinch)</span>
+                      </label>
+                      <span className="text-[11px] text-gray-400">Child-friendly</span>
                     </div>
                   </div>
                 )}
