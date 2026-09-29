@@ -461,13 +461,14 @@ export default function SalesOrderDetailPage() {
     const freight = Number(order.freightAmount || 0);
     const taxableTotal = subtotal + freight;
 
+    const activeGstin = billTo.gstin || (order.customer as any)?.gstin || (order.billingAddressSnapshot as any)?.gstin || null;
     return calculateGstSplit(
       taxableTotal,
       order.placeOfSupplyStateCode || billTo.stateCode,
       order.placeOfSupply || billTo.state,
       false,
       18,
-      billTo.gstin,
+      activeGstin,
       billTo.addressLine
     );
   }, [order, billTo]);

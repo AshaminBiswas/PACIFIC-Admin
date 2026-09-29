@@ -575,7 +575,7 @@ export default function SalesQuotationDetailPage() {
                 null,
                 isSez,
                 Number(quotation.gstRate ?? 18),
-                (quotation.customer as any)?.gstin,
+                ((quotation.customer as any)?.gstin || (quotation as any)?.recipientGstin || null),
                 quotation.recipientAddress
               );
 

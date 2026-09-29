@@ -593,13 +593,18 @@ export default function DraftQuotationPage() {
   const gstRate = form.isSezExempt ? 0 : Number(form.gstRate) || 18;
 
   const taxable = basicPrice + installationCharge + (form.freightTerms === 'Fixed' || (form.freightTerms === 'Extra as Actual / To pay' && freightAmount > 0) ? freightAmount : 0);
+  const selectedCust = customers.find((c) => c.id === form.customerId);
+  const activeGstin = selectedCust?.gstin || null;
+  const activeStateCode = selectedCust?.addresses?.[0]?.stateCode || (activeGstin && activeGstin.length >= 2 ? activeGstin.slice(0, 2) : null);
+  const activeStateName = selectedCust?.addresses?.[0]?.state || null;
+
   const gstBreakdown = calculateGstSplit(
     taxable,
-    null,
-    null,
+    activeStateCode,
+    activeStateName,
     Boolean(form.isSezExempt),
     gstRate,
-    null,
+    activeGstin,
     form.recipientAddress
   );
   const gstAmount = gstBreakdown.totalTax;

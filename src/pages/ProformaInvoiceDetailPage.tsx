@@ -759,12 +759,7 @@ export default function ProformaInvoiceDetailPage() {
                 billTo.addressLine || billTo.state
               );
 
-              const isDelhi = breakdown.isDelhi || isDelhiState(
-                pi.placeOfSupplyStateCode || billTo.stateCode,
-                pi.placeOfSupply || billTo.state,
-                pi.customer?.gstin || billTo.gstin,
-                billTo.addressLine
-              );
+              const isDelhi = breakdown.isDelhi;
 
               if (isDelhi) {
                 const halfTax = totalTax > 0 ? totalTax / 2 : breakdown.cgstAmount;

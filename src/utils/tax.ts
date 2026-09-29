@@ -35,16 +35,86 @@ export interface GstTaxBreakdown {
   grandTotal: number;
 }
 
+export const GST_STATE_CODE_MAP: Record<string, string> = {
+  '01': 'Jammu and Kashmir',
+  '02': 'Himachal Pradesh',
+  '03': 'Punjab',
+  '04': 'Chandigarh',
+  '05': 'Uttarakhand',
+  '06': 'Haryana',
+  '07': 'Delhi',
+  '08': 'Rajasthan',
+  '09': 'Uttar Pradesh',
+  '10': 'Bihar',
+  '11': 'Sikkim',
+  '12': 'Arunachal Pradesh',
+  '13': 'Nagaland',
+  '14': 'Manipur',
+  '15': 'Mizoram',
+  '16': 'Tripura',
+  '17': 'Meghalaya',
+  '18': 'Assam',
+  '19': 'West Bengal',
+  '20': 'Jharkhand',
+  '21': 'Odisha',
+  '22': 'Chhattisgarh',
+  '23': 'Madhya Pradesh',
+  '24': 'Gujarat',
+  '26': 'Dadra and Nagar Haveli and Daman and Diu',
+  '27': 'Maharashtra',
+  '29': 'Karnataka',
+  '30': 'Goa',
+  '31': 'Lakshadweep',
+  '32': 'Kerala',
+  '33': 'Tamil Nadu',
+  '34': 'Puducherry',
+  '35': 'Andaman and Nicobar Islands',
+  '36': 'Telangana',
+  '37': 'Andhra Pradesh',
+  '38': 'Ladakh',
+};
+
 export function isDelhiState(
   stateCode?: string | null,
   stateName?: string | null,
   gstin?: string | null,
   address?: string | null
 ): boolean {
-  if (stateCode && stateCode.trim() === '07') return true;
-  if (stateName && stateName.trim().toLowerCase().includes('delhi')) return true;
-  if (gstin && gstin.trim().startsWith('07')) return true;
-  if (address && /delhi\b/i.test(address)) return true;
+  // 1. HIGHEST PRIORITY: GSTIN Number
+  // Statutory rule: If GST number is provided, the first 2 digits are the sole determinant of tax jurisdiction:
+  // Starts with '07' -> Delhi Intra-State (CGST: 9% + SGST: 9%)
+  // Any other state code -> Inter-State (IGST: 18%)
+  const cleanGstin = (gstin || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (cleanGstin.length >= 2) {
+    return cleanGstin.startsWith('07');
+  }
+
+  // 2. Unregistered / B2C buyer fallback (when no GST number is provided)
+  if (stateCode) {
+    const cleanCode = stateCode.trim();
+    if (cleanCode === '07' || cleanCode === '7') return true;
+    // If state code is explicitly another 2-digit state (e.g. '06', '27'), it is NOT Delhi
+    if (/^\d{1,2}$/.test(cleanCode) && cleanCode !== '07' && cleanCode !== '7') {
+      return false;
+    }
+  }
+
+  if (stateName) {
+    const s = stateName.trim().toLowerCase();
+    if (s === 'delhi' || s.includes('delhi')) return true;
+    if (s.length > 0 && !s.includes('delhi')) return false;
+  }
+
+  if (address) {
+    // Only if address explicitly contains Delhi and does not name another state
+    if (
+      /\b(new\s+delhi|delhi)\b/i.test(address) &&
+      !/\b(haryana|gurgaon|gurugram|noida|uttar\s+pradesh|up|rajasthan|punjab|maharashtra|karnataka|gujarat|bengal)\b/i.test(address)
+    ) {
+      return true;
+    }
+  }
+
   return false;
 }
 

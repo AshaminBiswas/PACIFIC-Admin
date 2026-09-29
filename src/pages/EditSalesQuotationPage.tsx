@@ -58,6 +58,9 @@ interface EditFormData {
   otherTerms: string;
   notes: string;
   selectedHardwarePreset?: string;
+  customerGstin?: string;
+  customerStateCode?: string;
+  customerStateName?: string;
   items: EditItem[];
 }
 
@@ -125,6 +128,9 @@ export default function EditSalesQuotationPage() {
     otherTerms: '',
     notes: '',
     selectedHardwarePreset: 'SS_304',
+    customerGstin: '',
+    customerStateCode: '',
+    customerStateName: '',
     items: [],
   });
 
@@ -169,6 +175,9 @@ export default function EditSalesQuotationPage() {
           otherTerms: q.otherTerms || q.termsAndConditions || '',
           notes: q.notes || '',
           selectedHardwarePreset: q.selectedHardwarePreset || 'SS_304',
+          customerGstin: q.customerGstin || q.customer?.gstin || '',
+          customerStateCode: q.customer?.addresses?.[0]?.stateCode || '',
+          customerStateName: q.customer?.addresses?.[0]?.state || '',
           items: (q.items || []).map((it: any) => ({
             id: it.id,
             modelId: it.modelId || it.productId || '',
@@ -234,13 +243,17 @@ export default function EditSalesQuotationPage() {
   // Live totals
   const basicPrice = form.items.reduce((s, it) => s + it.quantity * it.rate, 0);
   const subtotal = basicPrice + form.installationCharge + form.freightAmount;
+  const activeGstin = form.customerGstin || null;
+  const activeStateCode = form.customerStateCode || (activeGstin && activeGstin.length >= 2 ? activeGstin.slice(0, 2) : null);
+  const activeStateName = form.customerStateName || null;
+
   const gstBreakdown = calculateGstSplit(
     subtotal,
-    null,
-    null,
+    activeStateCode,
+    activeStateName,
     Boolean(form.isSezExempt),
     Number(form.gstRate) || 18,
-    null,
+    activeGstin,
     form.recipientAddress
   );
   const gstAmount = gstBreakdown.totalTax;

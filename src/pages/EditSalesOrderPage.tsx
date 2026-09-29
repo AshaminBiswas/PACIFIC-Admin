@@ -31,7 +31,7 @@ import {
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import CustomerSearchSelect from '../components/common/CustomerSearchSelect';
 import type { BusinessParty, ProductCatalogModel, SalesOrder } from '../types/admin';
-import { calculateGstSplit, isDelhiState } from '../utils/tax';
+import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP } from '../utils/tax';
 import {
   DEFAULT_ACCESSORIES_TEXT,
   type CreateItem,
@@ -710,7 +710,7 @@ export default function EditSalesOrderPage() {
                     const gstin = e.target.value.toUpperCase();
                     const pan = gstin.length >= 12 ? gstin.substring(2, 12) : billingAddress.pan;
                     const stCode = gstin.length >= 2 ? gstin.substring(0, 2) : billingAddress.stateCode;
-                    const stName = stCode === '07' ? 'Delhi' : billingAddress.state;
+                    const stName = (stCode ? GST_STATE_CODE_MAP[stCode] : undefined) || (stCode === '07' ? 'Delhi' : billingAddress.state);
                     setBillingAddress({ ...billingAddress, gstin, pan, stateCode: stCode, state: stName });
                     setPlaceOfSupply(stName);
                     setPlaceOfSupplyStateCode(stCode);

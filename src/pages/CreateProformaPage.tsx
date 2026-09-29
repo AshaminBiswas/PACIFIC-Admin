@@ -37,7 +37,7 @@ import {
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import CustomerSearchSelect from '../components/common/CustomerSearchSelect';
 import type { BusinessParty, CompanyProfile, ProductCatalogModel, SalesQuotation } from '../types/admin';
-import { calculateGstSplit, isDelhiState } from '../utils/tax';
+import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP } from '../utils/tax';
 
 const LOCAL_STORAGE_KEY = 'pacific_create_proforma_v3';
 
@@ -1229,7 +1229,7 @@ export default function CreateProformaPage() {
                   onChange={(e) => {
                     const val = e.target.value.toUpperCase();
                     const stateCode = val.length >= 2 && /^\d{2}$/.test(val.slice(0, 2)) ? val.slice(0, 2) : formData.billingAddress.stateCode;
-                    const state = stateCode === '07' ? 'Delhi' : formData.billingAddress.state;
+                    const state = (stateCode ? GST_STATE_CODE_MAP[stateCode] : undefined) || (stateCode === '07' ? 'Delhi' : formData.billingAddress.state);
                     setFormData((prev) => ({
                       ...prev,
                       placeOfSupply: state,

@@ -1837,3 +1837,47 @@ Sales Quotation PDF (`pdf.service.ts` -> `generateQuotationPdfHtml`) has been re
 
 
 
+
+---
+
+## 51. Indian GST Architecture Overhaul: 07 (Delhi) Intra-State vs Interstate (IGST 18%) Authority
+
+1. **Supreme GSTIN Authority Rule**:
+   - **Primary Rule**: If a GSTIN is provided (length >= 2):
+     - If the GSTIN starts with '07' (Delhi state code) -> **Intra-State Supply**: Tax is split equally as **CGST @ 9%** and **SGST @ 9%** (IGST = 0%).
+     - If the GSTIN starts with any other code (e.g. '06' Haryana, '08' Rajasthan, '09' Uttar Pradesh, '27' Maharashtra, etc.) -> **Inter-State Supply**: Tax is strictly **IGST @ 18%** (CGST = 0%, SGST = 0%).
+     - Under Indian GST Law, a registered buyer's GSTIN is the sole legal authority for place of supply. No secondary fallback (such as arbitrary address regexes or defaulted state codes) may override an active GSTIN.
+   - **Unregistered / B2C Buyer Fallback**: Only if no GSTIN is provided, fallback to state code '07' or explicit name check matching 'Delhi'.
+
+2. **Frontend Overhaul (PACIFIC-Admin)**:
+   - **src/utils/tax.ts**:
+     - Added comprehensive GST_STATE_CODE_MAP covering all 36 Indian states and union territories.
+     - Refactored isDelhiState(gstin, stateCode, stateName, address): cleans any non-alphanumeric characters, checks cleanGstin.startsWith('07') first. If GSTIN exists and does not start with '07', returns false immediately.
+     - calculateGstSplit() accepts buyerGstin?: string and derives isDelhi using the authoritative rule.
+   - **Sales Quotations (DraftQuotationPage.tsx, EditSalesQuotationPage.tsx, SalesQuotationDetailPage.tsx)**:
+     - Resolves activeGstin from selected customer profile or recipient data and passes it directly to calculateGstSplit().
+   - **Proforma Invoices (CreateProformaPage.tsx, EditProformaInvoicePage.tsx, ProformaInvoiceDetailPage.tsx)**:
+     - Integrated GST_STATE_CODE_MAP in billing address inputs to auto-populate the exact state name based on GSTIN prefix (e.g. '06' -> Haryana, '08' -> Rajasthan, '27' -> Maharashtra), replacing previously hardcoded 'Delhi' defaults.
+   - **Sales Orders (CreateSalesOrderPage.tsx, EditSalesOrderPage.tsx, SalesOrderDetailPage.tsx)**:
+     - Uses activeGstin and GST_STATE_CODE_MAP for live calculation of CGST/SGST vs IGST across creation forms, edit views, and detail pages.
+
+3. **Backend Overhaul (PACIFIC-Backend)**:
+   - **Central Tax Engine (src/modules/tax/tax.engine.ts)**:
+     - Added buyerGstin?: string to TaxCalculationParams.
+     - In calculateGstTax(), checks cleanBuyerGstin.startsWith('07') first. Interstate GSTINs are guaranteed isIntraState = false with 18% IGST.
+     - Exported GST_STATE_CODE_MAP and isDelhiGst(gstin, stateCode, stateName) helper function for use across all modules.
+   - **Proforma Invoice Service (src/modules/sales/pi.service.ts)**:
+     - In create(): passes buyerGstin into calculateGstTax(); sets placeOfSupplyStateCode and placeOfSupply using buyerGstin prefix and GST_STATE_CODE_MAP rather than defaulting to Delhi.
+     - In update(): passes buyerGstin into calculateGstTax() and synchronizes party addresses with the correct state and state code.
+     - In createFromQuotation(): evaluates customerGstin first to correctly assign interstate state codes.
+     - In getPdfHtml(): ensures billTo and shipTo party fallbacks reflect the PI's actual placeOfSupply and placeOfSupplyStateCode.
+   - **Sales Orders Service (src/modules/orders/orders.service.ts)**:
+     - In createFromQuotation(), create(), and update(): removed regex fallbacks that previously overrode interstate GSTINs when placeOfSupply was empty or defaulted to '07'.
+     - In getPdfHtml(): derives state code and POS cleanly using isDelhiGst() and the buyer GSTIN.
+   - **Sales Quotations Service (src/modules/quotations/quotations.service.ts)**:
+     - Passes recipientGstin from quote.customer?.gstin into pdfService.generateQuotationPdfHtml().
+   - **PDF Generation Service (src/modules/pdf/pdf.service.ts)**:
+     - **Quotation PDF (generateQuotationPdfHtml)**: Fixed critical bug where data.gstRate === 18 was causing ALL quotations to display CGST @ 9% + SGST @ 9%. Now uses isDelhiGst(data.recipientGstin, undefined, data.recipientAddress).
+     - **PI PDF (generatePiHtml)**: Replaced flawed !(data.placeOfSupply || '').trim() fallback with isDelhiGst().
+     - **Sales Order PDF (generateSalesOrderPdfHtml)**: Uses isDelhiGst().
+     - **Tax Invoice PDF (generateTaxInvoicePdfHtml)**: Uses isDelhiGst().

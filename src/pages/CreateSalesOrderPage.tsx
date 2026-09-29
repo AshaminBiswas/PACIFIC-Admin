@@ -33,7 +33,7 @@ import {
 } from '../utils/quotationProductPresets';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import type { BusinessParty, CompanyProfile, ProductCatalogModel, SalesQuotation, ProformaInvoice } from '../types/admin';
-import { calculateGstSplit, isDelhiState } from '../utils/tax';
+import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP } from '../utils/tax';
 import {
   DEFAULT_ACCESSORIES_TEXT,
   type CreateItem,
@@ -879,7 +879,7 @@ export default function CreateSalesOrderPage() {
                     const gstin = e.target.value.toUpperCase();
                     const pan = gstin.length >= 12 ? gstin.substring(2, 12) : formData.billingAddress.pan;
                     const stCode = gstin.length >= 2 ? gstin.substring(0, 2) : formData.billingAddress.stateCode;
-                    const stName = stCode === '07' ? 'Delhi' : formData.billingAddress.state;
+                    const stName = (stCode ? GST_STATE_CODE_MAP[stCode] : undefined) || (stCode === '07' ? 'Delhi' : formData.billingAddress.state);
                     setFormData({
                       ...formData,
                       placeOfSupply: stName,

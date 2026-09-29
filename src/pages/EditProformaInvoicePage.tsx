@@ -33,7 +33,7 @@ import {
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import CustomerSearchSelect from '../components/common/CustomerSearchSelect';
 import type { BusinessParty, ProductCatalogModel } from '../types/admin';
-import { calculateGstSplit, isDelhiState } from '../utils/tax';
+import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP } from '../utils/tax';
 import { DEFAULT_ACCESSORIES_TEXT, type CreateItem, type BillingAddressData, type DeliveryAddressData } from './CreateProformaPage';
 
 export default function EditProformaInvoicePage() {
@@ -1052,7 +1052,7 @@ export default function EditProformaInvoicePage() {
                   onChange={(e) => {
                     const val = e.target.value.toUpperCase();
                     const stateCode = val.length >= 2 && /^\d{2}$/.test(val.slice(0, 2)) ? val.slice(0, 2) : billingAddress.stateCode;
-                    const state = stateCode === '07' ? 'Delhi' : billingAddress.state;
+                    const state = (stateCode ? GST_STATE_CODE_MAP[stateCode] : undefined) || (stateCode === '07' ? 'Delhi' : billingAddress.state);
                     setPlaceOfSupply(state);
                     setPlaceOfSupplyStateCode(stateCode);
                     setBillingAddress((prev) => ({
