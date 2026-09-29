@@ -1742,6 +1742,31 @@ Backend `pdf.service.ts` uses `systemCategory` from `customSpecsJson` (passed as
 | `src/pages/EditSalesQuotationPage.tsx` | UMP/Locker sections, handlers, accessoriesText builder |
 | `src/utils/quotationProductPresets.ts` | Source of model data, `getMergedQuotationModels`, `extractModelDimensions`, `formatModelHardwareInclusions`, `extractModelHardwareItems` |
 
+---
+
+## 48. Quotation PDF 2-Page Strict Layout Architecture
+
+Sales Quotation PDF (`pdf.service.ts` -> `generateQuotationPdfHtml`) has been restructured into an exact 2-page print layout:
+
+### Page Breakdown
+- **Page 1 (`.page-container.page-1`)**:
+  - Full company header (Logo, Name, Address, GSTIN, Phone, Ref, Date, Project, Document Verification QR code).
+  - Recipient & Subject table (To: Client, Valid Until, Subject).
+  - Formal narrative opening ("Dear Sir / Madam, With reference to our discussion...").
+  - Detailed Line Items Table (S.No, Description & Technical Specifications for Cubicle, UMP, and Locker systems, Unit, Qty, Rate, Amount).
+  - Pricing summary breakdown (Basic Price, Installation, Freight, CGST+SGST / IGST / SEZ, Grand Total).
+  - Amount in words.
+  - Page 1 continuation notice & footer (`Page 1 of 2 — Quotation & Technical Specification Schedule`).
+
+- **Page 2 (`.page-container.page-2`)**:
+  - Header annexure banner (Company branding, Reference number, Project, Date, Grand Total).
+  - **Standard Inclusions & Hardware Accessories**: Parsed via `formatQuotationAccessoriesHtml()` so category headers (e.g. `--- URINAL MODESTY PARTITION HARDWARE ---`, `--- MODULAR LOCKER HARDWARE ---`, `--- RESTROOM CUBICLE HARDWARE ---`) render as clean highlighted section badges with green accent borders, preventing inline header collisions and formatting individual bullets with clean typography.
+  - **Warranty Commitment**: Dedicated styled commitment box (10-year moisture defect partition warranty, 1-year workmanship & hardware warranty).
+  - **Commercial Terms & Conditions**: Structured list/table with General Terms, Payment Terms, Delivery & Lead Time, and statutory compliance.
+  - **Sign-off Block**: Dual column with Client Acceptance Signature & Stamp on the left, and Company Authorized Signatory (Ejajul Shaikh / Company Head, signature image, contact) on the right.
+  - Page 2 footer note (`Page 2 of 2 — Hardware Specifications, Commercial Terms & Acceptance`).
+
+
 
 
 

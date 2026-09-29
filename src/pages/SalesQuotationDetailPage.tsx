@@ -828,7 +828,7 @@ export default function SalesQuotationDetailPage() {
             {quotation.accessoriesText && (
               <div>
                 <div className="text-xs font-semibold text-gray-400 mb-0.5">Standard Inclusions</div>
-                <p className="text-xs text-gray-300 leading-relaxed">{quotation.accessoriesText}</p>
+                <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-line">{quotation.accessoriesText}</p>
               </div>
             )}
             {quotation.notes && (
