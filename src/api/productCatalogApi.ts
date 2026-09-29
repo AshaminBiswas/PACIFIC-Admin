@@ -73,6 +73,10 @@ function mapDbRowToModel(row: any): ProductCatalogModel {
     hardwareList: hardwareList || [],
     specifications: cleanSpecs,
     features: Array.isArray(row.features) ? row.features : [],
+    applications: Array.isArray(row.applications) ? row.applications : [],
+    colors: Array.isArray(row.colors)
+      ? row.colors.map((c: any) => ({ name: c.name || '', imageUrl: c.image_url || c.imageUrl || '' }))
+      : [],
     hasExtraLeg: Boolean(hasExtraLeg),
     tierCount: tierCount || '',
     sortOrder: row.sort_order ?? 0,
@@ -102,9 +106,11 @@ function mapModelToDbRow(model: ProductCatalogModel) {
     },
   ];
 
-  const colors = (model.hardwareOptions || [])
-    .filter((opt) => opt.colors && opt.colors.length > 0)
-    .flatMap((opt) => (opt.colors || []).map((col) => ({ name: col, image_url: '' })));
+  const colors = (model.colors && model.colors.length > 0)
+    ? model.colors.map((c) => ({ name: c.name, image_url: c.imageUrl }))
+    : (model.hardwareOptions || [])
+        .filter((opt) => opt.colors && opt.colors.length > 0)
+        .flatMap((opt) => (opt.colors || []).map((col) => ({ name: col, image_url: '' })));
 
   return {
     id: isValidUuid(model.id) ? model.id : undefined,
@@ -112,13 +118,23 @@ function mapModelToDbRow(model: ProductCatalogModel) {
     title: model.title,
     subtitle: model.subtitle || '',
     description: model.description || '',
-    bottom_description: `Product Line: ${model.category}`,
+    bottom_description: '',
     category: model.category,
     image_url: model.imageUrl,
     additional_images: model.additionalImages || [],
-    features: model.features || [],
+    features: (model.features && model.features.length > 0)
+      ? model.features
+      : [
+          '10-Year Compact Board Warranty',
+          '1-Year Hardware Replacement Warranty',
+          '100% Water, Moisture & Termite Proof',
+          'Heavy Duty Grade 304 SS Hardware',
+          'Pan-India Supply & Turnkey Installation',
+        ],
     specifications,
-    applications: [`Commercial ${model.category}`, 'Public Washrooms', 'Offices'],
+    applications: (model.applications && model.applications.length > 0)
+      ? model.applications
+      : [`Commercial ${model.category}`, 'Public Washrooms', 'Corporate Offices'],
     colors,
     is_featured: model.isFeatured,
     sort_order: model.sortOrder,
@@ -301,6 +317,14 @@ export const productCatalogApi = {
     }
 
     return modelToSave;
+  },
+
+  toggleFeatured: async (id: string, isFeatured: boolean): Promise<ProductCatalogModel | null> => {
+    const allModels = await productCatalogApi.listModels();
+    const target = allModels.find((m) => m.id === id);
+    if (!target) return null;
+    const updatedModel: ProductCatalogModel = { ...target, isFeatured };
+    return await productCatalogApi.saveModel(updatedModel);
   },
 
   deleteModel: async (id: string): Promise<boolean> => {

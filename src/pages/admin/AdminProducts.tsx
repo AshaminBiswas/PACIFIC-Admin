@@ -152,7 +152,8 @@ export default function AdminProducts() {
   // Cubicle-specific form states
   const [formSsEnabled, setFormSsEnabled] = useState(true);
   const [formSsColors, setFormSsColors] = useState<SSHardwareColor[]>(['golden', 'Black', 'stainless steel']);
-  const [formNylonEnabled, setFormNylonEnabled] = useState(true);
+  const [formNylonEnabled, setFormNylonEnabled] = useState(false);
+  const [formAluminiumEnabled, setFormAluminiumEnabled] = useState(false);
 
   // Locker-specific form states
   const [formTierCount, setFormTierCount] = useState<string | number>(1);
@@ -283,7 +284,8 @@ export default function AdminProducts() {
     // Hardware defaults based on category
     setFormSsEnabled(true);
     setFormSsColors(['golden', 'Black', 'stainless steel']);
-    setFormNylonEnabled(true);
+    setFormNylonEnabled(false);
+    setFormAluminiumEnabled(false);
     setFormTierCount(1);
     setFormHasExtraLeg(false);
 
@@ -356,9 +358,11 @@ export default function AdminProducts() {
     // Hardware setup
     const ssOpt = model.hardwareOptions?.find((o) => o.material === 'SS Hardware');
     const nylonOpt = model.hardwareOptions?.find((o) => o.material === 'Nylon Hardware');
+    const alumOpt = model.hardwareOptions?.find((o) => o.material === 'Aluminium Profile');
     setFormSsEnabled(Boolean(ssOpt?.enabled));
     setFormSsColors(ssOpt?.colors || ['golden', 'Black', 'stainless steel']);
     setFormNylonEnabled(Boolean(nylonOpt?.enabled));
+    setFormAluminiumEnabled(Boolean(alumOpt?.enabled));
     setFormTierCount(model.tierCount || 1);
     setFormHasExtraLeg(Boolean(model.hasExtraLeg));
 
@@ -598,6 +602,13 @@ export default function AdminProducts() {
           colors: [],
         });
       }
+      if (formAluminiumEnabled) {
+        hardwareOptions.push({
+          material: 'Aluminium Profile',
+          enabled: true,
+          colors: [],
+        });
+      }
     } else {
       hardwareOptions.push({
         material: 'Standard',
@@ -616,6 +627,7 @@ export default function AdminProducts() {
       additionalImages: formAdditionalImages.filter(Boolean),
       videos: formVideos.map((v) => (typeof v === 'string' ? v.trim() : '')).filter(Boolean),
       videoUrls: formVideos.map((v) => (typeof v === 'string' ? v.trim() : '')).filter(Boolean),
+      colors: editingModel?.colors,
       hardwareOptions,
       hardwareList: formHardwareList,
       specifications: editingModel?.specifications || [
@@ -623,9 +635,16 @@ export default function AdminProducts() {
         { label: 'Category', value: formCategory },
       ],
       features: editingModel?.features || [
+        '10-Year Compact Board Warranty',
+        '1-Year Hardware Replacement Warranty',
         '100% Water, Moisture & Termite Proof',
         'Heavy Duty Commercial Grade Hardware',
         'Pan-India Supply & Installation Certified',
+      ],
+      applications: editingModel?.applications || [
+        `Commercial ${formCategory}`,
+        'Corporate IT Parks & Offices',
+        'Public Washrooms',
       ],
       hasExtraLeg: formCategory === 'Urinal Partitions' ? formHasExtraLeg : false,
       tierCount: formCategory === 'Lockers' ? formTierCount : undefined,
@@ -638,6 +657,30 @@ export default function AdminProducts() {
     setShowModelModal(false);
     showToast(editingModel ? `Model "${formTitle}" updated successfully!` : `New model "${formTitle}" created!`);
     loadData();
+  };
+
+  // ── Toggle Featured Handler ──
+  const handleToggleFeatured = async (model: ProductCatalogModel) => {
+    const nextFeatured = !model.isFeatured;
+    // Optimistic UI update
+    setModels((prev) =>
+      prev.map((m) => (m.id === model.id ? { ...m, isFeatured: nextFeatured } : m))
+    );
+
+    try {
+      await productCatalogApi.toggleFeatured(model.id, nextFeatured);
+      showToast(
+        nextFeatured
+          ? `Model "${model.title}" marked as Featured on Homepage!`
+          : `Model "${model.title}" removed from Featured.`
+      );
+    } catch (err: any) {
+      // Revert optimistic update on failure
+      setModels((prev) =>
+        prev.map((m) => (m.id === model.id ? { ...m, isFeatured: model.isFeatured } : m))
+      );
+      alert(err.message || 'Failed to update featured status');
+    }
   };
 
   // ── Delete Model Handler ──
@@ -960,12 +1003,23 @@ export default function AdminProducts() {
                     </div>
 
                     {/* Featured / Status Pill */}
-                    <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5">
-                      {model.isFeatured && (
-                        <span className="p-1.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 backdrop-blur-md">
-                          <Star className="w-3.5 h-3.5 fill-amber-300" />
-                        </span>
-                      )}
+                    <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 z-10">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleToggleFeatured(model);
+                        }}
+                        className={`p-1.5 rounded-xl border backdrop-blur-md transition ${
+                          model.isFeatured
+                            ? 'bg-amber-500/30 text-amber-300 border-amber-500/50 hover:bg-amber-500/40'
+                            : 'bg-black/40 text-gray-400 border-white/10 hover:text-amber-300 hover:border-amber-400/40'
+                        }`}
+                        title={model.isFeatured ? "Featured on Homepage (Click to Unfeature)" : "Click to mark as Featured on Homepage"}
+                      >
+                        <Star className={`w-3.5 h-3.5 ${model.isFeatured ? 'fill-amber-300 text-amber-300' : ''}`} />
+                      </button>
                       <span
                         className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold border backdrop-blur-md ${
                           model.published
@@ -1102,6 +1156,20 @@ export default function AdminProducts() {
                     <Eye className="w-3.5 h-3.5 text-[#7FB706]" />
                     <span>View Model & BOM</span>
                   </Link>
+
+                  <button
+                    type="button"
+                    onClick={() => handleToggleFeatured(model)}
+                    className={`px-2.5 py-2 rounded-xl text-xs font-semibold border transition min-h-[40px] flex items-center gap-1.5 ${
+                      model.isFeatured
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                        : 'bg-white/5 hover:bg-white/10 text-gray-400 hover:text-amber-300 border-white/5'
+                    }`}
+                    title={model.isFeatured ? "Unmark from Featured" : "Mark as Featured"}
+                  >
+                    <Star className={`w-3.5 h-3.5 ${model.isFeatured ? 'fill-amber-300 text-amber-300' : ''}`} />
+                    <span className="hidden sm:inline">{model.isFeatured ? 'Featured' : 'Feature'}</span>
+                  </button>
 
                   <Link
                     to={`/admin/dashboard/products/${model.id}/edit`}
@@ -1655,7 +1723,7 @@ export default function AdminProducts() {
                 {formCategory === 'Cubicle' && (
                   <div className="space-y-4">
                     <div className="p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-xl text-xs text-emerald-300">
-                      <strong>Cubicle Hardware Rule:</strong> Each cubicle model has two hardware options: <strong>SS Hardware</strong> (3 colors: <em>Golden, Black, Stainless Steel</em>) and <strong>Nylon Hardware</strong>.
+                      <strong>Cubicle Hardware Rule:</strong> Select hardware options for this model: <strong>SS Hardware</strong> (3 colors: <em>Golden, Black, Stainless Steel</em>), <strong>Nylon Hardware</strong>, and <strong>Aluminium Profile</strong>.
                     </div>
 
                     {/* SS Hardware Toggle & Colors */}
@@ -1717,7 +1785,21 @@ export default function AdminProducts() {
                         />
                         <span>Enable Nylon Hardware (High-Impact Polyamide)</span>
                       </label>
-                      <span className="text-[11px] text-gray-400">Non-corrosive</span>
+                      <span className="text-[11px] text-gray-400">Chemical &amp; Rust Proof</span>
+                    </div>
+
+                    {/* Aluminium Profile Toggle */}
+                    <div className="p-3 bg-black/30 border border-white/5 rounded-xl flex items-center justify-between">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-white">
+                        <input
+                          type="checkbox"
+                          checked={formAluminiumEnabled}
+                          onChange={(e) => setFormAluminiumEnabled(e.target.checked)}
+                          className="w-4 h-4 accent-[#7FB706] rounded cursor-pointer"
+                        />
+                        <span>Enable Aluminium Profile (Extruded &amp; Anodized)</span>
+                      </label>
+                      <span className="text-[11px] text-gray-400">Structural Profiles</span>
                     </div>
                   </div>
                 )}
@@ -2046,12 +2128,21 @@ export default function AdminProducts() {
                 <div className="text-gray-400 font-medium">Finishes & Options:</div>
                 {viewingBomModel.category === 'Cubicle' && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-semibold">
-                      SS Hardware: Golden, Black, Stainless Steel
-                    </span>
-                    <span className="px-2.5 py-1 rounded-xl bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-semibold">
-                      Nylon Hardware
-                    </span>
+                    {viewingBomModel.hardwareOptions?.some((o) => o.material === 'SS Hardware' && o.enabled) && (
+                      <span className="px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-semibold">
+                        SS Hardware: Golden, Black, Stainless Steel
+                      </span>
+                    )}
+                    {viewingBomModel.hardwareOptions?.some((o) => o.material === 'Nylon Hardware' && o.enabled) && (
+                      <span className="px-2.5 py-1 rounded-xl bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-semibold">
+                        Nylon Hardware
+                      </span>
+                    )}
+                    {viewingBomModel.hardwareOptions?.some((o) => o.material === 'Aluminium Profile' && o.enabled) && (
+                      <span className="px-2.5 py-1 rounded-xl bg-slate-500/10 text-slate-300 border border-slate-500/20 font-semibold">
+                        Aluminium Profile
+                      </span>
+                    )}
                   </div>
                 )}
                 {viewingBomModel.category === 'Lockers' && (

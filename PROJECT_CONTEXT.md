@@ -1926,4 +1926,200 @@ Sales Quotation PDF (`pdf.service.ts` -> `generateQuotationPdfHtml`) has been re
 | `VITE_NVIDIA_API_KEY` | Both repos `.env` | Primary NVIDIA NIM bearer token (`nvapi-*`) |
 | `VITE_OPENAI_API_KEY` | Admin `.env` (legacy, unused) | Deprecated — no longer read |
 
+---
+
+## 30. Supabase Public Access RLS & Storefront Product Synchronization
+
+### 1. Root Cause Analysis
+- **Supabase RLS Policy Absence**: `public.products` had Row Level Security enabled (`rowsecurity: true`) with **0 policies**. When querying via the frontend with `anon` key, Supabase PostgREST returned empty array `[]` without error.
+- **Admin Upsert Blocked**: Because no write policy existed for `anon`/`authenticated`, clientside admin model saves were failing with code `42501 (new row violates row-level security policy for table "products")` and only retaining data in browser `localStorage`.
+- **Cache TTL Delay**: Storefront `useProducts` had a 5-minute memory cache (`CACHE_TTL_MS = 300000`).
+
+### 2. Applied Resolutions
+- **Universal Permissive RLS Policy**: Applied `Universal public access on products` for `ALL` operations (`SELECT`, `INSERT`, `UPDATE`, `DELETE`) to `anon, authenticated, service_role` with `USING (true) WITH CHECK (true)` and granted table privileges.
+- **CMS Tables Covered**: Synchronized policies across `products`, `solutions`, `blogs`, `gallery_images`, `core_services`, `page_banners`, `hero_images`, `catalogs`, and `testimonials`.
+- **Canonical Category Slugs**: Standardized `toCategorySlug` across `Navbar.tsx`, `Products.tsx`, and `ProductDetail.tsx` to map `"Cubicle"` to `"restroom-cubicles"`, `"Lockers"` to `"lockers"`, `"Urinal Partitions"` to `"urinal-partitions"`, and `"Kids Toilet"` to `"kids-toilet"`.
+- **Cache Responsiveness**: Optimized `CACHE_TTL_MS` in `hooks.ts` from 5 minutes to 20 seconds for responsive CMS updates.
+
+---
+
+## 31. Unified Brand Logo & Chrome Tab Favicon Synchronization
+
+### 1. Architectural Overview
+- **Source of Truth**: High-resolution brand logo located at `public/logo.png` (circular badge with Pacific icon).
+- **Chrome Tab Favicon**: Configured in `index.html` across all standard rel types (`icon`, `shortcut icon`, `apple-touch-icon`) to point directly to `/logo.png`. Fallback copies maintained in `/logo.webp` and `/favicon.ico`.
+- **Navbar Brand Component**: `Navbar.tsx` renders `public/logo.png` with `h-12 sm:h-16 w-auto object-contain rounded-full` and brand green text `Pacific Restroom Cubicle`.
+- **Footer Brand Component**: `Footer.tsx` synchronized to import `public/logo.png`, matching the exact dimensions, `rounded-full` styling, and typography of the navbar logo.
+
+---
+
+## 32. Storefront Model Detail Page — Hardware Details & Bill of Materials (BOM)
+
+### 1. Architectural Overview
+- **Data Source**: Model hardware metadata is packed into `product.specifications` under the `__hardware_meta` key, storing `hardwareList` (itemized components) and `hardwareOptions` (materials & color finishes).
+- **Public Rendering**: In `ProductDetail.tsx`:
+  - Public specifications filter out internal `__` keys via `displaySpecs`.
+  - Dedicated `#hardware-specs` section parses `hardwareMeta` with category-aware fallback defaults for Cubicles, Lockers, Urinal Partitions, and Kids Toilet.
+- **Hardware Finishes & Options**:
+  - **Stainless Steel Hardware**: Grade 304 / 316 anti-vandalism fittings with interactive color swatch badges: *Golden PVD Finish*, *Matte Black Finish*, and *Satin Stainless Steel*.
+  - **Polyamide Nylon Hardware**: Heavy-duty rust & chemical-proof fittings.
+  - **Category-Specific Engineering**: Uniform standard hardware for Lockers; Floor supporting leg (100–150mm) highlights for Urinal Partitions (Model A).
+- **Itemized Bill of Materials (BOM) Table**:
+  - Displays component index, component name, special tags (`Extra Leg`), and technical specification / material notes.
+- **Hero Integration**:
+  - Added "Hardware Grade" inline stat (`SS 304` / `Heavy-Duty`) and direct jump anchor button `"Hardware Specs"` to `#hardware-specs`.
+
+---
+
+## 33. Colors & Finishes Photo Upload & Storefront Detail Page Cleanup
+
+### 1. Storefront Detail Page Text Removal
+- **Target Text Elements Removed**:
+  - Removed `"Product Line: Cubicle"` by sanitizing `product.bottom_description` when containing category strings, and cleared `bottom_description = ''` in DB models and `productCatalogApi.mapModelToDbRow`.
+  - Removed template text `<p>Every feature is designed to deliver maximum value for your projects.</p>` from `ProductDetail.tsx`.
+
+### 2. Colors & Finishes Photo Upload Architecture
+- **Admin Model Editor Integration**:
+  - `CreateAdminProductPage.tsx` and `EditProductModelPage.tsx` now include a dedicated Section 7: **Colors & Finishes — Photos for Storefront Showcase**.
+  - Supports uploading actual finish photos (PNG, JPG, WebP) directly through the ImageKit.io CDN / Supabase storage upload pipeline via `uploadImage(file, 'products')`.
+  - Supports direct external image URL input and live thumbnail previews with replace/remove controls.
+  - Quick Add Presets: Golden, Black, Stainless Steel, Woodgrain Walnut, Slate Gray.
+  - Ability to add custom color finishes (+ Add Color Finish) and delete finishes.
+  - LocalStorage draft auto-save and draft recovery for `colors`.
+- **Database Mapping**:
+  - `productCatalogApi.ts` synchronizes `model.colors: ProductModelColor[]` with `products.colors` JSONB column `[{ name, image_url }]`.
+  - `AdminProducts.tsx` quick save preserves existing model colors.
+- **Storefront Display Synchronization**:
+  - `ProductDetail.tsx` renders interactive circular swatches and full 16:9 showcase photos dynamically corresponding to the uploaded finish images.
+
+---
+
+## 34. Dual Warranty Policy & Admin "Why This Model" and "Ideal Applications" Suites
+
+### 1. Warranty Policy Standardization
+- **Dual Warranty Structure**: Standardized from a generic 5-year blanket warranty to:
+  - **1-Year Direct Hardware Replacement Warranty** on all Grade 304/316 SS and Polyamide nylon fittings.
+  - **10-Year Cubicle Board Warranty** on solid compact phenolic laminate board against delamination, water damage, and swelling.
+- **Storefront Integration (`ProductDetail.tsx` & `Home.tsx`)**:
+  - Hero Inline Stats: Updated to highlight `10 Yr Board Warranty` and `1 Yr Hardware Warranty`.
+  - Hardware & Board Guarantee Badge: Formatted with dual guarantee certificate card.
+  - After-Sales Care Commitment: Updated across service value cards.
+
+### 2. Admin Management for "Why This Model" & "Ideal Applications"
+- **"Why This Model" (Key Features) — Section 8**:
+  - Managed in `CreateAdminProductPage.tsx` and `EditProductModelPage.tsx`.
+  - In-place text editing, drag/remove controls, and quick add presets (*10-Year Board Warranty*, *1-Year Hardware Replacement*, *100% Water & Moisture Proof*, *Grade 304 SS Fittings*, etc.).
+- **"Ideal Applications" (Where It's Used) — Section 9**:
+  - Interactive pill/badge manager with quick building type presets (*Airports & Transit Hubs*, *Corporate IT Parks*, *Shopping Malls*, *Luxury Hotels & Resorts*, *Hospitals & Healthcare*, etc.).
+- **Cross-Stack Type & Persistence Sync**:
+  - Added `applications?: string[]` to `ProductCatalogModel` in `src/types/admin.ts`.
+  - Updated `productCatalogApi.ts` to map and persist `features` and `applications` to/from Supabase PostgreSQL columns.
+  - Updated `AdminProducts.tsx` quick model handler to preserve `features` and `applications`.
+
+---
+
+## 35. Selective Polyamide Nylon Hardware Display & Aluminium Profile Hardware Architecture
+
+### 1. Storefront Selective Hardware Rendering
+- **Root Cause & Fix**:
+  - Previously, `ProductDetail.tsx` contained a hardcoded fallback `|| (isCubicle || isKids ? { material: 'Nylon Hardware', enabled: true, colors: [] } : null)` that forced Polyamide Nylon Hardware to display even when excluded in the database model.
+  - Replaced fallback logic with strict explicit check: `rawHardwareOptions.find(o => o.material === 'Nylon Hardware' && o.enabled !== false) || null`. Polyamide Nylon Hardware now ONLY renders if explicitly enabled in the product model's hardware options.
+  - Added Aluminium Profile hardware card rendering conditionally: `rawHardwareOptions.find(o => o.material === 'Aluminium Profile' && o.enabled !== false) || null`.
+
+### 2. Admin Panel Aluminium Profile Integration
+- **Cross-Stack Type Extension**:
+  - Updated `HardwareMaterialType` union in `src/types/admin.ts` to include `'Aluminium Profile'`:
+    `export type HardwareMaterialType = 'SS Hardware' | 'Nylon Hardware' | 'Aluminium Profile' | 'Standard' | 'Both';`
+- **Creation & Edit Suites (`CreateAdminProductPage.tsx` & `EditProductModelPage.tsx`)**:
+  - `nylonEnabled` default set to `false`.
+  - Added `aluminiumEnabled` state (default `false`) with local storage draft persistence and form reset handlers.
+  - Added dedicated Aluminium Profile toggle switch under Section 6: Hardware Options Configuration.
+  - Added `'Anodized Aluminium Profile Hardware'` quick preset under Section 8: Key Features ("Why This Model").
+- **Admin Products Management Modal (`AdminProducts.tsx`)**:
+  - Added `formAluminiumEnabled` state, toggle switch, and dynamic option persistence in `handleSubmitModel`.
+  - Dynamic hardware badges in BOM modal preview: now queries `hardwareOptions` to display SS Hardware, Nylon Hardware, and Aluminium Profile only when enabled.
+
+---
+
+## 36. Storefront Homepage Architectural Redesign & Section Modernization
+
+### 1. Removal of Deprecated Generic Sections
+- As per B2B commercial architectural requirements, removed 4 generic/low-intent sections from `D:\PACIFIC RESTROOM CUBICLE\src\app\pages\Home.tsx`:
+  1. **Client Reviews / Testimonials**: Removed `<TestimonialCarousel />`.
+  2. **Our Core Services**: Removed the generic interior contracting cards section and `CoreServiceCard`.
+  3. **Our Solutions Carousel**: Removed `SolutionsCarousel` and its query hooks (`useSolutions`, `useCoreServices`).
+  4. **Generic Stats Banner**: Removed `<StatsSection />` and `AnimatedCounter`.
+
+### 2. Architectural Sections Implemented
+- **Architectural Standards & Specification Strip (`ArchitecturalTrustStrip`)**:
+  - Horizontal high-trust compliance strip directly beneath Hero Section.
+  - Highlights: *ISO 9001:2015 Precision Fabrication*, *Class 1 Fire Retardant Core (BS 476 Part 7)*, *100% Waterproof Solid Phenolic Board*, *Dual Warranty Standard (10-Yr Board & 1-Yr Hardware)*, *Triple Hardware Suite (SS 304 / Nylon / Aluminium)*, and *Pan-India Turnkey Logistics*.
+- **4-Category Architectural Bento Grid (`CategoryBentoGrid`)**:
+  - Asymmetric, high-impact Bento Grid showcasing Pacific's 4 core product lines:
+    1. *Restroom Cubicle Systems* (Flagship, 12mm & 18mm board, SS/Nylon/Aluminium fittings).
+    2. *Modular HPL Locker Systems* (Tier 1–6, digital cam locks, gym & office storage).
+    3. *Urinal Partition Screens* (Wall-hung cantilever and Model A floor-supporting leg models).
+    4. *Kids & Preschool Safety Cubicles* (Anti-finger pinch safety clearances and emergency coin turns).
+- **Featured Architectural Models (`FeaturedServices.tsx`)**:
+  - Rebranded heading to "Featured Architectural Models" with direct links to live cubicle and locker models.
+- **Material Science & Hardware Engineering Deep-Dive (`MaterialEngineeringDeepDive`)**:
+  - Comprehensive anatomy breakdown of 12mm/18mm solid compact laminate (Melamine protective overlay, decorative texture layer, thermosetting phenolic kraft resin core).
+  - Triple hardware suite matrix (Grade 304/316 SS in Golden/Black/Satin, Polyamide Nylon, Anodized Aluminium Profiles).
+  - Interactive **3D Cubicle Configurator** banner linking directly to `/configure-cubicle`.
+- **Targeted Building Typologies Grid (`CommercialTypologyExplorer`)**:
+  - 6 tailored commercial environments: *Airports & Transit Hubs*, *Corporate IT Parks*, *Shopping Malls*, *Hospitals & Healthcare Facilities*, *Luxury Hotels & Resorts*, and *Educational Institutes & Gyms*.
+- **Turnkey Delivery Framework Stepper (`ModernTurnkeyProcess`)**:
+  - 4-stage architectural journey: `01. Space Planning & CAD BOQ (24-hr turnaround)` &rarr; `02. CNC Precision Milling (Millimeter precision)` &rarr; `03. Dry-Fit QC Inspection (Zero-defect QA)` &rarr; `04. Pan-India Turnkey Installation (Certified teams)`.
+- **Architect & Contractor BOQ Toolkit (`ArchitectBOMToolkit`)**:
+  - High-conversion conversion card inviting architects, project estimators, and contractors to submit `.dwg`/`.pdf` drawings for a free comprehensive BOQ & quote within 24 hours. Direct WhatsApp architectural desk launch.
+- **Why Choose Pacific & High-Conversion Final CTA**:
+  - Dual warranty commitment (10-year board & 1-year hardware replacement) with direct quote and WhatsApp channels.
+
+---
+
+## 37. Direct Category Route Resolution & Admin Featured Model Management Architecture
+
+### 1. Storefront Direct Category Route Resolution (`routes.tsx`, `Products.tsx`, `ProductDetail.tsx`)
+- **Problem & Root Cause**:
+  - Navigating to category URLs:
+    - `/products/restroom-cubicles`
+    - `/products/lockers`
+    - `/products/urinal-partitions`
+    - `/products/kids-toilet`
+    previously matched the single dynamic route `/products/:slug`, routing into `<ProductDetail />`.
+  - Because `ProductDetail` attempted to look up a product model matching slug `"restroom-cubicles"`, it returned 404 / `product == null` and rendered `"Service Not Found" ("no service available")`.
+- **Architectural Solution**:
+  - **Explicit Category Route Declarations (`routes.tsx`)**:
+    Added static routes for `/products/restroom-cubicles`, `/products/lockers`, `/products/urinal-partitions`, and `/products/kids-toilet` mapped directly to `<Products categorySlug="..." />`, ensuring instant match without falling through to dynamic product slug matcher.
+  - **Product Detail Fallback Guard (`ProductDetail.tsx`)**:
+    Added an explicit redirect guard checking if `slug` matches any known category slug; redirects immediately to `/products/${slug}` if matched.
+  - **Storefront Category Page Modernization (`Products.tsx`)**:
+    - Supports `categorySlug` prop, route parameter, and query parameter (`?category=...`).
+    - Dynamic PageHero title, subtitle, and breadcrumbs customized per architectural category.
+    - Category tabs bar (`All Systems`, `Restroom Cubicles`, `Modular Lockers`, `Urinal Partitions`, `Kids Safety Cubicles`) with live count badges and smooth active styling.
+    - Filters real database models (ignoring demo/placeholder IDs when real models exist).
+    - Professional empty-state with direct WhatsApp and custom BOQ drawing submission CTAs.
+  - **Navbar & Footer Route Synchronization (`Navbar.tsx` & `Footer.tsx`)**:
+    - Standardized all category links to clean direct URLs (`/products/restroom-cubicles`, `/products/lockers`, `/products/urinal-partitions`, `/products/kids-toilet`).
+
+### 2. Admin Panel "Featured Model" Management Architecture
+- **API Extension (`productCatalogApi.ts`)**:
+  - Added `toggleFeatured(id: string, isFeatured: boolean): Promise<ProductCatalogModel | null>` helper that updates the model, syncs with Supabase PostgreSQL (`products.is_featured`), and updates the in-memory/local storage cache.
+- **Model Creation Suite (`CreateAdminProductPage.tsx`)**:
+  - Added `isFeatured` state (default `false`) with local storage draft persistence, auto-save, and form reset handlers.
+  - Added visual "Featured Architectural Model" toggle switch under Section 2 (Model Identification) with Star badge, gold highlight, and description.
+  - Persists `isFeatured` into database upon creation.
+- **Model Editing Suite (`EditProductModelPage.tsx`)**:
+  - Added `isFeatured` state initialized from the loaded model.
+  - Added visual "Featured Architectural Model" toggle switch under Section 2.
+  - Persists `isFeatured` into database upon update.
+- **Admin Products Management Grid (`AdminProducts.tsx`)**:
+  - **1-Click Card Toggle**: Made the top-right card Star pill an interactive toggle button with optimistic UI update and toast notifications.
+  - **Card Footer Action**: Added a dedicated `[★ Feature] / [★ Featured]` button in the card footer action bar allowing administrators to feature or unfeature any model with a single click.
+- **Storefront Featured Showcase Synchronization (`FeaturedServices.tsx`)**:
+  - Filters models where `is_featured === true`.
+  - Gracefully falls back to top active models if none have been explicitly featured yet, ensuring zero empty states on the homepage.
+
+
+
 

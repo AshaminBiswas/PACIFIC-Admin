@@ -2144,7 +2144,7 @@ export interface ExportDashboardStats {
 
 export type ProductCategoryType = 'Cubicle' | 'Lockers' | 'Urinal Partitions' | 'Kids Toilet';
 
-export type HardwareMaterialType = 'SS Hardware' | 'Nylon Hardware' | 'Standard' | 'Both';
+export type HardwareMaterialType = 'SS Hardware' | 'Nylon Hardware' | 'Aluminium Profile' | 'Standard' | 'Both';
 
 export type SSHardwareColor = 'golden' | 'Black' | 'stainless steel';
 
@@ -2164,6 +2164,11 @@ export interface ModelHardwareItem {
   isExtraLeg?: boolean;
 }
 
+export interface ProductModelColor {
+  name: string;
+  imageUrl: string;
+}
+
 export interface ProductCatalogModel {
   id: string;
   slug: string;
@@ -2175,10 +2180,12 @@ export interface ProductCatalogModel {
   additionalImages?: string[];
   videos?: string[];
   videoUrls?: string[];
+  colors?: ProductModelColor[];
   hardwareOptions?: ModelHardwareOption[];
   hardwareList: ModelHardwareItem[];
   specifications: Array<{ label: string; value: string }>;
   features?: string[];
+  applications?: string[];
   hasExtraLeg?: boolean;
   tierCount?: number | string;
   sortOrder?: number;
