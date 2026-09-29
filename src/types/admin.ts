@@ -2173,6 +2173,8 @@ export interface ProductCatalogModel {
   description: string;
   imageUrl: string;
   additionalImages?: string[];
+  videos?: string[];
+  videoUrls?: string[];
   hardwareOptions?: ModelHardwareOption[];
   hardwareList: ModelHardwareItem[];
   specifications: Array<{ label: string; value: string }>;

@@ -102,11 +102,29 @@ export function isSupabaseConfigured(): boolean {
   return Boolean(supabaseUrl && supabaseKey && !supabaseUrl.includes("placeholder"));
 }
 
+import {
+  uploadImageToImageKit,
+  uploadMultipleImagesToImageKit,
+  uploadVideoToImageKit,
+  uploadFileToImageKit,
+  deleteFromImageKit,
+  isImageKitConfigured,
+} from "./imagekit";
+
+// Re-export ImageKit helpers
+export {
+  uploadImageToImageKit,
+  uploadMultipleImagesToImageKit,
+  uploadVideoToImageKit,
+  uploadFileToImageKit,
+  deleteFromImageKit,
+  isImageKitConfigured,
+};
+
 // ── Storage helpers ───────────────────────────────────────────
 const BUCKET = "uploads";
 
 async function optimizeImage(file: File): Promise<File> {
-  // Keep GIF/SVG untouched to avoid breaking animations/vector assets.
   const skipTypes = ["image/gif", "image/svg+xml"];
   if (skipTypes.includes(file.type)) return file;
 
@@ -124,67 +142,175 @@ async function optimizeImage(file: File): Promise<File> {
   }
 }
 
+/**
+ * Upload an image: Uses ImageKit.io as the primary cloud storage engine,
+ * returning the public ImageKit CDN URL to be stored in the database.
+ */
 export async function uploadImage(
   file: File,
   folder: string = "images"
 ): Promise<string | null> {
-  const optimizedFile = await optimizeImage(file);
-  const ext =
-    optimizedFile.type === "image/webp"
-      ? "webp"
-      : optimizedFile.name.split(".").pop() || "jpg";
-  const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
-  const { error } = await supabase.storage.from(BUCKET).upload(fileName, optimizedFile, {
-    cacheControl: "3600",
-    upsert: false,
-  });
-
-  if (error) {
-    console.error("Upload error:", error);
-    return null;
+  if (isImageKitConfigured()) {
+    try {
+      const ikUrl = await uploadImageToImageKit(file, folder);
+      if (ikUrl) return ikUrl;
+    } catch (err) {
+      console.warn("[Storage] ImageKit image upload error, trying Supabase fallback:", err);
+    }
   }
 
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
-  return data.publicUrl;
+  // Fallback: Supabase Storage
+  try {
+    const optimizedFile = await optimizeImage(file);
+    const ext =
+      optimizedFile.type === "image/webp"
+        ? "webp"
+        : optimizedFile.name.split(".").pop() || "jpg";
+    const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    const { error } = await supabase.storage.from(BUCKET).upload(fileName, optimizedFile, {
+      cacheControl: "3600",
+      upsert: false,
+    });
+
+    if (error) {
+      console.error("Upload error:", error);
+      return null;
+    }
+
+    const { data } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
+    return data.publicUrl;
+  } catch (error) {
+    console.error("Supabase storage upload error:", error);
+    return null;
+  }
 }
 
 /**
- * Upload any file (PDF, image, etc.) to Supabase Storage.
- * Images are optimized; other file types are uploaded as-is.
+ * Upload any file (PDF, catalog, document, image) to ImageKit.io.
+ * Returns { url, size } with the public ImageKit CDN URL.
  */
 export async function uploadFile(
   file: File,
   folder: string = "catalogs"
 ): Promise<{ url: string; size: number } | null> {
-  const isImage = file.type.startsWith("image/");
-  const processedFile = isImage ? await optimizeImage(file) : file;
-
-  const ext = isImage && processedFile.type === "image/webp"
-    ? "webp"
-    : file.name.split(".").pop() || "bin";
-  const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
-  const { error } = await supabase.storage.from(BUCKET).upload(fileName, processedFile, {
-    cacheControl: "3600",
-    upsert: false,
-    contentType: file.type,
-  });
-
-  if (error) {
-    console.error("Upload error:", error);
-    return null;
+  if (isImageKitConfigured()) {
+    try {
+      const ikFile = await uploadFileToImageKit(file, folder);
+      if (ikFile) return ikFile;
+    } catch (err) {
+      console.warn("[Storage] ImageKit file upload error, trying Supabase fallback:", err);
+    }
   }
 
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
-  return { url: data.publicUrl, size: file.size };
+  // Fallback: Supabase Storage
+  try {
+    const isImage = file.type.startsWith("image/");
+    const processedFile = isImage ? await optimizeImage(file) : file;
+
+    const ext = isImage && processedFile.type === "image/webp"
+      ? "webp"
+      : file.name.split(".").pop() || "bin";
+    const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    const { error } = await supabase.storage.from(BUCKET).upload(fileName, processedFile, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type,
+    });
+
+    if (error) {
+      console.error("Upload error:", error);
+      return null;
+    }
+
+    const { data } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
+    return { url: data.publicUrl, size: file.size };
+  } catch (error) {
+    console.error("Supabase file upload error:", error);
+    return null;
+  }
 }
 
+/**
+ * Upload multiple images to ImageKit.io in parallel.
+ * Returns an array of public ImageKit CDN URLs.
+ */
+export async function uploadMultipleImages(
+  files: File[],
+  folder: string = "products"
+): Promise<string[]> {
+  if (isImageKitConfigured()) {
+    try {
+      const ikUrls = await uploadMultipleImagesToImageKit(files, folder);
+      if (ikUrls && ikUrls.length > 0) return ikUrls;
+    } catch (err) {
+      console.warn("[Storage] ImageKit batch upload error, trying Supabase fallback:", err);
+    }
+  }
+
+  const uploads = Array.from(files).map((f) => uploadImage(f, folder));
+  const results = await Promise.all(uploads);
+  return results.filter((url): url is string => Boolean(url));
+}
+
+/**
+ * Upload video file (.mp4, .webm, .mov) directly to ImageKit.io.
+ * Returns the public ImageKit CDN URL to be stored in the database.
+ */
+export async function uploadVideo(
+  file: File,
+  folder: string = "videos"
+): Promise<string | null> {
+  if (isImageKitConfigured()) {
+    try {
+      const ikVideoUrl = await uploadVideoToImageKit(file, folder);
+      if (ikVideoUrl) return ikVideoUrl;
+    } catch (err) {
+      console.warn("[Storage] ImageKit video upload error, trying Supabase fallback:", err);
+    }
+  }
+
+  // Fallback: Supabase Storage
+  try {
+    const ext = file.name.split(".").pop() || "mp4";
+    const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    const { error } = await supabase.storage.from(BUCKET).upload(fileName, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type || "video/mp4",
+    });
+
+    if (error) {
+      console.error("Video upload error:", error);
+      return null;
+    }
+
+    const { data } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
+    return data.publicUrl;
+  } catch (error) {
+    console.error("Supabase video upload error:", error);
+    return null;
+  }
+}
+
+/**
+ * Delete a media file from ImageKit.io (or Supabase fallback).
+ */
 export async function deleteImage(url: string): Promise<boolean> {
-  // Extract path from full URL
+  if (!url) return false;
+
+  if (url.includes("imagekit.io")) {
+    const deleted = await deleteFromImageKit(url);
+    if (deleted) return true;
+  }
+
+  // Extract path from full URL for Supabase
   const pathMatch = url.match(new RegExp(`${BUCKET}/(.+)$`));
   if (!pathMatch) return false;
 
   const { error } = await supabase.storage.from(BUCKET).remove([pathMatch[1]]);
   return !error;
 }
+

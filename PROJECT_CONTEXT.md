@@ -285,8 +285,8 @@ D:\PACIFIC-Admin\
 - **Supabase Administrative Data Engine**: `src/lib/supabase.ts` connects to the primary database project (`kgalsrokdmsrqysyoffm`) using `VITE_SUPABASE_SERVICE_ROLE_KEY` / `VITE_SUPABASE_SECRET_KEY`, enabling full administrative CRUD across all 79 relational tables and CMS models without RLS permission rejection.
 - **SQL Schema Compatibility Views**: PostgreSQL views `feedback` (aliasing `testimonials`) and `contact_queries` (aliasing `leads`) bridge legacy CMS table requests, supporting both camelCase and snake_case timestamp queries.
 - **Prisma Connection Pooling**: Configured with `connection_limit=3&pool_timeout=30` on port 6543 pooler to prevent pool exhaustion on high-concurrency queries.
-- **Automated Cloud Storage Provisioning**: Supabase Storage buckets `uploads`, `documents`, `products`, and `catalogs` are configured for seamless cloud media and document uploads from the admin console.
-- **Resilient CMS Fallback Architecture**: `src/api/cmsApi.ts` integrates direct Supabase operations as a transparent fallback when backend services are offline, ensuring uninterrupted deletion and retrieval across configurator designs, quotes, projects, invoices, and leads.
+- **ImageKit.io Cloud Media Engine & CDN**: `src/lib/imagekit.ts` serves as the primary high-performance media pipeline for all images (primary covers, additional gallery swatches, CMS banners) and video demonstration files (.mp4, .webm, .mov). Uploads stream directly to ImageKit CDN (`https://ik.imagekit.io/1r254icf2/`) using authenticated REST API and client-side optimization (`browser-image-compression`). Only clean public CDN URLs are stored in PostgreSQL (`image_url`, `additional_images`, and `specifications.__hardware_meta.videos`). Supabase Storage acts as an automated fallback.
+- **Automated Cloud Storage Provisioning**: Supabase Storage buckets `uploads`, `documents`, `products`, and `catalogs` are configured as secondary fallback for media and document uploads from the admin console.
 - **Strict TypeScript & Build Verification**:
   - Zero TypeScript errors: `npx tsc --noEmit`
   - Zero-error Vite bundle build: `npm run build`
@@ -1885,3 +1885,31 @@ Sales Quotation PDF (`pdf.service.ts` -> `generateQuotationPdfHtml`) has been re
      - **PI PDF (generatePiHtml)**: Replaced flawed !(data.placeOfSupply || '').trim() fallback with isDelhiGst().
      - **Sales Order PDF (generateSalesOrderPdfHtml)**: Uses isDelhiGst().
      - **Tax Invoice PDF (generateTaxInvoicePdfHtml)**: Uses isDelhiGst().
+
+---
+
+## 29. OpenAI Multi-Angle 4:3 Gallery Generation Engine & ImageKit.io Storage
+
+### 1. Architectural Overview
+- **Service**: `src/lib/openaiImageService.ts` (synced across both `PACIFIC-Admin` and `PACIFIC RESTROOM CUBICLE`).
+- **Core Workflow**:
+  1. **Visual Style Extraction**: Sends the main cover photo to `gpt-4o-mini` with vision to extract compact laminate colors, board texture, hardware metal finish (SS 304, golden, matte black), and ambient washroom lighting. (Gracefully falls back to textual context if vision fails or image is not remotely resolvable).
+  2. **4-Angle DALL-E 3 Generation**: Sequentially prompts DALL-E 3 for 4 distinct architectural angles:
+     - **Angle 1**: *Wide 45° Isometric Architectural View* (Facade, continuous headrail box extrusion, marble surroundings, luxury lighting).
+     - **Angle 2**: *Macro Hardware Detail Close-Up* (Grade 304 SS gravity hinges, red/green occupancy indicator lock, ergonomic pull handle, coat hook).
+     - **Angle 3**: *Interior Cabin & Door Ajar View* (30° open door, internal privacy rebated edge, interior SS hook with rubber buffer, cabin depth).
+     - **Angle 4**: *Low-Angle Floor & Structural Elevation* (100–150mm adjustable legs, floor shoe bracket, mop clearance, floor line).
+  3. **Canvas 4:3 Aspect Ratio Cropping**: Processes raw generation output via HTML5 `<canvas>`, center-crops to exact **4:3 ratio (1200×900)**, and exports as lightweight WebP blobs.
+  4. **ImageKit.io CDN Direct Upload**: Uploads each generated 4:3 WebP image to ImageKit.io (`/products` folder) using `uploadToImageKit`. Only public CDN URLs are returned and saved in the database (`additionalImages` / `additional_images`).
+  5. **API Key Discovery**: Reads `VITE_OPENAI_API_KEY` from `.env`, falls back to `OPENAI_API_KEY`, and allows in-browser UI input stored in `localStorage` (`pacific_openai_api_key`).
+
+### 2. UI Components & Integrations
+- **`src/components/common/OpenAIGalleryModal.tsx`**:
+  - Full-featured studio modal showing live 4-step progress, current angle description, active DALL-E generation spinner, thumbnail previews as each angle completes, and one-click "Apply Photos to Gallery" action.
+  - Interactive API key configuration with inline status validation.
+- **`CreateAdminProductPage.tsx` & `EditProductModelPage.tsx`**:
+  - "✨ Auto-Generate 4 Angles (AI)" action button in the gallery header.
+  - "Auto-generate 4 angles on cover upload" checkbox toggle.
+  - "AI 4 Angles" quick-trigger button overlay directly on the Main Cover photo card.
+- **`AdminProducts.tsx` (Admin Quick Modal & Frontend CMS)**:
+  - Wired into both the Admin quick model editor and the frontend Restroom Cubicle CMS product editor.

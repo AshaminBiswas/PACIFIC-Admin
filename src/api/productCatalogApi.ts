@@ -26,6 +26,11 @@ try {
 
 // ── Helpers to map between DB row and ProductCatalogModel ─────────────
 
+function isValidUuid(id?: string): boolean {
+  if (!id) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
 function mapDbRowToModel(row: any): ProductCatalogModel {
   const specs = Array.isArray(row.specifications) ? row.specifications : [];
   
@@ -35,6 +40,7 @@ function mapDbRowToModel(row: any): ProductCatalogModel {
   let hardwareList = hardwareMeta?.value?.hardwareList;
   let hasExtraLeg = hardwareMeta?.value?.hasExtraLeg;
   let tierCount = hardwareMeta?.value?.tierCount;
+  let videos = Array.isArray(row.videos) ? row.videos : (hardwareMeta?.value?.videos || []);
 
   // If not found in __hardware_meta, fallback to defaults or parse
   if (!hardwareOptions || !hardwareList) {
@@ -61,6 +67,8 @@ function mapDbRowToModel(row: any): ProductCatalogModel {
     description: row.description || '',
     imageUrl: row.image_url || '',
     additionalImages: Array.isArray(row.additional_images) ? row.additional_images : [],
+    videos: Array.isArray(videos) ? videos : [],
+    videoUrls: Array.isArray(videos) ? videos : [],
     hardwareOptions: hardwareOptions || [],
     hardwareList: hardwareList || [],
     specifications: cleanSpecs,
@@ -76,6 +84,10 @@ function mapDbRowToModel(row: any): ProductCatalogModel {
 }
 
 function mapModelToDbRow(model: ProductCatalogModel) {
+  const cleanVideos = (model.videos || model.videoUrls || [])
+    .map((v) => (typeof v === 'string' ? v.trim() : ''))
+    .filter(Boolean);
+
   const specifications = [
     ...(model.specifications || []).filter((s) => !s.label.startsWith('__')),
     {
@@ -85,6 +97,7 @@ function mapModelToDbRow(model: ProductCatalogModel) {
         hardwareList: model.hardwareList,
         hasExtraLeg: model.hasExtraLeg,
         tierCount: model.tierCount,
+        videos: cleanVideos,
       },
     },
   ];
@@ -94,7 +107,7 @@ function mapModelToDbRow(model: ProductCatalogModel) {
     .flatMap((opt) => (opt.colors || []).map((col) => ({ name: col, image_url: '' })));
 
   return {
-    id: model.id && model.id.includes('-') && model.id.length >= 30 ? model.id : undefined,
+    id: isValidUuid(model.id) ? model.id : undefined,
     slug: model.slug,
     title: model.title,
     subtitle: model.subtitle || '',
@@ -260,26 +273,31 @@ export const productCatalogApi = {
       localStorage.setItem(LOCAL_STORAGE_MODELS_KEY, JSON.stringify(updatedModels));
     } catch {}
 
-    // Asynchronously sync with Supabase in background without blocking navigation
+    // Sync with Supabase and retain generated UUID
     if (isSupabaseConfigured()) {
-      (async () => {
-        try {
-          const payload = mapModelToDbRow(modelToSave);
-          if (existingIdx >= 0 && payload.id) {
-            await withTimeout(
-              supabase.from('products').update(payload as any).eq('id', payload.id) as any,
-              3000
-            );
+      try {
+        const payload = mapModelToDbRow(modelToSave);
+        const res: any = await withTimeout(
+          supabase.from('products').upsert(payload as any, { onConflict: 'slug' }).select() as any,
+          5000
+        );
+        if (res?.error) {
+          console.warn('[Supabase Sync Warning]:', res.error.message);
+        } else if (res?.data && res.data[0]?.id) {
+          modelToSave.id = res.data[0].id;
+          if (existingIdx >= 0) {
+            updatedModels[existingIdx] = modelToSave;
           } else {
-            await withTimeout(
-              supabase.from('products').upsert(payload as any, { onConflict: 'slug' }) as any,
-              3000
-            );
+            updatedModels[updatedModels.length - 1] = modelToSave;
           }
-        } catch {
-          // Supabase sync failure handled silently; data is safely persisted in browser storage
+          memoryModelsCache = updatedModels;
+          try {
+            localStorage.setItem(LOCAL_STORAGE_MODELS_KEY, JSON.stringify(updatedModels));
+          } catch {}
         }
-      })();
+      } catch (err: any) {
+        console.warn('[Supabase Sync Error]:', err?.message || err);
+      }
     }
 
     return modelToSave;

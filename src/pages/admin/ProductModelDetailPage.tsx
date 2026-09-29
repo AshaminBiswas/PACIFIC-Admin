@@ -15,6 +15,10 @@ import {
   ExternalLink,
   ChevronRight,
   Info,
+  Video,
+  Film,
+  Play,
+  Eye,
 } from 'lucide-react';
 import { productCatalogApi } from '@/api/productCatalogApi';
 import type {
@@ -22,6 +26,29 @@ import type {
   SSHardwareColor,
   ProductCategoryType,
 } from '@/types/admin';
+
+function parseVideoSource(url: string): { type: 'youtube' | 'vimeo' | 'native'; src: string } | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+  const ytMatch = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/i);
+  if (ytMatch && ytMatch[1]) {
+    return {
+      type: 'youtube',
+      src: `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?rel=0&modestbranding=1`,
+    };
+  }
+  const vimeoMatch = trimmed.match(/(?:vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/(?:[^\/]*)\/videos\/|album\/(?:\d+)\/video\/|video\/|)(\d+))/i);
+  if (vimeoMatch && vimeoMatch[1]) {
+    return {
+      type: 'vimeo',
+      src: `https://player.vimeo.com/video/${vimeoMatch[1]}?title=0&byline=0&portrait=0`,
+    };
+  }
+  return {
+    type: 'native',
+    src: trimmed,
+  };
+}
 
 const COLOR_SWATCHES: Record<SSHardwareColor, { bg: string; label: string; dot: string }> = {
   golden: {
@@ -64,6 +91,7 @@ export default function ProductModelDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [model, setModel] = useState<ProductCatalogModel | null>(null);
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -125,6 +153,19 @@ export default function ProductModelDetailPage() {
 
   const ssOption = model.hardwareOptions?.find((o) => o.material === 'SS Hardware');
   const nylonOption = model.hardwareOptions?.find((o) => o.material === 'Nylon Hardware');
+
+  const allImages = Array.from(new Set([
+    model.imageUrl,
+    ...(model.additionalImages || [])
+  ])).filter(Boolean) as string[];
+
+  const currentPhoto = selectedPhoto || (allImages.length > 0 ? allImages[0] : model.imageUrl);
+
+  const rawVideos = [
+    ...(model.videos || []),
+    ...(model.videoUrls || []),
+  ].map((v) => (typeof v === 'string' ? v.trim() : '')).filter(Boolean);
+  const uniqueVideos = Array.from(new Set(rawVideos));
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-24">
@@ -196,13 +237,19 @@ export default function ProductModelDetailPage() {
         <div className="lg:col-span-5 space-y-6">
           {/* Image Box */}
           <div className="bg-[#121226] border border-white/5 rounded-3xl p-4 overflow-hidden">
-            <div className="relative rounded-2xl overflow-hidden bg-black/40 aspect-[4/3] border border-white/10">
+            <div className="relative rounded-2xl overflow-hidden bg-black/40 aspect-[4/3] border border-white/10 group">
               <img
-                src={model.imageUrl}
+                src={currentPhoto}
                 alt={model.title}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+              {allImages.length > 1 && (
+                <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-medium text-white/90 border border-white/10 flex items-center gap-1.5 shadow">
+                  <Eye className="w-3 h-3 text-[#7FB706]" />
+                  <span>{allImages.indexOf(currentPhoto) + 1} / {allImages.length}</span>
+                </div>
+              )}
               <div className="absolute bottom-3 left-4 right-4">
                 <div className="text-white font-bold text-lg capitalize">{model.title}</div>
                 <div className="text-xs text-gray-300 font-medium">{model.subtitle}</div>
@@ -210,13 +257,26 @@ export default function ProductModelDetailPage() {
             </div>
 
             {/* Additional Images if available */}
-            {model.additionalImages && model.additionalImages.length > 0 && (
+            {allImages.length > 1 && (
               <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
-                {model.additionalImages.map((img, i) => (
-                  <div key={i} className="w-16 h-16 rounded-xl overflow-hidden border border-white/10 shrink-0">
-                    <img src={img} alt="Thumbnail" className="w-full h-full object-cover" />
-                  </div>
-                ))}
+                {allImages.map((img, i) => {
+                  const isActive = img === currentPhoto;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setSelectedPhoto(img)}
+                      className={`w-16 h-16 rounded-xl overflow-hidden border shrink-0 transition-all ${
+                        isActive
+                          ? 'border-[#7FB706] ring-2 ring-[#7FB706]/40 scale-105'
+                          : 'border-white/10 opacity-60 hover:opacity-100 hover:border-white/30'
+                      }`}
+                      title={`Photo ${i + 1}`}
+                    >
+                      <img src={img} alt={`Thumbnail ${i + 1}`} className="w-full h-full object-cover" />
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -393,6 +453,70 @@ export default function ProductModelDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* ── DEMONSTRATION & WALKTHROUGH VIDEOS ─────────────────── */}
+      {uniqueVideos.length > 0 && (
+        <div className="bg-[#121226] border border-white/5 rounded-3xl p-5 sm:p-6 space-y-5">
+          <div className="flex items-center justify-between border-b border-white/10 pb-3">
+            <div>
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <Video className="w-4 h-4 text-[#7FB706]" />
+                Demonstration & Walkthrough Videos ({uniqueVideos.length})
+              </h2>
+              <p className="text-xs text-gray-400">
+                Live 360° architectural walkthrough and step-by-step hardware installation guides linked with this model
+              </p>
+            </div>
+            <span className="text-xs font-mono text-[#7FB706] bg-[#7FB706]/10 px-2.5 py-1 rounded-xl border border-[#7FB706]/20 font-bold">
+              {uniqueVideos.length} Video{uniqueVideos.length > 1 ? 's' : ''} Linked
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {uniqueVideos.map((vidUrl, idx) => {
+              const defaultTitles = [
+                'Video #1: Architectural Walkthrough / 360° Tour',
+                'Video #2: Hardware & Step-by-Step Installation',
+                'Video #3: Additional Demonstration',
+              ];
+              const videoTitle = defaultTitles[idx] || `Demonstration Video #${idx + 1}`;
+              const parsed = parseVideoSource(vidUrl);
+              if (!parsed) return null;
+
+              return (
+                <div
+                  key={idx}
+                  className="bg-[#0a0a1a] border border-white/10 rounded-2xl p-4 space-y-3 flex flex-col justify-between hover:border-[#7FB706]/30 transition"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Film className="w-3.5 h-3.5 text-[#7FB706]" />
+                      {videoTitle}
+                    </span>
+                    <span className="text-[10px] text-gray-400 font-mono">
+                      {parsed.type === 'youtube' ? 'YouTube HD' : parsed.type === 'vimeo' ? 'Vimeo' : 'Direct MP4'}
+                    </span>
+                  </div>
+
+                  <div className="relative rounded-xl overflow-hidden aspect-video bg-black/80 border border-white/10 shadow-inner">
+                    {parsed.type === 'native' ? (
+                      <video src={parsed.src} controls playsInline className="w-full h-full object-contain" />
+                    ) : (
+                      <iframe
+                        src={parsed.src}
+                        title={videoTitle}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        className="w-full h-full border-0"
+                      />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── DELETE CONFIRMATION MODAL ──────────────────────────── */}
       {showDeleteModal && (

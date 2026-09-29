@@ -27,9 +27,13 @@ import {
   ArrowRight,
   ChevronRight,
   Image as ImageIcon,
+  Video,
+  Film,
+  Play,
 } from 'lucide-react';
-import { uploadImage } from '@/lib/supabase';
+import { uploadImage, uploadMultipleImages, uploadVideo } from '@/lib/supabase';
 import { productCatalogApi } from '@/api/productCatalogApi';
+import OpenAIGalleryModal from '@/components/common/OpenAIGalleryModal';
 import type {
   ProductCatalogModel,
   TopProductCategory,
@@ -40,6 +44,29 @@ import type {
 } from '@/types/admin';
 
 // ── Helpers ─────────────────────────────────────────────────────────
+
+function parseVideoSource(url: string): { type: 'youtube' | 'vimeo' | 'native'; src: string } | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+  const ytMatch = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/i);
+  if (ytMatch && ytMatch[1]) {
+    return {
+      type: 'youtube',
+      src: `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?rel=0&modestbranding=1`,
+    };
+  }
+  const vimeoMatch = trimmed.match(/(?:vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/(?:[^\/]*)\/videos\/|album\/(?:\d+)\/video\/|video\/|)(\d+))/i);
+  if (vimeoMatch && vimeoMatch[1]) {
+    return {
+      type: 'vimeo',
+      src: `https://player.vimeo.com/video/${vimeoMatch[1]}?title=0&byline=0&portrait=0`,
+    };
+  }
+  return {
+    type: 'native',
+    src: trimmed,
+  };
+}
 
 function toSlug(text: string) {
   return text
@@ -146,6 +173,17 @@ export default function AdminProducts() {
   const [imageUploadError, setImageUploadError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Multi-image and Video states for modal
+  const [formAdditionalImages, setFormAdditionalImages] = useState<string[]>([]);
+  const [formNewImageUrl, setFormNewImageUrl] = useState('');
+  const [formUploadingMultiple, setFormUploadingMultiple] = useState(false);
+  const [showFormAiModal, setShowFormAiModal] = useState(false);
+  const formMultiFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [formVideos, setFormVideos] = useState<string[]>(['', '']);
+  const [formUploadingVideoIdx, setFormUploadingVideoIdx] = useState<number | null>(null);
+  const formVideoInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
+
   // Category Edit Form state
   const [catName, setCatName] = useState('');
   const [catTagline, setCatTagline] = useState('');
@@ -238,6 +276,9 @@ export default function AdminProducts() {
     setFormIsFeatured(false);
     setFormPublished(true);
     setFormSortOrder(models.length + 1);
+    setFormAdditionalImages([]);
+    setFormNewImageUrl('');
+    setFormVideos(['', '']);
 
     // Hardware defaults based on category
     setFormSsEnabled(true);
@@ -296,6 +337,18 @@ export default function AdminProducts() {
     setFormSubtitle(model.subtitle);
     setFormDescription(model.description);
     setFormImageUrl(model.imageUrl);
+    setFormAdditionalImages(model.additionalImages ? [...model.additionalImages] : []);
+    setFormNewImageUrl('');
+
+    const rawVids = model.videos || model.videoUrls || [];
+    if (rawVids.length >= 2) {
+      setFormVideos([...rawVids]);
+    } else if (rawVids.length === 1) {
+      setFormVideos([rawVids[0], '']);
+    } else {
+      setFormVideos(['', '']);
+    }
+
     setFormIsFeatured(Boolean(model.isFeatured));
     setFormPublished(model.published !== undefined ? model.published : true);
     setFormSortOrder(model.sortOrder ?? 0);
@@ -312,6 +365,105 @@ export default function AdminProducts() {
     setFormHardwareList(model.hardwareList ? [...model.hardwareList] : []);
     setImageUploadError('');
     setShowModelModal(true);
+  };
+
+  const handleFormMultipleImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setFormUploadingMultiple(true);
+    setImageUploadError('');
+    try {
+      const urls = await uploadMultipleImages(Array.from(files), 'products');
+      if (urls.length > 0) {
+        setFormAdditionalImages((prev) => [...prev, ...urls]);
+        if (!formImageUrl) {
+          setFormImageUrl(urls[0]);
+        }
+      }
+    } catch (err: any) {
+      console.warn('Batch images upload warning:', err);
+      setImageUploadError(err.message || 'Error uploading multiple images');
+    } finally {
+      setFormUploadingMultiple(false);
+      if (formMultiFileInputRef.current) formMultiFileInputRef.current.value = '';
+    }
+  };
+
+  const handleFormAddDirectImageUrl = () => {
+    if (!formNewImageUrl.trim()) return;
+    const url = formNewImageUrl.trim();
+    if (!formImageUrl) {
+      setFormImageUrl(url);
+    } else {
+      setFormAdditionalImages((prev) => [...prev, url]);
+    }
+    setFormNewImageUrl('');
+  };
+
+  const handleFormSetMainImage = (img: string) => {
+    if (img === formImageUrl) return;
+    const oldMain = formImageUrl;
+    setFormImageUrl(img);
+    setFormAdditionalImages((prev) => [oldMain, ...prev.filter((item) => item !== img)]);
+  };
+
+  const handleFormRemoveImage = (img: string) => {
+    if (img === formImageUrl) {
+      if (formAdditionalImages.length > 0) {
+        setFormImageUrl(formAdditionalImages[0]);
+        setFormAdditionalImages((prev) => prev.slice(1));
+      } else {
+        setFormImageUrl('');
+      }
+    } else {
+      setFormAdditionalImages((prev) => prev.filter((item) => item !== img));
+    }
+  };
+
+  const handleFormVideoChange = (idx: number, val: string) => {
+    setFormVideos((prev) => {
+      const copy = [...prev];
+      copy[idx] = val;
+      return copy;
+    });
+  };
+
+  const handleFormAddVideoSlot = () => {
+    setFormVideos((prev) => [...prev, '']);
+  };
+
+  const handleFormRemoveVideoSlot = (idx: number) => {
+    if (formVideos.length <= 2) {
+      setFormVideos((prev) => {
+        const copy = [...prev];
+        copy[idx] = '';
+        return copy;
+      });
+      return;
+    }
+    setFormVideos((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleFormDirectVideoUpload = async (idx: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFormUploadingVideoIdx(idx);
+    try {
+      const url = await uploadVideo(file, 'videos');
+      if (url) {
+        handleFormVideoChange(idx, url);
+      }
+    } catch (err: any) {
+      console.warn('Video upload notice:', err);
+      alert(err.message || 'Failed to upload video');
+    } finally {
+      setFormUploadingVideoIdx(null);
+      if (formVideoInputRefs.current[idx]) {
+        formVideoInputRefs.current[idx]!.value = '';
+      }
+    }
   };
 
   // ── Image Upload Handler ──
@@ -461,6 +613,9 @@ export default function AdminProducts() {
       subtitle: formSubtitle.trim() || `${formCategory} Model`,
       description: formDescription.trim() || `${formTitle} model engineered by Pacific Restroom Cubicles.`,
       imageUrl: formImageUrl || 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80',
+      additionalImages: formAdditionalImages.filter(Boolean),
+      videos: formVideos.map((v) => (typeof v === 'string' ? v.trim() : '')).filter(Boolean),
+      videoUrls: formVideos.map((v) => (typeof v === 'string' ? v.trim() : '')).filter(Boolean),
       hardwareOptions,
       hardwareList: formHardwareList,
       specifications: editingModel?.specifications || [
@@ -1236,82 +1391,253 @@ export default function AdminProducts() {
                 />
               </div>
 
-              {/* ── IMAGE UPLOAD FOR THIS MODEL ── */}
-              <div className="p-4 bg-black/40 border border-white/10 rounded-2xl space-y-3">
+              {/* ── MULTI-PHOTO GALLERY FOR THIS MODEL ── */}
+              <div className="p-4 bg-black/40 border border-white/10 rounded-2xl space-y-4">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-gray-200 flex items-center gap-1.5">
-                    <ImageIcon className="w-4 h-4 text-[#7FB706]" />
-                    Model Image Upload <span className="text-rose-400">*</span>
-                  </label>
-                  <span className="text-[11px] text-gray-400">File upload (Supabase) or URL</span>
+                  <div>
+                    <label className="text-xs font-bold text-gray-200 flex items-center gap-1.5 uppercase tracking-wider">
+                      <ImageIcon className="w-4 h-4 text-[#7FB706]" />
+                      Model Photos & Multi-Photo Gallery <span className="text-rose-400">*</span>
+                    </label>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      Upload multiple photos for interactive display. The first photo acts as primary cover.
+                    </p>
+                  </div>
+                  <span className="text-[11px] text-gray-400 font-mono">
+                    {1 + formAdditionalImages.length} photo{1 + formAdditionalImages.length > 1 ? 's' : ''}
+                  </span>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-center gap-4">
-                  {/* Image Preview Box */}
-                  <div className="relative w-28 h-28 rounded-2xl overflow-hidden bg-[#0a0a1a] border border-white/10 shrink-0 flex items-center justify-center group">
-                    {formImageUrl ? (
-                      <img src={formImageUrl} alt="Preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="text-center p-2 text-gray-500">
-                        <Upload className="w-6 h-6 mx-auto mb-1 text-gray-600" />
-                        <span className="text-[10px]">No image</span>
-                      </div>
-                    )}
-                    {uploadingImage && (
-                      <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
-                        <div className="w-6 h-6 border-2 border-[#7FB706] border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    )}
-                  </div>
+                {/* Upload action bar */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="file"
+                    ref={formMultiFileInputRef}
+                    onChange={handleFormMultipleImagesUpload}
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => formMultiFileInputRef.current?.click()}
+                    disabled={formUploadingMultiple}
+                    className="px-3.5 py-2 bg-[#7FB706]/15 hover:bg-[#7FB706]/25 text-[#B5F823] border border-[#7FB706]/30 rounded-xl text-xs font-semibold flex items-center gap-2 min-h-[40px] transition disabled:opacity-50"
+                  >
+                    <Upload className="w-4 h-4 text-[#7FB706]" />
+                    <span>{formUploadingMultiple ? 'Uploading Photos...' : 'Upload Photos (Batch)'}</span>
+                  </button>
 
-                  {/* Actions & File Picker */}
-                  <div className="flex-1 w-full space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleImageUpload}
-                        accept="image/png,image/jpeg,image/webp"
-                        className="hidden"
-                      />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!formImageUrl) {
+                        alert('Please select or upload a Main Cover photo first.');
+                        return;
+                      }
+                      setShowFormAiModal(true);
+                    }}
+                    className="px-3.5 py-2 bg-gradient-to-r from-[#7FB706]/20 to-[#B5F823]/20 hover:from-[#7FB706]/30 hover:to-[#B5F823]/30 text-[#B5F823] border border-[#7FB706]/40 rounded-xl text-xs font-bold flex items-center gap-1.5 min-h-[40px] transition shadow-lg shadow-[#7FB706]/10"
+                  >
+                    <Sparkles className="w-4 h-4 text-[#B5F823]" />
+                    <span>Auto-Generate 4 Angles (AI)</span>
+                  </button>
+
+                  <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                    <input
+                      type="text"
+                      placeholder="Or enter direct image URL (https://...)"
+                      value={formNewImageUrl}
+                      onChange={(e) => setFormNewImageUrl(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleFormAddDirectImageUrl();
+                        }
+                      }}
+                      className="flex-1 bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 min-h-[40px] focus:outline-none focus:border-[#7FB706]"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleFormAddDirectImageUrl}
+                      disabled={!formNewImageUrl.trim()}
+                      className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold border border-white/10 transition disabled:opacity-40 min-h-[40px]"
+                    >
+                      Add URL
+                    </button>
+                  </div>
+                </div>
+
+                {imageUploadError && (
+                  <div className="text-[11px] text-amber-400 flex items-center gap-1">
+                    <Info className="w-3 h-3" />
+                    <span>{imageUploadError}</span>
+                  </div>
+                )}
+
+                {/* Thumbnails Swatches */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3 pt-1">
+                  {/* Main Cover */}
+                  <div className="relative rounded-xl overflow-hidden aspect-[4/3] bg-[#0a0a1a] border-2 border-[#7FB706] shadow group">
+                    <img src={formImageUrl || 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80'} alt="Main Cover" className="w-full h-full object-cover" />
+                    <div className="absolute top-1.5 left-1.5 bg-[#7FB706] text-black text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider flex items-center gap-1 shadow">
+                      <Star className="w-2.5 h-2.5 fill-black" /> Main Cover
+                    </div>
+                    <div className="absolute bottom-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={uploadingImage}
-                        className="px-4 py-2.5 bg-white/10 hover:bg-white/15 text-white rounded-xl text-xs font-semibold border border-white/10 flex items-center gap-2 min-h-[44px] transition disabled:opacity-50"
+                        onClick={() => setShowFormAiModal(true)}
+                        className="px-1.5 py-0.5 bg-black/90 hover:bg-[#7FB706] text-[#B5F823] hover:text-black rounded text-[9px] font-bold transition flex items-center gap-1 border border-[#7FB706]/40"
+                        title="Generate 4 Angles from this cover"
                       >
-                        <Upload className="w-4 h-4 text-[#7FB706]" />
-                        <span>{uploadingImage ? 'Uploading...' : 'Choose Image File'}</span>
+                        <Sparkles className="w-2.5 h-2.5" /> AI 4 Angles
                       </button>
+                    </div>
+                  </div>
 
-                      {formImageUrl && (
+                  {/* Additional Photos */}
+                  {formAdditionalImages.map((img, i) => (
+                    <div key={i} className="relative rounded-xl overflow-hidden aspect-[4/3] bg-[#0a0a1a] border border-white/10 group hover:border-[#7FB706]/40 transition">
+                      <img src={img} alt={`Gallery ${i + 1}`} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 p-1">
                         <button
                           type="button"
-                          onClick={() => setFormImageUrl('')}
-                          className="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded-xl text-xs font-semibold min-h-[44px] transition"
+                          onClick={() => handleFormSetMainImage(img)}
+                          className="px-1.5 py-1 bg-[#7FB706] text-black text-[9px] font-bold rounded transition hover:bg-[#6fa005]"
+                          title="Set as Main Cover"
                         >
-                          Remove
+                          Set Main
                         </button>
-                      )}
-                    </div>
-
-                    <div>
-                      <input
-                        type="text"
-                        placeholder="Or enter direct image URL (https://...)"
-                        value={formImageUrl}
-                        onChange={(e) => setFormImageUrl(e.target.value)}
-                        className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 min-h-[40px] focus:outline-none focus:border-[#7FB706]"
-                      />
-                    </div>
-
-                    {imageUploadError && (
-                      <div className="text-[11px] text-amber-400 flex items-center gap-1">
-                        <Info className="w-3 h-3" />
-                        <span>{imageUploadError}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleFormRemoveImage(img)}
+                          className="p-1 bg-rose-600/80 text-white rounded transition hover:bg-rose-600"
+                          title="Delete Photo"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
                       </div>
-                    )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── DEMONSTRATION & WALKTHROUGH VIDEOS (MINIMUM 2 VIDEOS) ── */}
+              <div className="p-4 bg-black/40 border border-white/10 rounded-2xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-bold text-gray-200 flex items-center gap-1.5 uppercase tracking-wider">
+                      <Video className="w-4 h-4 text-[#7FB706]" />
+                      Demonstration & Walkthrough Videos (Minimum 2 Videos) <span className="text-rose-400">*</span>
+                    </label>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      Link minimum 2 videos for walkthrough and installation guides (YouTube, Vimeo, or MP4 file upload).
+                    </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleFormAddVideoSlot}
+                    className="inline-flex items-center gap-1 text-[11px] text-[#B5F823] bg-[#7FB706]/15 hover:bg-[#7FB706]/30 px-2.5 py-1 rounded-lg border border-[#7FB706]/30 transition"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Add Video</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {formVideos.map((vidUrl, idx) => {
+                    const defaultSlotTitle =
+                      idx === 0
+                        ? 'Video #1: Walkthrough / 360° Tour'
+                        : idx === 1
+                        ? 'Video #2: Hardware & Step-by-Step Installation'
+                        : `Video #${idx + 1}: Additional Showcase`;
+                    const parsed = parseVideoSource(vidUrl);
+
+                    return (
+                      <div
+                        key={idx}
+                        className="bg-[#0a0a1a] border border-white/10 rounded-xl p-3 space-y-2.5 flex flex-col justify-between hover:border-[#7FB706]/30 transition"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <Film className="w-3.5 h-3.5 text-[#7FB706]" />
+                              {defaultSlotTitle}
+                            </span>
+                            {formVideos.length > 2 && (
+                              <button
+                                type="button"
+                                onClick={() => handleFormRemoveVideoSlot(idx)}
+                                className="p-1 text-gray-400 hover:text-rose-400 transition"
+                                title="Remove video slot"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+
+                          <input
+                            type="text"
+                            placeholder="YouTube, Vimeo, or MP4 URL (https://...)"
+                            value={vidUrl}
+                            onChange={(e) => handleFormVideoChange(idx, e.target.value)}
+                            className="w-full bg-[#121226] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706]"
+                          />
+
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="file"
+                              ref={(el) => (formVideoInputRefs.current[idx] = el)}
+                              onChange={(e) => handleFormDirectVideoUpload(idx, e)}
+                              accept="video/mp4,video/webm,video/quicktime"
+                              className="hidden"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => formVideoInputRefs.current[idx]?.click()}
+                              disabled={formUploadingVideoIdx === idx}
+                              className="px-2.5 py-1 bg-white/5 hover:bg-white/10 text-gray-300 rounded-md text-[10px] font-medium border border-white/10 flex items-center gap-1 transition disabled:opacity-50"
+                            >
+                              <Upload className="w-3 h-3 text-[#7FB706]" />
+                              <span>{formUploadingVideoIdx === idx ? 'Uploading...' : 'Upload Video (.mp4)'}</span>
+                            </button>
+                            {vidUrl && (
+                              <button
+                                type="button"
+                                onClick={() => handleFormVideoChange(idx, '')}
+                                className="text-[10px] text-rose-400 hover:underline"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Live Player Preview */}
+                        <div className="relative rounded-lg overflow-hidden aspect-video bg-black/60 border border-white/10 flex items-center justify-center">
+                          {parsed ? (
+                            parsed.type === 'native' ? (
+                              <video src={parsed.src} controls playsInline className="w-full h-full object-contain" />
+                            ) : (
+                              <iframe
+                                src={parsed.src}
+                                title={defaultSlotTitle}
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                                className="w-full h-full border-0"
+                              />
+                            )
+                          ) : (
+                            <div className="text-center p-2 text-gray-500 space-y-0.5">
+                              <Play className="w-5 h-5 mx-auto opacity-30 text-gray-400" />
+                              <div className="text-[10px]">No video provided yet</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1934,6 +2260,19 @@ export default function AdminProducts() {
           </div>
         </div>
       )}
+
+      {/* OpenAI Multi-Angle Gallery Studio Modal */}
+      <OpenAIGalleryModal
+        isOpen={showFormAiModal}
+        onClose={() => setShowFormAiModal(false)}
+        mainCoverUrl={formImageUrl}
+        modelTitle={formTitle}
+        category={formCategory}
+        description={formDescription}
+        onSuccess={(generatedUrls) => {
+          setFormAdditionalImages((prev) => [...prev, ...generatedUrls]);
+        }}
+      />
     </div>
   );
 }

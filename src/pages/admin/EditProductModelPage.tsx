@@ -13,10 +13,20 @@ import {
   Sparkles,
   Info,
   CheckCircle2,
+  Video,
+  Film,
+  Play,
+  Plus,
+  Trash2,
+  Image as ImageIcon,
+  Eye,
+  Star,
+  Link as LinkIcon,
 } from 'lucide-react';
-import { uploadImage } from '@/lib/supabase';
+import { uploadImage, uploadMultipleImages, uploadVideo } from '@/lib/supabase';
 import { productCatalogApi } from '@/api/productCatalogApi';
 import { DEFAULT_CUBICLE_DESCRIPTION } from '@/data/productCatalogData';
+import OpenAIGalleryModal from '@/components/common/OpenAIGalleryModal';
 import type {
   ProductCategoryType,
   ModelHardwareItem,
@@ -32,6 +42,29 @@ function toSlug(text: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
+}
+
+function parseVideoSource(url: string): { type: 'youtube' | 'vimeo' | 'native'; src: string } | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+  const ytMatch = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/i);
+  if (ytMatch && ytMatch[1]) {
+    return {
+      type: 'youtube',
+      src: `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?rel=0&modestbranding=1`,
+    };
+  }
+  const vimeoMatch = trimmed.match(/(?:vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/(?:[^\/]*)\/videos\/|album\/(?:\d+)\/video\/|video\/|)(\d+))/i);
+  if (vimeoMatch && vimeoMatch[1]) {
+    return {
+      type: 'vimeo',
+      src: `https://player.vimeo.com/video/${vimeoMatch[1]}?title=0&byline=0&portrait=0`,
+    };
+  }
+  return {
+    type: 'native',
+    src: trimmed,
+  };
 }
 
 export default function EditProductModelPage() {
@@ -50,8 +83,19 @@ export default function EditProductModelPage() {
   const [subtitle, setSubtitle] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [additionalImages, setAdditionalImages] = useState<string[]>([]);
+  const [newImageUrl, setNewImageUrl] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingMultiple, setUploadingMultiple] = useState(false);
   const [imageError, setImageError] = useState('');
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [autoAiGenerate, setAutoAiGenerate] = useState(false);
+  const multiFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Video State: Minimum 2 videos
+  const [videos, setVideos] = useState<string[]>(['', '']);
+  const [uploadingVideoIdx, setUploadingVideoIdx] = useState<number | null>(null);
+  const videoInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
 
   // ── Specifications State ──
   const [stdHeight, setStdHeight] = useState('1980 mm / 2000 mm (including 150mm floor gap)');
@@ -86,6 +130,17 @@ export default function EditProductModelPage() {
           setSlug(found.slug);
           setSubtitle(found.subtitle);
           setImageUrl(found.imageUrl);
+          setAdditionalImages(found.additionalImages || []);
+
+          const rawVids = found.videos || found.videoUrls || [];
+          if (rawVids.length >= 2) {
+            setVideos(rawVids);
+          } else if (rawVids.length === 1) {
+            setVideos([rawVids[0], '']);
+          } else {
+            setVideos(['', '']);
+          }
+
           setHardwareList(found.hardwareList ? [...found.hardwareList] : []);
 
           const getSpec = (label: string, fallback: string) => {
@@ -136,11 +191,116 @@ export default function EditProductModelPage() {
       reader.readAsDataURL(file);
 
       const url = await uploadImage(file, 'products');
-      if (url) setImageUrl(url);
+      if (url) {
+        setImageUrl(url);
+        if (autoAiGenerate) {
+          setShowAiModal(true);
+        }
+      }
     } catch (err: any) {
       setImageError(err.message || 'Image preview applied');
     } finally {
       setUploadingImage(false);
+    }
+  };
+
+  const handleMultipleImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingMultiple(true);
+    setImageError('');
+    try {
+      const urls = await uploadMultipleImages(Array.from(files), 'products');
+      if (urls.length > 0) {
+        setAdditionalImages((prev) => [...prev, ...urls]);
+        if (!imageUrl) {
+          setImageUrl(urls[0]);
+        }
+      }
+    } catch (err: any) {
+      console.warn('Batch images upload warning:', err);
+      setImageError(err.message || 'Error uploading multiple images');
+    } finally {
+      setUploadingMultiple(false);
+      if (multiFileInputRef.current) multiFileInputRef.current.value = '';
+    }
+  };
+
+  const handleAddDirectImageUrl = () => {
+    if (!newImageUrl.trim()) return;
+    const url = newImageUrl.trim();
+    if (!imageUrl) {
+      setImageUrl(url);
+    } else {
+      setAdditionalImages((prev) => [...prev, url]);
+    }
+    setNewImageUrl('');
+  };
+
+  const handleSetMainImage = (img: string) => {
+    if (img === imageUrl) return;
+    const oldMain = imageUrl;
+    setImageUrl(img);
+    setAdditionalImages((prev) => [oldMain, ...prev.filter((item) => item !== img)]);
+  };
+
+  const handleRemoveImage = (img: string) => {
+    if (img === imageUrl) {
+      if (additionalImages.length > 0) {
+        setImageUrl(additionalImages[0]);
+        setAdditionalImages((prev) => prev.slice(1));
+      } else {
+        setImageUrl('');
+      }
+    } else {
+      setAdditionalImages((prev) => prev.filter((item) => item !== img));
+    }
+  };
+
+  const handleVideoChange = (idx: number, val: string) => {
+    setVideos((prev) => {
+      const copy = [...prev];
+      copy[idx] = val;
+      return copy;
+    });
+  };
+
+  const handleAddVideoSlot = () => {
+    setVideos((prev) => [...prev, '']);
+  };
+
+  const handleRemoveVideoSlot = (idx: number) => {
+    if (videos.length <= 2) {
+      // Keep minimum 2 slots, just clear the content
+      setVideos((prev) => {
+        const copy = [...prev];
+        copy[idx] = '';
+        return copy;
+      });
+      return;
+    }
+    setVideos((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleDirectVideoUpload = async (idx: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingVideoIdx(idx);
+    try {
+      const url = await uploadVideo(file, 'videos');
+      if (url) {
+        handleVideoChange(idx, url);
+      }
+    } catch (err: any) {
+      console.warn('Video upload notice:', err);
+      alert(err.message || 'Failed to upload video');
+    } finally {
+      setUploadingVideoIdx(null);
+      if (videoInputRefs.current[idx]) {
+        videoInputRefs.current[idx]!.value = '';
+      }
     }
   };
 
@@ -213,6 +373,9 @@ export default function EditProductModelPage() {
         subtitle: subtitle.trim() || `${category} Model`,
         description: description.trim() || (category === 'Cubicle' ? DEFAULT_CUBICLE_DESCRIPTION : `${title} model by Pacific Restroom Cubicles.`),
         imageUrl: imageUrl,
+        additionalImages: additionalImages.filter(Boolean),
+        videos: videos.map((v) => (typeof v === 'string' ? v.trim() : '')).filter(Boolean),
+        videoUrls: videos.map((v) => (typeof v === 'string' ? v.trim() : '')).filter(Boolean),
         hardwareOptions,
         hardwareList,
         specifications,
@@ -496,53 +659,278 @@ export default function EditProductModelPage() {
           )}
         </div>
 
-        {/* 4. Image Upload */}
-        <div className="p-5 sm:p-6 bg-[#121226] border border-white/5 rounded-3xl space-y-4">
-          <label className="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
-            <Upload className="w-4 h-4 text-[#7FB706]" />
-            4. Model Image Upload <span className="text-rose-400">*</span>
-          </label>
-
-          <div className="flex flex-col sm:flex-row items-center gap-4">
-            <div className="w-28 h-28 rounded-2xl overflow-hidden bg-[#0a0a1a] border border-white/10 shrink-0">
-              <img src={imageUrl} alt="Model Preview" className="w-full h-full object-cover" />
+        {/* 4. Model Photos & Gallery */}
+        <div className="p-5 sm:p-6 bg-[#121226] border border-white/5 rounded-3xl space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <label className="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-[#7FB706]" />
+                4. Model Photos & Multi-Photo Gallery <span className="text-rose-400">*</span>
+              </label>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                Upload multiple high-resolution photos for the interactive frontend gallery. The first photo serves as the primary cover.
+              </p>
             </div>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-300 hover:text-white select-none">
+                <input
+                  type="checkbox"
+                  checked={autoAiGenerate}
+                  onChange={(e) => setAutoAiGenerate(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded text-[#7FB706] focus:ring-[#7FB706] bg-[#0a0a1a] border-white/20"
+                />
+                <span className="text-[11px]">Auto-generate 4 angles on upload</span>
+              </label>
+              <span className="text-[11px] text-gray-400 font-mono">
+                {1 + additionalImages.length} photo{1 + additionalImages.length > 1 ? 's' : ''} total
+              </span>
+            </div>
+          </div>
 
-            <div className="flex-1 w-full space-y-2">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImageUpload}
-                accept="image/*"
-                className="hidden"
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingImage}
-                className="px-4 py-2.5 bg-white/10 hover:bg-white/15 text-white rounded-xl text-xs font-semibold border border-white/10 flex items-center gap-2 min-h-[44px] transition disabled:opacity-50"
-              >
-                <Upload className="w-4 h-4 text-[#7FB706]" />
-                <span>{uploadingImage ? 'Uploading...' : 'Choose File to Upload'}</span>
-              </button>
+          {/* Action Row: Batch Upload + Direct URL + AI Auto-Generate */}
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="file"
+              ref={multiFileInputRef}
+              onChange={handleMultipleImagesUpload}
+              accept="image/*"
+              multiple
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => multiFileInputRef.current?.click()}
+              disabled={uploadingMultiple}
+              className="px-4 py-2.5 bg-[#7FB706]/15 hover:bg-[#7FB706]/25 text-[#B5F823] border border-[#7FB706]/30 rounded-xl text-xs font-semibold flex items-center gap-2 min-h-[44px] transition disabled:opacity-50"
+            >
+              <Upload className="w-4 h-4 text-[#7FB706]" />
+              <span>{uploadingMultiple ? 'Uploading Photos...' : 'Upload Multiple Photos (Batch)'}</span>
+            </button>
 
+            <button
+              type="button"
+              onClick={() => {
+                if (!imageUrl) {
+                  alert('Please select or upload a Main Cover photo first.');
+                  return;
+                }
+                setShowAiModal(true);
+              }}
+              className="px-4 py-2.5 bg-gradient-to-r from-[#7FB706]/20 to-[#B5F823]/20 hover:from-[#7FB706]/30 hover:to-[#B5F823]/30 text-[#B5F823] border border-[#7FB706]/50 rounded-xl text-xs font-bold flex items-center gap-2 min-h-[44px] transition shadow-lg shadow-[#7FB706]/10"
+            >
+              <Sparkles className="w-4 h-4 text-[#B5F823]" />
+              <span>Auto-Generate 4 Angles (AI)</span>
+            </button>
+
+            <div className="flex items-center gap-2 flex-1 min-w-[240px]">
               <input
                 type="text"
                 placeholder="Or paste direct image URL (https://...)"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+                value={newImageUrl}
+                onChange={(e) => setNewImageUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddDirectImageUrl();
+                  }
+                }}
+                className="flex-1 bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706]"
               />
-
-              {imageError && <div className="text-[11px] text-amber-400">{imageError}</div>}
+              <button
+                type="button"
+                onClick={handleAddDirectImageUrl}
+                disabled={!newImageUrl.trim()}
+                className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold border border-white/10 transition disabled:opacity-40 min-h-[38px]"
+              >
+                Add URL
+              </button>
             </div>
+          </div>
+
+          {imageError && <div className="text-[11px] text-amber-400">{imageError}</div>}
+
+          {/* Visual Gallery Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3 pt-2">
+            {/* Primary Main Photo */}
+            <div className="relative rounded-2xl overflow-hidden aspect-[4/3] bg-[#0a0a1a] border-2 border-[#7FB706] shadow-lg group">
+              <img src={imageUrl} alt="Main Cover" className="w-full h-full object-cover" />
+              <div className="absolute top-2 left-2 bg-[#7FB706] text-black text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1 shadow">
+                <Star className="w-3 h-3 fill-black" /> Main Cover
+              </div>
+              <div className="absolute bottom-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  type="button"
+                  onClick={() => setShowAiModal(true)}
+                  className="px-2 py-1 bg-black/90 hover:bg-[#7FB706] text-[#B5F823] hover:text-black rounded-lg text-[10px] font-bold transition flex items-center gap-1 border border-[#7FB706]/40"
+                  title="Generate 4 Angles from this cover"
+                >
+                  <Sparkles className="w-3 h-3" /> AI 4 Angles
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveImage(imageUrl)}
+                  className="p-1.5 bg-black/80 hover:bg-rose-600 text-white rounded-lg text-xs transition"
+                  title="Remove Main Photo"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Additional Photos */}
+            {additionalImages.map((img, i) => (
+              <div key={i} className="relative rounded-2xl overflow-hidden aspect-[4/3] bg-[#0a0a1a] border border-white/10 group hover:border-[#7FB706]/50 transition">
+                <img src={img} alt={`Gallery ${i + 1}`} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 p-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSetMainImage(img)}
+                    className="px-2 py-1 bg-[#7FB706] hover:bg-[#6fa005] text-black text-[10px] font-bold rounded-lg transition"
+                    title="Set as Main Cover"
+                  >
+                    Set Main
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveImage(img)}
+                    className="p-1 bg-rose-600/80 hover:bg-rose-600 text-white rounded-lg transition"
+                    title="Delete Photo"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* 5. Hardware Configuration Area */}
+        {/* 5. Demonstration & Walkthrough Videos (Minimum 2 Videos) */}
+        <div className="p-5 sm:p-6 bg-[#121226] border border-white/5 rounded-3xl space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <label className="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+                <Video className="w-4 h-4 text-[#7FB706]" />
+                5. Demonstration & Walkthrough Videos (Minimum 2 Videos) <span className="text-rose-400">*</span>
+              </label>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                Link minimum two video presentations for this model (e.g. 360° architectural walkthrough and hardware installation guide). Supports direct video files (.mp4/.webm) or YouTube/Vimeo embed URLs.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleAddVideoSlot}
+              className="inline-flex items-center gap-1.5 text-xs text-[#B5F823] hover:text-white bg-[#7FB706]/15 hover:bg-[#7FB706]/30 px-3 py-1.5 rounded-xl border border-[#7FB706]/30 transition self-start sm:self-auto"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Another Video Slot</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {videos.map((vidUrl, idx) => {
+              const defaultSlotTitle =
+                idx === 0
+                  ? 'Video #1: Architectural Walkthrough / 360° Tour'
+                  : idx === 1
+                  ? 'Video #2: Hardware & Step-by-Step Installation'
+                  : `Video #${idx + 1}: Additional Showcase`;
+              const parsed = parseVideoSource(vidUrl);
+
+              return (
+                <div
+                  key={idx}
+                  className="bg-[#0a0a1a] border border-white/10 rounded-2xl p-4 space-y-3 flex flex-col justify-between hover:border-[#7FB706]/30 transition"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <Film className="w-3.5 h-3.5 text-[#7FB706]" />
+                        {defaultSlotTitle}
+                      </span>
+                      {videos.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveVideoSlot(idx)}
+                          className="p-1 text-gray-400 hover:text-rose-400 transition"
+                          title="Remove video slot"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Inputs: URL or Direct Upload */}
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        placeholder="YouTube, Vimeo, or MP4 URL (https://...)"
+                        value={vidUrl}
+                        onChange={(e) => handleVideoChange(idx, e.target.value)}
+                        className="w-full bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706]"
+                      />
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="file"
+                          ref={(el) => (videoInputRefs.current[idx] = el)}
+                          onChange={(e) => handleDirectVideoUpload(idx, e)}
+                          accept="video/mp4,video/webm,video/quicktime"
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => videoInputRefs.current[idx]?.click()}
+                          disabled={uploadingVideoIdx === idx}
+                          className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg text-[11px] font-medium border border-white/10 flex items-center gap-1.5 transition disabled:opacity-50"
+                        >
+                          <Upload className="w-3 h-3 text-[#7FB706]" />
+                          <span>{uploadingVideoIdx === idx ? 'Uploading Video...' : 'Upload Video File (.mp4)'}</span>
+                        </button>
+                        {vidUrl && (
+                          <button
+                            type="button"
+                            onClick={() => handleVideoChange(idx, '')}
+                            className="text-[11px] text-rose-400 hover:underline"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Live Video Player Preview */}
+                  <div className="relative rounded-xl overflow-hidden aspect-video bg-black/60 border border-white/10 flex items-center justify-center">
+                    {parsed ? (
+                      parsed.type === 'native' ? (
+                        <video src={parsed.src} controls playsInline className="w-full h-full object-contain" />
+                      ) : (
+                        <iframe
+                          src={parsed.src}
+                          title={defaultSlotTitle}
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          className="w-full h-full border-0"
+                        />
+                      )
+                    ) : (
+                      <div className="text-center p-4 text-gray-500 space-y-1">
+                        <Play className="w-6 h-6 mx-auto opacity-40 text-gray-400" />
+                        <div className="text-[11px]">No video provided yet</div>
+                        <div className="text-[10px] text-gray-600">Enter a URL or upload a file above</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 6. Hardware Configuration Area */}
         <div className="p-5 sm:p-6 bg-[#121226] border border-white/5 rounded-3xl space-y-4">
           <label className="block text-xs font-bold text-gray-200 uppercase tracking-wider">
-            5. Hardware Options Configuration
+            6. Hardware Options Configuration
           </label>
 
           {/* Cubicle & Kids Toilet rules */}
@@ -650,13 +1038,13 @@ export default function EditProductModelPage() {
           )}
         </div>
 
-        {/* 6. Hardware Bill of Materials (NO Quantity Option) */}
+        {/* 7. Hardware Bill of Materials (NO Quantity Option) */}
         <div className="p-5 sm:p-6 bg-[#121226] border border-white/5 rounded-3xl space-y-4">
           <div className="flex items-center justify-between border-b border-white/10 pb-3">
             <div>
               <label className="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
                 <Layers className="w-4 h-4 text-[#7FB706]" />
-                6. Hardware Bill of Materials ({hardwareList.length} items)
+                7. Hardware Bill of Materials ({hardwareList.length} items)
               </label>
               <p className="text-xs text-gray-400 mt-0.5">
                 Itemized hardware component list required for assembling this model
@@ -741,6 +1129,19 @@ export default function EditProductModelPage() {
           </button>
         </div>
       </div>
+
+      {/* OpenAI Multi-Angle Gallery Studio Modal */}
+      <OpenAIGalleryModal
+        isOpen={showAiModal}
+        onClose={() => setShowAiModal(false)}
+        mainCoverUrl={imageUrl}
+        modelTitle={title}
+        category={category}
+        description={description}
+        onSuccess={(generatedUrls) => {
+          setAdditionalImages((prev) => [...prev, ...generatedUrls]);
+        }}
+      />
     </div>
   );
 }
