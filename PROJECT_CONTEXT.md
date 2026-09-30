@@ -2168,6 +2168,34 @@ Sales Quotation PDF (`pdf.service.ts` -> `generateQuotationPdfHtml`) has been re
 - **Rationale**: The page already includes high-converting, architect-focused conversion points immediately preceding it (`ArchitectBOMToolkit` and `WhyChooseUsSection`). Eliminating the redundant green CTA block eliminates visual clutter and ensures the homepage concludes smoothly on the high-intent Architect & Contractor BOQ Toolkit card.
 - **Verification**: Zero TypeScript errors (`npx tsc --noEmit`), Vite production build exits 0.
 
+---
+
+## 40. Vercel Deployment Architecture & Zero-Config CI/CD Hardening
+
+### 1. Root Cause Analysis: Deployment Stalled / Failed Upon Repo Selection
+1. **Implicit / Missing Vercel Build Directives in `vercel.json`**:
+   - Neither `PACIFIC-Admin` nor the storefront frontend previously specified `framework`, `buildCommand`, or `outputDirectory` in `vercel.json`.
+   - When importing on Vercel, if Vercel defaults to the generic "Other" preset, it looks for a `public/` directory rather than Vite's `dist/`, failing with: `No Output Directory named "dist" found after the Build completed`.
+2. **Package Name Namespace Issue (`@figma/my-make-file`)**:
+   - The frontend's `package.json` had `"name": "@figma/my-make-file"`. When deploying in clean CI containers, npm can attempt scoped package registry authorization checks or warn on unauthenticated `@figma` namespace resolution.
+3. **Repository Renaming on GitHub**:
+   - The storefront repository was renamed from `PACIFIC-RESTROOM-CUBICLE` to `Pacific-Products-And-Solutions`. Git remotes were synchronized to the new URL: `https://github.com/AshaminBiswas/Pacific-Products-And-Solutions.git`.
+4. **Missing `src/vite-env.d.ts` in Admin**:
+   - `PACIFIC-Admin` lacked `src/vite-env.d.ts`, which declares Vite client types (`/// <reference types="vite/client" />`) for `import.meta.env`.
+
+### 2. Solutions Implemented
+- **Hardened `vercel.json` in Both Projects**:
+  - `PACIFIC-Admin/vercel.json` & `Pacific-Products-And-Solutions/vercel.json`:
+    Explicitly declared `"framework": "vite"`, `"buildCommand": "npm run build"`, `"outputDirectory": "dist"`, and single-page application wildcard rewrites (`/(.*)` -> `/index.html`), ensuring Vercel auto-configures the exact build pipeline without manual overrides.
+  - In Frontend `vercel.json`: Updated NVIDIA Edge proxy rewrite from `/api/nvidia/(.*)` to `/api/nvidia/:path*` to correctly match both root and sub-path calls.
+- **Renamed Package**:
+  - `Pacific-Products-And-Solutions/package.json`: Renamed to `"name": "pacific-frontend"`.
+- **Created `src/vite-env.d.ts` in `PACIFIC-Admin`**:
+  - Declared `/// <reference types="vite/client" />`.
+- **Committed and Pushed to GitHub**:
+  - Both repositories (`PACIFIC-Admin` and `Pacific-Products-And-Solutions`) now have all latest code, fixes, and build configs cleanly committed and pushed to `main`.
+
+
 
 
 
