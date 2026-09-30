@@ -38,7 +38,9 @@ import type {
 
 export default function AdminManagementPage() {
   const { user: currentUser } = useAdminAuth();
-  const isSuperAdmin = currentUser?.role?.toUpperCase() === 'SUPER_ADMIN';
+  const roleUpper = currentUser?.role?.toUpperCase();
+  const isSuperAdmin = roleUpper === 'SUPER_ADMIN';
+  const canManageAdmins = isSuperAdmin || roleUpper === 'ADMIN';
 
   // Tabs
   const [activeTab, setActiveTab] = useState<'USERS' | 'ROLES'>('USERS');
@@ -162,7 +164,7 @@ export default function AdminManagementPage() {
       lastName: '',
       email: '',
       password: generateRandomPassword(),
-      role: 'SALES_MANAGER',
+      role: 'ADMIN',
       roleIds: [],
       isActive: true,
       mustChangePassword: true,
@@ -358,13 +360,13 @@ export default function AdminManagementPage() {
   };
 
   const handleDeleteRole = async (role: RoleManagementItem) => {
-    if (role.isSystem) {
-      alert('Built-in system roles cannot be deleted.');
+    if (role.code === 'SUPER_ADMIN') {
+      alert('The Master Super Administrator role is protected and cannot be deleted.');
       return;
     }
     if (
       !confirm(
-        `Are you sure you want to delete custom role "${role.name}" (${role.code})? Users assigned to this role must be reassigned first.`
+        `Are you sure you want to delete role "${role.name}" (${role.code})? Any users assigned to this role will have it unassigned automatically.`
       )
     )
       return;
@@ -502,7 +504,7 @@ export default function AdminManagementPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {isSuperAdmin && (
+          {canManageAdmins && (
             <>
               {activeTab === 'USERS' ? (
                 <button
@@ -793,7 +795,7 @@ export default function AdminManagementPage() {
 
                             <td className="py-3 px-4 text-right">
                               <div className="flex items-center justify-end gap-1.5">
-                                {isSuperAdmin && (
+                                {canManageAdmins && (
                                   <>
                                     {(u.twoFactorEnabled || u.isTwoFactorPending) && (
                                       <button
@@ -920,7 +922,7 @@ export default function AdminManagementPage() {
                           </button>
                         </div>
 
-                        {isSuperAdmin && (
+                        {canManageAdmins && (
                           <div className="grid grid-cols-4 gap-2 pt-2 border-t border-white/5">
                             {(u.twoFactorEnabled || u.isTwoFactorPending) ? (
                               <button
@@ -1102,14 +1104,14 @@ export default function AdminManagementPage() {
                         className="flex-1 py-2 px-3 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer min-h-[40px]"
                       >
                         <Shield className="w-3.5 h-3.5 text-[#7FB706]" />
-                        {r.isSystem ? 'View Permissions' : 'Configure Matrix'}
+                        {r.code === 'SUPER_ADMIN' ? 'View Permissions' : 'Configure Matrix'}
                       </button>
 
-                      {!r.isSystem && isSuperAdmin && (
+                      {r.code !== 'SUPER_ADMIN' && canManageAdmins && (
                         <button
                           onClick={() => handleDeleteRole(r)}
                           className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 cursor-pointer min-h-[40px] min-w-[40px] flex items-center justify-center transition-all"
-                          title="Delete Custom Role"
+                          title="Delete Role"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -1426,7 +1428,7 @@ export default function AdminManagementPage() {
                 <Shield className="w-5 h-5 text-[#7FB706]" />
                 <h3 className="text-sm font-bold text-white">
                   {editingRole
-                    ? `${editingRole.isSystem ? 'View Permissions' : 'Configure Role'} — ${editingRole.name}`
+                    ? `${editingRole.code === 'SUPER_ADMIN' ? 'View Permissions' : 'Configure Role'} — ${editingRole.name}`
                     : 'Create New Custom Role'}
                 </h3>
               </div>
@@ -1442,7 +1444,7 @@ export default function AdminManagementPage() {
                   <input
                     type="text"
                     required
-                    disabled={editingRole?.isSystem}
+                    disabled={editingRole?.code === 'SUPER_ADMIN'}
                     value={roleForm.name}
                     onChange={(e) => {
                       const name = e.target.value;
@@ -1478,7 +1480,7 @@ export default function AdminManagementPage() {
                 <label className="block font-semibold text-gray-300 mb-1">Description</label>
                 <textarea
                   rows={2}
-                  disabled={editingRole?.isSystem}
+                  disabled={editingRole?.code === 'SUPER_ADMIN'}
                   value={roleForm.description}
                   onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
                   placeholder="Outline responsibilities and operational boundaries..."
@@ -1498,7 +1500,7 @@ export default function AdminManagementPage() {
                     </span>
                   </div>
 
-                  {!editingRole?.isSystem && (
+                  {editingRole?.code !== 'SUPER_ADMIN' && (
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -1540,7 +1542,7 @@ export default function AdminManagementPage() {
                             <span className="font-bold text-gray-200 text-xs tracking-wide">
                               {moduleName} ({perms.length})
                             </span>
-                            {!editingRole?.isSystem && (
+                            {editingRole?.code !== 'SUPER_ADMIN' && (
                               <button
                                 type="button"
                                 onClick={() => handleToggleModulePermissions(moduleName)}
@@ -1571,7 +1573,7 @@ export default function AdminManagementPage() {
                                 >
                                   <input
                                     type="checkbox"
-                                    disabled={editingRole?.isSystem}
+                                    disabled={editingRole?.code === 'SUPER_ADMIN'}
                                     checked={isChecked}
                                     onChange={() => handleTogglePermission(p.id)}
                                     className="mt-0.5 rounded accent-[#7FB706]"
@@ -1602,13 +1604,13 @@ export default function AdminManagementPage() {
                 >
                   Close
                 </button>
-                {!editingRole?.isSystem && isSuperAdmin && (
+                {editingRole?.code !== 'SUPER_ADMIN' && canManageAdmins && (
                   <button
                     type="submit"
                     disabled={savingRole}
                     className="px-6 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-white font-bold rounded-xl text-xs disabled:opacity-50 cursor-pointer min-h-[44px]"
                   >
-                    {savingRole ? 'Saving...' : editingRole ? 'Update Role Matrix' : 'Save Custom Role'}
+                    {savingRole ? 'Saving...' : editingRole ? 'Update Role Matrix' : 'Save Role'}
                   </button>
                 )}
               </div>

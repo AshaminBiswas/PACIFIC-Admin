@@ -6,7 +6,7 @@ import { AdminAuthProvider } from './context/AdminAuthContext';
 import { lazyWithRetry } from './utils/lazyWithRetry';
 
 // Lazy-loaded Admin Pages ported from PACIFIC RESTROOM CUBICLE with auto-retry
-const AdminLogin = lazyWithRetry(() => import('./pages/admin/AdminLogin'));
+const AdminLogin = lazyWithRetry(() => import('./pages/AdminLoginPage'));
 const AdminDashboard = lazyWithRetry(() => import('./pages/admin/AdminDashboard'));
 const AdminOverview = lazyWithRetry(() => import('./pages/admin/AdminOverview'));
 const AdminProducts = lazyWithRetry(() => import('./pages/admin/AdminProducts'));

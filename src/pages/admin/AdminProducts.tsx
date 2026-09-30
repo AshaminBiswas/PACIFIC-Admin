@@ -43,7 +43,7 @@ import type {
   SSHardwareColor,
 } from '@/types/admin';
 
-// ── Helpers ─────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function parseVideoSource(url: string): { type: 'youtube' | 'vimeo' | 'native'; src: string } | null {
   if (!url) return null;
@@ -122,7 +122,7 @@ const CATEGORY_COLORS: Record<ProductCategoryType, { pill: string; border: strin
 };
 
 export default function AdminProducts() {
-  // ── Data State ──
+  // â”€â”€ Data State â”€â”€
   const [categories, setCategories] = useState<TopProductCategory[]>([]);
   const [models, setModels] = useState<ProductCatalogModel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,7 +130,7 @@ export default function AdminProducts() {
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
-  // ── Modals State ──
+  // â”€â”€ Modals State â”€â”€
   const [showModelModal, setShowModelModal] = useState(false);
   const [editingModel, setEditingModel] = useState<ProductCatalogModel | null>(null);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -138,7 +138,7 @@ export default function AdminProducts() {
   const [viewingBomModel, setViewingBomModel] = useState<ProductCatalogModel | null>(null);
   const [deleteConfirmModel, setDeleteConfirmModel] = useState<ProductCatalogModel | null>(null);
 
-  // ── Form State ──
+  // â”€â”€ Form State â”€â”€
   const [formCategory, setFormCategory] = useState<ProductCategoryType>('Cubicle');
   const [formTitle, setFormTitle] = useState('');
   const [formSlug, setFormSlug] = useState('');
@@ -201,7 +201,7 @@ export default function AdminProducts() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // ── Load Data ──
+  // â”€â”€ Load Data â”€â”€
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -226,7 +226,7 @@ export default function AdminProducts() {
     loadData();
   }, [loadData]);
 
-  // ── Filtered Models ──
+  // â”€â”€ Filtered Models â”€â”€
   const filteredModels = useMemo(() => {
     return models.filter((m) => {
       const matchesTab = m.category === activeTab;
@@ -241,7 +241,7 @@ export default function AdminProducts() {
     });
   }, [models, activeTab, search]);
 
-  // ── Model Count Metrics ──
+  // â”€â”€ Model Count Metrics â”€â”€
   const metrics = useMemo(() => {
     const cubicleCount = models.filter((m) => m.category === 'Cubicle').length;
     const lockerCount = models.filter((m) => m.category === 'Lockers').length;
@@ -256,7 +256,7 @@ export default function AdminProducts() {
     };
   }, [models]);
 
-  // ── Open Create Modal ──
+  // â”€â”€ Open Create Modal â”€â”€
   const handleOpenCreate = (preselectedCategory?: ProductCategoryType) => {
     const targetCat = preselectedCategory || activeTab;
     setEditingModel(null);
@@ -296,7 +296,7 @@ export default function AdminProducts() {
         { id: '2', name: 'Occupancy Indicator Lock & Turn Bolt', quantity: 1, unit: 'Set', material: 'Both' },
         { id: '3', name: 'Door Pull Handle / Knob', quantity: 1, unit: 'Pc', material: 'Both' },
         { id: '4', name: 'Coat Hook with Rubber Buffer Stop', quantity: 1, unit: 'Pc', material: 'Both' },
-        { id: '5', name: 'Adjustable Supporting Legs (100–150mm)', quantity: 2, unit: 'Pcs', material: 'Both' },
+        { id: '5', name: 'Adjustable Supporting Legs (100â€“150mm)', quantity: 2, unit: 'Pcs', material: 'Both' },
         { id: '6', name: 'Continuous Top Headrail Stabilizer Bar', quantity: 1, unit: 'Bar', material: 'Both' },
         { id: '7', name: 'Wall Fixing U-Channels & Fasteners Pack', quantity: 6, unit: 'Pcs', material: 'Both' },
       ]);
@@ -320,7 +320,7 @@ export default function AdminProducts() {
         { id: '2', name: 'Emergency Release Coin Latch / Safety Turn Lock', quantity: 1, unit: 'Set', material: 'Both' },
         { id: '3', name: 'Ergonomic Rounded Child Door Knob', quantity: 1, unit: 'Pc', material: 'Both' },
         { id: '4', name: 'Safety Coat & Bag Hook with Soft Buffer', quantity: 1, unit: 'Pc', material: 'Both' },
-        { id: '5', name: 'Adjustable Floor Support Legs (100–150mm)', quantity: 2, unit: 'Pcs', material: 'Both' },
+        { id: '5', name: 'Adjustable Floor Support Legs (100â€“150mm)', quantity: 2, unit: 'Pcs', material: 'Both' },
         { id: '6', name: 'Top Stabilizing Continuous Headrail Bar', quantity: 1, unit: 'Bar', material: 'Both' },
         { id: '7', name: 'Wall Fixing U-Channels & Anti-Tamper Fasteners', quantity: 6, unit: 'Pcs', material: 'Both' },
       ]);
@@ -330,7 +330,7 @@ export default function AdminProducts() {
     setShowModelModal(true);
   };
 
-  // ── Open Edit Modal ──
+  // â”€â”€ Open Edit Modal â”€â”€
   const handleOpenEdit = (model: ProductCatalogModel) => {
     setEditingModel(model);
     setFormCategory(model.category);
@@ -470,7 +470,7 @@ export default function AdminProducts() {
     }
   };
 
-  // ── Image Upload Handler ──
+  // â”€â”€ Image Upload Handler â”€â”€
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -499,7 +499,7 @@ export default function AdminProducts() {
     }
   };
 
-  // ── Category Image Upload Handler ──
+  // â”€â”€ Category Image Upload Handler â”€â”€
   const handleCategoryImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -523,7 +523,7 @@ export default function AdminProducts() {
     }
   };
 
-  // ── Hardware List Add Item ──
+  // â”€â”€ Hardware List Add Item â”€â”€
   const handleAddHardwareItem = () => {
     if (!newHwName.trim()) return;
 
@@ -549,7 +549,7 @@ export default function AdminProducts() {
     setFormHardwareList((prev) => prev.filter((item) => item.id !== id));
   };
 
-  // ── Urinal Model A Toggle Sync ──
+  // â”€â”€ Urinal Model A Toggle Sync â”€â”€
   const handleToggleUrinalExtraLeg = (enabled: boolean) => {
     setFormHasExtraLeg(enabled);
     if (enabled) {
@@ -559,7 +559,7 @@ export default function AdminProducts() {
         setFormHardwareList((prev) => [
           {
             id: `hw-leg-${Date.now()}`,
-            name: 'Adjustable Supporting Floor Leg (100–150mm)',
+            name: 'Adjustable Supporting Floor Leg (100â€“150mm)',
             quantity: 1,
             unit: 'Pc',
             material: 'Standard',
@@ -575,7 +575,7 @@ export default function AdminProducts() {
     }
   };
 
-  // ── Save Model Handler ──
+  // â”€â”€ Save Model Handler â”€â”€
   const handleSaveModel = async () => {
     if (!formTitle.trim()) {
       alert('Please enter a model title');
@@ -659,7 +659,7 @@ export default function AdminProducts() {
     loadData();
   };
 
-  // ── Toggle Featured Handler ──
+  // â”€â”€ Toggle Featured Handler â”€â”€
   const handleToggleFeatured = async (model: ProductCatalogModel) => {
     const nextFeatured = !model.isFeatured;
     // Optimistic UI update
@@ -683,7 +683,7 @@ export default function AdminProducts() {
     }
   };
 
-  // ── Delete Model Handler ──
+  // â”€â”€ Delete Model Handler â”€â”€
   const handleDeleteModel = async () => {
     if (!deleteConfirmModel) return;
     await productCatalogApi.deleteModel(deleteConfirmModel.id);
@@ -692,7 +692,7 @@ export default function AdminProducts() {
     loadData();
   };
 
-  // ── Open Category Edit Modal ──
+  // â”€â”€ Open Category Edit Modal â”€â”€
   const handleOpenCategoryEdit = (cat: TopProductCategory) => {
     setEditingCategory(cat);
     setCatName(cat.name);
@@ -730,7 +730,7 @@ export default function AdminProducts() {
         </div>
       )}
 
-      {/* ── Top Header ─────────────────────────────────────────── */}
+      {/* â”€â”€ Top Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-[#121226] border border-white/5 p-5 sm:p-6 rounded-3xl">
         <div className="space-y-1">
           <div className="flex items-center gap-2.5">
@@ -742,7 +742,7 @@ export default function AdminProducts() {
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-gray-400">
-            Configure Pacific’s core product lines: <span className="text-emerald-400 font-medium">Cubicle</span>, <span className="text-indigo-400 font-medium">Lockers</span>, <span className="text-amber-400 font-medium">Urinal Partitions</span>, and <span className="text-rose-400 font-medium">Kids Toilet</span> with complete hardware BOMs and image uploads.
+            Configure Pacificâ€™s core product lines: <span className="text-emerald-400 font-medium">Cubicle</span>, <span className="text-indigo-400 font-medium">Lockers</span>, <span className="text-amber-400 font-medium">Urinal Partitions</span>, and <span className="text-rose-400 font-medium">Kids Cubicle</span> with complete hardware BOMs and image uploads.
           </p>
         </div>
 
@@ -767,7 +767,7 @@ export default function AdminProducts() {
         </div>
       </div>
 
-      {/* ── Active Category Overview Banner (when category tab selected) ── */}
+      {/* â”€â”€ Active Category Overview Banner (when category tab selected) â”€â”€ */}
       {(true) && (
         (() => {
           const currentCat = categories.find((c) => c.key === activeTab);
@@ -823,7 +823,7 @@ export default function AdminProducts() {
         })()
       )}
 
-      {/* ── Product Lines Tab Navigation & Controls ────────────── */}
+      {/* â”€â”€ Product Lines Tab Navigation & Controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         {/* Navigation Tabs */}
         <div className="flex items-center gap-1.5 p-1 bg-[#121226] border border-white/5 rounded-2xl overflow-x-auto">
@@ -875,7 +875,7 @@ export default function AdminProducts() {
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <span>4. Kids Toilet</span>
+            <span>4. Kids Cubicle</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-normal">Safety Design</span>
           </button>
         </div>
@@ -927,7 +927,7 @@ export default function AdminProducts() {
         </div>
       </div>
 
-      {/* ── Main Content Area ──────────────────────────────────── */}
+      {/* â”€â”€ Main Content Area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {loading ? (
         <div className="bg-[#121226] border border-white/5 rounded-3xl p-16 text-center text-gray-400">
           <div className="animate-spin w-8 h-8 border-2 border-[#7FB706] border-t-transparent rounded-full mx-auto mb-3" />
@@ -967,7 +967,7 @@ export default function AdminProducts() {
           </div>
         </div>
       ) : viewMode === 'cards' ? (
-        // ── Visual Cards View ──
+        // â”€â”€ Visual Cards View â”€â”€
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredModels.map((model, idx) => {
             const ssOption = model.hardwareOptions?.find((o) => o.material === 'SS Hardware');
@@ -1050,7 +1050,7 @@ export default function AdminProducts() {
                       {model.description}
                     </p>
 
-                    {/* ── Hardware Specifications Badge Area ── */}
+                    {/* â”€â”€ Hardware Specifications Badge Area â”€â”€ */}
                     <div className="p-3.5 bg-black/30 border border-white/5 rounded-2xl space-y-2.5">
                       <div className="flex items-center justify-between text-[11px] text-gray-400 font-medium">
                         <span className="flex items-center gap-1 text-gray-300">
@@ -1193,7 +1193,7 @@ export default function AdminProducts() {
           })}
         </div>
       ) : (
-        // ── Detailed Table View ──
+        // â”€â”€ Detailed Table View â”€â”€
         <div className="bg-[#121226] border border-white/5 rounded-3xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
@@ -1333,7 +1333,7 @@ export default function AdminProducts() {
         </div>
       )}
 
-      {/* ── CREATE / EDIT MODEL MODAL ──────────────────────────── */}
+      {/* â”€â”€ CREATE / EDIT MODEL MODAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {showModelModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
           <div className="relative w-full max-w-4xl bg-[#121226] border border-white/10 rounded-3xl shadow-2xl overflow-hidden my-8">
@@ -1384,7 +1384,7 @@ export default function AdminProducts() {
                             { id: '2', name: 'Emergency Release Safety Turn Lock', quantity: 1, unit: 'Set', material: 'Both' },
                             { id: '3', name: 'Ergonomic Rounded Child Door Knob', quantity: 1, unit: 'Pc', material: 'Both' },
                             { id: '4', name: 'Safety Coat Hook with Soft Buffer', quantity: 1, unit: 'Pc', material: 'Both' },
-                            { id: '5', name: 'Adjustable Floor Support Legs (100–150mm)', quantity: 2, unit: 'Pcs', material: 'Both' },
+                            { id: '5', name: 'Adjustable Floor Support Legs (100â€“150mm)', quantity: 2, unit: 'Pcs', material: 'Both' },
                           ]);
                         }
                       }}
@@ -1459,7 +1459,7 @@ export default function AdminProducts() {
                 />
               </div>
 
-              {/* ── MULTI-PHOTO GALLERY FOR THIS MODEL ── */}
+              {/* â”€â”€ MULTI-PHOTO GALLERY FOR THIS MODEL â”€â”€ */}
               <div className="p-4 bg-black/40 border border-white/10 rounded-2xl space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1590,7 +1590,7 @@ export default function AdminProducts() {
                 </div>
               </div>
 
-              {/* ── DEMONSTRATION & WALKTHROUGH VIDEOS (MINIMUM 2 VIDEOS) ── */}
+              {/* â”€â”€ DEMONSTRATION & WALKTHROUGH VIDEOS (MINIMUM 2 VIDEOS) â”€â”€ */}
               <div className="p-4 bg-black/40 border border-white/10 rounded-2xl space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1616,7 +1616,7 @@ export default function AdminProducts() {
                   {formVideos.map((vidUrl, idx) => {
                     const defaultSlotTitle =
                       idx === 0
-                        ? 'Video #1: Walkthrough / 360° Tour'
+                        ? 'Video #1: Walkthrough / 360Â° Tour'
                         : idx === 1
                         ? 'Video #2: Hardware & Step-by-Step Installation'
                         : `Video #${idx + 1}: Additional Showcase`;
@@ -1709,7 +1709,7 @@ export default function AdminProducts() {
                 </div>
               </div>
 
-              {/* ── HARDWARE CONFIGURATION ACCORDING TO USER SPEC ── */}
+              {/* â”€â”€ HARDWARE CONFIGURATION ACCORDING TO USER SPEC â”€â”€ */}
               <div className="p-4 bg-[#0a0a1a] border border-white/10 rounded-2xl space-y-4">
                 <div className="flex items-center justify-between border-b border-white/10 pb-2">
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -1861,7 +1861,7 @@ export default function AdminProducts() {
                           )}
                         </span>
                       </label>
-                      <span className="text-[11px] text-gray-400">100–150mm Leg</span>
+                      <span className="text-[11px] text-gray-400">100â€“150mm Leg</span>
                     </div>
                   </div>
                 )}
@@ -1870,7 +1870,7 @@ export default function AdminProducts() {
                 {formCategory === 'Kids Toilet' && (
                   <div className="space-y-4">
                     <div className="p-3 bg-rose-500/5 border border-rose-500/20 rounded-xl text-xs text-rose-300">
-                      <strong>Kids Toilet Hardware Rule:</strong> Specially designed child-safety ergonomics: Anti-finger pinch clearance, low-height doors, soft spring hinges, and exterior emergency release coin turn latch for staff safety access. Supports <strong>SS Hardware</strong> &amp; vibrant <strong>Nylon Hardware</strong> options.
+                      <strong>Kids Cubicle Hardware Rule:</strong> Specially designed child-safety ergonomics: Anti-finger pinch clearance, low-height doors, soft spring hinges, and exterior emergency release coin turn latch for staff safety access. Supports <strong>SS Hardware</strong> &amp; vibrant <strong>Nylon Hardware</strong> options.
                     </div>
 
                     {/* SS Hardware Toggle & Colors */}
@@ -1938,7 +1938,7 @@ export default function AdminProducts() {
                 )}
               </div>
 
-              {/* ── HARDWARE LIST (BILL OF MATERIALS) BUILDER ── */}
+              {/* â”€â”€ HARDWARE LIST (BILL OF MATERIALS) BUILDER â”€â”€ */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1981,7 +1981,7 @@ export default function AdminProducts() {
                                 </span>
                               )}
                             </td>
-                            <td className="px-3 py-2.5 text-gray-400 text-[11px]">{item.notes || '—'}</td>
+                            <td className="px-3 py-2.5 text-gray-400 text-[11px]">{item.notes || 'â€”'}</td>
                             <td className="px-3 py-2.5 text-right">
                               <button
                                 type="button"
@@ -2091,7 +2091,7 @@ export default function AdminProducts() {
         </div>
       )}
 
-      {/* ── HARDWARE BOM DETAIL DRAWER / MODAL ────────────────── */}
+      {/* â”€â”€ HARDWARE BOM DETAIL DRAWER / MODAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {viewingBomModel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
           <div className="relative w-full max-w-2xl bg-[#121226] border border-white/10 rounded-3xl shadow-2xl overflow-hidden my-8">
@@ -2191,7 +2191,7 @@ export default function AdminProducts() {
 
             <div className="p-4 sm:p-5 border-t border-white/10 bg-white/[0.02] flex items-center justify-between">
               <span className="text-xs text-gray-400">
-                Pacific Products & Solutions • Bill of Materials
+                Pacific Products & Solutions â€¢ Bill of Materials
               </span>
               <button
                 type="button"
@@ -2206,7 +2206,7 @@ export default function AdminProducts() {
         </div>
       )}
 
-      {/* ── EDIT CATEGORY / BANNER MODAL ───────────────────────── */}
+      {/* â”€â”€ EDIT CATEGORY / BANNER MODAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {showCategoryModal && editingCategory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
           <div className="relative w-full max-w-xl bg-[#121226] border border-white/10 rounded-3xl shadow-2xl overflow-hidden my-8">
@@ -2315,7 +2315,7 @@ export default function AdminProducts() {
         </div>
       )}
 
-      {/* ── DELETE CONFIRMATION MODAL ──────────────────────────── */}
+      {/* â”€â”€ DELETE CONFIRMATION MODAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {deleteConfirmModel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
           <div className="relative w-full max-w-md bg-[#121226] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
@@ -2367,3 +2367,4 @@ export default function AdminProducts() {
     </div>
   );
 }
+

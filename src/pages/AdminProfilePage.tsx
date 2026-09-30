@@ -4,7 +4,7 @@ import { useAdminAuth } from '../context/AdminAuthContext';
 import { authApi } from '../api/authApi';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { getRoleBadgeInfo } from '../utils/rbacNavigation';
-import type { AdminSession } from '../types/admin';
+import type { AdminSession, TwoFactorSetupData } from '../types/admin';
 // @ts-ignore
 import logo from '../image/logo/logo.webp';
 import {
@@ -33,6 +33,7 @@ import {
   ArrowRight,
   Shield,
   Sparkles,
+  X,
 } from 'lucide-react';
 
 export const AdminProfilePage: React.FC = () => {
@@ -50,6 +51,18 @@ export const AdminProfilePage: React.FC = () => {
   const [generatingCodes, setGeneratingCodes] = useState(false);
   const [newRecoveryCodes, setNewRecoveryCodes] = useState<string[]>([]);
   const [copiedCodes, setCopiedCodes] = useState(false);
+
+  // 2FA Setup & Enrollment Modal State
+  const [showSetup2FAModal, setShowSetup2FAModal] = useState(false);
+  const [setup2FAData, setSetup2FAData] = useState<TwoFactorSetupData | null>(null);
+  const [loading2FASetup, setLoading2FASetup] = useState(false);
+  const [setup2FACode, setSetup2FACode] = useState('');
+  const [setup2FAError, setSetup2FAError] = useState<string | null>(null);
+  const [enabling2FA, setEnabling2FA] = useState(false);
+  const [disabling2FA, setDisabling2FA] = useState(false);
+  const [setup2FACopiedSecret, setSetup2FACopiedSecret] = useState(false);
+  const [setup2FACopiedCodes, setSetup2FACopiedCodes] = useState(false);
+  const [setup2FACodesSaved, setSetup2FACodesSaved] = useState(false);
 
   // Password Change Form State
   const [currentPassword, setCurrentPassword] = useState('');
@@ -118,6 +131,66 @@ export const AdminProfilePage: React.FC = () => {
       showAlert('error', err?.response?.data?.message || 'Failed to terminate other sessions');
     } finally {
       setRevokingAllOthers(false);
+    }
+  };
+
+  // ── 2FA Enrollment Handlers ──
+  const handleOpenSetup2FA = async () => {
+    setLoading2FASetup(true);
+    setSetup2FAError(null);
+    setSetup2FACode('');
+    setSetup2FACodesSaved(false);
+    try {
+      const res = await authApi.setup2fa();
+      if (res.data?.data) {
+        setSetup2FAData(res.data.data);
+        setShowSetup2FAModal(true);
+      }
+    } catch (err: any) {
+      showAlert('error', err?.response?.data?.message || 'Failed to initialize 2FA setup');
+    } finally {
+      setLoading2FASetup(false);
+    }
+  };
+
+  const handleConfirmEnable2FA = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!setup2FACodesSaved) {
+      setSetup2FAError('Please confirm that you have safely stored your recovery backup codes.');
+      return;
+    }
+    if (setup2FACode.trim().length !== 6) {
+      setSetup2FAError('Please enter the 6-digit verification code from your authenticator app.');
+      return;
+    }
+
+    setEnabling2FA(true);
+    setSetup2FAError(null);
+    try {
+      await authApi.enable2fa(setup2FACode.trim());
+      setShowSetup2FAModal(false);
+      showAlert('success', 'Two-Factor Authentication is now active and protecting your account!');
+      await refreshProfile();
+    } catch (err: any) {
+      setSetup2FAError(err?.response?.data?.message || 'Invalid verification code. Check your clock sync and try again.');
+    } finally {
+      setEnabling2FA(false);
+    }
+  };
+
+  const handleDisable2FA = async () => {
+    const password = prompt('Enter your admin password to confirm disabling Two-Factor Authentication:');
+    if (!password) return;
+
+    setDisabling2FA(true);
+    try {
+      await authApi.disable2fa(password);
+      showAlert('success', 'Two-Factor Authentication has been disabled.');
+      await refreshProfile();
+    } catch (err: any) {
+      showAlert('error', err?.response?.data?.message || 'Failed to disable 2FA. Verify your password.');
+    } finally {
+      setDisabling2FA(false);
     }
   };
 
@@ -372,28 +445,73 @@ export const AdminProfilePage: React.FC = () => {
               </p>
             </div>
 
-            {/* Emergency Recovery Codes Box */}
-            <div className="bg-black/30 border border-white/10 rounded-2xl p-5 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                    Emergency Backup Recovery Codes
-                  </h4>
-                  <p className="text-[11px] text-gray-400">
-                    Each emergency key can only be used once. Keep these codes stored securely offline.
-                  </p>
+            {!user?.twoFactorEnabled ? (
+              <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
+                    <ShieldAlert className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white">Two-Factor Authentication Setup Required</h4>
+                    <p className="text-xs text-gray-300 mt-1 max-w-lg leading-relaxed">
+                      Your account does not have 2FA activated yet. Configure Google Authenticator, Microsoft Authenticator, or 1Password to secure your admin account.
+                    </p>
+                  </div>
                 </div>
 
                 <button
                   type="button"
-                  onClick={handleRegenerateCodes}
-                  disabled={generatingCodes}
-                  className="self-start sm:self-auto min-h-[40px] px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-[#7FB706] border border-[#7FB706]/30 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                  onClick={handleOpenSetup2FA}
+                  disabled={loading2FASetup}
+                  className="px-5 py-2.5 rounded-xl bg-[#7FB706] hover:bg-[#6fa005] text-[#030213] text-xs font-black flex items-center gap-2 shadow-lg shadow-[#7FB706]/20 transition cursor-pointer self-start sm:self-auto min-h-[44px] shrink-0"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${generatingCodes ? 'animate-spin' : ''}`} />
-                  <span>{generatingCodes ? 'Generating…' : 'Generate 10 Fresh Codes'}</span>
+                  <Key className="w-4 h-4" />
+                  <span>{loading2FASetup ? 'Initializing…' : 'Setup Two-Factor Authentication'}</span>
                 </button>
               </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
+                  <div className="flex items-center gap-3">
+                    <ShieldCheck className="w-6 h-6 text-[#7FB706] shrink-0" />
+                    <div>
+                      <span className="text-xs font-bold text-white block">2FA Protection Active & Enforced</span>
+                      <span className="text-[11px] text-gray-400">Authenticated via rotating TOTP (RFC 6238) and single-use recovery keys</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleDisable2FA}
+                    disabled={disabling2FA}
+                    className="px-3.5 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-semibold transition cursor-pointer self-start sm:self-auto"
+                  >
+                    {disabling2FA ? 'Disabling…' : 'Disable 2FA'}
+                  </button>
+                </div>
+
+                {/* Emergency Recovery Codes Box */}
+                <div className="bg-black/30 border border-white/10 rounded-2xl p-5 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                        Emergency Backup Recovery Codes
+                      </h4>
+                      <p className="text-[11px] text-gray-400">
+                        Each emergency key can only be used once. Keep these codes stored securely offline.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleRegenerateCodes}
+                      disabled={generatingCodes}
+                      className="self-start sm:self-auto min-h-[40px] px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-[#7FB706] border border-[#7FB706]/30 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${generatingCodes ? 'animate-spin' : ''}`} />
+                      <span>{generatingCodes ? 'Generating…' : 'Generate 10 Fresh Codes'}</span>
+                    </button>
+                  </div>
 
               {/* Display newly generated codes */}
               {newRecoveryCodes.length > 0 && (
@@ -435,6 +553,8 @@ export const AdminProfilePage: React.FC = () => {
               )}
             </div>
           </div>
+        )}
+      </div>
 
           {/* ── 2. ACTIVE DEVICES & SESSION MANAGEMENT ── */}
           <div className="bg-[#121226] border border-white/10 rounded-3xl p-6 shadow-xl space-y-4">
@@ -713,6 +833,186 @@ export const AdminProfilePage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* ── 2FA ENROLLMENT MODAL ── */}
+      {showSetup2FAModal && setup2FAData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md">
+          <div className="bg-[#121226] border border-white/10 rounded-3xl w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl animate-fade-in">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#0a0a1a]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#7FB706]/10 border border-[#7FB706]/30 flex items-center justify-center text-[#7FB706]">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Enable Two-Factor Authentication</h3>
+                  <p className="text-[11px] text-gray-400">Scan QR Code & configure your authenticator app</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSetup2FAModal(false)}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleConfirmEnable2FA} className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
+              {setup2FAError && (
+                <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{setup2FAError}</span>
+                </div>
+              )}
+
+              {/* Step 1: Scan QR */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-[#7FB706] text-[#030213] text-[11px] font-black flex items-center justify-center">1</span>
+                  <span className="font-bold text-white text-xs">Scan Authenticator QR Code</span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-4 bg-[#0a0a1a] border border-white/5 p-4 rounded-2xl">
+                  <div className="bg-white p-2.5 rounded-2xl shadow-inner shrink-0">
+                    <img
+                      src={setup2FAData.qrCodeUrl}
+                      alt="2FA QR Code"
+                      className="w-36 h-36 rounded-lg object-contain"
+                    />
+                  </div>
+
+                  <div className="space-y-2 text-left w-full">
+                    <p className="text-gray-300 text-[11px] leading-relaxed">
+                      Scan this barcode using Google Authenticator, Microsoft Authenticator, Apple Passwords, or 1Password.
+                    </p>
+                    <div className="pt-1">
+                      <span className="text-[10px] text-gray-400 block mb-1">Or enter key manually:</span>
+                      <div className="flex items-center gap-2 bg-black/60 border border-white/10 px-2.5 py-1.5 rounded-xl font-mono text-xs text-[#7FB706] justify-between">
+                        <span className="truncate select-all">{setup2FAData.secret}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(setup2FAData.secret);
+                            setSetup2FACopiedSecret(true);
+                            setTimeout(() => setSetup2FACopiedSecret(false), 2000);
+                          }}
+                          className="text-gray-400 hover:text-white shrink-0 cursor-pointer"
+                          title="Copy Secret"
+                        >
+                          {setup2FACopiedSecret ? <Check className="w-3.5 h-3.5 text-[#7FB706]" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 2: Emergency Recovery Codes */}
+              <div className="space-y-3 pt-2 border-t border-white/10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-[#7FB706] text-[#030213] text-[11px] font-black flex items-center justify-center">2</span>
+                    <span className="font-bold text-white text-xs">Save 10 Backup Recovery Codes</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(setup2FAData.recoveryCodes.join('\n'));
+                        setSetup2FACopiedCodes(true);
+                        setTimeout(() => setSetup2FACopiedCodes(false), 2000);
+                      }}
+                      className="text-[11px] text-[#7FB706] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      {setup2FACopiedCodes ? <Check size={12} /> : <Copy size={12} />}
+                      {setup2FACopiedCodes ? 'Copied' : 'Copy'}
+                    </button>
+                    <span className="text-gray-600">|</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const text = `PACIFIC ADMIN 2FA RECOVERY CODES\nAccount: ${user?.email}\nGenerated: ${new Date().toISOString()}\n\n${setup2FAData.recoveryCodes.join('\n')}\n`;
+                        const blob = new Blob([text], { type: 'text/plain' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `pacific-recovery-codes-${user?.email || 'admin'}.txt`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="text-[11px] text-[#7FB706] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Download size={12} /> Download
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 p-3 rounded-xl bg-black/40 border border-white/5">
+                  {setup2FAData.recoveryCodes.map((c, i) => (
+                    <div key={i} className="font-mono text-[11px] text-center text-gray-200 bg-white/5 rounded px-1.5 py-1">
+                      {c}
+                    </div>
+                  ))}
+                </div>
+
+                <label className="flex items-center gap-2 cursor-pointer bg-white/[0.02] p-2.5 rounded-xl border border-white/5">
+                  <input
+                    type="checkbox"
+                    checked={setup2FACodesSaved}
+                    onChange={(e) => setSetup2FACodesSaved(e.target.checked)}
+                    className="rounded accent-[#7FB706] cursor-pointer"
+                  />
+                  <span className="text-[11px] text-gray-300">
+                    I confirm that I have safely copied or downloaded these recovery codes.
+                  </span>
+                </label>
+              </div>
+
+              {/* Step 3: Enter 6-digit Code */}
+              <div className="space-y-2 pt-2 border-t border-white/10">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-[#7FB706] text-[#030213] text-[11px] font-black flex items-center justify-center">3</span>
+                  <span className="font-bold text-white text-xs">Verify & Activate</span>
+                </div>
+                <p className="text-[11px] text-gray-400">
+                  Enter the live 6-digit code currently generated by your Authenticator app:
+                </p>
+
+                <input
+                  type="text"
+                  maxLength={6}
+                  required
+                  value={setup2FACode}
+                  onChange={(e) => setSetup2FACode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="000000"
+                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-3 text-center text-xl font-mono tracking-widest text-[#7FB706] placeholder-gray-600 focus:outline-none focus:border-[#7FB706] font-bold"
+                />
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex justify-end gap-2 pt-4 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setShowSetup2FAModal(false)}
+                  className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl text-xs cursor-pointer min-h-[44px]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={enabling2FA || !setup2FACodesSaved || setup2FACode.length !== 6}
+                  className="px-6 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-[#030213] font-bold rounded-xl text-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer min-h-[44px] flex items-center gap-2 shadow-lg shadow-[#7FB706]/20"
+                >
+                  {enabling2FA ? 'Activating 2FA…' : 'Activate Two-Factor Authentication'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

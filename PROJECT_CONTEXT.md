@@ -2326,6 +2326,106 @@ To ensure high-security compliance for enterprise commercial data, the Pacific A
 - **Frontend TypeScript Check**: `npx tsc --noEmit` exited with 0 errors.
 - **Frontend Production Build**: `npm run build` exited with code 0 (`dist/assets/AdminProfilePage-*.js` 22.88 kB).
 
+---
+
+## 34. Two-Factor Authentication (2FA), Status 400 Fix, Admin Creation & Default Role Removal
+
+### 1. Requirements & Problem Statement
+1. **HTTP 400 Status on Login & 2FA Inoperable**:
+   - When attempting to log in with an account having `isTwoFactorPending: true` or `mustChangePassword: true`, the application threw `Failed to load resource: the server responded with a status of 400 ()`.
+   - The user was unable to complete the 2FA onboarding flow.
+2. **Unable to Create Admin**:
+   - Users with the `ADMIN` role could not access the "New Admin User" button, edit actions, or delete actions in `AdminManagementPage.tsx` because permissions were strictly restricted to `role === 'SUPER_ADMIN'`.
+   - The creation modal defaulted the new user's role to `SALES_MANAGER` rather than `ADMIN`.
+3. **Unable to Remove Default Roles**:
+   - The backend `roles.service.ts` threw HTTP 403 `System roles cannot be deleted` for all 9 built-in default roles (`isSystem: true`), and threw HTTP 400 if any users were assigned to the role.
+   - The frontend hid the Delete Role button and locked the permission matrix for all system roles.
+
+### 2. Root Cause Analysis
+1. **Dual Login Desync (HTTP 400)**:
+   - `src/App.tsx` was configured with lazy route `const AdminLogin = lazyWithRetry(() => import('./pages/admin/AdminLogin'))`.
+   - The legacy `AdminLogin.tsx` expected an immediate JWT token from `/auth/login`. When a user had `mustChangePassword: true` or `isTwoFactorPending: true`, the backend returned `{ success: true, mustChangePassword: true, isTwoFactorPending: true }` without access tokens.
+   - The legacy component caught this as an error and executed an uncoordinated fallback to `supabase.auth.signInWithPassword()`, which threw HTTP 400 (`invalid_grant: Invalid login credentials`).
+2. **Missing In-App 2FA Setup Hub**:
+   - While `AdminLoginPage.tsx` supported onboarding TOTP entry, `AdminProfilePage.tsx` had no enrollment modal or QR code generation for users who skipped or had pending 2FA. Clicking "Generate 10 Fresh Codes" on pending accounts threw HTTP 400 `2FA is not active on this account`.
+3. **Backend TOTP Time Drift Sensitivity**:
+   - `totp.service.ts` had a verification window of `window = 1` (30 seconds), causing verification failures when device clocks drifted by even a few seconds.
+4. **Hardcoded System Role Deletion Lock**:
+   - `roles.service.ts` blocked deletion of all roles where `isSystem: true`.
+
+### 3. Implementation Details
+- **Frontend (`d:\PACIFIC-Admin`)**:
+  - `src/App.tsx`: Updated the `/admin` and `/login` route definitions to load the 4-stage onboarding gateway `src/pages/AdminLoginPage.tsx`.
+  - `src/pages/admin/AdminLogin.tsx`: Re-exported `AdminLoginPage` as default to guarantee consistent behavior across legacy imports.
+  - `src/pages/AdminManagementPage.tsx`:
+    - Defined `canManageAdmins = isSuperAdmin || roleUpper === 'ADMIN'`.
+    - Unlocked "New Admin User", "Create Custom Role", edit user, reset password, and delete actions for both `SUPER_ADMIN` and `ADMIN` roles.
+    - Updated user creation form default role to `ADMIN`.
+    - Allowed role deletion for any role except `SUPER_ADMIN` (`role.code !== 'SUPER_ADMIN'`).
+    - Unlocked permission matrix editing in the role modal for all roles except `SUPER_ADMIN`.
+  - `src/pages/AdminProfilePage.tsx`:
+    - Added "Setup Two-Factor Authentication" button and status alert when 2FA is pending.
+    - Built comprehensive 2FA enrollment modal with 3 guided steps:
+      1. QR Code display with manual base32 secret copy.
+      2. 10 backup recovery codes display with "Copy All" and "Download (.txt)" actions.
+      3. Live 6-digit TOTP verification input.
+    - Added "Disable 2FA" button with password verification.
+    - Fixed JSX container tag balance and unclosed function braces.
+
+- **Backend (`d:\PACIFIC-Backend`)**:
+  - `src/modules/auth/totp.service.ts`:
+    - Expanded TOTP code verification window to `window = 2` (±60 seconds drift compensation).
+    - Standardized `getOtpAuthUri` label format to `PACIFIC:user@example.com?issuer=PACIFIC`.
+    - Exported `generateTotp`, `base32Encode`, and `base32Decode`.
+  - `src/modules/roles/roles.service.ts`:
+    - Restricted deletion protection exclusively to `code === 'SUPER_ADMIN'`.
+    - Implemented automatic cascading deletion of `userRoleAssignment` and `rolePermission` records when deleting default or custom roles, preventing foreign key conflicts.
+
+### 4. Verification
+- **Backend Build**: `npm run build` completed cleanly to `dist/`. Live TOTP verification tested and verified.
+- **Frontend TypeScript Check**: `npx tsc --noEmit` exited with 0 errors.
+- **Frontend Production Build**: `npm run build` exited with code 0.
+
+---
+
+## 35. Admin Credential Email, Login 401 Fix & Kids Cubicle Label
+
+### 1. Requirements
+1. **Admin Welcome Email**: When a new admin is created in `AdminManagementPage`, the new user should receive their login credentials (email + temporary password) to their registered email address.
+2. **Password Reset Email**: When an admin's password is reset via the Reset Password modal, the user should receive the new temporary password by email.
+3. **Login "Invalid credentials" confusion**: Newly created admins had no way to know their temporary password since it was only shown in the creation modal to the Super Admin. Sending credentials by email resolves this.
+4. **Console warnings on login page**: HTTP `401` on `/auth/me` at page-load (no token yet) and Supabase `400` from `signInWithPassword()` are normal non-blocking behaviors already caught in `try/catch`. No UI impact.
+5. **"Kids Toilet" → "Kids Cubicle"**: Rename the display label in the Products tab and description text. Internal database category key `'Kids Toilet'` is preserved to avoid data migration.
+
+### 2. Root Cause — Admin Credentials Not Received
+When `usersService.createUser()` was called from `POST /api/v1/users`, the generated temporary password was hashed and stored but **never emailed** to the new admin. Without email delivery, the new admin did not know their initial password. The admin account creation form showed the generated password to the Super Admin only during the creation modal — it was not persisted elsewhere.
+
+### 3. Implementation
+- **Backend (`d:\PACIFIC-Backend`)**:
+  - `src/modules/utils/email.service.ts` (**new file**): Shared transactional email service.
+    - `sendWelcomeEmail(data)`: Sends a branded HTML email with email address, temporary password, login URL, and security instructions.
+    - `sendPasswordResetEmail(data)`: Sends a branded HTML reset notification with the new temporary password.
+    - **Provider priority**: Resend API (using `RESEND_API_KEY` from `.env`) → Nodemailer SMTP (using `SMTP_*` vars) → Console log fallback (development).
+  - `src/modules/users/users.service.ts`:
+    - `createUser()`: After account creation, calls `emailService.sendWelcomeEmail()` fire-and-forget (non-blocking, logged on failure).
+    - `resetPassword()`: After password update, calls `emailService.sendPasswordResetEmail()` fire-and-forget.
+
+- **Frontend (`d:\PACIFIC-Admin`)**:
+  - `src/pages/admin/AdminProducts.tsx`:
+    - Tab button label: `"4. Kids Toilet"` → `"4. Kids Cubicle"`.
+    - Page description text: `"Kids Toilet"` → `"Kids Cubicle"`.
+    - Hardware rule box heading: `"Kids Toilet Hardware Rule"` → `"Kids Cubicle Hardware Rule"`.
+    - **Internal category enum/key `'Kids Toilet'` unchanged** to preserve database consistency.
+
+### 4. Verification
+- **Backend TypeScript Check**: `npx tsc --noEmit` → exit 0.
+- **Backend Compile**: `npx tsc` → exit 0 → `dist/` updated.
+- **Backend Server**: Restarted on port 5001. Health check: `{ success: true }`.
+- **Frontend TypeScript Check**: `npx tsc --noEmit` → exit 0.
+- **Frontend Production Build**: `npm run build` → exit 0.
+
+
+
 
 
 
