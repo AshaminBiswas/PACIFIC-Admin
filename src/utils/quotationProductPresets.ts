@@ -773,7 +773,7 @@ export function extractModelDimensions(model: ProductCatalogModel) {
 
   let hardwarePackage = '';
   if (model.category === 'Cubicle') {
-    hardwarePackage = 'SS Hardware (Golden, Black, SS) & Nylon Hardware';
+    hardwarePackage = '';
   } else if (model.category === 'Lockers') {
     hardwarePackage = 'Heavy-Duty Uniform Standard Locker Hardware';
   } else if (model.category === 'Urinal Partitions') {

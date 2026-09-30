@@ -61,7 +61,7 @@ function parseItemSpecs(item: any) {
   if (cubicleSize) specs.push({ label: 'Cubicle Size', value: cubicleSize });
   if (doorSize) specs.push({ label: 'Door Size', value: doorSize });
   if (overallHeight) specs.push({ label: 'Overall Height', value: overallHeight });
-  if (hardwarePackage) specs.push({ label: 'Hardware Package', value: hardwarePackage });
+  if (hardwarePackage && !hardwarePackage.includes('Golden, Black, SS')) specs.push({ label: 'Hardware Package', value: hardwarePackage });
 
   if (specs.length === 0 && mainDesc.includes('(') && mainDesc.includes(')')) {
     const match = mainDesc.match(/^(.*?)(?:\n|\s*)\((.*?)\)$/s);

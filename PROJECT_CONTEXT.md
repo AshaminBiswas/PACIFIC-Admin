@@ -2195,6 +2195,30 @@ Sales Quotation PDF (`pdf.service.ts` -> `generateQuotationPdfHtml`) has been re
 - **Committed and Pushed to GitHub**:
   - Both repositories (`PACIFIC-Admin` and `Pacific-Products-And-Solutions`) now have all latest code, fixes, and build configs cleanly committed and pushed to `main`.
 
+---
+
+## 41. Quotation PDF & Preset Refinement — Removal of Generic Cubicle Hardware Package
+
+### 1. Problem & User Directive
+- Under cubicle line items in Quotation PDFs, an auto-populated bullet point was printing:
+  `• Hardware Package: SS Hardware (Golden, Black, SS) & Nylon Hardware`
+- Since cubicle hardware fittings (SS Grade 304, Nylon, Aluminium) are now selected as separate line items or specified per project in the quotation form, printing this placeholder line caused confusion and redundancy.
+
+### 2. Solutions Implemented Across Stack
+1. **Backend PDF Rendering Engine (`D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`)**:
+   - In `generateQuotationPdfHtml` (Quotation PDF): Suppressed `hardwarePackage` rendering if it contains `'Golden, Black, SS'` or `'SS Hardware (Golden, Black, SS)'`.
+   - In `generatePiHtml` (Proforma Invoice PDF) & `generateSalesOrderPdfHtml` (Sales Order PDF): Added matching suppression logic so both new and existing records stored in PostgreSQL with this legacy placeholder will not render it.
+2. **Preset Dimension Extractor (`d:\PACIFIC-Admin\src\utils\quotationProductPresets.ts`)**:
+   - In `extractModelDimensions()`: Removed default assignment of `hardwarePackage = 'SS Hardware (Golden, Black, SS) & Nylon Hardware'` for the `Cubicle` category, leaving it empty string `''` so newly created quotations do not store this generic placeholder.
+3. **Admin Sales Order Detail (`d:\PACIFIC-Admin\src\pages\SalesOrderDetailPage.tsx`)**:
+   - Suppressed rendering of `Hardware Package` in the order specifications drawer if the value contains `'Golden, Black, SS'`.
+
+### 3. Verification & Compliance
+- **Backend TypeScript Check**: `npx tsc --noEmit` exited 0.
+- **Admin TypeScript Check**: `npx tsc --noEmit` exited 0.
+- **Admin Production Build**: `npm run build` exited 0 (`vite v6.4.3 building for production... ✓ built in 22.88s`).
+
+
 
 
 
