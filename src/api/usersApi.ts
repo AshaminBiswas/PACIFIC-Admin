@@ -27,6 +27,9 @@ export const usersApi = {
   resetPassword: (id: string, password: string) =>
     apiClient.post<ApiResponse<{ success: boolean; message: string }>>(`/users/${id}/reset-password`, { password }),
 
+  reset2fa: (id: string) =>
+    apiClient.post<ApiResponse<{ success: boolean; message: string }>>(`/users/${id}/reset-2fa`),
+
   delete: (id: string) =>
     apiClient.delete<ApiResponse<{ success: boolean; message: string }>>(`/users/${id}`),
 };

@@ -178,80 +178,123 @@ export const AdminLayout: React.FC = () => {
 
       {/* Mobile Bottom Navigation Dock (< lg) */}
       <div className="lg:hidden fixed bottom-0 inset-x-0 bg-[#030213]/95 backdrop-blur-lg border-t border-white/10 z-40 px-2 py-2 flex items-center justify-around">
-        <Link
-          to="/admin/dashboard"
-          className={`flex flex-col items-center gap-1 p-1 min-h-[44px] min-w-[44px] justify-center text-[10px] font-semibold transition ${
-            isActive('/admin/dashboard') && location.pathname === '/admin/dashboard'
-              ? 'text-[#7FB706]'
-              : 'text-gray-400 hover:text-white'
-          }`}
-        >
-          <LayoutDashboard className="w-5 h-5" />
-          <span>Overview</span>
-        </Link>
+        {(() => {
+          const dockItems = (() => {
+            switch (user?.role) {
+              case 'SALES_MANAGER':
+                return [
+                  { name: 'Overview', path: '/admin/dashboard', icon: LayoutDashboard },
+                  { name: 'Quotes', path: '/admin/dashboard/sales-quotations', icon: Receipt },
+                  { name: 'Orders', path: '/admin/dashboard/sales-orders', icon: Layers, elevated: true },
+                  { name: 'Invoices', path: '/admin/dashboard/proforma-invoices', icon: Receipt },
+                  { name: 'CRM', path: '/admin/dashboard/customers', icon: Users },
+                ];
+              case 'WAREHOUSE_MANAGER':
+                return [
+                  { name: 'Packing', path: '/admin/dashboard/packing-lists', icon: Layers },
+                  { name: 'Dispatch', path: '/admin/dashboard/dispatches', icon: Layers },
+                  { name: 'Boards', path: '/admin/dashboard/inventory/boards', icon: Layers, elevated: true },
+                  { name: 'Lockers', path: '/admin/dashboard/inventory/lockers', icon: Layers },
+                  { name: 'HIL', path: '/admin/dashboard/issue-lists', icon: Receipt },
+                ];
+              case 'FINANCE_OFFICER':
+                return [
+                  { name: 'Overview', path: '/admin/dashboard', icon: LayoutDashboard },
+                  { name: 'Invoices', path: '/admin/dashboard/invoices', icon: Receipt },
+                  { name: 'Ledger', path: '/admin/dashboard/payments', icon: CreditCard, elevated: true },
+                  { name: 'Forex', path: '/admin/dashboard/export/realization', icon: CreditCard },
+                  { name: 'CRM', path: '/admin/dashboard/customers', icon: Users },
+                ];
+              case 'PROCUREMENT_MANAGER':
+                return [
+                  { name: 'POs', path: '/admin/dashboard/purchase-orders', icon: Receipt },
+                  { name: 'Vendors', path: '/admin/dashboard/vendors', icon: Users },
+                  { name: 'Boards', path: '/admin/dashboard/inventory/boards', icon: Layers, elevated: true },
+                  { name: 'Lockers', path: '/admin/dashboard/inventory/lockers', icon: Layers },
+                  { name: 'Store', path: '/admin/dashboard/inventory/store', icon: Layers },
+                ];
+              case 'EXPORT_MANAGER':
+                return [
+                  { name: 'Export', path: '/admin/dashboard/export', icon: LayoutDashboard },
+                  { name: 'Orders', path: '/admin/dashboard/export/orders', icon: Receipt },
+                  { name: 'Shipments', path: '/admin/dashboard/export/shipments', icon: Layers, elevated: true },
+                  { name: 'Buyers', path: '/admin/dashboard/export/customers', icon: Users },
+                  { name: 'Forex', path: '/admin/dashboard/export/realization', icon: CreditCard },
+                ];
+              case 'EDITOR':
+                return [
+                  { name: 'Overview', path: '/admin/dashboard', icon: LayoutDashboard },
+                  { name: 'Products', path: '/admin/dashboard/products', icon: Layers },
+                  { name: 'Blogs', path: '/admin/dashboard/blogs', icon: Receipt, elevated: true },
+                  { name: 'Solutions', path: '/admin/dashboard/solutions', icon: Layers },
+                  { name: 'Gallery', path: '/admin/dashboard/gallery', icon: LayoutDashboard },
+                ];
+              case 'VIEWER':
+                return [
+                  { name: 'Overview', path: '/admin/dashboard', icon: LayoutDashboard },
+                  { name: 'Products', path: '/admin/dashboard/products', icon: Layers },
+                  { name: 'Projects', path: '/admin/dashboard/projects', icon: Layers, elevated: true },
+                  { name: 'Leads', path: '/admin/dashboard/leads', icon: Users },
+                  { name: 'Catalogs', path: '/admin/dashboard/catalogs', icon: Receipt },
+                ];
+              default:
+                return [
+                  { name: 'Overview', path: '/admin/dashboard', icon: LayoutDashboard },
+                  { name: 'CRM', path: '/admin/dashboard/customers', icon: Users },
+                  { name: 'Board Stock', path: '/admin/dashboard/inventory/boards', icon: Layers, elevated: true },
+                  { name: 'Invoices', path: '/admin/dashboard/proforma-invoices', icon: Receipt },
+                  { name: 'Dues', path: '/admin/dashboard/payments', icon: CreditCard },
+                ];
+            }
+          })();
 
-        <Link
-          to="/admin/dashboard/customers"
-          className={`flex flex-col items-center gap-1 p-1 min-h-[44px] min-w-[44px] justify-center text-[10px] font-semibold transition ${
-            isActive('/admin/dashboard/customers')
-              ? 'text-[#7FB706]'
-              : 'text-gray-400 hover:text-white'
-          }`}
-        >
-          <Users className="w-5 h-5" />
-          <span>CRM</span>
-        </Link>
+          return dockItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.path);
 
-        {/* Elevated Floating Restroom Board Stock Trigger */}
-        <Link
-          to="/admin/dashboard/inventory/boards"
-          className="flex flex-col items-center -mt-6 group"
-          title="Restroom Board Stock"
-          aria-label="Restroom Board Stock"
-        >
-          <div
-            className={`w-13 h-13 rounded-2xl flex items-center justify-center shadow-lg group-active:scale-95 transition-all p-3 ${
-              isActive('/admin/dashboard/inventory/boards')
-                ? 'bg-gradient-to-tr from-[#8fd307] to-[#d4ff4d] text-[#030213] ring-2 ring-[#B5F823] shadow-[#7FB706]/60'
-                : 'bg-gradient-to-tr from-[#7FB706] to-[#B5F823] text-[#030213] shadow-[#7FB706]/40'
-            }`}
-          >
-            <Layers className="w-7 h-7 stroke-[2.5]" />
-          </div>
-          <span
-            className={`text-[10px] font-bold mt-1 text-center whitespace-nowrap transition ${
-              isActive('/admin/dashboard/inventory/boards')
-                ? 'text-[#B5F823]'
-                : 'text-[#7FB706]'
-            }`}
-          >
-            Board Stock
-          </span>
-        </Link>
+            if (item.elevated) {
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className="flex flex-col items-center -mt-6 group"
+                  title={item.name}
+                  aria-label={item.name}
+                >
+                  <div
+                    className={`w-13 h-13 rounded-2xl flex items-center justify-center shadow-lg group-active:scale-95 transition-all p-3 ${
+                      active
+                        ? 'bg-gradient-to-tr from-[#8fd307] to-[#d4ff4d] text-[#030213] ring-2 ring-[#B5F823] shadow-[#7FB706]/60'
+                        : 'bg-gradient-to-tr from-[#7FB706] to-[#B5F823] text-[#030213] shadow-[#7FB706]/40'
+                    }`}
+                  >
+                    <Icon className="w-7 h-7 stroke-[2.5]" />
+                  </div>
+                  <span
+                    className={`text-[10px] font-bold mt-1 text-center whitespace-nowrap transition ${
+                      active ? 'text-[#B5F823]' : 'text-[#7FB706]'
+                    }`}
+                  >
+                    {item.name}
+                  </span>
+                </Link>
+              );
+            }
 
-        <Link
-          to="/admin/dashboard/proforma-invoices"
-          className={`flex flex-col items-center gap-1 p-1 min-h-[44px] min-w-[44px] justify-center text-[10px] font-semibold transition ${
-            isActive('/admin/dashboard/proforma-invoices')
-              ? 'text-[#7FB706]'
-              : 'text-gray-400 hover:text-white'
-          }`}
-        >
-          <Receipt className="w-5 h-5" />
-          <span>Invoices</span>
-        </Link>
-
-        <Link
-          to="/admin/dashboard/payments"
-          className={`flex flex-col items-center gap-1 p-1 min-h-[44px] min-w-[44px] justify-center text-[10px] font-semibold transition ${
-            isActive('/admin/dashboard/payments')
-              ? 'text-[#7FB706]'
-              : 'text-gray-400 hover:text-white'
-          }`}
-        >
-          <CreditCard className="w-5 h-5" />
-          <span>Dues</span>
-        </Link>
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex flex-col items-center gap-1 p-1 min-h-[44px] min-w-[44px] justify-center text-[10px] font-semibold transition ${
+                  active ? 'text-[#7FB706]' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+                <span>{item.name}</span>
+              </Link>
+            );
+          });
+        })()}
       </div>
 
       {/* Inactivity Warning Modal */}

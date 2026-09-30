@@ -2218,6 +2218,80 @@ Sales Quotation PDF (`pdf.service.ts` -> `generateQuotationPdfHtml`) has been re
 - **Admin TypeScript Check**: `npx tsc --noEmit` exited 0.
 - **Admin Production Build**: `npm run build` exited 0 (`vite v6.4.3 building for production... ✓ built in 22.88s`).
 
+---
+
+## 42. Enterprise RBAC, Session-Based Authentication & Two-Factor Authentication (TOTP RFC 6238)
+
+### 1. Architectural Overview & Security Mandate
+To ensure high-security compliance for enterprise commercial data, the Pacific Admin Console and Backend were upgraded with:
+1. **Full 9-Tier Role Hierarchy**:
+   - `SUPER_ADMIN`: Master platform authority, deletion permissions, 2FA reset authority.
+   - `ADMIN`: Platform operations, records management, team administration.
+   - `SALES_MANAGER`: Commercial pipeline (Quotations, Proforma Invoices, Sales Orders, CRM Customers).
+   - `WAREHOUSE_MANAGER`: Board Inventory, Packing Lists, Dispatches, Gate Passes, Hardware Issue Lists (HIL).
+   - `FINANCE_OFFICER`: Bill & Tax Invoices, Payments Ledger, Aging Receivables, Forex Realization.
+   - `PROCUREMENT_MANAGER`: Purchase Orders, Suppliers, Inward Shipments, Store Hardware.
+   - `EXPORT_MANAGER`: International Trade Hub, Vessel Logistics, Foreign Buyers, LC Tracking, eBRC.
+   - `EDITOR`: Website CMS Suite (Products, Blogs, Catalogs, Photo Gallery, Sliders).
+   - `VIEWER`: Read-only operational oversight and analytics.
+
+2. **Session-Based Authentication & Device Tracking (`AdminSession` / `admin_sessions`)**:
+   - Every login generates an active session record in PostgreSQL tracking User-Agent, parsed OS/Browser, IP address, device type (`desktop`, `mobile`, `tablet`), creation timestamp, and `lastActiveAt`.
+   - On every incoming API request, `auth.middleware.ts` extracts `x-session-token` or parses `sessionToken` from JWT, validates active non-revoked session status in the database, and updates `lastActiveAt`.
+   - If an admin revokes a session remotely or changes their password, all active sessions on other devices are immediately terminated with HTTP 401.
+
+3. **Time-Based One-Time Password 2FA (RFC 6238 TOTP)**:
+   - Base32 secret generation with HMAC-SHA1 algorithm and 30-second time steps.
+   - $\pm 1$ time-step window (30-second drift tolerance) to accommodate device clock skew.
+   - High-contrast QR Code Data URL generation for Google Authenticator, Microsoft Authenticator, and 1Password.
+   - 10 single-use emergency recovery backup codes hashed with SHA-256 in the database.
+   - Super Admin remote 2FA reset endpoint (`/users/:id/reset-2fa`) for recovery assistance.
+
+4. **Mandatory First-Time Admin Onboarding Wizard**:
+   - When an admin is provisioned with temporary or dummy credentials (`mustChangePassword: true`, `isTwoFactorPending: true`), their first login triggers a 4-state onboarding wizard in `AdminLoginPage.tsx`:
+     1. **`CREDENTIALS`**: Staff enters email and temporary password.
+     2. **`PASSWORD_RESET`**: System detects temporary password and forces creation of a permanent secure password (validated against 5 complexity rules: length, uppercase, lowercase, number, symbol).
+     3. **`MFA_SETUP`**: Automatically transitions to mandatory 2FA enrollment. Displays QR code, manual setup key, emergency recovery codes grid with Copy and Download (.txt) triggers, confirmation checkbox, and 6-digit verification code input.
+     4. **Console Access**: Upon successful TOTP verification, 2FA is activated, session is created, and the admin is redirected to the dashboard.
+
+5. **Dynamic Role-Based Navigation & Route Guards**:
+   - Desktop Sidebar (`AdminSidebar.tsx`) and Mobile Bottom Dock (`AdminLayout.tsx`) dynamically compute visible items using `rbacNavigation.ts`.
+   - Unauthorized navigation items are completely hidden from the DOM.
+   - Direct URL tampering is intercepted by `ProtectedRoute.tsx` via `canRoleAccessPath(user.role, pathname)`, presenting a branded 403 Access Denied screen with a return link.
+   - Interactive `SecuritySessionsModal.tsx` in `AdminHeader.tsx` allows admins to review active devices, terminate unfamiliar sessions, or generate replacement emergency backup codes.
+
+### 2. Files Modified & Created
+- **Database**:
+  - `D:\PACIFIC-Backend\prisma\schema.prisma` & `d:\PACIFIC-Admin\prisma\schema.prisma` (`UserRole` enum, `AdminSession` model, user security columns).
+  - Executed migration script `upgrade-auth-schema.ts` on Supabase PostgreSQL.
+- **Backend (`D:\PACIFIC-Backend`)**:
+  - `src/modules/auth/totp.service.ts`: RFC 6238 Base32, HMAC-SHA1 TOTP generator, QR code, recovery codes.
+  - `src/modules/auth/session.service.ts`: Device classification, OS/browser parser, session management.
+  - `src/modules/auth/auth.service.ts`: Login branching, first-time password reset, 2FA verify/setup, session revocation.
+  - `src/modules/auth/auth.controller.ts` & `auth.routes.ts`: Endpoints for onboarding, 2FA, sessions.
+  - `src/middleware/auth.middleware.ts`: Real-time session token validation on every request.
+  - `src/modules/users/users.service.ts` & `users.controller.ts`: 2FA reset endpoint & onboarding flags.
+- **Frontend (`d:\PACIFIC-Admin`)**:
+  - `src/types/admin.ts`: 9 roles, `AdminUser`, `AdminSession`, `TwoFactorSetupData`, payloads.
+  - `src/api/authApi.ts`: Client endpoints for 2FA, onboarding, and sessions.
+  - `src/api/usersApi.ts`: Added `reset2fa`.
+  - `src/api/client.ts`: Automatic injection of `x-session-token` header.
+  - `src/context/AdminAuthContext.tsx`: Returns `LoginResult`, session token persistence, proactive revocation handling.
+  - `src/utils/rbacNavigation.ts`: Comprehensive permission matrix (`PATH_PERMISSIONS`), role badges, and path checker.
+  - `src/components/layout/AdminSidebar.tsx`: Role-filtered navigation groups and role badge.
+  - `src/components/layout/AdminLayout.tsx`: Role-tailored mobile bottom dock.
+  - `src/components/ProtectedRoute.tsx`: RBAC 403 guard.
+  - `src/pages/AdminLoginPage.tsx`: 4-state mobile-responsive onboarding wizard.
+  - `src/pages/AdminManagementPage.tsx`: All 9 roles, 2FA status column, Reset 2FA action, and onboarding policy checkboxes.
+  - `src/components/common/SecuritySessionsModal.tsx`: Active device management & 2FA recovery keys generator.
+  - `src/components/layout/AdminHeader.tsx`: Security button trigger for active sessions modal.
+
+### 3. Verification & Compliance
+- **Backend TypeScript**: `npx tsc --noEmit` exited 0.
+- **Admin TypeScript**: `npx tsc --noEmit` exited 0.
+- **Admin Production Build**: `npm run build` exited 0.
+- **Backend API Health**: `http://localhost:5001/health` verified active and responding HTTP 200.
+
 
 
 

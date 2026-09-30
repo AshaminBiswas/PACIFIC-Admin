@@ -24,6 +24,8 @@ import {
   Layers,
   Sparkles,
   Info,
+  Clock,
+  RotateCcw,
 } from 'lucide-react';
 import { usersApi, rolesApi } from '../api/services';
 import { useAdminAuth } from '../context/AdminAuthContext';
@@ -67,9 +69,11 @@ export default function AdminManagementPage() {
     lastName: '',
     email: '',
     password: '',
-    role: 'EDITOR',
+    role: 'SALES_MANAGER',
     roleIds: [] as string[],
     isActive: true,
+    mustChangePassword: true,
+    isTwoFactorPending: true,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
@@ -158,9 +162,11 @@ export default function AdminManagementPage() {
       lastName: '',
       email: '',
       password: generateRandomPassword(),
-      role: 'EDITOR',
+      role: 'SALES_MANAGER',
       roleIds: [],
       isActive: true,
+      mustChangePassword: true,
+      isTwoFactorPending: true,
     });
     setShowPassword(true);
     setShowUserModal(true);
@@ -176,6 +182,8 @@ export default function AdminManagementPage() {
       role: user.role,
       roleIds: user.customRoles ? user.customRoles.map((r) => r.id) : [],
       isActive: user.isActive,
+      mustChangePassword: Boolean(user.mustChangePassword),
+      isTwoFactorPending: Boolean(user.isTwoFactorPending),
     });
     setShowUserModal(true);
   };
@@ -191,6 +199,8 @@ export default function AdminManagementPage() {
           role: userForm.role,
           roleIds: userForm.roleIds,
           isActive: userForm.isActive,
+          mustChangePassword: userForm.mustChangePassword,
+          isTwoFactorPending: userForm.isTwoFactorPending,
         });
         showToast(`User ${userForm.email} updated successfully`);
       } else {
@@ -202,8 +212,10 @@ export default function AdminManagementPage() {
           role: userForm.role,
           roleIds: userForm.roleIds,
           isActive: userForm.isActive,
+          mustChangePassword: userForm.mustChangePassword,
+          isTwoFactorPending: userForm.isTwoFactorPending,
         });
-        showToast(`Admin user ${userForm.email} created successfully`);
+        showToast(`Admin user ${userForm.email} created with mandatory first-login setup`);
       }
       setShowUserModal(false);
       fetchUsers();
@@ -211,6 +223,23 @@ export default function AdminManagementPage() {
       alert(err.response?.data?.message || err.message || 'Failed to save admin user');
     } finally {
       setSavingUser(false);
+    }
+  };
+
+  const handleReset2fa = async (user: AdminUserManagementItem) => {
+    if (
+      !confirm(
+        `Are you sure you want to reset 2FA for "${user.firstName} ${user.lastName}" (${user.email})? Their current authenticator key and recovery codes will be revoked, and they will be prompted to set up 2FA upon their next login.`
+      )
+    )
+      return;
+
+    try {
+      await usersApi.reset2fa(user.id);
+      showToast(`2FA reset successfully for ${user.email}`);
+      fetchUsers();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err?.message || 'Failed to reset 2FA');
     }
   };
 
@@ -608,6 +637,11 @@ export default function AdminManagementPage() {
                 <option value="ALL">All Primary Roles</option>
                 <option value="SUPER_ADMIN">SUPER_ADMIN</option>
                 <option value="ADMIN">ADMIN</option>
+                <option value="SALES_MANAGER">SALES_MANAGER</option>
+                <option value="WAREHOUSE_MANAGER">WAREHOUSE_MANAGER</option>
+                <option value="FINANCE_OFFICER">FINANCE_OFFICER</option>
+                <option value="PROCUREMENT_MANAGER">PROCUREMENT_MANAGER</option>
+                <option value="EXPORT_MANAGER">EXPORT_MANAGER</option>
                 <option value="EDITOR">EDITOR</option>
                 <option value="VIEWER">VIEWER</option>
               </select>
@@ -653,6 +687,7 @@ export default function AdminManagementPage() {
                       <tr className="border-b border-white/5 bg-[#0a0a1a] text-gray-400 font-semibold uppercase tracking-wider">
                         <th className="py-3 px-4">User</th>
                         <th className="py-3 px-4">Primary Role</th>
+                        <th className="py-3 px-4">2FA Security</th>
                         <th className="py-3 px-4">Custom Roles</th>
                         <th className="py-3 px-4">Status</th>
                         <th className="py-3 px-4">Created Date</th>
@@ -693,6 +728,25 @@ export default function AdminManagementPage() {
                               >
                                 {u.role}
                               </span>
+                            </td>
+
+                            <td className="py-3 px-4">
+                              {u.twoFactorEnabled ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/30">
+                                  <ShieldCheck className="w-3 h-3" />
+                                  2FA Active
+                                </span>
+                              ) : u.isTwoFactorPending ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                                  <Clock className="w-3 h-3" />
+                                  Pending Setup
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-500/10 text-gray-400 border border-gray-500/30">
+                                  <ShieldAlert className="w-3 h-3" />
+                                  Disabled
+                                </span>
+                              )}
                             </td>
 
                             <td className="py-3 px-4">
@@ -741,6 +795,15 @@ export default function AdminManagementPage() {
                               <div className="flex items-center justify-end gap-1.5">
                                 {isSuperAdmin && (
                                   <>
+                                    {(u.twoFactorEnabled || u.isTwoFactorPending) && (
+                                      <button
+                                        onClick={() => handleReset2fa(u)}
+                                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-amber-400 cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center"
+                                        title="Reset 2FA Authentication"
+                                      >
+                                        <RotateCcw className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
                                     <button
                                       onClick={() => handleOpenResetPassword(u)}
                                       className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-cyan-400 cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center"
@@ -750,7 +813,7 @@ export default function AdminManagementPage() {
                                     </button>
                                     <button
                                       onClick={() => handleOpenEditUser(u)}
-                                      className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-amber-400 cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center"
+                                      className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-[#7FB706] cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center"
                                       title="Edit User Profile & Roles"
                                     >
                                       <Edit className="w-3.5 h-3.5" />
@@ -811,6 +874,24 @@ export default function AdminManagementPage() {
                           </span>
                         </div>
 
+                        {/* 2FA & Status Row */}
+                        <div className="flex items-center justify-between text-[11px] pt-1">
+                          <span className="text-gray-400">2FA Security:</span>
+                          {u.twoFactorEnabled ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/30">
+                              <ShieldCheck className="w-3 h-3" /> Active
+                            </span>
+                          ) : u.isTwoFactorPending ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                              <Clock className="w-3 h-3" /> Pending
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-500/10 text-gray-400">
+                              Disabled
+                            </span>
+                          )}
+                        </div>
+
                         {u.customRoles && u.customRoles.length > 0 && (
                           <div className="flex flex-wrap gap-1 pt-1">
                             {u.customRoles.map((cr) => (
@@ -840,7 +921,16 @@ export default function AdminManagementPage() {
                         </div>
 
                         {isSuperAdmin && (
-                          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/5">
+                          <div className="grid grid-cols-4 gap-2 pt-2 border-t border-white/5">
+                            {(u.twoFactorEnabled || u.isTwoFactorPending) ? (
+                              <button
+                                onClick={() => handleReset2fa(u)}
+                                className="min-h-[40px] flex items-center justify-center gap-1 text-[11px] font-semibold bg-amber-500/10 text-amber-400 rounded-xl"
+                                title="Reset 2FA"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" /> 2FA
+                              </button>
+                            ) : <div />}
                             <button
                               onClick={() => handleOpenResetPassword(u)}
                               className="min-h-[40px] flex items-center justify-center gap-1 text-[11px] font-semibold bg-white/5 hover:bg-white/10 text-cyan-400 rounded-xl"
@@ -849,7 +939,7 @@ export default function AdminManagementPage() {
                             </button>
                             <button
                               onClick={() => handleOpenEditUser(u)}
-                              className="min-h-[40px] flex items-center justify-center gap-1 text-[11px] font-semibold bg-white/5 hover:bg-white/10 text-amber-400 rounded-xl"
+                              className="min-h-[40px] flex items-center justify-center gap-1 text-[11px] font-semibold bg-white/5 hover:bg-white/10 text-[#7FB706] rounded-xl"
                             >
                               <Edit className="w-3.5 h-3.5" /> Edit
                             </button>
@@ -1134,10 +1224,48 @@ export default function AdminManagementPage() {
                   className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2.5 text-white focus:outline-none focus:border-[#7FB706]"
                 >
                   <option value="SUPER_ADMIN">SUPER_ADMIN (Full Platform Authority & Delete)</option>
-                  <option value="ADMIN">ADMIN (Operations & Management)</option>
-                  <option value="EDITOR">EDITOR (Content & Day-to-Day Records)</option>
-                  <option value="VIEWER">VIEWER (Read-Only Observer)</option>
+                  <option value="ADMIN">ADMIN (System Operations & Management)</option>
+                  <option value="SALES_MANAGER">SALES_MANAGER (Quotes, Sales Orders, PIs, Customers)</option>
+                  <option value="WAREHOUSE_MANAGER">WAREHOUSE_MANAGER (Stock, Packing Lists, Dispatches, HIL)</option>
+                  <option value="FINANCE_OFFICER">FINANCE_OFFICER (Invoices, Payments Ledger, Forex)</option>
+                  <option value="PROCUREMENT_MANAGER">PROCUREMENT_MANAGER (Purchase Orders, Vendors, Materials)</option>
+                  <option value="EXPORT_MANAGER">EXPORT_MANAGER (Global Trade, Vessel Logistics, Forex)</option>
+                  <option value="EDITOR">EDITOR (Website CMS, Blogs, Gallery, Products)</option>
+                  <option value="VIEWER">VIEWER (Read-Only Observer & Analytics)</option>
                 </select>
+              </div>
+
+              {/* Onboarding & Security Policies */}
+              <div className="pt-2 border-t border-white/10 space-y-2.5 bg-white/[0.02] p-3 rounded-xl border">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400 block">
+                  Security Onboarding Policies
+                </span>
+
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={userForm.mustChangePassword}
+                    onChange={(e) => setUserForm({ ...userForm, mustChangePassword: e.target.checked })}
+                    className="mt-0.5 rounded border-white/20 bg-white/5 text-[#7FB706] focus:ring-[#7FB706]"
+                  />
+                  <div>
+                    <span className="text-xs font-semibold text-gray-200 block">Force password change on first login</span>
+                    <span className="text-[11px] text-gray-400">Forces user to set their permanent password after entering temporary credentials.</span>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={userForm.isTwoFactorPending}
+                    onChange={(e) => setUserForm({ ...userForm, isTwoFactorPending: e.target.checked })}
+                    className="mt-0.5 rounded border-white/20 bg-white/5 text-[#7FB706] focus:ring-[#7FB706]"
+                  />
+                  <div>
+                    <span className="text-xs font-semibold text-gray-200 block">Require mandatory 2FA enrollment</span>
+                    <span className="text-[11px] text-gray-400">Enforces scanning QR code and saving emergency recovery backup keys before console access.</span>
+                  </div>
+                </label>
               </div>
 
               {/* Custom Roles Assignment */}

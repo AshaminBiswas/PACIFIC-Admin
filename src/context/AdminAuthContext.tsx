@@ -1,22 +1,27 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { authApi } from '../api/authApi';
+import { authApi, LoginResult } from '../api/authApi';
 import { supabase } from '../lib/supabase';
 import { API_URL, parseJwtExpiry } from '../api/client';
+import type { UserRole, AuthTokens } from '../types/admin';
 
 export interface PacificAdminUser {
   id: string;
   email: string;
   firstName?: string;
   lastName?: string;
-  role: string;
+  role: UserRole | string;
+  twoFactorEnabled?: boolean;
+  mustChangePassword?: boolean;
+  isTwoFactorPending?: boolean;
 }
 
 interface AdminAuthContextType {
   user: PacificAdminUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<LoginResult>;
+  setAuthSession: (tokens: AuthTokens & { sessionToken?: string }) => void;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   checkAndRefreshToken: () => Promise<boolean>;
@@ -38,6 +43,22 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isLoading, setIsLoading] = useState(true);
 
   const isAuthenticated = Boolean(user && localStorage.getItem('pacific_access_token'));
+
+  const setAuthSession = useCallback((data: AuthTokens & { sessionToken?: string }) => {
+    if (data.accessToken) {
+      localStorage.setItem('pacific_access_token', data.accessToken);
+    }
+    if (data.refreshToken) {
+      localStorage.setItem('pacific_refresh_token', data.refreshToken);
+    }
+    if (data.sessionToken) {
+      localStorage.setItem('pacific_session_token', data.sessionToken);
+    }
+    if (data.user) {
+      setUser(data.user);
+      localStorage.setItem('pacific_user', JSON.stringify(data.user));
+    }
+  }, []);
 
   // Proactive token refresh: verifies expiration and fetches fresh tokens in background
   const checkAndRefreshToken = useCallback(async (): Promise<boolean> => {
@@ -71,8 +92,15 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           }
           return true;
         }
-      } catch (err) {
-        console.warn('[Pacific Auth] Proactive token auto-refresh warning:', err);
+      } catch (err: any) {
+        if (err.response?.status === 401) {
+          // Token or session revoked - clear credentials
+          localStorage.removeItem('pacific_access_token');
+          localStorage.removeItem('pacific_refresh_token');
+          localStorage.removeItem('pacific_session_token');
+          localStorage.removeItem('pacific_user');
+          setUser(null);
+        }
       }
     }
     return false;
@@ -88,13 +116,19 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     try {
       const res = await authApi.me();
-      if (res.data?.data?.user) {
-        const u = res.data.data.user;
+      if (res.data?.data) {
+        const u = res.data.data;
         setUser(u);
         localStorage.setItem('pacific_user', JSON.stringify(u));
       }
-    } catch (err) {
-      console.warn('[Pacific Auth] Failed to fetch current profile:', err);
+    } catch (err: any) {
+      if (err.response?.status === 401) {
+        localStorage.removeItem('pacific_access_token');
+        localStorage.removeItem('pacific_refresh_token');
+        localStorage.removeItem('pacific_session_token');
+        localStorage.removeItem('pacific_user');
+        setUser(null);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -131,45 +165,36 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
   }, [checkAndRefreshToken, refreshProfile]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<LoginResult> => {
     const res = await authApi.login(email, password);
     const data = res.data?.data;
     if (!data) throw new Error('Invalid response from server');
 
-    if (data.accessToken) {
-      localStorage.setItem('pacific_access_token', data.accessToken);
-    }
-    if (data.refreshToken) {
-      localStorage.setItem('pacific_refresh_token', data.refreshToken);
-    }
-    if (data.user) {
-      setUser(data.user);
-      localStorage.setItem('pacific_user', JSON.stringify(data.user));
+    // If fully authenticated (no 2FA or password reset required)
+    if (!data.requiresPasswordChange && !data.requires2FA && !data.requires2FASetup && data.accessToken) {
+      setAuthSession(data);
+
+      // Concurrent Supabase login for media uploads if available
+      try {
+        await supabase.auth.signInWithPassword({ email, password });
+      } catch {}
     }
 
-    // Concurrent Supabase login for media uploads if available
-    try {
-      await supabase.auth.signInWithPassword({ email, password });
-    } catch {
-      // Non-blocking for cloud uploads
-    }
+    return data;
   };
 
   const logout = async () => {
     try {
       await authApi.logout();
-    } catch {
-      // Ignore API logout error
-    }
+    } catch {}
 
     try {
       await supabase.auth.signOut();
-    } catch {
-      // Ignore Supabase logout error
-    }
+    } catch {}
 
     localStorage.removeItem('pacific_access_token');
     localStorage.removeItem('pacific_refresh_token');
+    localStorage.removeItem('pacific_session_token');
     localStorage.removeItem('pacific_user');
     setUser(null);
   };
@@ -177,7 +202,7 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const hasRole = (allowedRoles: string[]) => {
     if (!user) return false;
     const roleUpper = user.role?.toUpperCase();
-    if (roleUpper === 'SUPER_ADMIN' || roleUpper === 'ADMIN') return true;
+    if (roleUpper === 'SUPER_ADMIN') return true;
     return allowedRoles.map((r) => r.toUpperCase()).includes(roleUpper);
   };
 
@@ -188,6 +213,7 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         isAuthenticated,
         isLoading,
         login,
+        setAuthSession,
         logout,
         refreshProfile,
         checkAndRefreshToken,

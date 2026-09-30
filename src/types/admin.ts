@@ -34,7 +34,16 @@ export type AdminView =
   | 'store-inventory'
   | 'settings';
 
-export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'EDITOR' | 'VIEWER';
+export type UserRole =
+  | 'SUPER_ADMIN'
+  | 'ADMIN'
+  | 'SALES_MANAGER'
+  | 'WAREHOUSE_MANAGER'
+  | 'FINANCE_OFFICER'
+  | 'PROCUREMENT_MANAGER'
+  | 'EXPORT_MANAGER'
+  | 'EDITOR'
+  | 'VIEWER';
 
 export interface AdminUser {
   id: string;
@@ -43,13 +52,38 @@ export interface AdminUser {
   lastName: string;
   role: UserRole;
   isActive: boolean;
+  mustChangePassword?: boolean;
+  twoFactorEnabled?: boolean;
+  isTwoFactorPending?: boolean;
+  lastLoginAt?: string;
+  lastLoginIp?: string;
   createdAt: string;
 }
 
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
+  sessionToken?: string;
   user: AdminUser;
+}
+
+export interface AdminSession {
+  id: string;
+  sessionToken: string;
+  ipAddress?: string | null;
+  browser?: string | null;
+  os?: string | null;
+  deviceType?: 'desktop' | 'mobile' | 'tablet';
+  lastActiveAt: string;
+  createdAt: string;
+  expiresAt: string;
+  isCurrent?: boolean;
+}
+
+export interface TwoFactorSetupData {
+  secret: string;
+  qrCodeUrl: string;
+  recoveryCodes: string[];
 }
 
 // ─── RBAC & User Management ──────────────────────────────────────────────────
@@ -90,6 +124,11 @@ export interface AdminUserManagementItem {
   lastName: string;
   role: string;
   isActive: boolean;
+  mustChangePassword?: boolean;
+  twoFactorEnabled?: boolean;
+  isTwoFactorPending?: boolean;
+  lastLoginAt?: string;
+  lastLoginIp?: string;
   customRoles?: RoleManagementItem[];
   createdAt: string;
   updatedAt?: string;
@@ -103,6 +142,8 @@ export interface CreateAdminUserPayload {
   role?: string;
   roleIds?: string[];
   isActive?: boolean;
+  mustChangePassword?: boolean;
+  isTwoFactorPending?: boolean;
 }
 
 export interface UpdateAdminUserPayload {
@@ -111,6 +152,8 @@ export interface UpdateAdminUserPayload {
   role?: string;
   isActive?: boolean;
   roleIds?: string[];
+  mustChangePassword?: boolean;
+  isTwoFactorPending?: boolean;
 }
 
 export interface CreateRolePayload {

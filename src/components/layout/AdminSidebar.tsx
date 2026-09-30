@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useAdminAuth } from '../../context/AdminAuthContext';
+import { filterNavItemsByRole, getRoleBadgeInfo } from '../../utils/rbacNavigation';
 // @ts-ignore
 import logo from '../../image/logo/logo.webp';
 import {
@@ -127,6 +129,18 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   isInstalled = false,
 }) => {
   const location = useLocation();
+  const { user } = useAdminAuth();
+
+  const roleInfo = getRoleBadgeInfo(user?.role);
+
+  const visibleSales = useMemo(() => filterNavItemsByRole(salesPipelineItems, user?.role), [user?.role]);
+  const visibleProcurement = useMemo(() => filterNavItemsByRole(procurementNavItems, user?.role), [user?.role]);
+  const visibleCrmFinance = useMemo(() => filterNavItemsByRole(crmFinanceNavItems, user?.role), [user?.role]);
+  const visibleSystem = useMemo(() => filterNavItemsByRole(systemNavItems, user?.role), [user?.role]);
+  const visibleExport = useMemo(() => filterNavItemsByRole(exportNavItems, user?.role), [user?.role]);
+  const visibleCms = useMemo(() => filterNavItemsByRole(cmsNavItems, user?.role), [user?.role]);
+
+  const hasErpSection = visibleSales.length > 0 || visibleProcurement.length > 0 || visibleCrmFinance.length > 0 || visibleSystem.length > 0;
 
   const isActive = (path: string) => {
     if (path === '/admin/dashboard') return location.pathname === path;
@@ -168,7 +182,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             {!isCollapsed && (
               <div className="truncate min-w-0">
                 <p className="text-xs font-black tracking-wider text-white truncate">PACIFIC CUBICLES</p>
-                <p className="text-[10px] tracking-wider text-[#7FB706] font-semibold truncate">ENTERPRISE ERP</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider ${roleInfo.badgeClass}`}>
+                    {roleInfo.name}
+                  </span>
+                </div>
               </div>
             )}
           </div>
@@ -193,278 +211,289 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {/* ── ERP & Operations ─────────────────────────────── */}
-          {!isCollapsed && (
+          {hasErpSection && !isCollapsed && (
             <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-[#7FB706]">
               ERP &amp; Operations
             </div>
           )}
 
           {/* Sub-group: Sales Pipeline (7 Stages) */}
-          <div>
-            {!isCollapsed ? (
-              <div className="px-3 pb-1.5 flex items-center gap-1.5">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">Sales Pipeline</span>
-                <div className="flex-1 h-px bg-white/5" />
-              </div>
-            ) : (
-              <div className="my-1 mx-1 border-t border-white/10" />
-            )}
-            <div className="space-y-0.5">
-              {salesPipelineItems.map((item) => (
-                <Link
-                  key={item.step + item.path}
-                  to={item.path}
-                  onClick={onClose}
-                  title={isCollapsed ? `${item.step} ${item.name}` : undefined}
-                  className={`flex items-center rounded-xl text-xs font-semibold transition-all ${
-                    isCollapsed
-                      ? 'justify-center p-2 min-h-[40px] w-full'
-                      : 'gap-2.5 pl-2 pr-3 py-2 min-h-[42px]'
-                  } ${
-                    isActive(item.path)
-                      ? 'bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/20'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-                  }`}
-                >
-                  {/* Step badge */}
-                  {!isCollapsed && (
-                    <span className={`shrink-0 text-[9px] font-black w-5 h-5 flex items-center justify-center rounded-md border ${
+          {visibleSales.length > 0 && (
+            <div>
+              {!isCollapsed ? (
+                <div className="px-3 pb-1.5 flex items-center gap-1.5">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">Sales Pipeline</span>
+                  <div className="flex-1 h-px bg-white/5" />
+                </div>
+              ) : (
+                <div className="my-1 mx-1 border-t border-white/10" />
+              )}
+              <div className="space-y-0.5">
+                {visibleSales.map((item) => (
+                  <Link
+                    key={item.step + item.path}
+                    to={item.path}
+                    onClick={onClose}
+                    title={isCollapsed ? `${item.step} ${item.name}` : undefined}
+                    className={`flex items-center rounded-xl text-xs font-semibold transition-all ${
+                      isCollapsed
+                        ? 'justify-center p-2 min-h-[40px] w-full'
+                        : 'gap-2.5 pl-2 pr-3 py-2 min-h-[42px]'
+                    } ${
                       isActive(item.path)
-                        ? 'bg-[#7FB706]/20 border-[#7FB706]/40 text-[#7FB706]'
-                        : 'bg-white/5 border-white/10 text-gray-500'
+                        ? 'bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/20'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                    }`}
+                  >
+                    {/* Step badge */}
+                    {!isCollapsed && (
+                      <span className={`shrink-0 text-[9px] font-black w-5 h-5 flex items-center justify-center rounded-md border ${
+                        isActive(item.path)
+                          ? 'bg-[#7FB706]/20 border-[#7FB706]/40 text-[#7FB706]'
+                          : 'bg-white/5 border-white/10 text-gray-500'
+                      }`}>
+                        {item.step}
+                      </span>
+                    )}
+                    <div className={`flex items-center justify-center shrink-0 ${
+                      isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-400'
                     }`}>
-                      {item.step}
-                    </span>
-                  )}
-                  <div className={`flex items-center justify-center shrink-0 ${
-                    isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-400'
-                  }`}>
-                    <item.icon className="w-4 h-4 shrink-0" />
-                  </div>
-                  {!isCollapsed && (
-                    <span className={`truncate ${isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-300'}`}>
-                      {item.name}
-                    </span>
-                  )}
-                </Link>
-              ))}
+                      <item.icon className="w-4 h-4 shrink-0" />
+                    </div>
+                    {!isCollapsed && (
+                      <span className={`truncate ${isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-300'}`}>
+                        {item.name}
+                      </span>
+                    )}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Sub-group: Procurement */}
-          <div>
-            {!isCollapsed ? (
-              <div className="px-3 pb-1.5 flex items-center gap-1.5">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">Procurement</span>
-                <div className="flex-1 h-px bg-white/5" />
+          {visibleProcurement.length > 0 && (
+            <div>
+              {!isCollapsed ? (
+                <div className="px-3 pb-1.5 flex items-center gap-1.5">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">Procurement</span>
+                  <div className="flex-1 h-px bg-white/5" />
+                </div>
+              ) : (
+                <div className="my-1 mx-1 border-t border-white/10" />
+              )}
+              <div className="space-y-0.5">
+                {visibleProcurement.map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={onClose}
+                    title={isCollapsed ? item.name : undefined}
+                    className={`flex items-center rounded-xl text-xs font-semibold transition-all ${
+                      isCollapsed
+                        ? 'justify-center p-2 min-h-[40px] w-full'
+                        : 'gap-3 px-3 py-2.5 min-h-[44px]'
+                    } ${
+                      isActive(item.path)
+                        ? 'bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/20'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                    }`}
+                  >
+                    <div className={`flex items-center justify-center shrink-0 ${isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-400'}`}>
+                      <item.icon className="w-5 h-5 shrink-0" />
+                    </div>
+                    {!isCollapsed && (
+                      <span className={`truncate ${isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-300'}`}>
+                        {item.name}
+                      </span>
+                    )}
+                  </Link>
+                ))}
               </div>
-            ) : (
-              <div className="my-1 mx-1 border-t border-white/10" />
-            )}
-            <div className="space-y-0.5">
-              {procurementNavItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={onClose}
-                  title={isCollapsed ? item.name : undefined}
-                  className={`flex items-center rounded-xl text-xs font-semibold transition-all ${
-                    isCollapsed
-                      ? 'justify-center p-2 min-h-[40px] w-full'
-                      : 'gap-3 px-3 py-2.5 min-h-[44px]'
-                  } ${
-                    isActive(item.path)
-                      ? 'bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/20'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-                  }`}
-                >
-                  <div className={`flex items-center justify-center shrink-0 ${isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-400'}`}>
-                    <item.icon className="w-5 h-5 shrink-0" />
-                  </div>
-                  {!isCollapsed && (
-                    <span className={`truncate ${isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-300'}`}>
-                      {item.name}
-                    </span>
-                  )}
-                </Link>
-              ))}
             </div>
-          </div>
+          )}
 
           {/* Sub-group: CRM & Finance */}
-          <div>
-            {!isCollapsed ? (
-              <div className="px-3 pb-1.5 flex items-center gap-1.5">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">CRM &amp; Finance</span>
-                <div className="flex-1 h-px bg-white/5" />
+          {visibleCrmFinance.length > 0 && (
+            <div>
+              {!isCollapsed ? (
+                <div className="px-3 pb-1.5 flex items-center gap-1.5">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">CRM &amp; Finance</span>
+                  <div className="flex-1 h-px bg-white/5" />
+                </div>
+              ) : (
+                <div className="my-1 mx-1 border-t border-white/10" />
+              )}
+              <div className="space-y-0.5">
+                {visibleCrmFinance.map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={onClose}
+                    title={isCollapsed ? item.name : undefined}
+                    className={`flex items-center rounded-xl text-xs font-semibold transition-all ${
+                      isCollapsed
+                        ? 'justify-center p-2 min-h-[40px] w-full'
+                        : 'gap-3 px-3 py-2.5 min-h-[44px]'
+                    } ${
+                      isActive(item.path)
+                        ? 'bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/20'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                    }`}
+                  >
+                    <div className={`flex items-center justify-center shrink-0 ${isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-400'}`}>
+                      <item.icon className="w-5 h-5 shrink-0" />
+                    </div>
+                    {!isCollapsed && (
+                      <span className={`truncate ${isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-300'}`}>
+                        {item.name}
+                      </span>
+                    )}
+                  </Link>
+                ))}
               </div>
-            ) : (
-              <div className="my-1 mx-1 border-t border-white/10" />
-            )}
-            <div className="space-y-0.5">
-              {crmFinanceNavItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={onClose}
-                  title={isCollapsed ? item.name : undefined}
-                  className={`flex items-center rounded-xl text-xs font-semibold transition-all ${
-                    isCollapsed
-                      ? 'justify-center p-2 min-h-[40px] w-full'
-                      : 'gap-3 px-3 py-2.5 min-h-[44px]'
-                  } ${
-                    isActive(item.path)
-                      ? 'bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/20'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-                  }`}
-                >
-                  <div className={`flex items-center justify-center shrink-0 ${isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-400'}`}>
-                    <item.icon className="w-5 h-5 shrink-0" />
-                  </div>
-                  {!isCollapsed && (
-                    <span className={`truncate ${isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-300'}`}>
-                      {item.name}
-                    </span>
-                  )}
-                </Link>
-              ))}
             </div>
-          </div>
+          )}
 
           {/* Sub-group: System */}
-          <div>
-            {!isCollapsed ? (
-              <div className="px-3 pb-1.5 flex items-center gap-1.5">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">System</span>
-                <div className="flex-1 h-px bg-white/5" />
+          {visibleSystem.length > 0 && (
+            <div>
+              {!isCollapsed ? (
+                <div className="px-3 pb-1.5 flex items-center gap-1.5">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">System</span>
+                  <div className="flex-1 h-px bg-white/5" />
+                </div>
+              ) : (
+                <div className="my-1 mx-1 border-t border-white/10" />
+              )}
+              <div className="space-y-0.5">
+                {visibleSystem.map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={onClose}
+                    title={isCollapsed ? item.name : undefined}
+                    className={`flex items-center rounded-xl text-xs font-semibold transition-all ${
+                      isCollapsed
+                        ? 'justify-center p-2 min-h-[40px] w-full'
+                        : 'gap-3 px-3 py-2.5 min-h-[44px]'
+                    } ${
+                      isActive(item.path)
+                        ? 'bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/20'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                    }`}
+                  >
+                    <div className={`flex items-center justify-center shrink-0 ${isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-400'}`}>
+                      <item.icon className="w-5 h-5 shrink-0" />
+                    </div>
+                    {!isCollapsed && (
+                      <span className={`truncate ${isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-300'}`}>
+                        {item.name}
+                      </span>
+                    )}
+                  </Link>
+                ))}
               </div>
-            ) : (
-              <div className="my-1 mx-1 border-t border-white/10" />
-            )}
-            <div className="space-y-0.5">
-              {systemNavItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={onClose}
-                  title={isCollapsed ? item.name : undefined}
-                  className={`flex items-center rounded-xl text-xs font-semibold transition-all ${
-                    isCollapsed
-                      ? 'justify-center p-2 min-h-[40px] w-full'
-                      : 'gap-3 px-3 py-2.5 min-h-[44px]'
-                  } ${
-                    isActive(item.path)
-                      ? 'bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/20'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-                  }`}
-                >
-                  <div className={`flex items-center justify-center shrink-0 ${isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-400'}`}>
-                    <item.icon className="w-5 h-5 shrink-0" />
-                  </div>
-                  {!isCollapsed && (
-                    <span className={`truncate ${isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-300'}`}>
-                      {item.name}
-                    </span>
-                  )}
-                </Link>
-              ))}
             </div>
-          </div>
-
+          )}
 
           {/* Section: Export & Global Trade */}
-          <div>
-            {!isCollapsed ? (
-              <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-widest text-[#B5F823]">
-                Export &amp; Global Trade
-              </div>
-            ) : (
-              <div className="my-2 mx-1 border-t border-white/10" />
-            )}
-            <div className="space-y-1">
-              {exportNavItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={onClose}
-                  title={isCollapsed ? item.name : undefined}
-                  className={`flex items-center rounded-xl text-xs font-semibold transition-all ${
-                    isCollapsed
-                      ? 'justify-center p-2 min-h-[40px] w-full'
-                      : 'gap-3 px-3 py-2.5 min-h-[44px]'
-                  } ${
-                    isActive(item.path)
-                      ? 'bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/20'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-                  }`}
-                >
-                  <div
-                    className={`flex items-center justify-center shrink-0 ${
-                      isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-400 group-hover:text-white'
+          {visibleExport.length > 0 && (
+            <div>
+              {!isCollapsed ? (
+                <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-widest text-[#B5F823]">
+                  Export &amp; Global Trade
+                </div>
+              ) : (
+                <div className="my-2 mx-1 border-t border-white/10" />
+              )}
+              <div className="space-y-1">
+                {visibleExport.map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={onClose}
+                    title={isCollapsed ? item.name : undefined}
+                    className={`flex items-center rounded-xl text-xs font-semibold transition-all ${
+                      isCollapsed
+                        ? 'justify-center p-2 min-h-[40px] w-full'
+                        : 'gap-3 px-3 py-2.5 min-h-[44px]'
+                    } ${
+                      isActive(item.path)
+                        ? 'bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/20'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
                     }`}
                   >
-                    <item.icon className="w-5 h-5 shrink-0" />
-                  </div>
-                  {!isCollapsed && (
-                    <span
-                      className={`truncate ${
-                        isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-300'
+                    <div
+                      className={`flex items-center justify-center shrink-0 ${
+                        isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-400 group-hover:text-white'
                       }`}
                     >
-                      {item.name}
-                    </span>
-                  )}
-                </Link>
-              ))}
+                      <item.icon className="w-5 h-5 shrink-0" />
+                    </div>
+                    {!isCollapsed && (
+                      <span
+                        className={`truncate ${
+                          isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-300'
+                        }`}
+                      >
+                        {item.name}
+                      </span>
+                    )}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Section: Website CMS */}
-          <div>
-            {!isCollapsed ? (
-              <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-widest text-[#7FB706]">
-                Website CMS Suite
-              </div>
-            ) : (
-              <div className="my-2 mx-1 border-t border-white/10" />
-            )}
-            <div className="space-y-1">
-              {cmsNavItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={onClose}
-                  title={isCollapsed ? item.name : undefined}
-                  className={`flex items-center rounded-xl text-xs font-semibold transition-all ${
-                    isCollapsed
-                      ? 'justify-center p-2 min-h-[40px] w-full'
-                      : 'gap-3 px-3 py-2.5 min-h-[44px]'
-                  } ${
-                    isActive(item.path)
-                      ? 'bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/20'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-                  }`}
-                >
-                  <div
-                    className={`flex items-center justify-center shrink-0 ${
-                      isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-400'
+          {visibleCms.length > 0 && (
+            <div>
+              {!isCollapsed ? (
+                <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-widest text-[#7FB706]">
+                  Website CMS Suite
+                </div>
+              ) : (
+                <div className="my-2 mx-1 border-t border-white/10" />
+              )}
+              <div className="space-y-1">
+                {visibleCms.map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={onClose}
+                    title={isCollapsed ? item.name : undefined}
+                    className={`flex items-center rounded-xl text-xs font-semibold transition-all ${
+                      isCollapsed
+                        ? 'justify-center p-2 min-h-[40px] w-full'
+                        : 'gap-3 px-3 py-2.5 min-h-[44px]'
+                    } ${
+                      isActive(item.path)
+                        ? 'bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/20'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
                     }`}
                   >
-                    <item.icon className="w-5 h-5 shrink-0" />
-                  </div>
-                  {!isCollapsed && (
-                    <span
-                      className={`truncate ${
-                        isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-300'
+                    <div
+                      className={`flex items-center justify-center shrink-0 ${
+                        isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-400'
                       }`}
                     >
-                      {item.name}
-                    </span>
-                  )}
-                </Link>
-              ))}
+                      <item.icon className="w-5 h-5 shrink-0" />
+                    </div>
+                    {!isCollapsed && (
+                      <span
+                        className={`truncate ${
+                          isActive(item.path) ? 'text-[#7FB706]' : 'text-gray-300'
+                        }`}
+                      >
+                        {item.name}
+                      </span>
+                    )}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </nav>
 
         {/* PWA Install Button in Sidebar Footer */}

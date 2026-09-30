@@ -30,6 +30,10 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  const sessionToken = localStorage.getItem('pacific_session_token');
+  if (sessionToken && config.headers) {
+    config.headers['x-session-token'] = sessionToken;
+  }
   return config;
 });
 
