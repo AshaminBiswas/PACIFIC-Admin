@@ -2120,6 +2120,47 @@ Sales Quotation PDF (`pdf.service.ts` -> `generateQuotationPdfHtml`) has been re
   - Filters models where `is_featured === true`.
   - Gracefully falls back to top active models if none have been explicitly featured yet, ensuring zero empty states on the homepage.
 
+---
+
+## 38. Complete Decommissioning of Mumbai, Ahmedabad & UAE Regional Hubs + Database Credential Security Rule
+
+### 1. Complete Removal of Mumbai, Ahmedabad & UAE Across All Layers
+- **Active Regional Hubs Retained**:
+  - **Delhi NCR**: Head Office & Primary Manufacturing Center (Okhla Industrial Area).
+  - **Bangalore**: South India Regional Hub.
+  - **Kolkata**: East India Regional Hub.
+- **Decommissioned Locations**:
+  - `Mumbai` (`/locations/mumbai`)
+  - `Ahmedabad` (`/locations/ahmedabad`)
+  - `UAE` (`/locations/uae`)
+- **Key Files Sanitized Across Frontends & Admin**:
+  - **Footer (`src/app/components/Footer.tsx`)**: Removed Mumbai, Ahmedabad, and UAE links. Only Delhi, Bangalore, and Kolkata links are rendered.
+  - **Contact Page (`src/app/pages/Contact.tsx`)**: Removed Mumbai and Dubai/UAE regional cards and updated the section subtitle to "Find our regional offices and fabrication centers across India".
+  - **Location Data Store (`src/app/pages/locations/locationData.ts`)**: Removed all data blocks, images, FAQs, and stats for `mumbai`, `ahmedabad`, and `uae`. Active entries strictly constrained to `delhi`, `bangalore`, and `kolkata`.
+  - **Location Detail Page (`src/app/pages/LocationDetail.tsx`)**:
+    - Removed `isMumbai` and `isDubai` layouts, hero overrides, and dead showcase variants (`band`, `editorial`, `gallery`).
+    - Streamlined `renderLocationFlow` switch branches to only handle `delhi`, `bangalore`, and `kolkata`.
+    - Added an automatic redirect guard inside `LocationPage` ensuring that any visitors navigating to `/locations/mumbai`, `/locations/ahmedabad`, or `/locations/uae` are automatically redirected to `/contact` (`navigate('/contact', { replace: true })`).
+    - Cleaned `geoRegion` and `geoPlacename` SEO tags to omit decommissioned locations.
+  - **Chatbot AI Persona (`src/app/components/Chatbot.tsx`)**: System prompt updated so Aria reports offices as Delhi NCR (HQ), Bangalore, Kolkata, and installation coverage strictly as Pan-India.
+  - **SEO Metadata & Structured Data (`src/lib/seo-data.ts`)**: Cleaned `DEFAULT_DESCRIPTION` and `areaServed` array in `organizationSchema` to list only Delhi NCR, Bangalore, and Kolkata.
+  - **FAQs (`src/app/pages/Home.tsx`, `src/app/pages/About.tsx`, `src/app/pages/Products.tsx`, `src/app/pages/SolutionDetail.tsx`, `src/lib/faq-data.ts`)**: Updated company overview, location questions, and installation answers to reference only active regional hubs.
+  - **Admin Gallery Filter (`src/pages/admin/AdminGallery.tsx` & `src/app/pages/admin/AdminGallery.tsx`)**: Removed Mumbai, Ahmedabad, and UAE from `LOCATIONS` dropdown selector.
+  - **Demo Data (`src/lib/demo-data.ts`)**: Migrated legacy `mumbai` gallery image entry to `delhi`.
+
+### 2. Mandatory Memory Rule: Database Connection Strings Must Always Use `.env`
+- **Rule Noted in Memory**:
+  - Under no circumstances should database connection strings or pooler credentials (`postgresql://...`) ever be hardcoded into scripts, migrations, CLI tools, or source code files.
+  - All database utilities must strictly load environment variables via `dotenv` and read `process.env.DIRECT_URL || process.env.DATABASE_URL`.
+  - If the environment variable is undefined, scripts must fail fast with a descriptive error rather than falling back to hardcoded strings.
+- **Sanitized Backend Scripts**:
+  - `D:\PACIFIC-Backend\src\scripts\apply-rls.js`
+  - `D:\PACIFIC-Backend\src\scripts\apply-full-rls.js`
+  - `D:\PACIFIC-Backend\src\scripts\create-board-tables.ts`
+  - `D:\PACIFIC-Backend\src\scripts\upgrade-inventory-schema.ts`
+  - All four scripts now strictly use `process.env.DIRECT_URL || process.env.DATABASE_URL`.
+
+
 
 
 

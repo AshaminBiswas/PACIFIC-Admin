@@ -8,11 +8,8 @@ const CATS = ["airports", "malls", "offices", "restroom-cubicles", "locker-solut
 const LOCATIONS = [
   { slug: "", label: "General website gallery" },
   { slug: "delhi", label: "Delhi NCR" },
-  { slug: "mumbai", label: "Mumbai" },
   { slug: "bangalore", label: "Bangalore" },
-  { slug: "ahmedabad", label: "Ahmedabad" },
   { slug: "kolkata", label: "Kolkata" },
-  { slug: "uae", label: "UAE" },
 ];
 const PLACEMENTS = [
   { value: "general", label: "General gallery" },

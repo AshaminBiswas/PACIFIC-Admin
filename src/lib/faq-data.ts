@@ -25,7 +25,7 @@ const DEFAULT_FAQS: FAQ[] = [
     id: "faq-2",
     question: "Do you provide installation services across India?",
     answer:
-      "Yes, Pacific Products operates a pan-India installation network. We have trained installation teams in all major metropolitan cities including Delhi, Mumbai, Bangalore, Ahmedabad, Hyderabad, Pune, and Chennai. For projects in other locations, we coordinate with certified local partners to ensure consistent quality standards.",
+      "Yes, Pacific Products operates a pan-India installation network. We have trained installation teams across regional hubs including Delhi NCR, Bangalore, and Kolkata, as well as Hyderabad, Pune, and Chennai. For projects in other locations, we coordinate with certified local partners to ensure consistent quality standards.",
     category: "Installation",
     sort_order: 2,
   },

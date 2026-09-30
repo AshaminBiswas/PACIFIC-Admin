@@ -196,10 +196,10 @@ export const demoGalleryImages: GalleryImage[] = [
     created_at: "2024-01-01T00:00:00.000Z"
   },
   {
-    id: "gal-mumbai-corporate-002",
-    title: "Bandra Kurla Complex Corporate Restrooms",
+    id: "gal-delhi-corporate-002",
+    title: "Cyber City Corporate Restrooms",
     category: "Restroom Cubicles",
-    location_slug: "mumbai",
+    location_slug: "delhi",
     placement: "general",
     image_url: "https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&w=800&q=80",
     sort_order: 2,
