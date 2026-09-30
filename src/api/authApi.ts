@@ -21,6 +21,12 @@ export const authApi = {
 
   me: () => apiClient.get('/auth/me'),
 
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiClient.post<ApiResponse<{ success: boolean; message: string }>>('/auth/change-password', {
+      currentPassword,
+      newPassword,
+    }),
+
   refresh: (refreshToken: string) =>
     apiClient.post<ApiResponse<AuthTokens>>('/auth/refresh', { refreshToken }),
 

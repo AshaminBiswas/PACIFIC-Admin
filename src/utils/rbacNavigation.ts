@@ -70,6 +70,17 @@ export const PATH_PERMISSIONS: Record<string, UserRole[]> = {
   '/admin/dashboard/qr-center': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'VIEWER'],
   '/admin/dashboard/company-settings': ['SUPER_ADMIN', 'ADMIN'],
   '/admin/dashboard/admin-management': ['SUPER_ADMIN'],
+  '/admin/dashboard/profile': [
+    'SUPER_ADMIN',
+    'ADMIN',
+    'SALES_MANAGER',
+    'WAREHOUSE_MANAGER',
+    'FINANCE_OFFICER',
+    'PROCUREMENT_MANAGER',
+    'EXPORT_MANAGER',
+    'EDITOR',
+    'VIEWER',
+  ],
 };
 
 /**

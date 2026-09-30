@@ -176,6 +176,7 @@ D:\PACIFIC-Admin\
 | `/acknowledge-receipt/:token` | `ConsigneeAckPage` | **Public** | Public digital receipt acknowledgment endpoint with interactive HTML5 signature canvas |
 | `/admin` / `/login` | `AdminLogin` | **Public** | Admin authentication gateway |
 | `/admin/dashboard` | `AdminOverview` | Protected | KPI cards, quick actions, recent activity |
+| `/admin/dashboard/profile` | `AdminProfilePage` | Protected | Dedicated Admin Profile Hub: User details, 2FA status, backup codes recovery, active session management & remote device revocation, password change, Verify QR shortcut, PWA native install, and security sign-out |
 | `/admin/dashboard/sales-quotations` | `SalesQuotationsPage` | Protected | Formal Sales Quotation Letter (`PPS/D/26-27/817`), narrative specs, SEZ validator, 1-click order convert |
 | `/admin/dashboard/sales-quotations/new` | `DraftQuotationPage` | Protected | Dedicated 4-step Quotation Letter Draft Wizard with full `localStorage` persistence |
 | `/admin/dashboard/sales-quotations/:id` | `SalesQuotationDetailPage` | Protected | Quotation 360 overview, action bar, line items & follow-up status |
@@ -2291,6 +2292,40 @@ To ensure high-security compliance for enterprise commercial data, the Pacific A
 - **Admin TypeScript**: `npx tsc --noEmit` exited 0.
 - **Admin Production Build**: `npm run build` exited 0.
 - **Backend API Health**: `http://localhost:5001/health` verified active and responding HTTP 200.
+
+---
+
+## 43. Dedicated Admin Profile Page & Centralized Security Hub
+
+### 1. Requirements & Overview
+- Created a dedicated Admin Profile page (`/admin/dashboard/profile`) so that clicking on the admin profile card/icon in the header navigates to a comprehensive full-page security and management center.
+- Centralized all user settings and operational shortcuts:
+  1. **User Identity & Role**: User avatar/initials, full name, email address, account status, and styled RBAC role badge with color-coded theme.
+  2. **Two-Factor Authentication Hub**: Real-time 2FA activation status, TOTP RFC 6238 overview, and password-protected regeneration of 10 emergency recovery backup codes (with Copy All & Download `.txt` functionality).
+  3. **Active Devices & Session Revocation**: Tabular and card-view list of all active sessions across desktop/mobile/tablet, displaying operating system, browser, IP address, creation date, and `lastActiveAt`. Supports terminating individual remote sessions or performing bulk "Revoke Other Devices".
+  4. **Password Management**: Form to update account password requiring verification of the current password and validating the new password against 5 live complexity rules (8+ chars, uppercase, lowercase, number, symbol).
+  5. **Admin Quick Tools**:
+     - **Verify QR**: Direct link to `/verify/sample` to quickly test and inspect customer document cryptographic authenticity.
+     - **Install Mobile App (PWA)**: Detects PWA installation state (`usePWAInstall`) and enables 1-tap installation to desktop or home screen.
+  6. **Security Sign-Out**: Prominently placed, high-contrast logout button with confirmation to terminate the current session.
+
+### 2. Files Modified & Created
+- **Frontend (`d:\PACIFIC-Admin`)**:
+  - `src/pages/AdminProfilePage.tsx`: Full-page profile and security management view.
+  - `src/App.tsx`: Added lazy route `<Route path="profile" element={<AdminProfilePage />} />` under `/admin/dashboard`.
+  - `src/utils/rbacNavigation.ts`: Configured `/admin/dashboard/profile` with universal access across all 9 roles.
+  - `src/components/layout/AdminHeader.tsx`: Replaced popover trigger with direct `<Link to="/admin/dashboard/profile">` on the user profile card.
+  - `src/api/authApi.ts`: Added `authApi.changePassword(currentPassword, newPassword)`.
+- **Backend (`D:\PACIFIC-Backend`)**:
+  - `src/modules/auth/auth.service.ts`: Implemented `changePassword(userId, currentPassword, newPassword)`.
+  - `src/modules/auth/auth.controller.ts`: Added `changePassword` endpoint controller.
+  - `src/modules/auth/auth.routes.ts`: Registered `POST /auth/change-password` with `requireAuth` middleware.
+
+### 3. Verification & Compliance
+- **Backend TypeScript Check**: `npx tsc --noEmit` exited with 0 errors.
+- **Frontend TypeScript Check**: `npx tsc --noEmit` exited with 0 errors.
+- **Frontend Production Build**: `npm run build` exited with code 0 (`dist/assets/AdminProfilePage-*.js` 22.88 kB).
+
 
 
 

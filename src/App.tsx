@@ -68,6 +68,7 @@ const PaymentsPage = lazyWithRetry(() => import('./pages/PaymentsPage'));
 const QrCenterPage = lazyWithRetry(() => import('./pages/QrCenterPage'));
 const CompanySettingsPage = lazyWithRetry(() => import('./pages/CompanySettingsPage'));
 const AdminManagementPage = lazyWithRetry(() => import('./pages/AdminManagementPage'));
+const AdminProfilePage = lazyWithRetry(() => import('./pages/AdminProfilePage'));
 const BoardInventoryPage = lazyWithRetry(() => import('./pages/inventory/BoardInventoryPage'));
 const CreateBoardSkuPage = lazyWithRetry(() => import('./pages/inventory/CreateBoardSkuPage'));
 const LockerInventoryPage = lazyWithRetry(() => import('./pages/inventory/LockerInventoryPage'));
@@ -519,6 +520,14 @@ export default function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <AdminManagementPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="profile"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <AdminProfilePage />
                 </Suspense>
               }
             />
