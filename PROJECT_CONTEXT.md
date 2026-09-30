@@ -2424,6 +2424,34 @@ When `usersService.createUser()` was called from `POST /api/v1/users`, the gener
 - **Frontend TypeScript Check**: `npx tsc --noEmit` → exit 0.
 - **Frontend Production Build**: `npm run build` → exit 0.
 
+---
+
+## 36. Product Line Selector Cards, Public Asset Warning & Load Performance
+
+### 1. Requirements
+1. **Product Line Cards — Single Column**: In the "Add/Edit Product Model" modal in `AdminProducts.tsx`, the 4 category selector cards (Cubicle, Lockers, Urinal Partitions, Kids Cubicle) were displayed in a `grid-cols-2 lg:grid-cols-4` layout. User requested each card to appear on its own row (single column stack).
+2. **Public Asset Import Warning**: Vite dev-mode was logging "Assets in public directory cannot be imported from JavaScript" because `public/sw.js` had `/pacific_logo.png` in `PRECACHE_URLS`. When the SW pre-caches during dev, Vite treats the fetch as a JS import resolution request.
+3. **Slow Initial Load**: Addressed by:
+   - Adding `dns-prefetch` hints for Supabase and backend API hosts in `index.html`
+   - Bumping font weights from `300;400;500;600;700` to `400;500;600;700;800;900` (removes unused thin weight, adds bold weights that are actually used in the app)
+   - Bumping SW cache name from `v2` → `v3` to force clients to pick up the new SW and clear stale `pacific_logo.png` cache entries
+
+### 2. Files Changed
+- **`src/pages/admin/AdminProducts.tsx`** (line 1366):
+  - `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4` → `grid-cols-1`
+  - Each product category card now occupies a full-width single row in the modal
+- **`public/sw.js`**:
+  - Removed `/pacific_logo.png` from `PRECACHE_URLS` (file not served / causes Vite dev warning)
+  - Cache version bumped: `pacific-admin-pwa-v2` → `pacific-admin-pwa-v3`
+- **`index.html`**:
+  - Added `dns-prefetch` for `kgalsrokdmsrqysyoffm.supabase.co` and `pacific-backend-psuw.onrender.com`
+  - Font weights optimized: removed weight 300, added weights 800 and 900 (used heavily in UI)
+
+### 3. Verification
+- **Frontend TypeScript Check**: `npx tsc --noEmit` → exit 0.
+- **Frontend Production Build**: `npm run build` → exit 0.
+
+
 
 
 

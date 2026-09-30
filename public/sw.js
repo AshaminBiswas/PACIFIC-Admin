@@ -1,11 +1,10 @@
 // Pacific Admin PWA Service Worker
-const CACHE_NAME = 'pacific-admin-pwa-v2';
+const CACHE_NAME = 'pacific-admin-pwa-v3';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
   '/manifest.json',
   '/tab-logo.png',
-  '/pacific_logo.png',
   '/icon-192.png',
   '/icon-512.png',
   '/apple-touch-icon.png'

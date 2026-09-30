@@ -1363,7 +1363,7 @@ export default function AdminProducts() {
                 <label className="block text-xs font-semibold text-gray-300 mb-2">
                   1. Select Product Line <span className="text-rose-400">*</span>
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   {(['Cubicle', 'Lockers', 'Urinal Partitions', 'Kids Toilet'] as ProductCategoryType[]).map((cat) => (
                     <button
                       key={cat}
