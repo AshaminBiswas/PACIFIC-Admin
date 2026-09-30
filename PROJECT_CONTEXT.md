@@ -2160,6 +2160,14 @@ Sales Quotation PDF (`pdf.service.ts` -> `generateQuotationPdfHtml`) has been re
   - `D:\PACIFIC-Backend\src\scripts\upgrade-inventory-schema.ts`
   - All four scripts now strictly use `process.env.DIRECT_URL || process.env.DATABASE_URL`.
 
+---
+
+## 39. Storefront Homepage Layout Refinement — Removal of Redundant "Turnkey Restroom Solutions" Section
+
+- **Removed Component**: `FinalCtaSection` in `src/app/pages/Home.tsx` (which displayed the `"Turnkey Restroom Solutions"` badge, `"Ready to Specify Pacific for Your Next Project?"` headline, and secondary quote buttons).
+- **Rationale**: The page already includes high-converting, architect-focused conversion points immediately preceding it (`ArchitectBOMToolkit` and `WhyChooseUsSection`). Eliminating the redundant green CTA block eliminates visual clutter and ensures the homepage concludes smoothly on the high-intent Architect & Contractor BOQ Toolkit card.
+- **Verification**: Zero TypeScript errors (`npx tsc --noEmit`), Vite production build exits 0.
+
 
 
 
