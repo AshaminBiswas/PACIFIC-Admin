@@ -55,6 +55,9 @@ export interface CreateSalesOrderFormData {
   clientPoDate: string;
   placeOfSupply: string;
   placeOfSupplyStateCode: string;
+  installationCharge?: number;
+  installationRatePerCubicle?: number;
+  installationCubicleCount?: number;
   freightAmount: number;
   selectedHardwarePreset?: string;
   accessoriesText: string;
@@ -75,6 +78,9 @@ const INITIAL_FORM: CreateSalesOrderFormData = {
   clientPoDate: '',
   placeOfSupply: 'Delhi',
   placeOfSupplyStateCode: '07',
+  installationCharge: 0,
+  installationRatePerCubicle: 1000,
+  installationCubicleCount: 0,
   freightAmount: 0,
   selectedHardwarePreset: 'SS_304',
   accessoriesText: DEFAULT_ACCESSORIES_TEXT,
@@ -328,6 +334,9 @@ export default function CreateSalesOrderPage() {
         placeOfSupply: posState,
         placeOfSupplyStateCode: posCode,
         freightAmount: Number(q.freightAmount) || 0,
+        installationCharge: Number(q.installationCharge) || 0,
+        installationRatePerCubicle: q.installationRatePerCubicle || (Number(q.installationCharge) > 0 ? Math.round(Number(q.installationCharge) / (q.installationCubicleCount || 1)) : 1000),
+        installationCubicleCount: q.installationCubicleCount || 0,
         accessoriesText: q.accessoriesText || prev.accessoriesText,
         billingAddress: {
           ...prev.billingAddress,
@@ -399,6 +408,9 @@ export default function CreateSalesOrderPage() {
         clientPoNumber: pi.linkedPoNumber || prev.clientPoNumber,
         clientPoDate: pi.linkedPoDate ? new Date(pi.linkedPoDate).toISOString().split('T')[0] : prev.clientPoDate,
         freightAmount: Number(pi.freightAmount) || 0,
+        installationCharge: Number(pi.installationCharge) || 0,
+        installationRatePerCubicle: pi.installationRatePerCubicle || (Number(pi.installationCharge) > 0 ? Math.round(Number(pi.installationCharge) / (pi.installationCubicleCount || 1)) : 1000),
+        installationCubicleCount: pi.installationCubicleCount || 0,
         accessoriesText: pi.accessoriesText || prev.accessoriesText,
         billingAddress: {
           partyName: billParty?.partyName || pi.customer?.legalName || prev.billingAddress.partyName,
@@ -534,13 +546,41 @@ export default function CreateSalesOrderPage() {
     }));
   };
 
+  const handleAddInstallationItem = () => {
+    const count = effectiveCubicleCount;
+    const rate = effectiveInstallRate;
+    setFormData((f) => ({
+      ...f,
+      items: [
+        ...f.items,
+        {
+          description: `Supply & Erection / Installation Charges for Restroom Cubicles (@ ₹ ${rate.toLocaleString('en-IN')}/Cubicle for ${count} Cubicle${count === 1 ? '' : 's'})`,
+          hsnSac: '995469',
+          unit: 'CUBICLE',
+          quantity: count,
+          rate: rate,
+          gstRate: 18,
+        },
+      ],
+    }));
+  };
+
   // Calculations
   const subtotal = useMemo(
     () => formData.items.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.rate) || 0), 0),
     [formData.items]
   );
 
-  const taxableTotal = subtotal + Number(formData.freightAmount || 0);
+  const detectedCubicleCount = useMemo(() => {
+    return formData.items
+      .filter((it) => it.unit === 'NOS' || it.unit === 'SET' || !it.unit || (it.unit as string) === 'CUBICLE')
+      .reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+  }, [formData.items]);
+
+  const effectiveCubicleCount = formData.installationCubicleCount || (detectedCubicleCount || 1);
+  const effectiveInstallRate = formData.installationRatePerCubicle || (effectiveCubicleCount > 0 && formData.installationCharge ? Math.round(Number(formData.installationCharge) / effectiveCubicleCount) : 1000);
+
+  const taxableTotal = subtotal + Number(formData.freightAmount || 0) + Number(formData.installationCharge || 0);
 
   const gstBreakdown = useMemo(() => {
     return calculateGstSplit(
@@ -598,6 +638,9 @@ export default function CreateSalesOrderPage() {
         placeOfSupply: formData.placeOfSupply,
         placeOfSupplyStateCode: formData.placeOfSupplyStateCode,
         freightAmount: Number(formData.freightAmount) || 0,
+        installationCharge: Number(formData.installationCharge) || 0,
+        installationRatePerCubicle: Number(formData.installationCharge) > 0 ? (formData.installationRatePerCubicle ?? 1000) : undefined,
+        installationCubicleCount: Number(formData.installationCharge) > 0 ? (formData.installationCubicleCount || detectedCubicleCount || 1) : undefined,
         taxRate: 18,
         accessoriesText: formData.accessoriesText,
         terms: formData.terms,
@@ -1417,6 +1460,147 @@ export default function CreateSalesOrderPage() {
         </div>
       </div>
 
+      {/* ── Installation & Commercial Pricing Options ──────────── */}
+      <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2">
+          <div className="flex items-center gap-2">
+            <Wrench className="w-4 h-4 text-[#7FB706]" />
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+              Installation &amp; Commercial Pricing Options
+            </h4>
+          </div>
+          <span className="text-xs text-[#7FB706] font-mono">
+            {effectiveCubicleCount} Cubicle{effectiveCubicleCount === 1 ? '' : 's'} detected in items
+          </span>
+        </div>
+
+        {/* Installation Charges Per Cubicle Sub-block */}
+        <div className="p-4 rounded-xl bg-black/20 border border-white/5 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <span>🔧 Cubicle Installation Charges (Per Cubicle Calculation)</span>
+            </label>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] text-slate-400">Presets:</span>
+              {[
+                { label: '₹ 800', rate: 800 },
+                { label: '₹ 1,000 (Std)', rate: 1000 },
+                { label: '₹ 1,200', rate: 1200 },
+                { label: '₹ 1,500', rate: 1500 },
+                { label: 'Free (₹ 0)', rate: 0 },
+              ].map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => {
+                    const cCount = formData.installationCubicleCount || detectedCubicleCount || 1;
+                    const tot = p.rate * (p.rate === 0 ? 0 : cCount);
+                    setFormData((f) => ({
+                      ...f,
+                      installationRatePerCubicle: p.rate,
+                      installationCubicleCount: cCount,
+                      installationCharge: tot,
+                    }));
+                  }}
+                  className="px-2 py-0.5 rounded text-[11px] font-medium bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+            <div>
+              <label className="text-gray-400 block mb-1">Rate (₹ / Cubicle)</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={formData.installationRatePerCubicle ?? 1000}
+                onChange={(e) => {
+                  const rate = Number(e.target.value) || 0;
+                  const count = formData.installationCubicleCount || detectedCubicleCount || 1;
+                  setFormData((f) => ({
+                    ...f,
+                    installationRatePerCubicle: rate,
+                    installationCharge: rate * count,
+                  }));
+                }}
+                className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white font-mono"
+                placeholder="1000"
+              />
+              <span className="text-[10px] text-slate-400">Default: ₹ 1,000 / Cubicle</span>
+            </div>
+
+            <div>
+              <label className="text-gray-400 block mb-1">Cubicles (Qty)</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={formData.installationCubicleCount || (detectedCubicleCount || 1)}
+                onChange={(e) => {
+                  const count = Number(e.target.value) || 0;
+                  const rate = formData.installationRatePerCubicle ?? 1000;
+                  setFormData((f) => ({
+                    ...f,
+                    installationCubicleCount: count,
+                    installationCharge: rate * count,
+                  }));
+                }}
+                className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white font-mono"
+                placeholder="Number of cubicles"
+              />
+              <span className="text-[10px] text-slate-400">Auto-detected: {detectedCubicleCount || 1} Cubicles</span>
+            </div>
+
+            <div>
+              <label className="text-gray-400 block mb-1">Total Installation Charge (₹)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.installationCharge || 0}
+                onChange={(e) => {
+                  const total = Number(e.target.value) || 0;
+                  const count = formData.installationCubicleCount || detectedCubicleCount || 1;
+                  const derivedRate = count > 0 ? Math.round(total / count) : 0;
+                  setFormData((f) => ({
+                    ...f,
+                    installationCharge: total,
+                    installationRatePerCubicle: derivedRate,
+                  }));
+                }}
+                className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs px-3 py-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+            <span>
+              📄 <strong>Mentioned on Sales Order:</strong> Cubicle Installation Charges{' '}
+              {(formData.installationCharge || 0) > 0
+                ? `(@ ₹ ${(formData.installationRatePerCubicle ?? 1000).toLocaleString('en-IN')}/Cubicle for ${formData.installationCubicleCount || detectedCubicleCount || 1} Cubicle${(formData.installationCubicleCount || detectedCubicleCount || 1) === 1 ? '' : 's'})`
+                : '(Nil / Client Scope)'}
+            </span>
+            <div className="flex items-center gap-3">
+              <span className="font-mono font-bold text-white text-sm">
+                ₹ {Number(formData.installationCharge || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </span>
+              <button
+                type="button"
+                onClick={handleAddInstallationItem}
+                className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow"
+                title="Add as a formal SAC 995469 line item in the items table"
+              >
+                <Plus className="w-3 h-3" /> Add as Line Item
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ── Commercial Terms & Conditions ──────────────────────── */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
         <div className="flex items-center justify-between pb-2 border-b border-white/5">
@@ -1486,6 +1670,17 @@ export default function CreateSalesOrderPage() {
                 ₹ {subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
             </div>
+
+            {(formData.installationCharge || 0) > 0 && (
+              <div>
+                <span className="text-gray-400 block text-[11px]">
+                  Installation (@₹{effectiveInstallRate}):
+                </span>
+                <span className="font-mono font-bold text-white text-sm">
+                  ₹ {Number(formData.installationCharge).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
 
             <div className="flex items-center gap-1.5">
               <div>

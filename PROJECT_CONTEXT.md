@@ -2504,6 +2504,111 @@ When `usersService.createUser()` was called from `POST /api/v1/users`, the gener
 - **Admin Console Typecheck**: `npx tsc --noEmit` in `PACIFIC-Admin` exited with code 0.
 - **Search Verification**: `git grep -i "Verify Document"` returned 0 occurrences across both codebases.
 
+---
+
+## 39. Multi-Entity Expansion: Add New Company Profile & Kolkata Branch Setup
+
+### 1. Requirements & Overview
+- The business established a regional operating branch in Kolkata (West Bengal) requiring dedicated enterprise configuration in the Admin Console.
+- In Company Settings (`CompanySettingsPage.tsx`), provide a dedicated creation modal and navigation triggers to onboard new company profiles, state divisions, and branch offices with complete GSTIN, state code, PAN, address, and banking coordinates.
+
+### 2. Architecture & File Changes
+- **`src/pages/CompanySettingsPage.tsx`**:
+  - **Indian GST State Engine (`INDIAN_GST_STATES`)**: Added comprehensive list of 36 Indian states and union territories with official 2-digit GST state codes (including `19 - West Bengal`, `27 - Maharashtra`, `07 - Delhi`, etc.).
+  - **Auto-Derivation Intelligence**:
+    - When typing GSTIN in either the new branch creation modal or the active entity form, the system automatically parses the first 2 characters to auto-select the State and State Code (e.g. `19` -> `West Bengal`), and extracts characters 3–12 into the 10-digit PAN number automatically.
+    - Selecting a state from the dropdown updates the corresponding GST state code in real time.
+  - **Action Triggers**:
+    - Added a prominent `+ Add New Company / Branch` button in the top page Header bar.
+    - Added a `+ Add Company / Branch` action button directly in the Active Entity Selector Pill Bar for fast switching and entity registration.
+  - **Comprehensive Creation Modal (`showCreateModal`)**:
+    - **1-Click Presets Bar**: Quick-fills pre-configured templates:
+      - **Kolkata Branch (West Bengal)**: Pre-fills Trade Name (`Pacific Restroom Cubicle (Kolkata Branch)`), Legal Name (`Pacific Products & Solutions Pvt Ltd`), Entity Code (`PRC-KOL`), State (`West Bengal`), State Code (`19`), City (`Kolkata`), Address Line 1 (`Salt Lake Sector V, Block EP & GP`), Pin (`700091`), Phone, Email, and HDFC Bank branch coordinates.
+      - **Mumbai Head Office**: Pre-fills Mumbai HQ coordinates.
+      - **UAE Entity (VAT)**: Pre-fills UAE FZE VAT entity coordinates.
+    - **Section 1 (Entity Identity)**: Trade Name, Legal Registered Name, Unique Entity Code, Country Jurisdiction (`IN` / `AE`), Currency (`INR`, `AED`, `USD`), Tax Regime (`GST` / `VAT`).
+    - **Section 2 (GST & Tax Identification)**: 15-character GSTIN with auto-derivation, PAN, State dropdown, 2-digit State Code, or VAT/TRN registration.
+    - **Section 3 (Contact Coordinates)**: Official phone, accounts email, website URL.
+    - **Section 4 (Initial Branch Address)**: Optional toggle to simultaneously create the initial branch office address (Type: `BRANCH_OFFICE`, `REGISTERED_OFFICE`, `BILLING`, `FACTORY`, `WAREHOUSE`, Address Lines 1 & 2, City, and Postal Code).
+    - **Section 5 (Initial Banking Coordinates)**: Optional toggle to simultaneously record initial bank account details (Bank Name, Account Number, IFSC Code, and Branch Name).
+  - **Submission & Selection Flow (`handleCreateCompany`)**:
+    - Calls `companiesApi.create(profilePayload)` to persist the company profile in PostgreSQL via Prisma.
+    - Automatically links address via `companiesApi.addAddress` and bank account via `companiesApi.addBankAccount`.
+    - Reloads company list with `loadCompanies(newId)`, automatically setting the newly created Kolkata branch as the active entity so all tabs immediately reflect the new branch.
+  - **Active Profile Form Upgrade**:
+    - Added State dropdown and 2-digit State Code input to the main active entity form, allowing administrators to review and update state codes for existing branches.
+    - Added `BRANCH_OFFICE` address type option to the existing registered address modal.
+
+### 3. Verification & Compliance
+- **Zero TypeScript Errors**: `npx tsc --noEmit` exited with code 0.
+- **Production Build**: `npm run build` compiled successfully (exited with code 0).
+- **Cross-Stack Sync**: Operates seamlessly with backend `companiesService.create`, `addAddress`, and `addBankAccount`.
+
+---
+
+## 40. Per-Cubicle Installation Charges Across Quotations, Proforma Invoices, Sales Orders, and Tax Invoices
+
+### 1. Requirements & Business Domain Context
+- **Commercial Restroom Cubicle Installation Standard**:
+  In commercial restroom cubicle projects, installation is billed per cubicle unit (standard rates: ₹ 800, ₹ 1,000, ₹ 1,200, ₹ 1,500/Cubicle, or Free of Charge on bulk contracts).
+- **Client & Auditor Mandate**:
+  Clients and statutory auditors require that installation charges be explicitly broken down across all commercial and legal documents:
+  - **Quotation**: Quotation creation/edit builder, quotation details, and customer-facing PDF.
+  - **Proforma Invoice (PI)**: PI creation/edit wizard, financial summary dock, PI details, and client PI PDF.
+  - **Sales Order (SO)**: Sales order creator/editor, order details dock, and factory production SO PDF.
+  - **Tax Invoice / Bill**: Stage 04 GST Tax Invoice creator with automatic SAC 995469 line item generation and statutory Tax Invoice PDF.
+- The document wording and line items must explicitly declare:
+  `Cubicle Installation Charges (@ ₹ [Rate] / Cubicle for [Count] Cubicles): ₹ [Total]`
+  and terms & conditions must state:
+  `Cubicle installation is charged @ ₹ [Rate]/cubicle unless explicitly stated otherwise.`
+
+### 2. Architecture & File Changes
+- **Backend (`PACIFIC-Backend/src/modules/pdf/pdf.service.ts` & `invoices.service.ts`)**:
+  - **TypeScript Interfaces**: Added `installationCharge?: number`, `installationRatePerCubicle?: number`, and `installationCubicleCount?: number` to `QuotationPdfData`, `PiPdfData`, `SalesOrderPdfData`, and `generateTaxInvoicePdfHtml` signatures.
+  - **Quotation PDF Template (`generateQuotationPdfHtml`)**:
+    - Generates formatted financial breakdown line: `Cubicle Installation Charge (@ ₹ [Rate] / Cubicle for [Count] Cubicles)`.
+    - Clause 4 in commercial terms dynamically reflects the per-cubicle rate: `Cubicle installation is charged @ ₹ [Rate]/cubicle...`.
+  - **Proforma Invoice PDF Template (`generatePiHtml`)**:
+    - Formats financial row with per-cubicle unit rate and cubicle count.
+  - **Sales Order PDF Template (`generateSalesOrderPdfHtml`)**:
+    - Displays explicit per-cubicle installation charge callout in order financial breakdown.
+  - **Tax Invoice PDF Template (`generateTaxInvoicePdfHtml`)**:
+    - Injects `Installation Charges (@ ₹ [Rate] / Cubicle for [Count] Cubicles)` into the statutory summary table.
+  - **Invoice Service (`invoices.service.ts`)**:
+    - Passes `installationCharge`, `installationRatePerCubicle`, and `installationCubicleCount` from invoice or linked sales order to the PDF generator.
+- **Frontend Types (`src/types/admin.ts`)**:
+  - Extended `SalesQuotation`, `ProformaInvoice`, `SalesOrder`, and `Invoice` interfaces with `installationCharge?: number;`, `installationRatePerCubicle?: number;`, and `installationCubicleCount?: number;`.
+- **Frontend Sales Quotation (`DraftQuotationPage.tsx`, `EditSalesQuotationPage.tsx`, `SalesQuotationDetailPage.tsx`)**:
+  - Interactive 3-field builder for Rate per cubicle, Cubicle Quantity (auto-detected from items), and Total Installation charge with two-way sync.
+  - Quick-preset chips: `₹ 800`, `₹ 1,000 (Std)`, `₹ 1,200`, `₹ 1,500`, and `Free (₹ 0)`.
+  - Real-time preview badge: `(@ ₹ [Rate]/Cubicle for [Count] Cubicles)`.
+  - Detail page breakdown dock displays the per-cubicle calculation pill.
+- **Frontend Proforma Invoice (`CreateProformaPage.tsx`, `EditProformaInvoicePage.tsx`, `ProformaInvoiceDetailPage.tsx`)**:
+  - Full installation builder with presets and automatic quotation data import.
+  - Dedicated `+ Add as Line Item` action with SAC code `995469`.
+  - 5-card financial summary dock: Basic Goods, Installation, Freight, Net Taxable, and Advance Required.
+  - Detail page displays per-cubicle installation breakdown.
+- **Frontend Sales Order (`CreateSalesOrderPage.tsx`, `EditSalesOrderPage.tsx`, `SalesOrderDetailPage.tsx`)**:
+  - Integration of 3-field installation builder into Sales Order creation & edit pages.
+  - Detail page (`SalesOrderDetailPage.tsx`) financial dock displays:
+    `Installation Charges (@ ₹ [Rate]/Cubicle for [Count] Cubicles): ₹ [Amount]`.
+- **Frontend Tax Invoice / Bill (`CreateInvoicePage.tsx`)**:
+  - When importing a Sales Order with installation charges, automatically appends a formal line item:
+    - Description: `Supply & Erection / Installation Charges for Restroom Cubicles (@ ₹ [Rate]/Cubicle for [Count] Cubicles)`
+    - HSN/SAC: `995469`
+    - Quantity: `Count`
+    - Unit Rate: `Rate`
+    - Tax Rate: `18% GST`
+  - When importing an order with freight, automatically appends a formal line item with SAC `996511`.
+  - Added dedicated quick action: `+ Add Installation Line Item (@ ₹ 1,000/Cubicle)`.
+
+### 3. Verification & Compliance
+- **Backend Typecheck & Build**: `npm run build` in `PACIFIC-Backend` exited with code 0 (Prisma client generated and TypeScript compiled).
+- **Admin Console Typecheck**: `npx tsc --noEmit` in `PACIFIC-Admin` exited with code 0.
+- **Production Build**: `npm run build` in `PACIFIC-Admin` exited with code 0.
+- **Zero TypeScript Errors**: Enforced strictly across all modified files.
+
+
 
 
 

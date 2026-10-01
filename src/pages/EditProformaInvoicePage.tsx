@@ -61,6 +61,9 @@ export default function EditProformaInvoicePage() {
   const [linkedPoNumber, setLinkedPoNumber] = useState('');
   const [linkedPoDate, setLinkedPoDate] = useState('');
   const [freightAmount, setFreightAmount] = useState<number>(0);
+  const [installationCharge, setInstallationCharge] = useState<number>(0);
+  const [installationRatePerCubicle, setInstallationRatePerCubicle] = useState<number>(1000);
+  const [installationCubicleCount, setInstallationCubicleCount] = useState<number>(0);
   const [advancePercentage, setAdvancePercentage] = useState<number>(50);
   const [quotationId, setQuotationId] = useState<string | undefined>(undefined);
   const [quotationRef, setQuotationRef] = useState<string | undefined>(undefined);
@@ -141,6 +144,9 @@ export default function EditProformaInvoicePage() {
       setLinkedPoNumber(data.linkedPoNumber || '');
       setLinkedPoDate(data.linkedPoDate ? new Date(data.linkedPoDate).toISOString().split('T')[0] : '');
       setFreightAmount(Number(data.freightAmount) || 0);
+      setInstallationCharge(Number(data.installationCharge) || 0);
+      setInstallationRatePerCubicle(data.installationRatePerCubicle || (Number(data.installationCharge) > 0 ? Math.round(Number(data.installationCharge) / (data.installationCubicleCount || 1)) : 1000));
+      setInstallationCubicleCount(data.installationCubicleCount || 0);
       setAdvancePercentage(Number(data.advancePercentage) || 50);
       setQuotationId(data.quotationId || undefined);
       setQuotationRef(data.quotationRef || undefined);
@@ -725,6 +731,25 @@ export default function EditProformaInvoicePage() {
     ]);
   };
 
+  const handleAddInstallationItem = () => {
+    const count = effectiveCubicleCount;
+    const rate = effectiveInstallRate;
+    setItems((prev) => [
+      ...prev,
+      {
+        itemType: 'hardware',
+        isCustom: true,
+        systemCategory: 'hardware',
+        description: `Supply & Erection / Installation Charges for Restroom Cubicles (@ ₹ ${rate.toLocaleString('en-IN')}/Cubicle for ${count} Cubicle${count === 1 ? '' : 's'})`,
+        hsnSac: '995469',
+        unit: 'CUBICLE',
+        quantity: count,
+        rate: rate,
+        gstRate: 18,
+      },
+    ]);
+  };
+
   const handleAddItem = handleAddCubicleItem;
 
   const handleRemoveItem = (index: number) => {
@@ -751,7 +776,17 @@ export default function EditProformaInvoicePage() {
     (sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.rate) || 0),
     0
   );
-  const totalTaxable = basicPrice + Number(freightAmount || 0);
+
+  const detectedCubicleCount = useMemo(() => {
+    return items
+      .filter((it) => it.itemType !== 'hardware' && (it.unit === 'NOS' || it.unit === 'SET' || !it.unit || (it.unit as string) === 'CUBICLE'))
+      .reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+  }, [items]);
+
+  const effectiveCubicleCount = installationCubicleCount || (detectedCubicleCount || 1);
+  const effectiveInstallRate = installationRatePerCubicle || (effectiveCubicleCount > 0 && installationCharge ? Math.round(Number(installationCharge) / effectiveCubicleCount) : 1000);
+
+  const totalTaxable = basicPrice + Number(freightAmount || 0) + Number(installationCharge || 0);
 
   const gstBreakdown = calculateGstSplit(
     totalTaxable,
@@ -882,6 +917,9 @@ export default function EditProformaInvoicePage() {
         linkedPoNumber,
         linkedPoDate: linkedPoDate || undefined,
         freightAmount,
+        installationCharge: Number(installationCharge) || 0,
+        installationRatePerCubicle: Number(installationCharge) > 0 ? (installationRatePerCubicle ?? 1000) : undefined,
+        installationCubicleCount: Number(installationCharge) > 0 ? (installationCubicleCount || detectedCubicleCount || 1) : undefined,
         advancePercentage,
         advanceRequiredAmount: requiredAdvance,
         status,
@@ -2348,6 +2386,159 @@ export default function EditProformaInvoicePage() {
         </div>
       </div>
 
+      {/* ── Card 7: Installation & Freight Pricing Options ──────── */}
+      <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2">
+          <div className="flex items-center gap-2">
+            <Wrench className="w-4 h-4 text-[#7FB706]" />
+            <h3 className="text-sm font-bold text-white">Commercial Add-ons &amp; Installation Charges</h3>
+          </div>
+          <span className="text-xs text-[#7FB706] font-mono">
+            {effectiveCubicleCount} Cubicle{effectiveCubicleCount === 1 ? '' : 's'} detected in items
+          </span>
+        </div>
+
+        {/* Installation Charges Per Cubicle Sub-block */}
+        <div className="p-4 rounded-xl bg-black/20 border border-white/5 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <span>🔧 Cubicle Installation Charges (Per Cubicle Calculation)</span>
+            </label>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] text-slate-400">Presets:</span>
+              {[
+                { label: '₹ 800', rate: 800 },
+                { label: '₹ 1,000 (Std)', rate: 1000 },
+                { label: '₹ 1,200', rate: 1200 },
+                { label: '₹ 1,500', rate: 1500 },
+                { label: 'Free (₹ 0)', rate: 0 },
+              ].map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => {
+                    const cCount = installationCubicleCount || detectedCubicleCount || 1;
+                    const tot = p.rate * (p.rate === 0 ? 0 : cCount);
+                    setInstallationRatePerCubicle(p.rate);
+                    setInstallationCubicleCount(cCount);
+                    setInstallationCharge(tot);
+                  }}
+                  className="px-2 py-0.5 rounded text-[11px] font-medium bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className={labelCls}>Rate (₹ / Cubicle)</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={installationRatePerCubicle ?? 1000}
+                onChange={(e) => {
+                  const rate = Number(e.target.value) || 0;
+                  const count = installationCubicleCount || detectedCubicleCount || 1;
+                  setInstallationRatePerCubicle(rate);
+                  setInstallationCharge(rate * count);
+                }}
+                className={inputCls}
+                placeholder="1000"
+              />
+              <span className="text-[10px] text-slate-400">Default: ₹ 1,000 / Cubicle</span>
+            </div>
+
+            <div>
+              <label className={labelCls}>Cubicles (Qty)</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={installationCubicleCount || (detectedCubicleCount || 1)}
+                onChange={(e) => {
+                  const count = Number(e.target.value) || 0;
+                  const rate = installationRatePerCubicle ?? 1000;
+                  setInstallationCubicleCount(count);
+                  setInstallationCharge(rate * count);
+                }}
+                className={inputCls}
+                placeholder="Number of cubicles"
+              />
+              <span className="text-[10px] text-slate-400">Auto-detected: {detectedCubicleCount || 1} Cubicles</span>
+            </div>
+
+            <div>
+              <label className={labelCls}>Total Installation Charge (₹)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={installationCharge || 0}
+                onChange={(e) => {
+                  const total = Number(e.target.value) || 0;
+                  const count = installationCubicleCount || detectedCubicleCount || 1;
+                  const derivedRate = count > 0 ? Math.round(total / count) : 0;
+                  setInstallationCharge(total);
+                  setInstallationRatePerCubicle(derivedRate);
+                }}
+                className={inputCls}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs px-3 py-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+            <span>
+              📄 <strong>Mentioned on PI Document:</strong> Cubicle Installation Charges{' '}
+              {(installationCharge || 0) > 0
+                ? `(@ ₹ ${(installationRatePerCubicle ?? 1000).toLocaleString('en-IN')}/Cubicle for ${installationCubicleCount || detectedCubicleCount || 1} Cubicle${(installationCubicleCount || detectedCubicleCount || 1) === 1 ? '' : 's'})`
+                : '(Nil / Client Scope)'}
+            </span>
+            <div className="flex items-center gap-3">
+              <span className="font-mono font-bold text-white text-sm">
+                ₹ {Number(installationCharge || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </span>
+              <button
+                type="button"
+                onClick={handleAddInstallationItem}
+                className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow"
+                title="Add as a formal SAC 995469 line item in the items table"
+              >
+                <Plus className="w-3 h-3" /> Add as Line Item
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className={labelCls}>Freight &amp; Handling Amount (₹)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={freightAmount}
+              onChange={(e) => setFreightAmount(Number(e.target.value) || 0)}
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Advance Required (%)</label>
+            <select
+              value={advancePercentage}
+              onChange={(e) => setAdvancePercentage(Number(e.target.value) || 50)}
+              className={inputCls}
+            >
+              {[10, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100].map((pct) => (
+                <option key={pct} value={pct}>{pct}% Advance Required</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
       {/* ── Form Footer: Grand Total & Statutory GST Breakdown Card ── */}
       <div className="bg-[#121226] border border-[#7FB706]/30 rounded-2xl p-5 space-y-4 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2">
@@ -2359,11 +2550,24 @@ export default function EditProformaInvoicePage() {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
           <div className="p-3 bg-[#0a0a1a] rounded-xl border border-white/5">
-            <span className="text-gray-400 block mb-1">Basic Goods Value</span>
+            <span className="text-gray-400 block mb-1">Basic Goods</span>
             <span className="text-white font-mono font-bold text-sm">
               ₹ {basicPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+          <div className="p-3 bg-[#0a0a1a] rounded-xl border border-white/5">
+            <span className="text-gray-400 block mb-1">
+              Installation
+              {(installationCharge || 0) > 0 && (
+                <span className="text-[10px] text-[#7FB706] block font-mono">
+                  @₹{effectiveInstallRate}/cubicle
+                </span>
+              )}
+            </span>
+            <span className="text-white font-mono font-bold text-sm">
+              ₹ {Number(installationCharge || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </span>
           </div>
           <div className="p-3 bg-[#0a0a1a] rounded-xl border border-white/5">
@@ -2373,13 +2577,13 @@ export default function EditProformaInvoicePage() {
             </span>
           </div>
           <div className="p-3 bg-[#0a0a1a] rounded-xl border border-white/5">
-            <span className="text-gray-400 block mb-1">Net Taxable Amount</span>
+            <span className="text-gray-400 block mb-1">Net Taxable</span>
             <span className="text-white font-mono font-bold text-sm">
               ₹ {totalTaxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </span>
           </div>
           <div className="p-3 bg-[#0a0a1a] rounded-xl border border-white/5">
-            <span className="text-gray-400 block mb-1">{advancePercentage}% Required Advance</span>
+            <span className="text-gray-400 block mb-1">{advancePercentage}% Adv. Required</span>
             <span className="text-amber-400 font-mono font-bold text-sm">
               ₹ {requiredAdvance.toLocaleString('en-IN')}
             </span>

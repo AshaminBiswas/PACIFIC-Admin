@@ -52,6 +52,8 @@ export interface CreateFormData {
   validUntil: string;
   validityDays: number;
   installationCharge: number;
+  installationRatePerCubicle?: number;
+  installationCubicleCount?: number;
   freightTerms: string;
   freightAmount: number;
   gstRate: number;
@@ -89,6 +91,8 @@ const INITIAL_FORM_STATE: CreateFormData = {
   validUntil: '',
   validityDays: 30,
   installationCharge: 0,
+  installationRatePerCubicle: 1000,
+  installationCubicleCount: 0,
   freightTerms: 'Extra as Actual / To pay',
   freightAmount: 0,
   gstRate: 18,
@@ -717,6 +721,16 @@ export default function DraftQuotationPage() {
     (sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.rate) || 0),
     0
   );
+
+  const detectedCubicleCount = useMemo(() => {
+    return form.items
+      .filter((it) => it.unit === 'NOS' || it.unit === 'SET' || !it.unit || (it.unit as string) === 'CUBICLE')
+      .reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+  }, [form.items]);
+
+  const effectiveCubicleCount = form.installationCubicleCount || (detectedCubicleCount || 1);
+  const effectiveInstallRate = form.installationRatePerCubicle || (effectiveCubicleCount > 0 && form.installationCharge ? Math.round(Number(form.installationCharge) / effectiveCubicleCount) : 1000);
+
   const installationCharge = Number(form.installationCharge) || 0;
   const freightAmount = Number(form.freightAmount) || 0;
   const gstRate = form.isSezExempt ? 0 : Number(form.gstRate) || 18;
@@ -841,6 +855,8 @@ export default function DraftQuotationPage() {
         validUntil: form.validUntil || undefined,
         validityDays: Number(form.validityDays) || 30,
         installationCharge: Number(form.installationCharge) || 0,
+        installationRatePerCubicle: Number(form.installationCharge) > 0 ? (form.installationRatePerCubicle ?? 1000) : undefined,
+        installationCubicleCount: Number(form.installationCharge) > 0 ? (form.installationCubicleCount || detectedCubicleCount || 1) : undefined,
         freightTerms: form.freightTerms,
         freightAmount: Number(form.freightAmount) || 0,
         gstRate: Number(form.gstRate) || 18,
@@ -972,6 +988,9 @@ export default function DraftQuotationPage() {
         {installationCharge > 0 && (
           <div className="text-gray-400">
             Installation: <span className="text-white font-mono font-semibold">₹ {installationCharge.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            <span className="text-xs text-[#7FB706] font-mono ml-1 font-bold">
+              (@ ₹ {effectiveInstallRate.toLocaleString('en-IN')}/Cubicle for {effectiveCubicleCount} Cubicles)
+            </span>
           </div>
         )}
         {freightAmount > 0 && (
@@ -1246,25 +1265,137 @@ export default function DraftQuotationPage() {
 
       {/* Section 3: Pricing Options */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
-        <h3 className="text-sm font-bold text-white border-b border-white/5 pb-2">Pricing Options</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div>
-            <label className={labelCls}>Installation Charge (₹)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.installationCharge}
-              onChange={(e) => {
-                setForm((f) => ({ ...f, installationCharge: Number(e.target.value) || 0 }));
-                clearFieldError('installationCharge');
-              }}
-              className={getInputCls('installationCharge')}
-            />
-            {fieldErrors.installationCharge && (
-              <p className="mt-1 text-xs text-red-400">{fieldErrors.installationCharge}</p>
-            )}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2">
+          <h3 className="text-sm font-bold text-white">Pricing & Commercial Terms</h3>
+          <span className="text-xs text-[#7FB706] font-mono">
+            {effectiveCubicleCount} Cubicle{effectiveCubicleCount === 1 ? '' : 's'} detected in items
+          </span>
+        </div>
+
+        {/* Installation Charges Per Cubicle Sub-block */}
+        <div className="p-4 rounded-xl bg-black/20 border border-white/5 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <span>🔧 Installation Charges (Per Cubicle Calculation)</span>
+            </label>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] text-slate-400">Presets:</span>
+              {[
+                { label: '₹ 800', rate: 800 },
+                { label: '₹ 1,000 (Std)', rate: 1000 },
+                { label: '₹ 1,200', rate: 1200 },
+                { label: '₹ 1,500', rate: 1500 },
+                { label: 'Free (₹ 0)', rate: 0 },
+              ].map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => {
+                    const cCount = form.installationCubicleCount || detectedCubicleCount || 1;
+                    const tot = p.rate * (p.rate === 0 ? 0 : cCount);
+                    setForm((f) => ({
+                      ...f,
+                      installationRatePerCubicle: p.rate,
+                      installationCubicleCount: cCount,
+                      installationCharge: tot,
+                    }));
+                    clearFieldError('installationCharge');
+                  }}
+                  className="px-2 py-0.5 rounded text-[11px] font-medium bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className={labelCls}>Rate (₹ / Cubicle)</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={form.installationRatePerCubicle ?? 1000}
+                onChange={(e) => {
+                  const rate = Number(e.target.value) || 0;
+                  const count = form.installationCubicleCount || detectedCubicleCount || 1;
+                  setForm((f) => ({
+                    ...f,
+                    installationRatePerCubicle: rate,
+                    installationCharge: rate * count,
+                  }));
+                  clearFieldError('installationCharge');
+                }}
+                className={inputCls}
+                placeholder="1000"
+              />
+              <span className="text-[10px] text-slate-400">Default: ₹ 1,000 / Cubicle</span>
+            </div>
+
+            <div>
+              <label className={labelCls}>Cubicles (Qty)</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={form.installationCubicleCount || (detectedCubicleCount || 1)}
+                onChange={(e) => {
+                  const count = Number(e.target.value) || 0;
+                  const rate = form.installationRatePerCubicle ?? 1000;
+                  setForm((f) => ({
+                    ...f,
+                    installationCubicleCount: count,
+                    installationCharge: rate * count,
+                  }));
+                  clearFieldError('installationCharge');
+                }}
+                className={inputCls}
+                placeholder="Number of cubicles"
+              />
+              <span className="text-[10px] text-slate-400">Auto-detected: {detectedCubicleCount || 1} Cubicles</span>
+            </div>
+
+            <div>
+              <label className={labelCls}>Total Installation Charge (₹)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.installationCharge}
+                onChange={(e) => {
+                  const total = Number(e.target.value) || 0;
+                  const count = form.installationCubicleCount || detectedCubicleCount || 1;
+                  const derivedRate = count > 0 ? Math.round(total / count) : 0;
+                  setForm((f) => ({
+                    ...f,
+                    installationCharge: total,
+                    installationRatePerCubicle: derivedRate,
+                  }));
+                  clearFieldError('installationCharge');
+                }}
+                className={getInputCls('installationCharge')}
+              />
+              {fieldErrors.installationCharge && (
+                <p className="mt-1 text-xs text-red-400">{fieldErrors.installationCharge}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+            <span>
+              📄 <strong>Mentioned on document:</strong> Cubicle Installation Charges{' '}
+              {form.installationCharge > 0
+                ? `(@ ₹ ${(form.installationRatePerCubicle ?? 1000).toLocaleString('en-IN')}/Cubicle for ${form.installationCubicleCount || detectedCubicleCount || 1} Cubicle${(form.installationCubicleCount || detectedCubicleCount || 1) === 1 ? '' : 's'})`
+                : '(Nil / Client Scope)'}
+            </span>
+            <span className="font-mono font-bold text-white">
+              ₹ {Number(form.installationCharge).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className={labelCls}>Freight Amount (₹)</label>
             <input

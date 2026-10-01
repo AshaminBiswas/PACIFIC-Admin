@@ -85,6 +85,9 @@ export default function EditSalesOrderPage() {
   const [placeOfSupply, setPlaceOfSupply] = useState('Delhi');
   const [placeOfSupplyStateCode, setPlaceOfSupplyStateCode] = useState('07');
   const [freightAmount, setFreightAmount] = useState<number>(0);
+  const [installationCharge, setInstallationCharge] = useState<number>(0);
+  const [installationRatePerCubicle, setInstallationRatePerCubicle] = useState<number>(1000);
+  const [installationCubicleCount, setInstallationCubicleCount] = useState<number>(0);
   const [quotationId, setQuotationId] = useState<string | undefined>(undefined);
   const [quotationRef, setQuotationRef] = useState<string | undefined>(undefined);
   const [piNumber, setPiNumber] = useState<string | undefined>(undefined);
@@ -167,6 +170,9 @@ export default function EditSalesOrderPage() {
       setPlaceOfSupply(data.placeOfSupply || 'Delhi');
       setPlaceOfSupplyStateCode(data.placeOfSupplyStateCode || '07');
       setFreightAmount(Number(data.freightAmount) || 0);
+      setInstallationCharge(Number(data.installationCharge) || 0);
+      setInstallationRatePerCubicle(data.installationRatePerCubicle || (Number(data.installationCharge) > 0 ? Math.round(Number(data.installationCharge) / (data.installationCubicleCount || 1)) : 1000));
+      setInstallationCubicleCount(data.installationCubicleCount || 0);
       setQuotationId(data.quotationId || undefined);
       setQuotationRef(data.quotationRef || undefined);
       setPiNumber(data.piNumber || undefined);
@@ -406,13 +412,38 @@ export default function EditSalesOrderPage() {
     setTerms((prev) => prev.filter((_, i) => i !== tIdx));
   };
 
+  const handleAddInstallationItem = () => {
+    const count = effectiveCubicleCount;
+    const rate = effectiveInstallRate;
+    setItems((prev) => [
+      ...prev,
+      {
+        description: `Supply & Erection / Installation Charges for Restroom Cubicles (@ ₹ ${rate.toLocaleString('en-IN')}/Cubicle for ${count} Cubicle${count === 1 ? '' : 's'})`,
+        hsnSac: '995469',
+        unit: 'CUBICLE',
+        quantity: count,
+        rate: rate,
+        gstRate: 18,
+      },
+    ]);
+  };
+
   // GST & Totals
   const subtotal = useMemo(
     () => items.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.rate) || 0), 0),
     [items]
   );
 
-  const taxableTotal = subtotal + Number(freightAmount || 0);
+  const detectedCubicleCount = useMemo(() => {
+    return items
+      .filter((it) => it.unit === 'NOS' || it.unit === 'SET' || !it.unit || (it.unit as string) === 'CUBICLE')
+      .reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+  }, [items]);
+
+  const effectiveCubicleCount = installationCubicleCount || (detectedCubicleCount || 1);
+  const effectiveInstallRate = installationRatePerCubicle || (effectiveCubicleCount > 0 && installationCharge ? Math.round(Number(installationCharge) / effectiveCubicleCount) : 1000);
+
+  const taxableTotal = subtotal + Number(freightAmount || 0) + Number(installationCharge || 0);
 
   const gstBreakdown = useMemo(() => {
     return calculateGstSplit(
@@ -461,6 +492,9 @@ export default function EditSalesOrderPage() {
         placeOfSupply,
         placeOfSupplyStateCode,
         freightAmount: Number(freightAmount) || 0,
+        installationCharge: Number(installationCharge) || 0,
+        installationRatePerCubicle: Number(installationCharge) > 0 ? (installationRatePerCubicle ?? 1000) : undefined,
+        installationCubicleCount: Number(installationCharge) > 0 ? (installationCubicleCount || detectedCubicleCount || 1) : undefined,
         taxRate: 18,
         accessoriesText,
         terms,
@@ -1184,6 +1218,135 @@ export default function EditSalesOrderPage() {
         </div>
       </div>
 
+      {/* ── Installation & Commercial Pricing Options ──────────── */}
+      <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2">
+          <div className="flex items-center gap-2">
+            <Wrench className="w-4 h-4 text-[#7FB706]" />
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+              Installation &amp; Commercial Pricing Options
+            </h4>
+          </div>
+          <span className="text-xs text-[#7FB706] font-mono">
+            {effectiveCubicleCount} Cubicle{effectiveCubicleCount === 1 ? '' : 's'} detected in items
+          </span>
+        </div>
+
+        {/* Installation Charges Per Cubicle Sub-block */}
+        <div className="p-4 rounded-xl bg-black/20 border border-white/5 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <span>🔧 Cubicle Installation Charges (Per Cubicle Calculation)</span>
+            </label>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] text-slate-400">Presets:</span>
+              {[
+                { label: '₹ 800', rate: 800 },
+                { label: '₹ 1,000 (Std)', rate: 1000 },
+                { label: '₹ 1,200', rate: 1200 },
+                { label: '₹ 1,500', rate: 1500 },
+                { label: 'Free (₹ 0)', rate: 0 },
+              ].map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => {
+                    const cCount = installationCubicleCount || detectedCubicleCount || 1;
+                    const tot = p.rate * (p.rate === 0 ? 0 : cCount);
+                    setInstallationRatePerCubicle(p.rate);
+                    setInstallationCubicleCount(cCount);
+                    setInstallationCharge(tot);
+                  }}
+                  className="px-2 py-0.5 rounded text-[11px] font-medium bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+            <div>
+              <label className="text-gray-400 block mb-1">Rate (₹ / Cubicle)</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={installationRatePerCubicle ?? 1000}
+                onChange={(e) => {
+                  const rate = Number(e.target.value) || 0;
+                  const count = installationCubicleCount || detectedCubicleCount || 1;
+                  setInstallationRatePerCubicle(rate);
+                  setInstallationCharge(rate * count);
+                }}
+                className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white font-mono"
+                placeholder="1000"
+              />
+              <span className="text-[10px] text-slate-400">Default: ₹ 1,000 / Cubicle</span>
+            </div>
+
+            <div>
+              <label className="text-gray-400 block mb-1">Cubicles (Qty)</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={installationCubicleCount || (detectedCubicleCount || 1)}
+                onChange={(e) => {
+                  const count = Number(e.target.value) || 0;
+                  const rate = installationRatePerCubicle ?? 1000;
+                  setInstallationCubicleCount(count);
+                  setInstallationCharge(rate * count);
+                }}
+                className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white font-mono"
+                placeholder="Number of cubicles"
+              />
+              <span className="text-[10px] text-slate-400">Auto-detected: {detectedCubicleCount || 1} Cubicles</span>
+            </div>
+
+            <div>
+              <label className="text-gray-400 block mb-1">Total Installation Charge (₹)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={installationCharge || 0}
+                onChange={(e) => {
+                  const total = Number(e.target.value) || 0;
+                  const count = installationCubicleCount || detectedCubicleCount || 1;
+                  const derivedRate = count > 0 ? Math.round(total / count) : 0;
+                  setInstallationCharge(total);
+                  setInstallationRatePerCubicle(derivedRate);
+                }}
+                className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs px-3 py-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+            <span>
+              📄 <strong>Mentioned on Sales Order:</strong> Cubicle Installation Charges{' '}
+              {(installationCharge || 0) > 0
+                ? `(@ ₹ ${(installationRatePerCubicle ?? 1000).toLocaleString('en-IN')}/Cubicle for ${installationCubicleCount || detectedCubicleCount || 1} Cubicle${(installationCubicleCount || detectedCubicleCount || 1) === 1 ? '' : 's'})`
+                : '(Nil / Client Scope)'}
+            </span>
+            <div className="flex items-center gap-3">
+              <span className="font-mono font-bold text-white text-sm">
+                ₹ {Number(installationCharge || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </span>
+              <button
+                type="button"
+                onClick={handleAddInstallationItem}
+                className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow"
+                title="Add as a formal SAC 995469 line item in the items table"
+              >
+                <Plus className="w-3 h-3" /> Add as Line Item
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ── Commercial Terms & Conditions ──────────────────────── */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
         <div className="flex items-center justify-between pb-2 border-b border-white/5">
@@ -1253,6 +1416,17 @@ export default function EditSalesOrderPage() {
                 ₹ {subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
             </div>
+
+            {(installationCharge || 0) > 0 && (
+              <div>
+                <span className="text-gray-400 block text-[11px]">
+                  Installation (@₹{effectiveInstallRate}):
+                </span>
+                <span className="font-mono font-bold text-white text-sm">
+                  ₹ {Number(installationCharge).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
 
             <div className="flex items-center gap-1.5">
               <div>

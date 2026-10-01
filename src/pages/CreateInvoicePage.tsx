@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Save, RotateCcw, CheckCircle2, Plus, Trash2, Building2, MapPin, Receipt, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Save, RotateCcw, CheckCircle2, Plus, Trash2, Building2, MapPin, Receipt, ShieldCheck, Wrench } from 'lucide-react';
 import { invoicesApi, crmApi, salesOrdersApi } from '../api/services';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import type { BusinessParty, SalesOrder } from '../types/admin';
@@ -148,12 +148,42 @@ export default function CreateInvoicePage() {
       orderItems = ord.items.map((it: any, idx: number) => ({
         serialNumber: idx + 1,
         description: it.description || it.itemDescription || 'Restroom Cubicle Component',
-        hsnSac: '9403',
+        hsnSac: it.hsnSac || '9403',
         quantity: Number(it.quantity) || 1,
         rate: Number(it.rate || it.unitPrice || 0),
         amount: (Number(it.quantity) || 1) * Number(it.rate || it.unitPrice || 0),
         gstRate: Number(it.gstRate || 18),
       }));
+    }
+
+    // Auto-append Installation Charges with per-cubicle rate breakdown if present on order
+    if (ord.installationCharge && Number(ord.installationCharge) > 0) {
+      const installAmt = Number(ord.installationCharge);
+      const installRate = Number(ord.installationRatePerCubicle) || (ord.installationCubicleCount ? Math.round(installAmt / Number(ord.installationCubicleCount)) : installAmt);
+      const installCount = Number(ord.installationCubicleCount) || (installRate > 0 ? Math.round(installAmt / installRate) : 1);
+      orderItems.push({
+        serialNumber: orderItems.length + 1,
+        description: `Supply & Erection / Installation Charges for Restroom Cubicles (@ ₹ ${installRate.toLocaleString('en-IN')}/Cubicle for ${installCount} Cubicle${installCount === 1 ? '' : 's'})`,
+        hsnSac: '995469',
+        quantity: installCount,
+        rate: installRate,
+        amount: installAmt,
+        gstRate: 18,
+      });
+    }
+
+    // Auto-append Freight & Transportation if present on order
+    if (ord.freightAmount && Number(ord.freightAmount) > 0) {
+      const freightAmt = Number(ord.freightAmount);
+      orderItems.push({
+        serialNumber: orderItems.length + 1,
+        description: `Freight & Handling / Transportation Charges to Site`,
+        hsnSac: '996511',
+        quantity: 1,
+        rate: freightAmt,
+        amount: freightAmt,
+        gstRate: 18,
+      });
     }
 
     setFormData((prev) => ({
@@ -189,6 +219,34 @@ export default function CreateInvoicePage() {
           quantity: 1,
           rate: 0,
           amount: 0,
+          gstRate: 18,
+        },
+      ],
+    }));
+  };
+
+  const handleAddInstallationLine = () => {
+    // Count cubicles from non-service items (exclude SAC 995469, 996511)
+    const cubicleCount = Math.max(
+      1,
+      formData.items
+        .filter((it) => it.hsnSac !== '995469' && it.hsnSac !== '996511')
+        .reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
+    );
+    const rate = 1000;
+    const amount = cubicleCount * rate;
+
+    setFormData((prev) => ({
+      ...prev,
+      items: [
+        ...prev.items,
+        {
+          serialNumber: prev.items.length + 1,
+          description: `Supply & Erection / Installation Charges for Restroom Cubicles (@ ₹ ${rate.toLocaleString('en-IN')}/Cubicle for ${cubicleCount} Cubicle${cubicleCount === 1 ? '' : 's'})`,
+          hsnSac: '995469',
+          quantity: cubicleCount,
+          rate: rate,
+          amount: amount,
           gstRate: 18,
         },
       ],
@@ -517,13 +575,23 @@ export default function CreateInvoicePage() {
             </div>
           ))}
 
-          <button
-            type="button"
-            onClick={addItem}
-            className="w-full py-3 border-2 border-dashed border-white/10 hover:border-[#7FB706]/40 text-gray-400 hover:text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 min-h-[44px] transition"
-          >
-            <Plus className="w-4 h-4" /> Add Item Line
-          </button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={addItem}
+              className="py-3 border-2 border-dashed border-white/10 hover:border-[#7FB706]/40 text-gray-400 hover:text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 min-h-[44px] transition cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> Add Item Line
+            </button>
+            <button
+              type="button"
+              onClick={handleAddInstallationLine}
+              className="py-3 border border-emerald-500/30 hover:border-emerald-500/60 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 min-h-[44px] transition cursor-pointer"
+              title="Add a formal SAC 995469 cubicle installation line item"
+            >
+              <Wrench className="w-4 h-4 text-[#7FB706]" /> + Add Installation Line Item (@ ₹ 1,000/Cubicle)
+            </button>
+          </div>
         </div>
 
         {/* Section 4: Delhi 07 GST Breakdown Dock */}

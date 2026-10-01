@@ -38,6 +38,8 @@ interface QuotationDetail {
   // Pricing
   basicPrice?: number;
   installationCharge?: number;
+  installationRatePerCubicle?: number;
+  installationCubicleCount?: number;
   freightTerms?: string;
   freightAmount?: number;
   gstRate?: number;
@@ -558,7 +560,14 @@ export default function SalesQuotationDetailPage() {
             </div>
             {Number(quotation.installationCharge || 0) > 0 && (
               <div className="flex justify-between text-xs">
-                <span className="text-gray-400">Installation</span>
+                <span className="text-gray-400">
+                  Installation
+                  {quotation.installationRatePerCubicle ? (
+                    <span className="text-[11px] text-[#7FB706] ml-1 font-mono">
+                      (@ ₹ {quotation.installationRatePerCubicle.toLocaleString('en-IN')}/Cubicle{quotation.installationCubicleCount ? ` for ${quotation.installationCubicleCount} Cubicles` : ''})
+                    </span>
+                  ) : null}
+                </span>
                 <span className="text-gray-300 font-mono">₹ {Number(quotation.installationCharge).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
             )}

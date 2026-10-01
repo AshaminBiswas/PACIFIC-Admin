@@ -34,6 +34,45 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 
+export const INDIAN_GST_STATES = [
+  { code: '19', name: 'West Bengal' },
+  { code: '27', name: 'Maharashtra' },
+  { code: '07', name: 'Delhi' },
+  { code: '29', name: 'Karnataka' },
+  { code: '33', name: 'Tamil Nadu' },
+  { code: '24', name: 'Gujarat' },
+  { code: '09', name: 'Uttar Pradesh' },
+  { code: '06', name: 'Haryana' },
+  { code: '08', name: 'Rajasthan' },
+  { code: '36', name: 'Telangana' },
+  { code: '28', name: 'Andhra Pradesh' },
+  { code: '32', name: 'Kerala' },
+  { code: '21', name: 'Odisha' },
+  { code: '10', name: 'Bihar' },
+  { code: '03', name: 'Punjab' },
+  { code: '23', name: 'Madhya Pradesh' },
+  { code: '22', name: 'Chhattisgarh' },
+  { code: '20', name: 'Jharkhand' },
+  { code: '18', name: 'Assam' },
+  { code: '02', name: 'Himachal Pradesh' },
+  { code: '05', name: 'Uttarakhand' },
+  { code: '30', name: 'Goa' },
+  { code: '01', name: 'Jammu and Kashmir' },
+  { code: '04', name: 'Chandigarh' },
+  { code: '37', name: 'Ladakh' },
+  { code: '11', name: 'Sikkim' },
+  { code: '12', name: 'Arunachal Pradesh' },
+  { code: '13', name: 'Nagaland' },
+  { code: '14', name: 'Manipur' },
+  { code: '15', name: 'Mizoram' },
+  { code: '16', name: 'Tripura' },
+  { code: '17', name: 'Meghalaya' },
+  { code: '31', name: 'Lakshadweep' },
+  { code: '34', name: 'Puducherry' },
+  { code: '35', name: 'Andaman and Nicobar Islands' },
+  { code: '38', name: 'Dadra & Nagar Haveli and Daman & Diu' },
+];
+
 export default function CompanySettingsPage() {
   const [activeTab, setActiveTab] = useState<'profiles' | 'banking' | 'signatories' | 'sequences' | 'audit'>('profiles');
   const [companies, setCompanies] = useState<CompanyProfile[]>([]);
@@ -61,6 +100,198 @@ export default function CompanySettingsPage() {
     logoUrl: '',
     signatureUrl: '',
   });
+
+  // New Company / Branch Creation State
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    companyName: '',
+    legalName: '',
+    entityCode: '',
+    country: 'IN',
+    currency: 'INR',
+    taxRegime: 'GST',
+    gstin: '',
+    pan: '',
+    vatNumber: '',
+    state: 'West Bengal',
+    stateCode: '19',
+    phone: '',
+    email: '',
+    website: '',
+    // Optional initial branch address
+    addAddress: true,
+    addressType: 'BRANCH_OFFICE',
+    addressLine1: '',
+    addressLine2: '',
+    city: 'Kolkata',
+    postalCode: '',
+    // Optional initial bank coordinates
+    addBank: false,
+    bankName: '',
+    accountNumber: '',
+    ifscCode: '',
+    branch: '',
+  });
+
+  const resetCreateForm = () => {
+    setCreateForm({
+      companyName: '',
+      legalName: '',
+      entityCode: '',
+      country: 'IN',
+      currency: 'INR',
+      taxRegime: 'GST',
+      gstin: '',
+      pan: '',
+      vatNumber: '',
+      state: 'West Bengal',
+      stateCode: '19',
+      phone: '',
+      email: '',
+      website: '',
+      addAddress: true,
+      addressType: 'BRANCH_OFFICE',
+      addressLine1: '',
+      addressLine2: '',
+      city: 'Kolkata',
+      postalCode: '',
+      addBank: false,
+      bankName: '',
+      accountNumber: '',
+      ifscCode: '',
+      branch: '',
+    });
+  };
+
+  const applyKolkataPreset = () => {
+    setCreateForm({
+      companyName: 'Pacific Restroom Cubicle (Kolkata Branch)',
+      legalName: 'Pacific Products & Solutions Pvt Ltd',
+      entityCode: 'PRC-KOL',
+      country: 'IN',
+      currency: 'INR',
+      taxRegime: 'GST',
+      gstin: '',
+      pan: '',
+      vatNumber: '',
+      state: 'West Bengal',
+      stateCode: '19',
+      phone: '+91 98300 12345',
+      email: 'kolkata@pacificcubicles.com',
+      website: 'https://pacificcubicles.com',
+      addAddress: true,
+      addressType: 'BRANCH_OFFICE',
+      addressLine1: 'Salt Lake Sector V, Block EP & GP',
+      addressLine2: 'Electronics Complex',
+      city: 'Kolkata',
+      postalCode: '700091',
+      addBank: true,
+      bankName: 'HDFC Bank',
+      accountNumber: '',
+      ifscCode: 'HDFC0000123',
+      branch: 'Salt Lake Sector V, Kolkata',
+    });
+    showToast('success', 'Applied Kolkata Branch preset. Fill in your official GSTIN and Account Number.');
+  };
+
+  const applyMumbaiPreset = () => {
+    setCreateForm({
+      companyName: 'Pacific Restroom Cubicle (Mumbai HQ)',
+      legalName: 'Pacific Products & Solutions Pvt Ltd',
+      entityCode: 'PRC-MUM',
+      country: 'IN',
+      currency: 'INR',
+      taxRegime: 'GST',
+      gstin: '',
+      pan: '',
+      vatNumber: '',
+      state: 'Maharashtra',
+      stateCode: '27',
+      phone: '+91 98765 43210',
+      email: 'accounts@pacificcubicles.com',
+      website: 'https://pacificcubicles.com',
+      addAddress: true,
+      addressType: 'REGISTERED_OFFICE',
+      addressLine1: 'Andheri East, MIDC Industrial Area',
+      addressLine2: 'Chakala',
+      city: 'Mumbai',
+      postalCode: '400069',
+      addBank: false,
+      bankName: '',
+      accountNumber: '',
+      ifscCode: '',
+      branch: '',
+    });
+    showToast('success', 'Applied Mumbai HQ preset.');
+  };
+
+  const applyUaePreset = () => {
+    setCreateForm({
+      companyName: 'Pacific Restroom Cubicle FZE',
+      legalName: 'Pacific Products & Solutions FZE',
+      entityCode: 'PRC-UAE',
+      country: 'AE',
+      currency: 'AED',
+      taxRegime: 'VAT',
+      gstin: '',
+      pan: '',
+      vatNumber: '',
+      state: 'Dubai',
+      stateCode: '',
+      phone: '+971 4 000 0000',
+      email: 'uae@pacificcubicles.com',
+      website: 'https://pacificcubicles.com',
+      addAddress: true,
+      addressType: 'BRANCH_OFFICE',
+      addressLine1: 'Business Bay, Tower 1',
+      addressLine2: 'Downtown',
+      city: 'Dubai',
+      postalCode: '00000',
+      addBank: false,
+      bankName: '',
+      accountNumber: '',
+      ifscCode: '',
+      branch: '',
+    });
+    showToast('success', 'Applied UAE Entity preset.');
+  };
+
+  const handleCreateGstinChange = (val: string) => {
+    const gstinUpper = val.toUpperCase().trim();
+    let updatedState = createForm.state;
+    let updatedStateCode = createForm.stateCode;
+    let updatedPan = createForm.pan;
+
+    if (gstinUpper.length >= 2) {
+      const code = gstinUpper.slice(0, 2);
+      const matched = INDIAN_GST_STATES.find((s) => s.code === code);
+      if (matched) {
+        updatedStateCode = matched.code;
+        updatedState = matched.name;
+      }
+    }
+    if (gstinUpper.length >= 12) {
+      updatedPan = gstinUpper.slice(2, 12);
+    }
+
+    setCreateForm((prev) => ({
+      ...prev,
+      gstin: gstinUpper,
+      state: updatedState,
+      stateCode: updatedStateCode,
+      pan: updatedPan,
+    }));
+  };
+
+  const handleCreateStateChange = (stateName: string) => {
+    const matched = INDIAN_GST_STATES.find((s) => s.name === stateName);
+    setCreateForm((prev) => ({
+      ...prev,
+      state: stateName,
+      stateCode: matched ? matched.code : prev.stateCode,
+    }));
+  };
 
   // Sub-entity Modals & Forms
   const [showBankModal, setShowBankModal] = useState(false);
@@ -104,14 +335,17 @@ export default function CompanySettingsPage() {
   const [auditLoading, setAuditLoading] = useState(false);
 
   // Load Companies
-  const loadCompanies = async () => {
+  const loadCompanies = async (selectId?: string) => {
     try {
       setLoading(true);
       const res = await companiesApi.list();
       const list = res.data?.data || res.data || [];
-      setCompanies(Array.isArray(list) ? list : []);
-      if (Array.isArray(list) && list.length > 0) {
-        const activeComp = list[0];
+      const safeList = Array.isArray(list) ? list : [];
+      setCompanies(safeList);
+      if (safeList.length > 0) {
+        const activeComp = selectId
+          ? (safeList.find((c: CompanyProfile) => c.id === selectId) || safeList[0])
+          : (safeList.find((c: CompanyProfile) => c.id === selectedCompanyId) || safeList[0]);
         setSelectedCompanyId(activeComp.id);
         populateForm(activeComp);
       }
@@ -185,7 +419,8 @@ export default function CompanySettingsPage() {
         setSaving(true);
         const res = await companiesApi.create(formData);
         showToast('success', 'Company profile created successfully.');
-        await loadCompanies();
+        const createdOne = res.data?.data || (res.data as any);
+        await loadCompanies(createdOne?.id);
       } catch (err: any) {
         showToast('error', err.response?.data?.message || 'Failed to create profile.');
       } finally {
@@ -198,11 +433,92 @@ export default function CompanySettingsPage() {
       setSaving(true);
       await companiesApi.update(selectedCompanyId, formData);
       showToast('success', 'Company profile updated successfully.');
-      await loadCompanies();
+      await loadCompanies(selectedCompanyId);
     } catch (err: any) {
       showToast('error', err.response?.data?.message || 'Failed to update company.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Create New Company Profile / Branch Handler
+  const handleCreateCompany = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createForm.companyName.trim() || !createForm.legalName.trim() || !createForm.entityCode.trim()) {
+      showToast('error', 'Please fill in Company Trade Name, Legal Name, and Entity Code.');
+      return;
+    }
+
+    try {
+      setCreating(true);
+      const profilePayload: Partial<CompanyProfile> = {
+        companyName: createForm.companyName.trim(),
+        legalName: createForm.legalName.trim(),
+        entityCode: createForm.entityCode.trim().toUpperCase(),
+        country: createForm.country,
+        currency: createForm.currency,
+        taxRegime: createForm.taxRegime,
+        gstin: createForm.gstin.trim() || undefined,
+        pan: createForm.pan.trim() || undefined,
+        vatNumber: createForm.vatNumber.trim() || undefined,
+        state: createForm.state.trim() || undefined,
+        stateCode: createForm.stateCode.trim() || undefined,
+        phone: createForm.phone.trim() || undefined,
+        email: createForm.email.trim() || undefined,
+        website: createForm.website.trim() || undefined,
+        status: 'ACTIVE',
+      };
+
+      const res = await companiesApi.create(profilePayload);
+      const newCompany = res.data?.data || (res.data as any);
+      const newId = newCompany?.id;
+
+      if (newId) {
+        // If address provided, add it
+        if (createForm.addAddress && createForm.addressLine1.trim()) {
+          try {
+            await companiesApi.addAddress(newId, {
+              type: createForm.addressType || 'BRANCH_OFFICE',
+              addressLine1: createForm.addressLine1.trim(),
+              addressLine2: createForm.addressLine2.trim() || undefined,
+              city: createForm.city.trim() || 'Kolkata',
+              state: createForm.state || 'West Bengal',
+              stateCode: createForm.stateCode || '19',
+              postalCode: createForm.postalCode.trim() || '700091',
+              phone: createForm.phone.trim() || undefined,
+              gstin: createForm.gstin.trim() || undefined,
+              pan: createForm.pan.trim() || undefined,
+              isDefault: true,
+            });
+          } catch (addrErr) {
+            console.warn('Initial branch address error:', addrErr);
+          }
+        }
+
+        // If bank provided, add it
+        if (createForm.addBank && createForm.bankName.trim() && createForm.accountNumber.trim()) {
+          try {
+            await companiesApi.addBankAccount(newId, {
+              bankName: createForm.bankName.trim(),
+              accountNumber: createForm.accountNumber.trim(),
+              ifscCode: createForm.ifscCode.trim() || undefined,
+              branch: createForm.branch.trim() || undefined,
+              isDefault: true,
+            });
+          } catch (bankErr) {
+            console.warn('Initial bank account error:', bankErr);
+          }
+        }
+      }
+
+      showToast('success', `Entity "${createForm.companyName}" registered successfully!`);
+      setShowCreateModal(false);
+      resetCreateForm();
+      await loadCompanies(newId);
+    } catch (err: any) {
+      showToast('error', err.response?.data?.message || 'Failed to create new company entity.');
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -312,7 +628,7 @@ export default function CompanySettingsPage() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#7FB706]/10 text-[#7FB706] text-xs font-semibold uppercase tracking-wider mb-2">
             <Building2 className="w-3.5 h-3.5" />
@@ -322,35 +638,49 @@ export default function CompanySettingsPage() {
             Company & Entity Settings
           </h1>
           <p className="text-sm text-gray-400 mt-1">
-            Manage legal entities (India GST & UAE VAT), banking coordinates, document numbering sequences, and audit trails.
+            Manage legal entities (India GST & UAE VAT), Kolkata branch, banking coordinates, numbering sequences, and audit trails.
           </p>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex flex-wrap items-center bg-white/5 p-1 rounded-xl border border-white/10">
-          {[
-            { id: 'profiles', label: 'Company Profile', icon: Building2 },
-            { id: 'banking', label: 'Bank Accounts', icon: Landmark },
-            { id: 'signatories', label: 'Signatories', icon: FileSignature },
-            { id: 'sequences', label: 'Numbering Rules', icon: Hash },
-            { id: 'audit', label: 'System Audit', icon: History },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs font-semibold transition-all min-h-[44px] ${
-                  activeTab === tab.id
-                    ? 'bg-[#7FB706] text-white shadow-lg shadow-[#7FB706]/20'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => {
+              resetCreateForm();
+              setShowCreateModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-[#7FB706]/20 min-h-[44px]"
+            title="Create a new company profile or branch office (e.g. Kolkata Branch)"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add New Company / Branch</span>
+          </button>
+
+          {/* Tab Navigation */}
+          <div className="flex flex-wrap items-center bg-white/5 p-1 rounded-xl border border-white/10">
+            {[
+              { id: 'profiles', label: 'Company Profile', icon: Building2 },
+              { id: 'banking', label: 'Bank Accounts', icon: Landmark },
+              { id: 'signatories', label: 'Signatories', icon: FileSignature },
+              { id: 'sequences', label: 'Numbering Rules', icon: Hash },
+              { id: 'audit', label: 'System Audit', icon: History },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs font-semibold transition-all min-h-[44px] ${
+                    activeTab === tab.id
+                      ? 'bg-[#7FB706] text-white shadow-lg shadow-[#7FB706]/20'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -376,6 +706,18 @@ export default function CompanySettingsPage() {
             </span>
           </button>
         ))}
+
+        <button
+          onClick={() => {
+            resetCreateForm();
+            setShowCreateModal(true);
+          }}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border border-dashed border-[#7FB706]/60 bg-[#7FB706]/10 text-[#7FB706] hover:bg-[#7FB706]/20 hover:border-[#7FB706] transition-all min-h-[44px] whitespace-nowrap shadow-sm"
+          title="Add New Company Profile or Branch (e.g. Kolkata Branch)"
+        >
+          <Plus className="w-4 h-4" />
+          <span>+ Add Company / Branch</span>
+        </button>
       </div>
 
       {/* ── TAB 1: COMPANY PROFILES ────────────────────────────────────────── */}
@@ -473,23 +815,72 @@ export default function CompanySettingsPage() {
                 {formData.taxRegime === 'GST' ? (
                   <>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-300 mb-1">GSTIN Number (15 Digits)</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-semibold text-gray-300">GSTIN Number (15 Digits)</label>
+                        <span className="text-[10px] text-gray-400">Auto-detects State & PAN</span>
+                      </div>
                       <input
                         type="text"
-                        value={formData.gstin}
-                        onChange={(e) => setFormData({ ...formData, gstin: e.target.value.toUpperCase() })}
+                        value={formData.gstin || ''}
+                        onChange={(e) => {
+                          const val = e.target.value.toUpperCase();
+                          let s = formData.state;
+                          let sc = formData.stateCode;
+                          let p = formData.pan;
+                          if (val.length >= 2) {
+                            const code = val.slice(0, 2);
+                            const m = INDIAN_GST_STATES.find(x => x.code === code);
+                            if (m) { sc = m.code; s = m.name; }
+                          }
+                          if (val.length >= 12) {
+                            p = val.slice(2, 12);
+                          }
+                          setFormData({ ...formData, gstin: val, state: s, stateCode: sc, pan: p });
+                        }}
+                        maxLength={15}
                         className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white font-mono min-h-[44px]"
-                        placeholder="27ABCDE1234F1Z5"
+                        placeholder="19ABCDE1234F1Z5"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-300 mb-1">PAN Number</label>
                       <input
                         type="text"
-                        value={formData.pan}
+                        value={formData.pan || ''}
                         onChange={(e) => setFormData({ ...formData, pan: e.target.value.toUpperCase() })}
+                        maxLength={10}
                         className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white font-mono min-h-[44px]"
                         placeholder="ABCDE1234F"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-300 mb-1">State / Province</label>
+                      <select
+                        value={formData.state || ''}
+                        onChange={(e) => {
+                          const stateName = e.target.value;
+                          const m = INDIAN_GST_STATES.find(x => x.name === stateName);
+                          setFormData({ ...formData, state: stateName, stateCode: m ? m.code : formData.stateCode });
+                        }}
+                        className="w-full px-3.5 py-2.5 bg-[#12122b] border border-white/10 rounded-xl text-xs text-white min-h-[44px]"
+                      >
+                        <option value="">Select State</option>
+                        {INDIAN_GST_STATES.map((s) => (
+                          <option key={s.code} value={s.name}>
+                            {s.code} - {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-300 mb-1">GST State Code (2 Digits)</label>
+                      <input
+                        type="text"
+                        value={formData.stateCode || ''}
+                        onChange={(e) => setFormData({ ...formData, stateCode: e.target.value })}
+                        maxLength={2}
+                        className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white font-mono min-h-[44px]"
+                        placeholder="19"
                       />
                     </div>
                   </>
@@ -1176,6 +1567,7 @@ export default function CompanySettingsPage() {
                   onChange={(e) => setAddressForm({ ...addressForm, type: e.target.value })}
                   className="w-full px-3.5 py-2 bg-[#12122b] border border-white/10 rounded-xl text-xs text-white min-h-[44px]"
                 >
+                  <option value="BRANCH_OFFICE">Branch Office (e.g. Kolkata Branch)</option>
                   <option value="BILLING">Billing Address</option>
                   <option value="DELIVERY">Delivery Address</option>
                   <option value="REGISTERED_OFFICE">Registered Corporate Office</option>
@@ -1289,6 +1681,506 @@ export default function CompanySettingsPage() {
                   className="px-5 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-white rounded-xl text-xs font-bold min-h-[44px]"
                 >
                   Save Address
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: ADD NEW COMPANY PROFILE / BRANCH ───────────────────────── */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-[#0e0e24] border border-white/15 rounded-2xl max-w-3xl w-full shadow-2xl my-auto overflow-hidden flex flex-col max-h-[92vh]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-5 border-b border-white/10 bg-[#12122b]/80">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#7FB706]/20 border border-[#7FB706]/30 flex items-center justify-center text-[#7FB706]">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    Add New Company Profile / Branch
+                  </h3>
+                  <p className="text-xs text-gray-400">
+                    Register a new legal entity or regional branch (e.g. Kolkata) with GSTIN, PAN, address, and banking coordinates.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                className="text-gray-400 hover:text-white p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Presets Bar */}
+            <div className="px-5 py-3 bg-[#12122b]/40 border-b border-white/10 flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5 mr-1">
+                <Sparkles className="w-3.5 h-3.5 text-[#7FB706]" /> Quick Presets:
+              </span>
+              <button
+                type="button"
+                onClick={applyKolkataPreset}
+                className="px-3 py-1.5 rounded-lg bg-[#7FB706]/20 border border-[#7FB706]/40 text-[#7FB706] hover:bg-[#7FB706]/30 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+              >
+                <span>📍</span>
+                <span>Kolkata Branch (West Bengal)</span>
+              </button>
+              <button
+                type="button"
+                onClick={applyMumbaiPreset}
+                className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-300 hover:text-white hover:bg-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all"
+              >
+                <span>🏢</span>
+                <span>Mumbai Head Office</span>
+              </button>
+              <button
+                type="button"
+                onClick={applyUaePreset}
+                className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-300 hover:text-white hover:bg-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all"
+              >
+                <span>🇦🇪</span>
+                <span>UAE Entity (VAT)</span>
+              </button>
+              <button
+                type="button"
+                onClick={resetCreateForm}
+                className="ml-auto px-2.5 py-1 text-[11px] text-gray-400 hover:text-white transition-colors"
+              >
+                Reset Form
+              </button>
+            </div>
+
+            {/* Modal Body Form */}
+            <form onSubmit={handleCreateCompany} className="p-5 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
+              {/* SECTION 1: ENTITY IDENTITY */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#7FB706] flex items-center gap-2">
+                  <Building2 className="w-4 h-4" />
+                  1. Entity Identification & Legal Setup
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">
+                      Company Trade Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={createForm.companyName}
+                      onChange={(e) => setCreateForm({ ...createForm, companyName: e.target.value })}
+                      placeholder="e.g. Pacific Restroom Cubicle (Kolkata Branch)"
+                      className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[44px]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">
+                      Legal Registered Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={createForm.legalName}
+                      onChange={(e) => setCreateForm({ ...createForm, legalName: e.target.value })}
+                      placeholder="e.g. Pacific Products & Solutions Pvt Ltd"
+                      className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[44px]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">
+                      Entity Code (Unique Identifier) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={createForm.entityCode}
+                      onChange={(e) => setCreateForm({ ...createForm, entityCode: e.target.value.toUpperCase() })}
+                      placeholder="e.g. PRC-KOL, PPS-KOL"
+                      className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white font-mono uppercase focus:outline-none focus:border-[#7FB706] min-h-[44px]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">
+                      Country Jurisdiction *
+                    </label>
+                    <select
+                      value={createForm.country}
+                      onChange={(e) => {
+                        const c = e.target.value;
+                        setCreateForm({
+                          ...createForm,
+                          country: c,
+                          currency: c === 'AE' ? 'AED' : 'INR',
+                          taxRegime: c === 'AE' ? 'VAT' : 'GST',
+                        });
+                      }}
+                      className="w-full px-3.5 py-2.5 bg-[#12122b] border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[44px]"
+                    >
+                      <option value="IN">India (IN) — GST Regime</option>
+                      <option value="AE">United Arab Emirates (AE) — VAT Regime</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">
+                      Operating Currency *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={createForm.currency}
+                      onChange={(e) => setCreateForm({ ...createForm, currency: e.target.value.toUpperCase() })}
+                      className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white font-mono min-h-[44px]"
+                      placeholder="INR"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">
+                      Tax Regime *
+                    </label>
+                    <select
+                      value={createForm.taxRegime}
+                      onChange={(e) => setCreateForm({ ...createForm, taxRegime: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-[#12122b] border border-white/10 rounded-xl text-xs text-white min-h-[44px]"
+                    >
+                      <option value="GST">GST (Goods and Services Tax - India)</option>
+                      <option value="VAT">VAT (Value Added Tax - UAE)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: GST & TAX IDENTIFICATION */}
+              <div className="space-y-4 pt-4 border-t border-white/10">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  2. Tax & Statutory Registration (GST & PAN)
+                </h4>
+
+                {createForm.taxRegime === 'GST' ? (
+                  <div className="p-4 bg-white/[0.02] border border-white/10 rounded-xl space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-semibold text-gray-300">
+                            GSTIN (15 Digits)
+                          </label>
+                          <span className="text-[10px] text-gray-400">Auto-detects State & PAN</span>
+                        </div>
+                        <input
+                          type="text"
+                          value={createForm.gstin}
+                          onChange={(e) => handleCreateGstinChange(e.target.value)}
+                          maxLength={15}
+                          placeholder="e.g. 19ABCDE1234F1Z5"
+                          className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white font-mono uppercase focus:outline-none focus:border-[#7FB706] min-h-[44px]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-300 mb-1">
+                          PAN Number (10 Digits)
+                        </label>
+                        <input
+                          type="text"
+                          value={createForm.pan}
+                          onChange={(e) => setCreateForm({ ...createForm, pan: e.target.value.toUpperCase() })}
+                          maxLength={10}
+                          placeholder="e.g. ABCDE1234F"
+                          className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white font-mono uppercase min-h-[44px]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-300 mb-1">
+                          State / Jurisdiction
+                        </label>
+                        <select
+                          value={createForm.state}
+                          onChange={(e) => handleCreateStateChange(e.target.value)}
+                          className="w-full px-3.5 py-2.5 bg-[#12122b] border border-white/10 rounded-xl text-xs text-white min-h-[44px]"
+                        >
+                          <option value="">Select State</option>
+                          {INDIAN_GST_STATES.map((s) => (
+                            <option key={s.code} value={s.name}>
+                              {s.code} - {s.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-300 mb-1">
+                          GST State Code (2 Digits)
+                        </label>
+                        <input
+                          type="text"
+                          value={createForm.stateCode}
+                          onChange={(e) => setCreateForm({ ...createForm, stateCode: e.target.value })}
+                          maxLength={2}
+                          placeholder="19"
+                          className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white font-mono min-h-[44px]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">
+                      VAT / TRN Registration Number
+                    </label>
+                    <input
+                      type="text"
+                      value={createForm.vatNumber}
+                      onChange={(e) => setCreateForm({ ...createForm, vatNumber: e.target.value })}
+                      placeholder="100XXXXXXXXX00003"
+                      className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white font-mono min-h-[44px]"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 3: CONTACT & ONLINE */}
+              <div className="space-y-4 pt-4 border-t border-white/10">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-purple-400 flex items-center gap-2">
+                  <Globe className="w-4 h-4" />
+                  3. Contact Coordinates
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">Official Phone</label>
+                    <input
+                      type="text"
+                      value={createForm.phone}
+                      onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
+                      placeholder="+91 98300 00000"
+                      className="w-full px-3.5 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white min-h-[44px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">Accounts Email</label>
+                    <input
+                      type="email"
+                      value={createForm.email}
+                      onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                      placeholder="kolkata@pacificcubicles.com"
+                      className="w-full px-3.5 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white min-h-[44px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">Website URL</label>
+                    <input
+                      type="text"
+                      value={createForm.website}
+                      onChange={(e) => setCreateForm({ ...createForm, website: e.target.value })}
+                      placeholder="https://pacificcubicles.com"
+                      className="w-full px-3.5 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white min-h-[44px]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 4: INITIAL BRANCH ADDRESS */}
+              <div className="space-y-4 pt-4 border-t border-white/10">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    4. Initial Branch Office Address
+                  </h4>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={createForm.addAddress}
+                      onChange={(e) => setCreateForm({ ...createForm, addAddress: e.target.checked })}
+                      className="rounded accent-[#7FB706] w-4 h-4"
+                    />
+                    <span>Add Address with Profile</span>
+                  </label>
+                </div>
+
+                {createForm.addAddress && (
+                  <div className="p-4 bg-white/[0.02] border border-white/10 rounded-xl space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                          Address Type
+                        </label>
+                        <select
+                          value={createForm.addressType}
+                          onChange={(e) => setCreateForm({ ...createForm, addressType: e.target.value })}
+                          className="w-full px-3 py-2 bg-[#12122b] border border-white/10 rounded-xl text-xs text-white min-h-[40px]"
+                        >
+                          <option value="BRANCH_OFFICE">Branch Office (e.g. Kolkata Branch)</option>
+                          <option value="BILLING">Billing Address</option>
+                          <option value="REGISTERED_OFFICE">Registered Corporate Office</option>
+                          <option value="FACTORY">Manufacturing & Fabrication Plant</option>
+                          <option value="WAREHOUSE">Warehouse / Depot</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                          City *
+                        </label>
+                        <input
+                          type="text"
+                          value={createForm.city}
+                          onChange={(e) => setCreateForm({ ...createForm, city: e.target.value })}
+                          placeholder="e.g. Kolkata"
+                          className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white min-h-[40px]"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                        Address Line 1 (Street / Building / Sector)
+                      </label>
+                      <input
+                        type="text"
+                        value={createForm.addressLine1}
+                        onChange={(e) => setCreateForm({ ...createForm, addressLine1: e.target.value })}
+                        placeholder="e.g. Salt Lake Sector V, Block EP & GP"
+                        className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white min-h-[40px]"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                          Address Line 2 (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={createForm.addressLine2}
+                          onChange={(e) => setCreateForm({ ...createForm, addressLine2: e.target.value })}
+                          placeholder="e.g. Electronics Complex"
+                          className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white min-h-[40px]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                          PIN / Postal Code
+                        </label>
+                        <input
+                          type="text"
+                          value={createForm.postalCode}
+                          onChange={(e) => setCreateForm({ ...createForm, postalCode: e.target.value })}
+                          placeholder="700091"
+                          className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white min-h-[40px]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 5: INITIAL BANK ACCOUNT */}
+              <div className="space-y-4 pt-4 border-t border-white/10">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                    <Landmark className="w-4 h-4" />
+                    5. Initial Bank Account Coordinates (Optional)
+                  </h4>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={createForm.addBank}
+                      onChange={(e) => setCreateForm({ ...createForm, addBank: e.target.checked })}
+                      className="rounded accent-[#7FB706] w-4 h-4"
+                    />
+                    <span>Add Bank Account with Profile</span>
+                  </label>
+                </div>
+
+                {createForm.addBank && (
+                  <div className="p-4 bg-white/[0.02] border border-white/10 rounded-xl space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                          Bank Name
+                        </label>
+                        <input
+                          type="text"
+                          value={createForm.bankName}
+                          onChange={(e) => setCreateForm({ ...createForm, bankName: e.target.value })}
+                          placeholder="e.g. HDFC Bank, ICICI Bank, SBI"
+                          className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white min-h-[40px]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                          Account Number
+                        </label>
+                        <input
+                          type="text"
+                          value={createForm.accountNumber}
+                          onChange={(e) => setCreateForm({ ...createForm, accountNumber: e.target.value })}
+                          placeholder="e.g. 50200012345678"
+                          className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white font-mono min-h-[40px]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                          IFSC Code
+                        </label>
+                        <input
+                          type="text"
+                          value={createForm.ifscCode}
+                          onChange={(e) => setCreateForm({ ...createForm, ifscCode: e.target.value.toUpperCase() })}
+                          placeholder="HDFC0000123"
+                          className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white font-mono uppercase min-h-[40px]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                          Branch Name
+                        </label>
+                        <input
+                          type="text"
+                          value={createForm.branch}
+                          onChange={(e) => setCreateForm({ ...createForm, branch: e.target.value })}
+                          placeholder="e.g. Salt Lake Sector V, Kolkata"
+                          className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white min-h-[40px]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10 sticky bottom-0 bg-[#0e0e24] -mb-1 pb-1">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-5 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-xs text-gray-300 font-semibold min-h-[44px] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-[#7FB706]/20 min-h-[44px]"
+                >
+                  {creating ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Creating Branch...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4" />
+                      <span>Create Entity & Branch</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

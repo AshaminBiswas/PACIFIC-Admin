@@ -739,6 +739,19 @@ export default function ProformaInvoiceDetailPage() {
               <span>Subtotal:</span>
               <span className="font-mono">₹{Number(pi.subtotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
             </div>
+            {Number(pi.installationCharge) > 0 && (
+              <div className="flex items-center justify-between text-gray-300">
+                <span>
+                  Installation Charges
+                  {pi.installationRatePerCubicle ? (
+                    <span className="text-[11px] text-[#7FB706] ml-1 font-mono">
+                      (@ ₹ {pi.installationRatePerCubicle.toLocaleString('en-IN')}/Cubicle{pi.installationCubicleCount ? ` for ${pi.installationCubicleCount} Cubicles` : ''})
+                    </span>
+                  ) : null}
+                </span>
+                <span className="font-mono">₹{Number(pi.installationCharge).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
             {Number(pi.freightAmount) > 0 && (
               <div className="flex items-center justify-between text-gray-300">
                 <span>Freight &amp; Handling:</span>

@@ -544,6 +544,9 @@ export interface ProformaInvoice {
   notes?: string;
   termsAndConditions?: string;
   subtotal: number;
+  installationCharge?: number;
+  installationRatePerCubicle?: number;
+  installationCubicleCount?: number;
   freightAmount: number;
   taxableAmount: number;
   cgstAmount: number;
@@ -971,6 +974,9 @@ export interface Invoice {
   dueDate?: string;
   paidAt?: string;
   subtotal: number;
+  installationCharge?: number;
+  installationRatePerCubicle?: number;
+  installationCubicleCount?: number;
   taxAmount: number;
   totalAmount: number;
   currency: string;
@@ -1157,6 +1163,8 @@ export interface SalesQuotation {
   closingParagraph?: string;
   basicPrice?: number;
   installationCharge?: number;
+  installationRatePerCubicle?: number;
+  installationCubicleCount?: number;
   freightTerms?: string;
   freightAmount?: number;
   gstRate?: number;
@@ -1301,6 +1309,9 @@ export interface SalesOrder {
   placeOfSupply?: string;
   placeOfSupplyStateCode?: string;
   subtotal: number;
+  installationCharge?: number;
+  installationRatePerCubicle?: number;
+  installationCubicleCount?: number;
   freightAmount?: number;
   discountAmount?: number;
   taxableAmount?: number;
