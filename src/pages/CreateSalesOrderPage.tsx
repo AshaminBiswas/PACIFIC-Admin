@@ -1290,7 +1290,7 @@ export default function CreateSalesOrderPage() {
                   >
                     <option value="">-- Choose Product Model --</option>
                     {cubicleModels.length > 0 && (
-                      <optgroup label="Restroom Cubicles (13 Models)">
+                      <optgroup label={`Restroom Cubicles (${cubicleModels.length} Listed)`}>
                         {cubicleModels.map((m) => (
                           <option key={m.id} value={m.id}>
                             {m.title}
@@ -1299,7 +1299,7 @@ export default function CreateSalesOrderPage() {
                       </optgroup>
                     )}
                     {lockerModels.length > 0 && (
-                      <optgroup label="Modular Lockers (7 Models)">
+                      <optgroup label={`Modular Lockers (${lockerModels.length} Listed)`}>
                         {lockerModels.map((m) => (
                           <option key={m.id} value={m.id}>
                             {m.title}
@@ -1308,7 +1308,7 @@ export default function CreateSalesOrderPage() {
                       </optgroup>
                     )}
                     {urinalModels.length > 0 && (
-                      <optgroup label="Urinal Partitions (4 Models)">
+                      <optgroup label={`Urinal Partitions (${urinalModels.length} Listed)`}>
                         {urinalModels.map((m) => (
                           <option key={m.id} value={m.id}>
                             {m.title}

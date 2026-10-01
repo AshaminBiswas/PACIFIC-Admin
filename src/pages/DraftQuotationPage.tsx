@@ -1994,7 +1994,7 @@ export default function DraftQuotationPage() {
                             >
                               <option value="">-- Choose Cubicle Model (Optional) --</option>
                               {cubicleModels.length > 0 && (
-                                <optgroup label="Restroom Cubicles (13 Models)">
+                                <optgroup label={`Restroom Cubicles (${cubicleModels.length} Listed)`}>
                                   {cubicleModels.map((m) => (
                                     <option key={m.id} value={m.id}>
                                       {m.title}
@@ -2218,13 +2218,17 @@ export default function DraftQuotationPage() {
                       className="w-full bg-[#161536] border border-cyan-500/40 rounded-xl px-3 py-2.5 text-white font-semibold text-xs focus:border-cyan-400 focus:outline-none"
                     >
                       <option value="">-- No Urinal Partitions Required (Optional) --</option>
-                      <optgroup label="Urinal Partitions (4 Models)">
-                        {urinalModels.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.title}
-                          </option>
-                        ))}
-                      </optgroup>
+                      {urinalModels.length > 0 ? (
+                        <optgroup label={`Urinal Partitions (${urinalModels.length} Listed)`}>
+                          {urinalModels.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.title}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : (
+                        <option disabled value="">No Urinal Partition models listed in DB</option>
+                      )}
                     </select>
                   </div>
 
@@ -2395,13 +2399,17 @@ export default function DraftQuotationPage() {
                       className="w-full bg-[#161536] border border-purple-500/40 rounded-xl px-3 py-2.5 text-white font-semibold text-xs focus:border-purple-400 focus:outline-none"
                     >
                       <option value="">-- No Modular Lockers Required (Optional) --</option>
-                      <optgroup label="Modular Lockers (7 Models)">
-                        {lockerModels.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.title}
-                          </option>
-                        ))}
-                      </optgroup>
+                      {lockerModels.length > 0 ? (
+                        <optgroup label={`Modular Lockers (${lockerModels.length} Listed)`}>
+                          {lockerModels.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.title}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : (
+                        <option disabled value="">No Modular Locker models listed in DB</option>
+                      )}
                     </select>
                   </div>
 
@@ -2587,13 +2595,15 @@ export default function DraftQuotationPage() {
                                 className={inputCls + ' bg-[#161536] border-[#7FB706]/40 text-white font-semibold'}
                               >
                                 <option value="">-- Choose Product Model (Optional) --</option>
-                                <optgroup label="Restroom Cubicles">
-                                  {cubicleModels.map((m) => (
-                                    <option key={m.id} value={m.id}>
-                                      {m.title}
-                                    </option>
-                                  ))}
-                                </optgroup>
+                                {cubicleModels.length > 0 && (
+                                  <optgroup label={`Restroom Cubicles (${cubicleModels.length} Listed)`}>
+                                    {cubicleModels.map((m) => (
+                                      <option key={m.id} value={m.id}>
+                                        {m.title}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                )}
                                 <option value="CUSTOM">Custom / Manual Specification (No Model)</option>
                               </select>
                             </div>

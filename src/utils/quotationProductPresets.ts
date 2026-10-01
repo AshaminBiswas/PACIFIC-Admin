@@ -648,21 +648,11 @@ export const PACIFIC_STANDARD_QUOTATION_MODELS: ProductCatalogModel[] = [
 ];
 
 /**
- * Combines dynamic user models (from database / localStorage) with standard Pacific presets.
- * Deduplicates by slug or lowercase title so user models always take precedence.
+ * Returns only active, published models from database / catalog.
+ * Hardcoded presets are no longer injected so only database-listed models appear in Quotations, PI, Orders & Invoices.
  */
 export function getMergedQuotationModels(userModels: ProductCatalogModel[] = []): ProductCatalogModel[] {
-  const merged: ProductCatalogModel[] = [...userModels];
-  const existingTitles = new Set(userModels.map((m) => m.title.trim().toLowerCase()));
-
-  for (const std of PACIFIC_STANDARD_QUOTATION_MODELS) {
-    if (!existingTitles.has(std.title.trim().toLowerCase())) {
-      merged.push(std);
-      existingTitles.add(std.title.trim().toLowerCase());
-    }
-  }
-
-  return merged;
+  return (userModels || []).filter((m) => m.published !== false);
 }
 
 /**

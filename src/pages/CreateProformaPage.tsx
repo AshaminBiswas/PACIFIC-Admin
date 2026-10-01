@@ -291,7 +291,7 @@ export default function CreateProformaPage() {
   const [customers, setCustomers] = useState<BusinessParty[]>([]);
   const [companies, setCompanies] = useState<CompanyProfile[]>([]);
   const [quotations, setQuotations] = useState<SalesQuotation[]>([]);
-  const [catalogModels, setCatalogModels] = useState<ProductCatalogModel[]>(() => getMergedQuotationModels([]));
+  const [catalogModels, setCatalogModels] = useState<ProductCatalogModel[]>([]);
   const [loadingLookups, setLoadingLookups] = useState(true);
   const [selectedQuoteId, setSelectedQuoteId] = useState('');
 
@@ -2524,7 +2524,7 @@ export default function CreateProformaPage() {
                             <option value="">-- Choose Cubicle Model (Optional) --</option>
                             <option value="custom">-- Custom / Manual Specification (No Model) --</option>
                             {cubicleModels.length > 0 && (
-                              <optgroup label="Restroom Cubicles (13 Models)">
+                              <optgroup label={`Restroom Cubicles (${cubicleModels.length} Listed)`}>
                                 {cubicleModels.map((m) => (
                                   <option key={m.id} value={m.id}>
                                     {m.title}
@@ -2732,13 +2732,17 @@ export default function CreateProformaPage() {
                       className="w-full bg-[#161536] border border-cyan-500/40 rounded-xl px-3 py-2.5 text-white font-semibold text-xs focus:border-cyan-400 focus:outline-none"
                     >
                       <option value="">-- No Urinal Partitions Required (Optional) --</option>
-                      <optgroup label="Urinal Modesty Partitions (4 Models)">
-                        {urinalModels.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.title}
-                          </option>
-                        ))}
-                      </optgroup>
+                      {urinalModels.length > 0 ? (
+                        <optgroup label={`Urinal Modesty Partitions (${urinalModels.length} Listed)`}>
+                          {urinalModels.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.title}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : (
+                        <option disabled value="">No Urinal Partition models listed in DB</option>
+                      )}
                     </select>
                   </div>
 
@@ -2909,13 +2913,17 @@ export default function CreateProformaPage() {
                       className="w-full bg-[#161536] border border-purple-500/40 rounded-xl px-3 py-2.5 text-white font-semibold text-xs focus:border-purple-400 focus:outline-none"
                     >
                       <option value="">-- No Modular Lockers Required (Optional) --</option>
-                      <optgroup label="Modular Lockers (7 Models)">
-                        {lockerModels.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.title}
-                          </option>
-                        ))}
-                      </optgroup>
+                      {lockerModels.length > 0 ? (
+                        <optgroup label={`Modular Lockers (${lockerModels.length} Listed)`}>
+                          {lockerModels.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.title}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : (
+                        <option disabled value="">No Modular Locker models listed in DB</option>
+                      )}
                     </select>
                   </div>
 

@@ -209,6 +209,7 @@ export default function AdminProducts() {
         localStorage.removeItem('pacific_product_catalog_models_v1');
         localStorage.removeItem('pacific_product_catalog_models_v2');
         localStorage.removeItem('pacific_product_catalog_models_v3');
+        localStorage.removeItem('pacific_product_catalog_models_v4');
       }
       const cats = productCatalogApi.getCategories();
       setCategories(cats);

@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import imageCompression from "browser-image-compression";
+import { optimizeImageBeforeUpload } from "../utils/imageOptimizer";
 import type { Database } from "./database.types";
 
 // Production Pacific Supabase Cloud Credentials
@@ -125,34 +125,25 @@ export {
 const BUCKET = "uploads";
 
 async function optimizeImage(file: File): Promise<File> {
-  const skipTypes = ["image/gif", "image/svg+xml"];
-  if (skipTypes.includes(file.type)) return file;
-
-  try {
-    return await imageCompression(file, {
-      maxSizeMB: 1.2,
-      maxWidthOrHeight: 1920,
-      useWebWorker: true,
-      initialQuality: 0.8,
-      fileType: "image/webp",
-    });
-  } catch (error) {
-    console.warn("Image optimization failed, uploading original file:", error);
-    return file;
-  }
+  const result = await optimizeImageBeforeUpload(file);
+  return result.file;
 }
 
 /**
  * Upload an image: Uses ImageKit.io as the primary cloud storage engine,
  * returning the public ImageKit CDN URL to be stored in the database.
+ * ALWAYS optimizes and compresses image to WebP before transmission.
  */
 export async function uploadImage(
   file: File,
   folder: string = "images"
 ): Promise<string | null> {
+  // Always optimize and compress before transmission
+  const optimizedFile = await optimizeImage(file);
+
   if (isImageKitConfigured()) {
     try {
-      const ikUrl = await uploadImageToImageKit(file, folder);
+      const ikUrl = await uploadImageToImageKit(optimizedFile, folder);
       if (ikUrl) return ikUrl;
     } catch (err) {
       console.warn("[Storage] ImageKit image upload error, trying Supabase fallback:", err);
@@ -161,7 +152,6 @@ export async function uploadImage(
 
   // Fallback: Supabase Storage
   try {
-    const optimizedFile = await optimizeImage(file);
     const ext =
       optimizedFile.type === "image/webp"
         ? "webp"
@@ -189,14 +179,18 @@ export async function uploadImage(
 /**
  * Upload any file (PDF, catalog, document, image) to ImageKit.io.
  * Returns { url, size } with the public ImageKit CDN URL.
+ * Automatically optimizes images before uploading.
  */
 export async function uploadFile(
   file: File,
   folder: string = "catalogs"
 ): Promise<{ url: string; size: number } | null> {
+  const isImage = file.type.startsWith("image/");
+  const processedFile = isImage ? await optimizeImage(file) : file;
+
   if (isImageKitConfigured()) {
     try {
-      const ikFile = await uploadFileToImageKit(file, folder);
+      const ikFile = await uploadFileToImageKit(processedFile, folder);
       if (ikFile) return ikFile;
     } catch (err) {
       console.warn("[Storage] ImageKit file upload error, trying Supabase fallback:", err);
@@ -205,9 +199,6 @@ export async function uploadFile(
 
   // Fallback: Supabase Storage
   try {
-    const isImage = file.type.startsWith("image/");
-    const processedFile = isImage ? await optimizeImage(file) : file;
-
     const ext = isImage && processedFile.type === "image/webp"
       ? "webp"
       : file.name.split(".").pop() || "bin";
@@ -225,7 +216,7 @@ export async function uploadFile(
     }
 
     const { data } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
-    return { url: data.publicUrl, size: file.size };
+    return { url: data.publicUrl, size: processedFile.size };
   } catch (error) {
     console.error("Supabase file upload error:", error);
     return null;

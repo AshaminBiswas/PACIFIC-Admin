@@ -9,7 +9,7 @@ import {
   DEFAULT_CATALOG_MODELS,
 } from '../data/productCatalogData';
 
-const LOCAL_STORAGE_MODELS_KEY = 'pacific_product_catalog_models_v4';
+const LOCAL_STORAGE_MODELS_KEY = 'pacific_product_catalog_models_v5';
 const LOCAL_STORAGE_CATEGORIES_KEY = 'pacific_product_catalog_categories_v4';
 
 // In-memory cache for ultra-fast instant UI rendering
@@ -21,6 +21,7 @@ try {
     localStorage.removeItem('pacific_product_catalog_models_v1');
     localStorage.removeItem('pacific_product_catalog_models_v2');
     localStorage.removeItem('pacific_product_catalog_models_v3');
+    localStorage.removeItem('pacific_product_catalog_models_v4');
   }
 } catch {}
 
@@ -197,10 +198,11 @@ export const productCatalogApi = {
   listModels: async (category?: ProductCategoryType): Promise<ProductCatalogModel[]> => {
     // 1. If in-memory cache has models, return immediately (0ms)
     if (memoryModelsCache && memoryModelsCache.length > 0) {
+      const active = memoryModelsCache.filter((m) => m.published !== false);
       if (category) {
-        return memoryModelsCache.filter((m) => m.category === category);
+        return active.filter((m) => m.category === category);
       }
-      return memoryModelsCache;
+      return active;
     }
 
     // 2. Read from localStorage immediately (0ms)
@@ -208,7 +210,7 @@ export const productCatalogApi = {
     try {
       const cached = localStorage.getItem(LOCAL_STORAGE_MODELS_KEY);
       if (cached) {
-        models = JSON.parse(cached);
+        models = (JSON.parse(cached) || []).filter((m: any) => m.published !== false);
         memoryModelsCache = models;
       }
     } catch {}
@@ -226,7 +228,7 @@ export const productCatalogApi = {
           const rows = res?.data;
           const error = res?.error;
           if (!error && Array.isArray(rows) && rows.length > 0) {
-            const remoteModels = rows.map(mapDbRowToModel);
+            const remoteModels = rows.map(mapDbRowToModel).filter((m) => m.published !== false);
             memoryModelsCache = remoteModels;
             try {
               localStorage.setItem(LOCAL_STORAGE_MODELS_KEY, JSON.stringify(remoteModels));
@@ -251,10 +253,11 @@ export const productCatalogApi = {
       }
     }
 
+    const cleanModels = models.filter((m) => m.published !== false);
     if (category) {
-      return models.filter((m) => m.category === category);
+      return cleanModels.filter((m) => m.category === category);
     }
-    return models;
+    return cleanModels;
   },
 
   getModelById: async (idOrSlug: string): Promise<ProductCatalogModel | null> => {

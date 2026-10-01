@@ -2692,6 +2692,182 @@ When `usersService.createUser()` was called from `POST /api/v1/users`, the gener
 - **Admin Console Typecheck**: `npx tsc --noEmit` in `PACIFIC-Admin` exited with code 0.
 - **Admin Console Production Build**: `npm run build` in `PACIFIC-Admin` exited with code 0.
 
+---
+
+## 25. Google Search Console & Production Frontend Sitemap Engine
+
+### 1. Google Search Console Verification
+- **Verification Token**: `google695f86c6839861a2.html` deployed directly to `public/` and built into `dist/` across frontends (`Pacific Products And Solutions` port 5173, `PACIFIC-Admin` port 5176).
+- Accessible at root: `https://pacificproduct.in/google695f86c6839861a2.html`.
+
+### 2. Comprehensive SEO Sitemap (`sitemap.xml`)
+- Built and validated for standard sitemap protocol 0.9 + Google Image extension (`xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"`).
+- Contains **54 canonical URLs**:
+  1. **Core & Company Pages**: `/`, `/about`, `/process`, `/contact`, `/faq`, `/brochure`, `/download`, `/configure-cubicle` (3D Configurator).
+  2. **Product Catalog & Category Hubs**: `/products`, `/products/restroom-cubicles`, `/products/lockers`, `/products/urinal-partitions`, `/products/kids-toilet`.
+  3. **Product Detail Canonical Pages (27 models)**:
+     - 11 Restroom Cubicle models (Delight, Skylight, Platina, Gusto, SkyWings, Wall Hung, Saffron, Splendor, Platina Wave, Classic HPL, AeroFit Nylon).
+     - 7 Modular Locker models (Z-Shape, Tier 1 to Tier 6).
+     - 5 Urinal Partition models (Model A to Model D, Urinal Modesty Screen).
+     - 4 Kids Toilet Cubicle models (Summer Fun, Azalea, Miniarc Kids, Arcadia Kids).
+  4. **Industry Solutions**: `/solutions`, `/solutions/corporate-offices`, `/solutions/healthcare-hospitals`.
+  5. **Location Hubs**: `/locations/delhi`, `/locations/mumbai`, `/locations/bangalore`, `/locations/ahmedabad`, `/locations/kolkata`, `/locations/uae` (with full regional schemas and adjacent location navigation).
+  6. **Content & Editorial**: `/gallery`, `/blog`, `/blog/complete-guide-hpl-restroom-cubicles`.
+  7. **Legal**: `/privacy`, `/terms`.
+- Output location: `D:\Pacific Products And Solutions\public\sitemap.xml` & `dist\sitemap.xml`.
+- Cross-referenced in `robots.txt`: `Sitemap: https://pacificproduct.in/sitemap.xml`.
+
+---
+
+## 26. Frontend Performance & UX: Loading Skeleton Animation Removal
+
+### 1. Root Cause & UX Issue
+- Previously, all lazy routes rendered full-page wireframe skeletons (`PageSkeleton`, `ProductsSkeleton`, etc.) with `animate-pulse` and `animate-shimmer`.
+- The wireframes caused duplicate navbar flashing (a fake skeleton navbar rendered inside `<main>` under the fixed `<Navbar />`) and jarring layout shifts (CLS).
+- In `Downloads.tsx` and `BlogDetail.tsx`, pulsing skeleton blocks created visual flicker during data fetching.
+
+### 2. Changes Made
+- **Clean Fallback Engine (`Skeletons.tsx`)**: Replaced all wireframe skeletons, `animate-pulse`, and `animate-shimmer` with a lightweight, centered `PageLoader` spinner (`w-8 h-8 border-t-[#7FB706] animate-spin`), avoiding duplicate navbar rendering and CLS.
+- **`Downloads.tsx`**: Removed skeleton placeholder cards and category pulsing blocks in favor of a clean, non-intrusive centered spinner.
+- **`BlogDetail.tsx`**: Replaced the pulsing `Loading…` banner with the standard spinner.
+- **`tailwind.css`**: Removed `@keyframes shimmer` and `.animate-shimmer`.
+- **`ui/skeleton.tsx`**: Removed `animate-pulse`.
+
+---
+
+## 27. Universal Pre-Upload Image Optimization & Static Asset Weight Reduction
+
+### 1. Overview & Objective
+Add automatic client-side image compression, dimension clamping, and modern WebP format conversion *before* any upload occurs across both the Admin Console (`D:\PACIFIC-Admin`) and Frontend Website (`D:\Pacific Products And Solutions`). Concurrently, compress all legacy multi-megabyte static assets (`logo.png`, `logo.webp`, `tab-logo.png`, `favicon.ico`) down to fast-loading production standards.
+
+### 2. Implementation Details
+
+#### A. Client-Side Image Optimizer Modules
+- **`D:\PACIFIC-Admin\src\utils\imageOptimizer.ts`** & **`D:\Pacific Products And Solutions\src\lib\imageOptimizer.ts`**:
+  - Automatically intercepts any `File` object before transmission to cloud storage.
+  - Leverages Web Worker image compression with graceful HTML5 Canvas fallback.
+  - Converts large JPEG/PNG assets to modern **WebP** (`image/webp`) at quality `0.82`.
+  - Enforces target max payload size under **400 KB** and max dimension clamp to **1600px** while preserving natural aspect ratio.
+  - Preserves vector SVGs (`image/svg+xml`) and animated GIFs (`image/gif`) without distortion.
+  - Provides `optimizeImageBeforeUpload`, `optimizeMultipleImagesBeforeUpload`, and human-readable reduction logging (`formatFileSize`).
+
+#### B. Storage Pipeline Integration
+- **ImageKit (`src/lib/imagekit.ts`)**:
+  - `uploadImageToImageKit`: Automatically runs `optimizeImageForUpload` prior to building `FormData` or dispatching `POST` requests to ImageKit.io.
+  - `uploadMultipleImagesToImageKit`: Concurrently processes and optimizes all images in batch before upload.
+  - `uploadFileToImageKit`: Inspects file MIME type and compresses image payloads while leaving PDFs and documents untouched.
+- **Supabase Storage (`src/lib/supabase.ts`)**:
+  - `uploadImage` & `uploadFile`: Compresses files to WebP before sending to either ImageKit or Supabase Storage bucket (`uploads`). Corrects target file extension to `.webp` and updates `size` metadata.
+
+#### C. Static Asset Optimization (Sharp)
+All 8 oversized 1.39 MB static logo assets across both repositories were re-encoded:
+- `logo.webp` (1024x1024): 1,391,755 bytes $\rightarrow$ **86,072 bytes** (**93.8% reduction**)
+- `logo.png` (1024x1024): 1,391,755 bytes $\rightarrow$ **254,385 bytes** (**81.7% reduction**)
+- `tab-logo.png` (256x256 retina icon): 1,391,755 bytes $\rightarrow$ **14,950 bytes** (**98.9% reduction**)
+- `favicon.ico` (48x48 browser icon): 1,391,755 bytes $\rightarrow$ **3,188 bytes** (**99.8% reduction**)
+
+### 3. Verification & Compliance
+- **Zero TypeScript Errors**: `npx tsc --noEmit` in `D:\PACIFIC-Admin` exited with code 0.
+- **Admin Console Build**: `npm run build` in `D:\PACIFIC-Admin` exited with code 0 (`dist/` generated cleanly in 20s).
+- **Frontend Website Build**: `npm run build` in `D:\Pacific Products And Solutions` exited with code 0 (`dist/assets/logo-*.webp` reduced to 86 KB).
+
+---
+
+## 28. Frontend Cookie Preferences 30-Min Re-appear & Category Navigation Architecture
+
+### 1. Cookie Preferences: 30-Minute Dismissal Window
+- **Behavior**: Clicking the cross button (`X`) or "Decline" closes the banner and enforces a strict **30-minute auto-reappear threshold** (`30 * 60 * 1000` ms) instead of appearing immediately or on page refresh.
+- **Storage Persistence**: Saves expiration timestamp in `localStorage.getItem("pacific_cookie_dismissed_until")`.
+- **Reactive Chatbot Sync**: Emits `cookie-consent-change` CustomEvent so the floating AI Chatbot button dynamically shifts position without waiting for timer polling.
+- **Mount Verification**: On page refresh or new route navigation, verifies if 30 minutes have elapsed before scheduling `setStep("consent")`.
+
+### 2. Navbar Direct Category Navigation & Card Detail Exploration
+- **Direct Navigation Links**: Clicking "Cubicles", "Lockers", "Urinal Partitions", or "Kids Cubicle" in the desktop or mobile navbar now directly opens that category's page (`/products/restroom-cubicles`, `/products/lockers`, `/products/urinal-partitions`, `/products/kids-toilet`, plus direct root aliases `/cubicles`, `/lockers`, etc.).
+- **Desktop & Mobile Split UX**: Hovering on desktop reveals the dropdown of specific models; clicking navigates directly to the category hub. On mobile, tapping the category name navigates directly while tapping the chevron expands sub-models.
+- **Full Card Catalog**: `ProductsPage` and `Navbar` merge real DB models with standard catalog specifications so all 4 categories always display their complete item cards.
+- **Card Click Navigation**: Every `ProductCard` has a full overlay link navigating directly to `/products/:categorySlug/:productSlug` or `/products/:slug`, supported by `ProductDetailPage` and `useProduct` fallback.
+
+### 3. Comprehensive Sitemap XML Sync
+- **Location**: `D:\Pacific Products And Solutions\public\sitemap.xml` & `dist/sitemap.xml`.
+- **Sync**: Updated with **62 balanced URLs** encompassing all company routes, category hubs, canonical product detail pages, and direct route aliases.
+
+---
+
+## 29. Google Search Console Sitemap Canonicalization & Vercel Headers Configuration
+
+### 1. Root Cause Analysis ("Couldn't fetch" / "Type: Unknown")
+- In Google Search Console, newly submitted sitemaps display `Type: Unknown`, `Last read: (empty)`, and `Status: Couldn't fetch` while queued in Google's pending crawler queue.
+- Crucially, when Googlebot attempts to crawl `https://www.pacificproduct.in/sitemap.xml`, three critical configuration conflicts were identified:
+  1. **Canonical Domain Mismatch & 301 Redirects in Sitemap**:
+     The live website permanently redirects apex (`https://pacificproduct.in/`) to www (`https://www.pacificproduct.in/`). However, all 62 `<loc>` tags in `sitemap.xml` were pointing to `https://pacificproduct.in/...`. Google forbids redirects inside sitemaps; all entries must return HTTP 200 directly.
+  2. **Cross-Domain Declared in `robots.txt`**:
+     `robots.txt` declared `Sitemap: https://pacificproduct.in/sitemap.xml` (the redirecting apex domain).
+  3. **Vercel Headers Missing for XML Protocol**:
+     Explicit MIME type `Content-Type: application/xml; charset=utf-8`, `X-Robots-Tag: all`, and `Cache-Control: public, max-age=0, must-revalidate` were absent from `vercel.json`.
+
+### 2. Changes Applied
+- **`public/sitemap.xml` & `dist/sitemap.xml`**:
+  - Replaced all 63 URL references with the canonical `https://www.pacificproduct.in/...`.
+  - Every single URL now returns direct HTTP 200 OK without any intermediate 301 redirects.
+- **`public/robots.txt` & `dist/robots.txt`**:
+  - Updated sitemap declaration to `Sitemap: https://www.pacificproduct.in/sitemap.xml` and `Sitemap: https://www.pacificproduct.in/llms.txt`.
+- **`src/seo/config.ts` & `index.html`**:
+  - Aligned `SITE_URL` and all JSON-LD/OpenGraph/canonical tags to `https://www.pacificproduct.in`.
+- **`vercel.json`**:
+  - Added dedicated `headers` configuration for `/sitemap.xml` (`application/xml; charset=utf-8`) and `/robots.txt` (`text/plain; charset=utf-8`).
+
+### 3. Verification & Compliance
+- **Zero TypeScript Errors**: `npx tsc --noEmit` in `D:\PACIFIC-Admin` exited with code 0.
+- **Frontend Website Build**: `npm run build` in `D:\Pacific Products And Solutions` exited with code 0.
+- **Live Response Verification**: Direct curl/fetch confirms HTTP 200 OK and `Content-Type: application/xml`.
+
+---
+
+## 31. Hardcoded Model Decoupling & Database-Only Listing Sync
+
+### 1. Architectural Problem
+- **Frontend Navbar & Catalog Overlap**: `Navbar.tsx` and `Products.tsx` previously merged `demoProducts` (`demo-data.ts`) with live database records, displaying dummy models across categories ("Cubicles", "Lockers", "Urinal Partitions", "Kids Cubicle").
+- **Admin ERP Form Injections**: `quotationProductPresets.ts` had `getMergedQuotationModels()` appending 27 hardcoded presets (`PACIFIC_STANDARD_QUOTATION_MODELS`) to user models in Quotation (`DraftQuotationPage.tsx`, `EditSalesQuotationPage.tsx`), Proforma Invoices (`CreateProformaPage.tsx`, `EditProformaInvoicePage.tsx`), and Sales Orders (`CreateSalesOrderPage.tsx`, `EditSalesOrderPage.tsx`), resulting in static models appearing in all creation and editing workflows.
+- **Sitemap Discrepancy**: `sitemap.xml` listed ~30 non-existent demo URLs causing crawl anomalies in Google Search Console.
+
+### 2. Changes Applied Across Both Stacks
+
+#### A. Pacific Admin Console (`D:\PACIFIC-Admin`)
+1. **`src/utils/quotationProductPresets.ts`**:
+   - Refactored `getMergedQuotationModels(userModels: ProductCatalogModel[] = [])` to return strictly `(userModels || []).filter((m) => m.published !== false)`.
+   - Stopped injecting `PACIFIC_STANDARD_QUOTATION_MODELS` into active models.
+2. **`src/api/productCatalogApi.ts`**:
+   - Bumped cache key to `pacific_product_catalog_models_v5` and purged legacy versions (`v1`, `v2`, `v3`, `v4`).
+   - Enforced `published !== false` filtering across all in-memory, localStorage, and Supabase returns in `listModels()`.
+3. **Optgroup Normalization Across ERP Pages**:
+   - In `DraftQuotationPage.tsx`, `EditSalesQuotationPage.tsx`, `CreateProformaPage.tsx`, `EditProformaInvoicePage.tsx`, `CreateSalesOrderPage.tsx`, and `EditSalesOrderPage.tsx`:
+     - Replaced hardcoded optgroup labels (e.g. `"Restroom Cubicles (13 Models)"`, `"Urinal Partitions (4 Models)"`, `"Modular Lockers (7 Models)"`) with dynamic listed counts (`Restroom Cubicles (${cubicleModels.length} Listed)`).
+     - Rendered clean empty states (`No models listed in DB`) for categories with 0 database models.
+
+#### B. Pacific Frontend Website (`D:\Pacific Products And Solutions`)
+1. **`src/app/components/Navbar.tsx`**:
+   - Removed `demoProducts` import and fallback merging.
+   - Refactored `effectiveProducts` to strictly filter `allProducts` where `published !== false && !id.startsWith("demo-") && !id.startsWith("prod-")`.
+   - Dynamic navbar dropdowns now strictly list real database products (`PLARINA WAVE`, `SAFFRON`, `DELIGHT`, `SKY LIGHT`). Categories with 0 listed models show the fallback empty state.
+2. **`src/app/pages/Products.tsx`**:
+   - Removed `demoProducts` import and fallback merging.
+   - Refactored `activePool` to only include published database products.
+   - Dynamic category filter tabs and model counts reflect actual database inventory.
+3. **`src/lib/hooks.ts`**:
+   - Removed `demoProducts` fallback from `useProduct(slug)` and `useProducts()`.
+4. **`public/sitemap.xml` & `dist/sitemap.xml`**:
+   - Cleaned out all obsolete hardcoded demo model URLs, keeping exclusively the 4 live database products (`plarina-wave`, `saffron`, `cubicle-delight`, `sky-light`) alongside core company hubs, category pages, solutions, and location directories.
+
+### 3. Verification & Compliance
+- **Zero TypeScript Errors**: `npx tsc --noEmit` on `D:\PACIFIC-Admin` exited with code 0.
+- **Admin Production Build**: `npm run build` on `D:\PACIFIC-Admin` exited with code 0 (`✓ built in 22.20s`).
+- **Frontend Production Build**: `npm run build` on `D:\Pacific Products And Solutions` exited with code 0 (`✓ built in 27.08s`).
+
+
+
+
+
+
 
 
 

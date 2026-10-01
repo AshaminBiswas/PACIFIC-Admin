@@ -3,7 +3,7 @@
  * Primary media engine for images, videos, and catalog assets.
  * Stores files on ImageKit.io CDN and returns public CDN URLs for database persistence.
  */
-import imageCompression from "browser-image-compression";
+import { optimizeImageBeforeUpload, optimizeMultipleImagesBeforeUpload } from "../utils/imageOptimizer";
 
 export const IMAGEKIT_PUBLIC_KEY =
   (import.meta.env.VITE_IMAGEKIT_PUBLIC_KEY as string) || "public_DlFE0TdGBcX1Tv0hlh5ze0dKmLc=";
@@ -42,23 +42,8 @@ export interface ImageKitUploadResult {
  * Preserves SVG vectors, animated GIFs, and non-image blobs.
  */
 async function optimizeImageForUpload(file: File): Promise<File> {
-  const skipTypes = ["image/gif", "image/svg+xml"];
-  if (skipTypes.includes(file.type) || !file.type.startsWith("image/")) {
-    return file;
-  }
-
-  try {
-    return await imageCompression(file, {
-      maxSizeMB: 1.5,
-      maxWidthOrHeight: 1920,
-      useWebWorker: true,
-      initialQuality: 0.82,
-      fileType: "image/webp",
-    });
-  } catch (error) {
-    console.warn("[ImageKit] Pre-upload compression warning, using original file:", error);
-    return file;
-  }
+  const result = await optimizeImageBeforeUpload(file);
+  return result.file;
 }
 
 /**
@@ -172,7 +157,7 @@ export async function uploadFileToImageKit(
     const fileName = `${Date.now()}_${cleanBaseName}.${ext}`;
 
     const result = await uploadToImageKit(processedFile, fileName, folder);
-    return { url: result.url, size: file.size };
+    return { url: result.url, size: processedFile.size };
   } catch (error) {
     console.error("[ImageKit] Document upload error:", error);
     return null;
