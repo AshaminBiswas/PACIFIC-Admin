@@ -1084,7 +1084,7 @@ export default function EditSalesQuotationPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="sm:col-span-3 space-y-1.5">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                          <label className={labelCls}>Product Model Selection &amp; Description *</label>
+                          <label className={labelCls}>Product Model Selection &amp; Description (Optional)</label>
                           <span className="text-[11px] text-[#7FB706] font-medium flex items-center gap-1">
                             <Sparkles className="w-3 h-3" /> Auto-fetches hardware list, sizes &amp; height
                           </span>
@@ -1095,7 +1095,7 @@ export default function EditSalesQuotationPage() {
                             onChange={(e) => handleSelectModel(primaryCubicleIdx, e.target.value)}
                             className={inputCls + ' bg-[#161536] border-[#7FB706]/40 font-semibold'}
                           >
-                            <option value="">-- Choose Product Model --</option>
+                            <option value="">-- Choose Product Model (Optional) --</option>
                             {cubicleModels.length > 0 && (
                               <optgroup label="Restroom Cubicles (13 Models)">
                                 {cubicleModels.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
@@ -1306,10 +1306,10 @@ export default function EditSalesQuotationPage() {
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-3 space-y-1.5">
-                          <label className={labelCls}>Product Model Selection &amp; Description *</label>
+                          <label className={labelCls}>Product Model Selection &amp; Description (Optional)</label>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             <select value={item.modelId || ''} onChange={(e) => handleSelectModel(realIdx, e.target.value)} className={inputCls + ' bg-[#161536] border-[#7FB706]/40 font-semibold'}>
-                              <option value="">-- Choose Product Model --</option>
+                              <option value="">-- Choose Product Model (Optional) --</option>
                               {cubicleModels.length > 0 && (
                                 <optgroup label="Restroom Cubicles">
                                   {cubicleModels.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}

@@ -21,6 +21,7 @@ import {
   Wrench,
   Copy,
   AlertTriangle,
+  Package,
 } from 'lucide-react';
 import { piApi } from '../api/proformaApi';
 import { crmApi } from '../api/crmApi';
@@ -41,6 +42,8 @@ import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP } from '../utils/ta
 
 const LOCAL_STORAGE_KEY = 'pacific_create_proforma_v3';
 
+export type PiScope = 'CUBICLE' | 'BOARD' | 'HARDWARE';
+
 export const DEFAULT_ACCESSORIES_TEXT =
   '• Gravity Hinges: Self-closing SS 304 stainless steel gravity hinges with nylon cam mechanism.\n• Indicator Lock: SS 304 surface-mounted privacy lock with external red/white occupancy indicator and emergency release.\n• Supporting Shoe/Legs: SS 304 adjustable height support legs (100mm to 150mm ground clearance).\n• Coat Hook: SS 304 heavy-duty coat hook with integrated rubber door buffer.\n• Fasteners: Grade 304 stainless steel tamper-proof screws and expanding anchors.';
 
@@ -48,7 +51,7 @@ export interface CreateItem {
   id?: string;
   modelId?: string;
   itemType?: 'cubicle' | 'hardware';
-  systemCategory?: 'cubicle' | 'ump' | 'locker';
+  systemCategory?: 'cubicle' | 'ump' | 'locker' | 'board' | 'hardware';
   isCustom?: boolean;
   parentModelId?: string;
   description: string;
@@ -92,6 +95,7 @@ export interface DeliveryAddressData {
 export interface CreateFormData {
   customerId: string;
   companyProfileId: string;
+  piScope?: PiScope;
   quotationId?: string;
   quotationRef?: string;
   placeOfSupply: string;
@@ -124,6 +128,7 @@ const DEFAULT_TERMS = [
 const INITIAL_FORM: CreateFormData = {
   customerId: '',
   companyProfileId: '',
+  piScope: 'CUBICLE',
   placeOfSupply: 'Delhi',
   placeOfSupplyStateCode: '07',
   reverseCharge: false,
@@ -439,6 +444,15 @@ export default function CreateProformaPage() {
       const quoteItems: CreateItem[] = [];
       const currentModels = catalogModels.length > 0 ? catalogModels : getMergedQuotationModels([]);
 
+      const importedScope: PiScope =
+        q.items?.[0]?.customSpecsJson?.quotationScope === 'BOARD' ||
+        (q.items && q.items.length > 0 && q.items.every((it: any) => it.systemCategory === 'board' || it.unit === 'SQFT' || it.unit === 'SQM' || it.description?.toLowerCase().includes('board')))
+          ? 'BOARD'
+          : q.items?.[0]?.customSpecsJson?.quotationScope === 'HARDWARE' ||
+            (q.items && q.items.length > 0 && q.items.every((it: any) => it.systemCategory === 'hardware' || it.itemType === 'hardware' || it.hsnSac === '8302'))
+          ? 'HARDWARE'
+          : 'CUBICLE';
+
       (q.items || []).forEach((it: any) => {
         const qty = Number(it.quantity) || 1;
         const matchedModel = findMatchingCatalogModel(currentModels, {
@@ -446,7 +460,35 @@ export default function CreateProformaPage() {
           description: it.description || it.itemDescription,
         });
 
-        if (matchedModel) {
+        if (importedScope === 'BOARD' || it.systemCategory === 'board') {
+          quoteItems.push({
+            itemType: 'cubicle',
+            systemCategory: 'board',
+            description: it.description || it.itemDescription || '12mm High Pressure Compact Laminate (HPL) Board Sheet',
+            hsnSac: it.hsnSac || it.hsnCode || '4823',
+            quantity: qty,
+            unit: it.unit || 'SQFT',
+            rate: Number(it.rate ?? it.unitPrice ?? 0),
+            gstRate: Number(it.gstRate || q.gstRate || 18),
+            boardType: it.boardType || 'HPL',
+            boardThickness: it.boardThickness || '12mm',
+            boardColor: it.boardColor || 'D.No. 123 – Oyster White',
+            cubicleSize: it.cubicleSize || '1220mm × 2440mm (4ft × 8ft)',
+          });
+        } else if (importedScope === 'HARDWARE' || it.systemCategory === 'hardware' || it.hsnSac === '8302') {
+          quoteItems.push({
+            itemType: 'hardware',
+            isCustom: true,
+            systemCategory: 'hardware',
+            description: it.description || it.itemDescription || 'SS 304 Restroom Hardware Fitting',
+            hsnSac: it.hsnSac || it.hsnCode || '8302',
+            quantity: qty,
+            unit: it.unit || 'SET',
+            rate: Number(it.rate ?? it.unitPrice ?? 0),
+            gstRate: Number(it.gstRate || q.gstRate || 18),
+            hardwarePackage: it.hardwarePackage || 'SS 304 Stainless Steel (Satin/Brushed)',
+          });
+        } else if (matchedModel) {
           const dims = extractModelDimensions(matchedModel);
           const sysCat: 'cubicle' | 'ump' | 'locker' =
             matchedModel.category === 'Urinal Partitions'
@@ -503,6 +545,7 @@ export default function CreateProformaPage() {
 
       setFormData((prev) => ({
         ...prev,
+        piScope: importedScope,
         customerId: q.customerId || prev.customerId,
         quotationId: q.id,
         quotationRef: q.referenceNumber,
@@ -555,7 +598,7 @@ export default function CreateProformaPage() {
   };
 
   const handleSelectModel = (idx: number, modelId: string) => {
-    if (!modelId) {
+    if (!modelId || modelId === 'custom') {
       handleItemChange(idx, 'modelId', '');
       return;
     }
@@ -828,6 +871,169 @@ export default function CreateProformaPage() {
     });
   };
 
+  const handleAddBoardItem = () => {
+    setFormData((f) => ({
+      ...f,
+      items: [
+        ...f.items,
+        {
+          itemType: 'cubicle',
+          systemCategory: 'board',
+          description: '12mm High Pressure Compact Laminate (HPL) Board Sheet',
+          hsnSac: '4823',
+          unit: 'SQFT',
+          quantity: 100,
+          rate: 185,
+          gstRate: 18,
+          boardType: 'HPL',
+          boardThickness: '12mm',
+          boardColor: 'D.No. 123 – Oyster White',
+          cubicleSize: '1220mm × 2440mm (4ft × 8ft)',
+        },
+      ],
+    }));
+  };
+
+  const handleAddHardwarePresetItem = (name: string, unit = 'SET', rate = 500, hsnSac = '8302') => {
+    setFormData((f) => ({
+      ...f,
+      items: [
+        ...f.items,
+        {
+          itemType: 'hardware',
+          isCustom: true,
+          systemCategory: 'hardware',
+          description: name,
+          hsnSac,
+          unit,
+          quantity: 1,
+          rate,
+          gstRate: 18,
+        },
+      ],
+    }));
+  };
+
+  const applyPiScopePreset = (scope: PiScope) => {
+    if (scope === 'BOARD') {
+      setFormData((f) => ({
+        ...f,
+        piScope: 'BOARD',
+        accessoriesText: '• Scope of Supply: Raw material compact laminate / HPL board sheets only.\n• Hardware Accessories: Not included in this invoice scope.',
+        items: [
+          {
+            itemType: 'cubicle',
+            systemCategory: 'board',
+            description: '12mm High Pressure Compact Laminate (HPL) Board Sheet',
+            hsnSac: '4823',
+            unit: 'SQFT',
+            quantity: 100,
+            rate: 185,
+            gstRate: 18,
+            boardType: 'HPL',
+            boardThickness: '12mm',
+            boardColor: 'D.No. 123 – Oyster White',
+            cubicleSize: '1220mm × 2440mm (4ft × 8ft)',
+          },
+        ],
+      }));
+    } else if (scope === 'HARDWARE') {
+      setFormData((f) => ({
+        ...f,
+        piScope: 'HARDWARE',
+        accessoriesText: '• Material: Grade 304 Stainless Steel Architectural Restroom Hardware.\n• Fasteners: Grade 304 stainless steel screws and wall anchors included.',
+        items: [
+          {
+            itemType: 'hardware',
+            isCustom: true,
+            systemCategory: 'hardware',
+            description: 'SS 304 Gravity Hinges (Self-Closing Pair with Nylon Cam Mechanism)',
+            hsnSac: '8302',
+            unit: 'PAIR',
+            quantity: 10,
+            rate: 450,
+            gstRate: 18,
+          },
+          {
+            itemType: 'hardware',
+            isCustom: true,
+            systemCategory: 'hardware',
+            description: 'SS 304 Occupancy Indicator Privacy Lock with Emergency Release',
+            hsnSac: '8302',
+            unit: 'SET',
+            quantity: 5,
+            rate: 650,
+            gstRate: 18,
+          },
+          {
+            itemType: 'hardware',
+            isCustom: true,
+            systemCategory: 'hardware',
+            description: 'SS 304 Adjustable Supporting Legs (100mm to 150mm Ground Clearance)',
+            hsnSac: '8302',
+            unit: 'NOS',
+            quantity: 10,
+            rate: 350,
+            gstRate: 18,
+          },
+          {
+            itemType: 'hardware',
+            isCustom: true,
+            systemCategory: 'hardware',
+            description: 'SS 304 Ergonomic Door Pull Handle / Knob',
+            hsnSac: '8302',
+            unit: 'NOS',
+            quantity: 5,
+            rate: 180,
+            gstRate: 18,
+          },
+          {
+            itemType: 'hardware',
+            isCustom: true,
+            systemCategory: 'hardware',
+            description: 'SS 304 Heavy Duty Coat Hook with Integrated Rubber Buffer Stop',
+            hsnSac: '8302',
+            unit: 'NOS',
+            quantity: 5,
+            rate: 120,
+            gstRate: 18,
+          },
+        ],
+      }));
+    } else {
+      setFormData((f) => {
+        const stdModel = catalogModels.find((m) => m.slug === 'std-delight' || m.id === 'std-delight') || catalogModels[0];
+        const defaultHw = stdModel ? extractModelHardwareItems(stdModel, 1) : [];
+        return {
+          ...f,
+          piScope: 'CUBICLE',
+          accessoriesText: DEFAULT_ACCESSORIES_TEXT,
+          items: [
+            {
+              modelId: stdModel?.id || 'std-delight',
+              itemType: 'cubicle',
+              systemCategory: 'cubicle',
+              description: stdModel ? `Pacific ${stdModel.title} (Cubicle)` : 'Pacific Restroom Cubicle System',
+              hsnSac: '9403',
+              unit: 'NOS',
+              quantity: 1,
+              rate: 18500,
+              gstRate: 18,
+              boardType: 'HPL',
+              boardThickness: '12mm',
+              boardColor: 'D.No. 123 – Oyster White',
+              cubicleSize: '1000mm W × 1500mm D',
+              doorSize: '600mm × 1785mm',
+              overallHeight: '1980mm (incl. 100mm ground clearance)',
+              hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
+            },
+            ...defaultHw.map((h) => ({ ...h, parentModelId: stdModel?.id || 'std-delight' })),
+          ],
+        };
+      });
+    }
+  };
+
   const handleAddCubicleItem = () => {
     const defaultHardware = 'SS 304 Stainless Steel (Satin/Brushed)';
     setFormData((f) => ({
@@ -873,7 +1079,15 @@ export default function CreateProformaPage() {
     }));
   };
 
-  const handleAddItem = handleAddCubicleItem;
+  const handleAddItem = () => {
+    if (formData.piScope === 'BOARD') {
+      handleAddBoardItem();
+    } else if (formData.piScope === 'HARDWARE') {
+      handleAddHardwareItem();
+    } else {
+      handleAddCubicleItem();
+    }
+  };
 
   const handleRemoveItem = (index: number) => {
     if (formData.items.length <= 1) {
@@ -1130,6 +1344,51 @@ export default function CreateProformaPage() {
           advancePaymentStatus: 'DRAFT',
         }}
       />
+
+      {/* ── Quick Scope & Boilerplate Presets ── */}
+      <div className="bg-[#121226] border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-[#7FB706]" /> Quick Presets:
+          </span>
+          <span className="text-xs text-gray-400">1-click boilerplate configurations</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => applyPiScopePreset('CUBICLE')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg min-h-[36px] transition cursor-pointer flex items-center gap-1.5 ${
+              (!formData.piScope || formData.piScope === 'CUBICLE')
+                ? 'bg-[#7FB706]/20 text-[#7FB706] border border-[#7FB706]/40'
+                : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" /> Standard Cubicle
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPiScopePreset('BOARD')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg min-h-[36px] transition cursor-pointer flex items-center gap-1.5 ${
+              formData.piScope === 'BOARD'
+                ? 'bg-[#7FB706]/20 text-[#7FB706] border border-[#7FB706]/40'
+                : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white'
+            }`}
+          >
+            <Package className="w-3.5 h-3.5" /> Board Only (HPL / HDF)
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPiScopePreset('HARDWARE')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg min-h-[36px] transition cursor-pointer flex items-center gap-1.5 ${
+              formData.piScope === 'HARDWARE'
+                ? 'bg-[#7FB706]/20 text-[#7FB706] border border-[#7FB706]/40'
+                : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white'
+            }`}
+          >
+            <Wrench className="w-3.5 h-3.5" /> Custom Hardware Only
+          </button>
+        </div>
+      </div>
 
       {/* ── Card 1: Client Master & Company Profile Selector ────── */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
@@ -1661,35 +1920,502 @@ export default function CreateProformaPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-2">
           <div>
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Layers className="w-4 h-4 text-[#7FB706]" /> Line Items (Cubicles &amp; Individual Hardware)
+              <Layers className="w-4 h-4 text-[#7FB706]" /> Line Items &amp; Specifications
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">
-              Select cubicle models to auto-generate hardware lists, or add custom hardware with individual rates and units.
+              Select cubicle models to auto-generate hardware lists, or create invoices for raw board sheets or custom hardware only.
             </p>
             {fieldErrors.items && (
               <p className="text-xs text-red-400 mt-0.5">{fieldErrors.items}</p>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleAddCubicleItem}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] rounded-lg text-xs font-bold cursor-pointer transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add Cubicle Model
-            </button>
-            <button
-              type="button"
-              onClick={handleAddHardwareItem}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg text-xs font-bold cursor-pointer transition-colors"
-            >
-              <Wrench className="w-3.5 h-3.5" /> Add Custom Hardware
-            </button>
+            {formData.piScope === 'BOARD' ? (
+              <button
+                type="button"
+                onClick={handleAddBoardItem}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Board Sheet
+              </button>
+            ) : formData.piScope === 'HARDWARE' ? (
+              <button
+                type="button"
+                onClick={handleAddHardwareItem}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Hardware Item
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={handleAddCubicleItem}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Cubicle Model
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddHardwareItem}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                >
+                  <Wrench className="w-3.5 h-3.5" /> Add Custom Hardware
+                </button>
+              </>
+            )}
           </div>
         </div>
 
+        {/* 3-Way Mode / Scope Selector */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 bg-[#0a0a1a] rounded-xl border border-white/10">
+          <button
+            type="button"
+            onClick={() => {
+              if (formData.piScope !== 'CUBICLE') {
+                if (window.confirm('Switch Proforma Invoice mode to Restroom Cubicle System?')) {
+                  applyPiScopePreset('CUBICLE');
+                }
+              }
+            }}
+            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+              (!formData.piScope || formData.piScope === 'CUBICLE')
+                ? 'bg-[#7FB706] text-black shadow-md'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Layers className="w-4 h-4" /> Restroom Cubicle System
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (formData.piScope !== 'BOARD') {
+                if (window.confirm('Switch Proforma Invoice mode to Board Only (HPL/HDF)? This will configure items for raw board sheet supply.')) {
+                  applyPiScopePreset('BOARD');
+                }
+              }
+            }}
+            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+              formData.piScope === 'BOARD'
+                ? 'bg-[#7FB706] text-black shadow-md'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Package className="w-4 h-4" /> Board Only (HPL / HDF)
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (formData.piScope !== 'HARDWARE') {
+                if (window.confirm('Switch Proforma Invoice mode to Custom Hardware Only? This will configure items for hardware fittings supply.')) {
+                  applyPiScopePreset('HARDWARE');
+                }
+              }
+            }}
+            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+              formData.piScope === 'HARDWARE'
+                ? 'bg-[#7FB706] text-black shadow-md'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Wrench className="w-4 h-4" /> Custom Hardware Only
+          </button>
+        </div>
+
+        {formData.items.length === 0 && (
+          <div className="text-center py-6 text-gray-500 text-sm">
+            No line items yet. Click &quot;Add Item&quot; to configure proforma invoice items.
+          </div>
+        )}
+
         <div className="space-y-5">
-          {(() => {
+          {formData.piScope === 'BOARD' ? (
+            <div className="space-y-4">
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-300">
+                <span className="flex items-center gap-2 font-medium">
+                  <Package className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  <span><strong>Board Supply Mode Active:</strong> Proforma Invoice for raw compact laminate / HDF sheets only. Cubicle model is not required.</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleAddBoardItem}
+                  className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg font-semibold flex items-center gap-1 cursor-pointer transition self-start sm:self-auto"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Board Sheet
+                </button>
+              </div>
+
+              {formData.items.map((item, idx) => {
+                const lineTotal = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
+                return (
+                  <div key={idx} className="bg-[#0a0a1a] border border-amber-500/30 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-amber-400">Board Item #{idx + 1}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                          <Package className="w-3 h-3 text-amber-400" /> Raw Board Supply
+                        </span>
+                      </div>
+                      {formData.items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(idx)}
+                          className="p-1 text-red-400 hover:text-red-300 cursor-pointer transition-colors"
+                          title="Remove Board Item"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                      <div className="sm:col-span-6 space-y-1">
+                        <label className={labelCls}>Board Description *</label>
+                        <input
+                          type="text"
+                          value={item.description}
+                          onChange={(e) => {
+                            handleItemChange(idx, 'description', e.target.value);
+                            clearFieldError(`item_${idx}_desc`);
+                          }}
+                          placeholder="e.g. 12mm High Pressure Compact Laminate (HPL) Board Sheet"
+                          className={getInputCls(`item_${idx}_desc`)}
+                          required
+                        />
+                        {fieldErrors[`item_${idx}_desc`] && (
+                          <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_desc`]}</p>
+                        )}
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className={labelCls}>Board Type *</label>
+                        <select
+                          value={item.boardType || 'HPL'}
+                          onChange={(e) => handleItemChange(idx, 'boardType', e.target.value)}
+                          className={inputCls}
+                        >
+                          <option value="HPL">HPL (Compact Laminate)</option>
+                          <option value="HDF">HDF (High Density Board)</option>
+                          <option value="WOODEN">Wooden Core Panel</option>
+                        </select>
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className={labelCls}>Thickness</label>
+                        <input
+                          type="text"
+                          value={item.boardThickness || ''}
+                          onChange={(e) => handleItemChange(idx, 'boardThickness', e.target.value)}
+                          placeholder="e.g. 12mm"
+                          className={inputCls}
+                        />
+                        <div className="flex gap-1 pt-0.5">
+                          {['12mm', '18mm', '25mm'].map((th) => (
+                            <button
+                              key={th}
+                              type="button"
+                              onClick={() => handleItemChange(idx, 'boardThickness', th)}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition cursor-pointer"
+                            >
+                              {th}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className={labelCls}>Color / Shade Code</label>
+                        <input
+                          type="text"
+                          value={item.boardColor || ''}
+                          onChange={(e) => handleItemChange(idx, 'boardColor', e.target.value)}
+                          placeholder="e.g. D.No. 123 – Oyster White"
+                          className={inputCls}
+                        />
+                      </div>
+
+                      <div className="sm:col-span-4 space-y-1">
+                        <label className={labelCls}>Sheet Dimensions / Size</label>
+                        <input
+                          type="text"
+                          value={item.cubicleSize || ''}
+                          onChange={(e) => handleItemChange(idx, 'cubicleSize', e.target.value)}
+                          placeholder="e.g. 1220mm × 2440mm (4ft × 8ft)"
+                          className={inputCls}
+                        />
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {[
+                            { label: '4ft × 8ft', val: '1220mm × 2440mm (4ft × 8ft)' },
+                            { label: '6ft × 6ft', val: '1830mm × 1830mm (6ft × 6ft)' },
+                            { label: '6ft × 9ft', val: '1830mm × 2740mm (6ft × 9ft)' },
+                          ].map((preset) => (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => handleItemChange(idx, 'cubicleSize', preset.val)}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition cursor-pointer"
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className={labelCls}>HSN / SAC</label>
+                        <input
+                          type="text"
+                          value={item.hsnSac || '4823'}
+                          onChange={(e) => handleItemChange(idx, 'hsnSac', e.target.value)}
+                          className={inputCls + ' font-mono'}
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className={labelCls}>Unit</label>
+                        <select
+                          value={item.unit || 'SQFT'}
+                          onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                          className={inputCls}
+                        >
+                          {['SQFT', 'SQM', 'NOS', 'SHEET', 'LOT'].map((u) => (
+                            <option key={u} value={u}>{u}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className={labelCls}>Quantity *</label>
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={item.quantity}
+                          onChange={(e) => {
+                            handleItemChange(idx, 'quantity', Number(e.target.value) || 0);
+                            clearFieldError(`item_${idx}_qty`);
+                          }}
+                          className={getInputCls(`item_${idx}_qty`)}
+                          required
+                        />
+                        {fieldErrors[`item_${idx}_qty`] && (
+                          <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_qty`]}</p>
+                        )}
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className={labelCls}>Rate (₹) *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.rate}
+                          onChange={(e) => {
+                            handleItemChange(idx, 'rate', Number(e.target.value) || 0);
+                            clearFieldError(`item_${idx}_rate`);
+                          }}
+                          className={getInputCls(`item_${idx}_rate`)}
+                          required
+                        />
+                        {fieldErrors[`item_${idx}_rate`] && (
+                          <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_rate`]}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-right text-xs text-gray-400 font-mono pt-1 border-t border-white/5">
+                      Line Total: <span className="font-bold text-white text-sm">
+                        ₹ {lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={handleAddBoardItem}
+                className="w-full py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-dashed border-amber-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Add Another Board Line Item
+              </button>
+            </div>
+          ) : formData.piScope === 'HARDWARE' ? (
+            <div className="space-y-4">
+              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-cyan-300">
+                <span className="flex items-center gap-2 font-medium">
+                  <Wrench className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                  <span><strong>Custom Hardware Only Mode Active:</strong> Proforma Invoice for individual restroom cubicle hardware fittings. Cubicle model is not required.</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleAddHardwareItem}
+                  className="px-3 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded-lg font-semibold flex items-center gap-1 cursor-pointer transition self-start sm:self-auto"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Hardware Item
+                </button>
+              </div>
+
+              {/* Quick Insert Hardware Chips */}
+              <div className="flex flex-wrap items-center gap-1.5 p-2.5 rounded-xl bg-[#0a0a1a] border border-white/5">
+                <span className="text-[11px] text-gray-400 mr-1 flex items-center gap-1 font-semibold">
+                  <Sparkles className="w-3 h-3 text-cyan-400" /> Quick Add:
+                </span>
+                {[
+                  { name: 'SS 304 Gravity Hinges (Pair)', unit: 'PAIR', rate: 450 },
+                  { name: 'SS 304 Occupancy Indicator Lock with Release', unit: 'SET', rate: 650 },
+                  { name: 'SS 304 Adjustable Supporting Legs (100-150mm)', unit: 'NOS', rate: 350 },
+                  { name: 'SS 304 Door Pull Handle / Knob', unit: 'NOS', rate: 180 },
+                  { name: 'SS 304 Heavy Duty Coat Hook with Buffer', unit: 'NOS', rate: 120 },
+                  { name: 'Continuous Top Headrail Extrusion (Mtr)', unit: 'MTR', rate: 550 },
+                  { name: 'SS 304 Wall U-Channels Extrusion (Mtr)', unit: 'MTR', rate: 320 },
+                  { name: 'Grade 304 Stainless Fastener & Anchor Pack', unit: 'SET', rate: 250 },
+                ].map((chip) => (
+                  <button
+                    key={chip.name}
+                    type="button"
+                    onClick={() => handleAddHardwarePresetItem(chip.name, chip.unit, chip.rate)}
+                    className="text-[11px] px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 transition cursor-pointer flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> {chip.name}
+                  </button>
+                ))}
+              </div>
+
+              {formData.items.map((item, idx) => {
+                const lineTotal = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
+                return (
+                  <div key={idx} className="bg-[#0a0a1a] border border-cyan-500/30 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-cyan-400">Hardware Item #{idx + 1}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                          <Wrench className="w-3 h-3 text-cyan-400" /> Custom Hardware Fitting
+                        </span>
+                      </div>
+                      {formData.items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(idx)}
+                          className="p-1 text-red-400 hover:text-red-300 cursor-pointer transition-colors"
+                          title="Remove Hardware Item"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                      <div className="sm:col-span-5 space-y-1">
+                        <label className={labelCls}>Hardware Description / Name *</label>
+                        <input
+                          type="text"
+                          value={item.description}
+                          onChange={(e) => {
+                            handleItemChange(idx, 'description', e.target.value);
+                            clearFieldError(`item_${idx}_desc`);
+                          }}
+                          placeholder="e.g. SS 304 Gravity Hinges (Self-Closing Pair)"
+                          className={getInputCls(`item_${idx}_desc`)}
+                          required
+                        />
+                        {fieldErrors[`item_${idx}_desc`] && (
+                          <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_desc`]}</p>
+                        )}
+                      </div>
+
+                      <div className="sm:col-span-3 space-y-1">
+                        <label className={labelCls}>Material / Finish / Specs</label>
+                        <input
+                          type="text"
+                          value={item.hardwarePackage || ''}
+                          onChange={(e) => handleItemChange(idx, 'hardwarePackage', e.target.value)}
+                          placeholder="e.g. Grade 304 Stainless Steel (Satin Finish)"
+                          className={inputCls}
+                        />
+                      </div>
+
+                      <div className="sm:col-span-1 space-y-1">
+                        <label className={labelCls}>HSN / SAC</label>
+                        <input
+                          type="text"
+                          value={item.hsnSac || '8302'}
+                          onChange={(e) => handleItemChange(idx, 'hsnSac', e.target.value)}
+                          className={inputCls + ' font-mono text-xs'}
+                        />
+                      </div>
+
+                      <div className="sm:col-span-1 space-y-1">
+                        <label className={labelCls}>Unit</label>
+                        <select
+                          value={item.unit || 'SET'}
+                          onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                          className={inputCls}
+                        >
+                          {['SET', 'PAIR', 'NOS', 'PCS', 'MTR', 'RMT', 'LOT'].map((u) => (
+                            <option key={u} value={u}>{u}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="sm:col-span-1 space-y-1">
+                        <label className={labelCls}>Qty *</label>
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={item.quantity}
+                          onChange={(e) => {
+                            handleItemChange(idx, 'quantity', Number(e.target.value) || 0);
+                            clearFieldError(`item_${idx}_qty`);
+                          }}
+                          className={getInputCls(`item_${idx}_qty`)}
+                          required
+                        />
+                        {fieldErrors[`item_${idx}_qty`] && (
+                          <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_qty`]}</p>
+                        )}
+                      </div>
+
+                      <div className="sm:col-span-1 space-y-1">
+                        <label className={labelCls}>Rate (₹) *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.rate}
+                          onChange={(e) => {
+                            handleItemChange(idx, 'rate', Number(e.target.value) || 0);
+                            clearFieldError(`item_${idx}_rate`);
+                          }}
+                          className={getInputCls(`item_${idx}_rate`)}
+                          required
+                        />
+                        {fieldErrors[`item_${idx}_rate`] && (
+                          <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_rate`]}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-right text-xs text-gray-400 font-mono pt-1 border-t border-white/5">
+                      Line Total: <span className="font-bold text-white text-sm">
+                        ₹ {lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={handleAddHardwareItem}
+                className="w-full py-2.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-dashed border-cyan-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Add Another Hardware Item
+              </button>
+            </div>
+          ) : (
+            (() => {
             const primaryCubicleItem = formData.items.find(
               (it) => it.itemType !== 'hardware' && it.systemCategory !== 'ump' && it.systemCategory !== 'locker'
             ) || formData.items[0];
@@ -1729,20 +2455,27 @@ export default function CreateProformaPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="sm:col-span-3 space-y-1.5">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                          <label className={labelCls}>Cubicle Model Selection &amp; Description *</label>
+                          <label className={labelCls}>Cubicle Model Selection &amp; Description (Optional)</label>
                           <span className="text-[11px] text-[#7FB706] font-medium flex items-center gap-1">
                             <Sparkles className="w-3 h-3" /> Auto-generates hinges, locks, hooks, legs &amp; channels
                           </span>
                         </div>
 
-                        <div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <select
                             value={primaryCubicleItem.modelId || ''}
-                            onChange={(e) => handleSelectModel(primaryCubicleIdx, e.target.value)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === 'custom') {
+                                handleItemChange(primaryCubicleIdx, 'modelId', '');
+                              } else {
+                                handleSelectModel(primaryCubicleIdx, val);
+                              }
+                            }}
                             className="w-full bg-[#161536] border border-[#7FB706]/40 rounded-xl px-3 py-2.5 text-white font-semibold text-xs focus:border-[#7FB706] focus:outline-none"
-                            required
                           >
-                            <option value="">-- Choose Cubicle Model --</option>
+                            <option value="">-- Choose Cubicle Model (Optional) --</option>
+                            <option value="custom">-- Custom / Manual Specification (No Model) --</option>
                             {cubicleModels.length > 0 && (
                               <optgroup label="Restroom Cubicles (13 Models)">
                                 {cubicleModels.map((m) => (
@@ -1753,13 +2486,19 @@ export default function CreateProformaPage() {
                               </optgroup>
                             )}
                           </select>
+
+                          <input
+                            type="text"
+                            value={primaryCubicleItem.description}
+                            onChange={(e) => {
+                              handleItemChange(primaryCubicleIdx, 'description', e.target.value);
+                              clearFieldError(`item_${primaryCubicleIdx}_desc`);
+                            }}
+                            placeholder="Cubicle specification or system description"
+                            className={getInputCls(`item_${primaryCubicleIdx}_desc`)}
+                            required
+                          />
                         </div>
-                        {primaryCubicleItem.description && (
-                          <div className="text-[11px] text-gray-400 font-medium px-1 flex items-center gap-1.5">
-                            <span className="text-gray-500">Selected Model:</span>
-                            <span className="text-white font-semibold">{primaryCubicleItem.description}</span>
-                          </div>
-                        )}
                         {fieldErrors[`item_${primaryCubicleIdx}_desc`] && (
                           <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${primaryCubicleIdx}_desc`]}</p>
                         )}
@@ -2306,26 +3045,45 @@ export default function CreateProformaPage() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-3 space-y-1.5">
-                          <label className={labelCls}>Product Model Selection &amp; Description *</label>
-                          <select
-                            value={item.modelId || ''}
-                            onChange={(e) => handleSelectModel(realIdx, e.target.value)}
-                            className="w-full bg-[#161536] border border-[#7FB706]/40 rounded-xl px-3 py-2.5 text-white font-semibold text-xs focus:border-[#7FB706] focus:outline-none"
-                            required
-                          >
-                            <option value="">-- Choose Product Model --</option>
-                            <optgroup label="Restroom Cubicles">
-                              {cubicleModels.map((m) => (
-                                <option key={m.id} value={m.id}>
-                                  {m.title}
-                                </option>
-                              ))}
-                            </optgroup>
-                          </select>
-                          {item.description && (
-                            <div className="text-[11px] text-gray-400 font-medium px-1">
-                              Selected: <strong className="text-white">{item.description}</strong>
-                            </div>
+                          <label className={labelCls}>Product Model Selection &amp; Description (Optional)</label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <select
+                              value={item.modelId || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === 'custom') {
+                                  handleItemChange(realIdx, 'modelId', '');
+                                } else {
+                                  handleSelectModel(realIdx, val);
+                                }
+                              }}
+                              className="w-full bg-[#161536] border border-[#7FB706]/40 rounded-xl px-3 py-2.5 text-white font-semibold text-xs focus:border-[#7FB706] focus:outline-none"
+                            >
+                              <option value="">-- Choose Product Model (Optional) --</option>
+                              <option value="custom">-- Custom / Manual Specification (No Model) --</option>
+                              <optgroup label="Restroom Cubicles">
+                                {cubicleModels.map((m) => (
+                                  <option key={m.id} value={m.id}>
+                                    {m.title}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            </select>
+
+                            <input
+                              type="text"
+                              value={item.description}
+                              onChange={(e) => {
+                                handleItemChange(realIdx, 'description', e.target.value);
+                                clearFieldError(`item_${realIdx}_desc`);
+                              }}
+                              placeholder="Cubicle specification or system description"
+                              className={getInputCls(`item_${realIdx}_desc`)}
+                              required
+                            />
+                          </div>
+                          {fieldErrors[`item_${realIdx}_desc`] && (
+                            <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${realIdx}_desc`]}</p>
                           )}
                         </div>
 
@@ -2519,7 +3277,7 @@ export default function CreateProformaPage() {
                 )}
               </>
             );
-          })()}
+          })())}
         </div>
       </div>
 

@@ -2451,6 +2451,61 @@ When `usersService.createUser()` was called from `POST /api/v1/users`, the gener
 - **Frontend TypeScript Check**: `npx tsc --noEmit` → exit 0.
 - **Frontend Production Build**: `npm run build` → exit 0.
 
+---
+
+## 37. Board Only & Custom Hardware Only Scope Architecture & Optional Cubicle Models
+
+### 1. Requirements & Overview
+1. **Board Only Supply Mode**: Quotations and Proforma Invoices can now be created strictly for raw board material (HPL, HDF, Wooden core panels) without forcing cubicle models or extraneous hardware packages.
+2. **Custom Hardware Only Supply Mode**: Quotations and Proforma Invoices can now be created strictly for individual architectural restroom cubicle hardware components and accessories (gravity hinges, occupancy locks, supporting legs, coat hooks, headrails, U-channels, fasteners).
+3. **Optional Cubicle Model Selection**: In full Restroom Cubicle System mode, selecting a catalog product model is now completely optional across both creation and editing flows. Users can quote or invoice custom or non-standard cubicle configurations with custom specifications without being blocked by HTML5 or validation constraints.
+
+### 2. Architecture & File Changes
+- **`src/pages/DraftQuotationPage.tsx`**:
+  - Added `QuotationScope` (`'CUBICLE' | 'BOARD' | 'HARDWARE'`) stored in form state and persisted in `customSpecsJson.quotationScope`.
+  - Added 1-click Scope Presets: "Board Only (HPL / HDF)" and "Custom Hardware Only" in the boilerplate presets bar.
+  - Section 4 incorporates an interactive 3-way Scope Selector with smooth switching.
+  - **Board Only Mode**: Specialized line item builder with Board Description, Type (HPL, HDF, Wooden), Thickness (12mm, 18mm, 25mm quick chips), Decor color code, Sheet Dimensions (4x8ft, 6x6ft, 6x9ft quick chips), Unit (`SQFT`, `SQM`, `NOS`, `SHEET`), Qty, Rate, and Line Total.
+  - **Custom Hardware Only Mode**: Specialized line item builder with Hardware Description, Material/Finish, HSN/SAC, Unit (`SET`, `PAIR`, `NOS`, etc.), Qty, Rate, and Quick Add chips for common hardware fittings.
+  - **Restroom Cubicle Mode**: Removed `required` constraint on Cubicle Model select; added `-- Choose Cubicle Model (Optional) --` and `-- Custom / Manual Specification (No Model) --` with custom description input.
+- **`src/pages/CreateProformaPage.tsx`**:
+  - Added `PiScope` (`'CUBICLE' | 'BOARD' | 'HARDWARE'`) to `CreateFormData`.
+  - Added 1-click Scope Presets bar above Card 1 and 3-way Scope Selector inside Card 4.
+  - Automatic Quotation Scope detection in `handleImportQuotation`: imports board-only and hardware-only quotation items seamlessly into the proforma invoice.
+  - Dedicated Board Only and Custom Hardware Only item builders with quick chips and live calculations.
+  - Made cubicle model dropdown explicitly optional in Section 1 (Primary System) and Section 4 (Additional Systems), removing `required` and adding custom description input.
+- **`src/pages/EditProformaInvoicePage.tsx`**:
+  - Updated `handleSelectModel` to handle custom/empty model IDs gracefully.
+  - Removed `required` on primary cubicle model and additional systems; added `-- Choose Cubicle Model (Optional) --` and manual description inputs.
+- **`src/pages/EditSalesQuotationPage.tsx`**:
+  - Clarified model dropdown labels and options to `-- Choose Product Model (Optional) --` across primary and additional systems.
+
+### 3. Verification & Compliance
+- **Zero TypeScript Errors**: `npx tsc --noEmit` exited with code 0.
+- **Production Build**: `npm run build` exited with code 0.
+
+---
+
+## 38. PDF Clean-up: Removal of "Verify Document" Label
+
+### 1. Requirements & Overview
+- User requested removal of the `"Verify Document"` text line from all generated PDF documents (Quotations, Proforma Invoices, Sales Orders, etc.).
+
+### 2. Architecture & File Changes
+- **`PACIFIC-Backend/src/modules/pdf/pdf.service.ts`**:
+  - **`generatePiHtml`** (Proforma Invoices): Removed the `<div style="font-size: 8px; text-transform: uppercase; margin-top: 2px; font-weight: bold; letter-spacing: 0.3px;">Verify Document</div>` caption from under the QR verification code.
+  - **`generateQuotationPdfHtml`** (Sales Quotation Letters): Removed the `<div style="font-size: 8px; text-transform: uppercase; margin-top: 2px; font-weight: bold;">Verify Document</div>` caption from under the QR verification code.
+  - **`generateSalesOrderPdfHtml`** (Sales Orders): Removed the `<div style="font-size: 8px; text-transform: uppercase; margin-top: 2px;">Verify Document</div>` caption from under the QR verification code.
+  - Recompiled backend (`npx tsc`) updating `dist/modules/pdf/pdf.service.js`.
+
+### 3. Verification & Compliance
+- **Backend Typecheck**: `npx tsc --noEmit` in `PACIFIC-Backend` exited with code 0.
+- **Backend Compilation**: `npx tsc` in `PACIFIC-Backend` exited with code 0.
+- **Admin Console Typecheck**: `npx tsc --noEmit` in `PACIFIC-Admin` exited with code 0.
+- **Search Verification**: `git grep -i "Verify Document"` returned 0 occurrences across both codebases.
+
+
+
 
 
 

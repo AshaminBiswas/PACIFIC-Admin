@@ -425,7 +425,7 @@ export default function EditProformaInvoicePage() {
   };
 
   const handleSelectModel = (idx: number, modelId: string) => {
-    if (!modelId) {
+    if (!modelId || modelId === 'custom') {
       handleItemChange(idx, 'modelId', '');
       return;
     }
@@ -1482,20 +1482,20 @@ export default function EditProformaInvoicePage() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="sm:col-span-3 space-y-1.5">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                          <label className={labelCls}>Cubicle Model Selection &amp; Description *</label>
+                          <label className={labelCls}>Cubicle Model Selection &amp; Description (Optional)</label>
                           <span className="text-[11px] text-[#7FB706] font-medium flex items-center gap-1">
                             <Sparkles className="w-3 h-3" /> Auto-generates hinges, locks, hooks, legs &amp; channels
                           </span>
                         </div>
 
-                        <div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <select
                             value={primaryCubicleItem.modelId || ''}
                             onChange={(e) => handleSelectModel(primaryCubicleIdx, e.target.value)}
                             className="w-full bg-[#161536] border border-[#7FB706]/40 rounded-xl px-3 py-2.5 text-white font-semibold text-xs focus:border-[#7FB706] focus:outline-none"
-                            required
                           >
-                            <option value="">-- Choose Cubicle Model --</option>
+                            <option value="">-- Choose Cubicle Model (Optional) --</option>
+                            <option value="custom">-- Custom / Manual Specification (No Model) --</option>
                             {cubicleModels.length > 0 && (
                               <optgroup label="Restroom Cubicles (13 Models)">
                                 {cubicleModels.map((m) => (
@@ -1509,13 +1509,19 @@ export default function EditProformaInvoicePage() {
                               <option value={primaryCubicleItem.modelId}>{primaryCubicleItem.description || primaryCubicleItem.modelId}</option>
                             )}
                           </select>
+
+                          <input
+                            type="text"
+                            value={primaryCubicleItem.description}
+                            onChange={(e) => {
+                              handleItemChange(primaryCubicleIdx, 'description', e.target.value);
+                              clearFieldError(`item_${primaryCubicleIdx}_desc`);
+                            }}
+                            placeholder="Cubicle specification or system description"
+                            className={getInputCls(`item_${primaryCubicleIdx}_desc`)}
+                            required
+                          />
                         </div>
-                        {primaryCubicleItem.description && (
-                          <div className="text-[11px] text-gray-400 font-medium px-1 flex items-center gap-1.5">
-                            <span className="text-gray-500">Selected Model:</span>
-                            <span className="text-white font-semibold">{primaryCubicleItem.description}</span>
-                          </div>
-                        )}
                         {fieldErrors[`item_${primaryCubicleIdx}_desc`] && (
                           <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${primaryCubicleIdx}_desc`]}</p>
                         )}
@@ -2062,26 +2068,38 @@ export default function EditProformaInvoicePage() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-3 space-y-1.5">
-                          <label className={labelCls}>Product Model Selection &amp; Description *</label>
-                          <select
-                            value={item.modelId || ''}
-                            onChange={(e) => handleSelectModel(realIdx, e.target.value)}
-                            className="w-full bg-[#161536] border border-[#7FB706]/40 rounded-xl px-3 py-2.5 text-white font-semibold text-xs focus:border-[#7FB706] focus:outline-none"
-                            required
-                          >
-                            <option value="">-- Choose Product Model --</option>
-                            <optgroup label="Restroom Cubicles">
-                              {cubicleModels.map((m) => (
-                                <option key={m.id} value={m.id}>
-                                  {m.title}
-                                </option>
-                              ))}
-                            </optgroup>
-                          </select>
-                          {item.description && (
-                            <div className="text-[11px] text-gray-400 font-medium px-1">
-                              Selected: <strong className="text-white">{item.description}</strong>
-                            </div>
+                          <label className={labelCls}>Product Model Selection &amp; Description (Optional)</label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <select
+                              value={item.modelId || ''}
+                              onChange={(e) => handleSelectModel(realIdx, e.target.value)}
+                              className="w-full bg-[#161536] border border-[#7FB706]/40 rounded-xl px-3 py-2.5 text-white font-semibold text-xs focus:border-[#7FB706] focus:outline-none"
+                            >
+                              <option value="">-- Choose Product Model (Optional) --</option>
+                              <option value="custom">-- Custom / Manual Specification (No Model) --</option>
+                              <optgroup label="Restroom Cubicles">
+                                {cubicleModels.map((m) => (
+                                  <option key={m.id} value={m.id}>
+                                    {m.title}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            </select>
+
+                            <input
+                              type="text"
+                              value={item.description}
+                              onChange={(e) => {
+                                handleItemChange(realIdx, 'description', e.target.value);
+                                clearFieldError(`item_${realIdx}_desc`);
+                              }}
+                              placeholder="Cubicle specification or system description"
+                              className={getInputCls(`item_${realIdx}_desc`)}
+                              required
+                            />
+                          </div>
+                          {fieldErrors[`item_${realIdx}_desc`] && (
+                            <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${realIdx}_desc`]}</p>
                           )}
                         </div>
 
