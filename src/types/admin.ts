@@ -512,6 +512,7 @@ export interface ProformaInvoiceItem {
   sgst: number;
   igst: number;
   totalAmount: number;
+  make?: string;
 }
 
 export interface ProformaInvoiceTaxSummary {
@@ -1108,6 +1109,7 @@ export interface SalesQuotationItem {
   doorSize?: string;
   overallHeight?: string;
   hardwarePackage?: string;
+  make?: string;
   customSpecsJson?: any;
 }
 
@@ -1274,6 +1276,7 @@ export interface SalesOrderItem {
   doorSize?: string;
   overallHeight?: string;
   hardwarePackage?: string;
+  make?: string;
   specsJson?: any;
 }
 

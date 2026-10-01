@@ -30,6 +30,7 @@ interface EditItem {
   doorSize?: string;
   overallHeight?: string;
   hardwarePackage?: string;
+  make?: string;
   customSpecsJson?: any;
 }
 
@@ -198,6 +199,7 @@ export default function EditSalesQuotationPage() {
             doorSize: it.doorSize || '',
             overallHeight: it.overallHeight || '',
             hardwarePackage: it.hardwarePackage || it.customSpecsJson?.hardwarePackage || '',
+            make: it.make || it.customSpecsJson?.make || 'Pacific',
             systemCategory: (it.customSpecsJson?.systemCategory) ||
               (it.description && it.description.toLowerCase().includes('locker') ? 'locker' :
                it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump')) ? 'ump' : 'cubicle'),
@@ -381,6 +383,7 @@ export default function EditSalesQuotationPage() {
         boardThickness: dims.boardThickness,
         boardType: dims.boardType,
         hardwarePackage: dims.hardwarePackage,
+        make: dims.make || nextItems[idx].make || 'Pacific',
       };
 
       // Auto-fetch and replace "Standard Inclusions & Hardware Accessories *"
@@ -646,10 +649,12 @@ export default function EditSalesQuotationPage() {
           doorSize: it.doorSize || undefined,
           overallHeight: it.overallHeight || undefined,
           hardwarePackage: it.hardwarePackage || undefined,
+          make: it.make || undefined,
           customSpecsJson: {
             ...(typeof (it as any).customSpecsJson === 'object' ? (it as any).customSpecsJson : {}),
             hardwarePackage: it.hardwarePackage || undefined,
             boardType: it.boardType || 'HPL',
+            make: it.make || undefined,
           },
         })),
         validUntil: form.validUntil || undefined,
@@ -1296,6 +1301,35 @@ export default function EditSalesQuotationPage() {
                         <div><label className={labelCls}>Cubicle Size</label><input type="text" value={primaryCubicleItem.cubicleSize || ''} onChange={(e) => handleItemChange(primaryCubicleIdx, 'cubicleSize', e.target.value)} placeholder="e.g. 1000mm W × 1500mm D" className={inputCls} /></div>
                         <div><label className={labelCls}>Door Size</label><input type="text" value={primaryCubicleItem.doorSize || ''} onChange={(e) => handleItemChange(primaryCubicleIdx, 'doorSize', e.target.value)} placeholder="e.g. 600mm × 1785mm" className={inputCls} /></div>
                         <div><label className={labelCls}>Overall Height</label><input type="text" value={primaryCubicleItem.overallHeight || ''} onChange={(e) => handleItemChange(primaryCubicleIdx, 'overallHeight', e.target.value)} placeholder="e.g. 1980mm (incl. 100mm ground clearance)" className={inputCls} /></div>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className={labelCls}>Make</label>
+                            <span className="text-[10px] text-gray-400 font-normal">Type or pick preset</span>
+                          </div>
+                          <input
+                            type="text"
+                            value={primaryCubicleItem.make ?? 'Pacific'}
+                            onChange={(e) => handleItemChange(primaryCubicleIdx, 'make', e.target.value)}
+                            placeholder="e.g. Pacific / Greenlam / Merino"
+                            className={inputCls}
+                          />
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {['Pacific', 'Greenlam', 'Merino', 'Stylam', 'Formica'].map((preset) => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => handleItemChange(primaryCubicleIdx, 'make', preset)}
+                                className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                                  (primaryCubicleItem.make ?? 'Pacific') === preset
+                                    ? 'bg-[#7FB706]/20 border-[#7FB706] text-[#7FB706] font-medium'
+                                    : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                                }`}
+                              >
+                                {preset}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
 

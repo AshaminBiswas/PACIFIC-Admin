@@ -84,6 +84,7 @@ interface QuotationDetail {
     boardThickness?: string;
     doorSize?: string;
     overallHeight?: string;
+    make?: string;
   }>;
   revisions?: Array<{ id: string; revisionNumber: number; reason?: string; createdAt?: string }>;
   convertedOrderId?: string;
@@ -744,8 +745,9 @@ export default function SalesQuotationDetailPage() {
                       <td className="py-3 px-4 text-center font-mono text-gray-400">{item.serialNumber ?? idx + 1}</td>
                       <td className="py-3 px-4">
                         <div className="font-medium text-white">{desc}</div>
-                        {(item.cubicleSize || item.boardThickness || item.boardColor || item.doorSize || item.overallHeight) && (
+                        {(item.cubicleSize || item.boardThickness || item.boardColor || item.doorSize || item.overallHeight || item.make) && (
                           <div className="mt-1 text-[11px] text-gray-500 space-y-0.5">
+                            {item.make && <div>• Make: <span className="text-gray-300 font-medium">{item.make}</span></div>}
                             {item.cubicleSize && <div>• Size: {item.cubicleSize}</div>}
                             {item.boardColor && <div>• Color: {item.boardColor}</div>}
                             {item.boardThickness && <div>• Thickness: {item.boardThickness}</div>}

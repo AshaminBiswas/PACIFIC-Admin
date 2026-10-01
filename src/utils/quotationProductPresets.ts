@@ -784,6 +784,8 @@ export function extractModelDimensions(model: ProductCatalogModel) {
     hardwarePackage = 'Child Safety Ergonomic Hardware (Anti-Finger Pinch & Emergency Release)';
   }
 
+  let make = findSpec(['make', 'brand', 'manufacturer']) || 'Pacific';
+
   return {
     cubicleSize,
     doorSize,
@@ -791,6 +793,7 @@ export function extractModelDimensions(model: ProductCatalogModel) {
     boardThickness,
     boardType: 'HPL',
     hardwarePackage,
+    make,
   };
 }
 

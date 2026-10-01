@@ -34,6 +34,7 @@ export interface CreateItem {
   doorSize?: string;
   overallHeight?: string;
   hardwarePackage?: string;
+  make?: string;
 }
 
 export interface CreateFormData {
@@ -120,6 +121,7 @@ const INITIAL_FORM_STATE: CreateFormData = {
       doorSize: '600mm × 1785mm',
       overallHeight: '1980mm (incl. 100mm ground clearance)',
       hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
+      make: 'Pacific',
     },
   ],
 };
@@ -454,6 +456,7 @@ export default function DraftQuotationPage() {
         boardThickness: dims.boardThickness,
         boardType: dims.boardType,
         hardwarePackage: dims.hardwarePackage,
+        make: dims.make || nextItems[idx].make || 'Pacific',
       };
 
       const umpItem = nextItems.find((it) => it.systemCategory === 'ump' || (it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump'))));
@@ -884,11 +887,13 @@ export default function DraftQuotationPage() {
           doorSize: it.doorSize || undefined,
           overallHeight: it.overallHeight || undefined,
           hardwarePackage: it.hardwarePackage || undefined,
+          make: it.make || undefined,
           customSpecsJson: {
             hardwarePackage: it.hardwarePackage || undefined,
             boardType: it.boardType || (form.quotationScope === 'HARDWARE' ? undefined : 'HPL'),
             systemCategory: it.systemCategory || undefined,
             quotationScope: form.quotationScope || 'CUBICLE',
+            make: it.make || undefined,
           },
         })),
       });
@@ -2141,6 +2146,35 @@ export default function DraftQuotationPage() {
                             placeholder="e.g. 1980mm (incl. 100mm ground clearance)"
                             className={inputCls}
                           />
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className={labelCls}>Make</label>
+                            <span className="text-[10px] text-gray-400 font-normal">Type or pick preset</span>
+                          </div>
+                          <input
+                            type="text"
+                            value={primaryCubicleItem.make ?? 'Pacific'}
+                            onChange={(e) => handleItemChange(primaryCubicleIdx, 'make', e.target.value)}
+                            placeholder="e.g. Pacific / Greenlam / Merino"
+                            className={inputCls}
+                          />
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {['Pacific', 'Greenlam', 'Merino', 'Stylam', 'Formica'].map((preset) => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => handleItemChange(primaryCubicleIdx, 'make', preset)}
+                                className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                                  (primaryCubicleItem.make ?? 'Pacific') === preset
+                                    ? 'bg-[#7FB706]/20 border-[#7FB706] text-[#7FB706] font-medium'
+                                    : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                                }`}
+                              >
+                                {preset}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>

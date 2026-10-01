@@ -2651,6 +2651,48 @@ When `usersService.createUser()` was called from `POST /api/v1/users`, the gener
 - **Admin Console Build**: `npm run build` in `PACIFIC-Admin` completed with 0 errors.
 - **Strict Compliance**: Zero TypeScript errors, clean compilation, and full cross-stack parity across frontend builders, detail pages, and server-rendered vector PDFs.
 
+---
+
+## 42. Make Specification Option in Cubicle Technical Specifications
+
+### 1. Requirements & Overview
+- In commercial restroom cubicle quotations and architectural tenders, declaring the manufacturer/brand ("Make") is a standard specification requirement.
+- In the Quotation Creation Wizard (`DraftQuotationPage.tsx`) and Editor (`EditSalesQuotationPage.tsx`), under **Cubicle Technical Specifications**, added a new row featuring the **Make** field.
+- The administrator can type the Make manually (e.g. `Pacific`, `Greenlam`, `Merino`, `Stylam`, `Formica`, or custom tender specifications), or pick from instant preset chips.
+
+### 2. Implementation & Cross-Stack Architecture
+- **Type Definitions (`src/types/admin.ts`)**:
+  - Added `make?: string;` to `SalesQuotationItem`, `SalesOrderItem`, and `ProformaInvoiceItem`.
+- **Model Dimension Presets (`src/utils/quotationProductPresets.ts`)**:
+  - Updated `extractModelDimensions(model)` to extract `make` from model specs (e.g. matching `make`, `brand`, `manufacturer`) with fallback to `'Pacific'`.
+- **Quotation Creation Wizard (`DraftQuotationPage.tsx`)**:
+  - Extended `CreateItem` with `make?: string;`.
+  - Added `make: 'Pacific'` to `INITIAL_FORM_STATE`.
+  - Auto-populates `make` when a catalog cubicle model is selected, while allowing instant manual override.
+  - In Step 2 under `⚙️ Cubicle Technical Specifications`, added a new row with:
+    - Text input for manual Make entry.
+    - Quick preset chips: `Pacific (Default)`, `Greenlam`, `Merino`, `Stylam`, `Formica`.
+  - `handleSubmit` persists `make` both at the item root and within `customSpecsJson`.
+- **Quotation Editor (`EditSalesQuotationPage.tsx`)**:
+  - Hydrates `make` from server item or `customSpecsJson.make`.
+  - Renders the identical Make input and quick preset buttons.
+  - Persists `make` on quotation update.
+- **Quotation 360 Detail View (`SalesQuotationDetailPage.tsx`)**:
+  - Displays `• Make: [Make]` in the line item technical specifications breakdown.
+- **Backend Quotations Service (`PACIFIC-Backend/src/modules/quotations/quotations.service.ts`)**:
+  - Persists `make` into `customSpecsJson` during `create`, `update`, and `createRevision`.
+  - Maps `make` back in `mapToDto` and passes `make` to `getQuotationPdf`.
+- **Server PDF Generator (`PACIFIC-Backend/src/modules/pdf/pdf.service.ts`)**:
+  - Added `make?: string;` to `QuotationPdfData.items`, `PiPdfData.items`, and `SalesOrderPdfData.items`.
+  - In `generateQuotationPdfHtml`, renders `• Make: ${item.make}` inside `.spec-box`.
+  - In `generatePiHtml` and `generateSalesOrderPdfHtml`, renders `• Make: ${it.make}` inside `.spec-box` when present.
+
+### 3. Verification & Compliance
+- **Backend Typecheck & Build**: `npm run build` in `PACIFIC-Backend` exited with code 0.
+- **Admin Console Typecheck**: `npx tsc --noEmit` in `PACIFIC-Admin` exited with code 0.
+- **Admin Console Production Build**: `npm run build` in `PACIFIC-Admin` exited with code 0.
+
+
 
 
 
