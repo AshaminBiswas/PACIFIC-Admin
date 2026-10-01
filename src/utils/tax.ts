@@ -187,3 +187,69 @@ export function calculateGstSplit(
     };
   }
 }
+
+/**
+ * Determines whether a line item is strictly a commercial Restroom Cubicle unit
+ * (and NOT a raw compact laminate board sheet, hardware accessory, urinal partition screen, modular locker, or service charge).
+ */
+export function isRestroomCubicleItem(item: {
+  systemCategory?: string;
+  itemType?: string;
+  description?: string;
+  unit?: string;
+  hsnSac?: string;
+  modelId?: string;
+}): boolean {
+  if (!item) return false;
+
+  // 1. Explicit unit check
+  const unit = (item.unit || '').toUpperCase().trim();
+  if (unit === 'CUBICLE') return true;
+  if (['SQFT', 'SQM', 'SFT', 'SHEET', 'SHEETS', 'BOARD', 'BOARDS', 'PAIR', 'PAIRS', 'MTR', 'KG', 'BOX', 'PKT', 'BAG', 'ROLL', 'BUNDLE'].includes(unit)) {
+    return false;
+  }
+
+  // 2. Explicit systemCategory or itemType check
+  const category = (item.systemCategory || item.itemType || '').toLowerCase().trim();
+  if (category === 'cubicle') return true;
+  if (['board', 'hardware', 'ump', 'locker', 'vanity', 'freight', 'transport', 'installation', 'service'].includes(category)) {
+    return false;
+  }
+
+  // 3. Explicit HSN / SAC codes check
+  const hsn = (item.hsnSac || '').trim();
+  if (['995469', '996511', '8302'].includes(hsn)) {
+    return false;
+  }
+
+  // 4. Description inspection
+  const desc = (item.description || '').toLowerCase();
+  if (!desc) return false;
+
+  // Exclude non-cubicle products
+  const nonCubicleKeywords = [
+    'urinal', 'ump', 'modesty', 'screen', 'divider',
+    'locker', 'vanity',
+    'board sheet', 'compact sheet', 'laminate sheet', 'hpl board', 'raw board',
+    'hardware', 'hinge', 'gravity hinge', 'privacy lock', 'indicator lock',
+    'supporting leg', 'support leg', 'coat hook', 'door pull', 'door knob',
+    'clamp', 'channel', 'top rail', 'bracket', 'screw', 'fastener',
+    'freight', 'transportation', 'installation charge', 'erection charge'
+  ];
+  if (nonCubicleKeywords.some((kw) => desc.includes(kw))) {
+    return false;
+  }
+
+  // Include cubicle products
+  if (desc.includes('cubicle') || desc.includes('cubical') || desc.includes('toilet partition') || desc.includes('restroom partition') || desc.includes('restroom system')) {
+    return true;
+  }
+
+  // Recognized cubicle catalog model titles
+  const cubicleModelNames = ['classy', 'master', 'elite', 'privo', 'titanium', 'aerolam', 'kids', 'solid plastic', 'vibrant', 'comfort'];
+  if (cubicleModelNames.some((m) => desc.includes(m))) {
+    return true;
+  }
+
+  return false;
+}

@@ -13,7 +13,7 @@ import {
 } from '../utils/quotationProductPresets';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import type { ProductCatalogModel } from '../types/admin';
-import { calculateGstSplit } from '../utils/tax';
+import { calculateGstSplit, isRestroomCubicleItem } from '../utils/tax';
 
 interface EditItem {
   id?: string;
@@ -251,12 +251,14 @@ export default function EditSalesQuotationPage() {
 
   const detectedCubicleCount = useMemo(() => {
     return form.items
-      .filter((it) => it.unit === 'NOS' || it.unit === 'SET' || !it.unit || (it.unit as string) === 'CUBICLE')
+      .filter(isRestroomCubicleItem)
       .reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
   }, [form.items]);
 
-  const effectiveCubicleCount = form.installationCubicleCount || (detectedCubicleCount || 1);
-  const effectiveInstallRate = form.installationRatePerCubicle || (effectiveCubicleCount > 0 && form.installationCharge ? Math.round(Number(form.installationCharge) / effectiveCubicleCount) : 1000);
+  const effectiveCubicleCount = form.installationCubicleCount !== undefined && form.installationCubicleCount > 0
+    ? form.installationCubicleCount
+    : detectedCubicleCount;
+  const effectiveInstallRate = form.installationRatePerCubicle ?? (effectiveCubicleCount > 0 && form.installationCharge ? Math.round(Number(form.installationCharge) / effectiveCubicleCount) : 1000);
 
   const subtotal = basicPrice + Number(form.installationCharge || 0) + Number(form.freightAmount || 0);
   const activeGstin = form.customerGstin || null;
@@ -769,9 +771,11 @@ export default function EditSalesQuotationPage() {
             <span className="text-white font-mono font-semibold">
               ₹ {Number(form.installationCharge).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </span>
-            <span className="text-xs text-[#7FB706] font-mono ml-1 font-bold">
-              (@ ₹ {effectiveInstallRate.toLocaleString('en-IN')}/Cubicle for {effectiveCubicleCount} Cubicle{effectiveCubicleCount === 1 ? '' : 's'})
-            </span>
+            {effectiveCubicleCount > 0 && (
+              <span className="text-xs text-[#7FB706] font-mono ml-1 font-bold">
+                (@ ₹ {effectiveInstallRate.toLocaleString('en-IN')}/Cubicle for {effectiveCubicleCount} Cubicle{effectiveCubicleCount === 1 ? '' : 's'})
+              </span>
+            )}
           </div>
         )}
         {form.freightAmount > 0 && <div className="text-gray-400">Freight: <span className="text-white font-mono font-semibold">₹ {form.freightAmount.toLocaleString('en-IN')}</span></div>}
@@ -980,7 +984,7 @@ export default function EditSalesQuotationPage() {
                   key={p.label}
                   type="button"
                   onClick={() => {
-                    const cCount = form.installationCubicleCount || detectedCubicleCount || 1;
+                    const cCount = form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : detectedCubicleCount;
                     const tot = p.rate * (p.rate === 0 ? 0 : cCount);
                     setForm((f) => ({
                       ...f,
@@ -1008,7 +1012,7 @@ export default function EditSalesQuotationPage() {
                 value={form.installationRatePerCubicle ?? 1000}
                 onChange={(e) => {
                   const rate = Number(e.target.value) || 0;
-                  const count = form.installationCubicleCount || detectedCubicleCount || 1;
+                  const count = form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : detectedCubicleCount;
                   setForm((f) => ({
                     ...f,
                     installationRatePerCubicle: rate,
@@ -1028,7 +1032,7 @@ export default function EditSalesQuotationPage() {
                 type="number"
                 min="0"
                 step="1"
-                value={form.installationCubicleCount || (detectedCubicleCount || 1)}
+                value={form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : (detectedCubicleCount || '')}
                 onChange={(e) => {
                   const count = Number(e.target.value) || 0;
                   const rate = form.installationRatePerCubicle ?? 1000;
@@ -1042,7 +1046,11 @@ export default function EditSalesQuotationPage() {
                 className={inputCls}
                 placeholder="Number of cubicles"
               />
-              <span className="text-[10px] text-slate-400">Auto-detected: {detectedCubicleCount || 1} Cubicles</span>
+              <span className="text-[10px] text-slate-400">
+                {detectedCubicleCount > 0
+                  ? `Auto-detected: ${detectedCubicleCount} Cubicle${detectedCubicleCount === 1 ? '' : 's'}`
+                  : '0 Cubicles in item list (Hardware/Board only)'}
+              </span>
             </div>
 
             <div>
@@ -1054,7 +1062,7 @@ export default function EditSalesQuotationPage() {
                 value={form.installationCharge}
                 onChange={(e) => {
                   const total = Number(e.target.value) || 0;
-                  const count = form.installationCubicleCount || detectedCubicleCount || 1;
+                  const count = form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : detectedCubicleCount;
                   const derivedRate = count > 0 ? Math.round(total / count) : 0;
                   setForm((f) => ({
                     ...f,
@@ -1074,8 +1082,8 @@ export default function EditSalesQuotationPage() {
           <div className="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
             <span>
               📄 <strong>Mentioned on document:</strong> Cubicle Installation Charges{' '}
-              {form.installationCharge > 0
-                ? `(@ ₹ ${(form.installationRatePerCubicle ?? 1000).toLocaleString('en-IN')}/Cubicle for ${form.installationCubicleCount || detectedCubicleCount || 1} Cubicle${(form.installationCubicleCount || detectedCubicleCount || 1) === 1 ? '' : 's'})`
+              {form.installationCharge > 0 && (form.installationCubicleCount || detectedCubicleCount) > 0
+                ? `(@ ₹ ${(form.installationRatePerCubicle ?? 1000).toLocaleString('en-IN')}/Cubicle for ${form.installationCubicleCount || detectedCubicleCount} Cubicle${(form.installationCubicleCount || detectedCubicleCount) === 1 ? '' : 's'})`
                 : '(Nil / Client Scope)'}
             </span>
             <span className="font-mono font-bold text-white">

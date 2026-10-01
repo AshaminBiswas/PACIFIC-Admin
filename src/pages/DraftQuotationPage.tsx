@@ -15,7 +15,7 @@ import {
 } from '../utils/quotationProductPresets';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import type { BusinessParty, CompanyProfile, ProductCatalogModel } from '../types/admin';
-import { calculateGstSplit } from '../utils/tax';
+import { calculateGstSplit, isRestroomCubicleItem } from '../utils/tax';
 
 export type QuotationScope = 'CUBICLE' | 'BOARD' | 'HARDWARE';
 
@@ -724,12 +724,14 @@ export default function DraftQuotationPage() {
 
   const detectedCubicleCount = useMemo(() => {
     return form.items
-      .filter((it) => it.unit === 'NOS' || it.unit === 'SET' || !it.unit || (it.unit as string) === 'CUBICLE')
+      .filter(isRestroomCubicleItem)
       .reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
   }, [form.items]);
 
-  const effectiveCubicleCount = form.installationCubicleCount || (detectedCubicleCount || 1);
-  const effectiveInstallRate = form.installationRatePerCubicle || (effectiveCubicleCount > 0 && form.installationCharge ? Math.round(Number(form.installationCharge) / effectiveCubicleCount) : 1000);
+  const effectiveCubicleCount = form.installationCubicleCount !== undefined && form.installationCubicleCount > 0
+    ? form.installationCubicleCount
+    : detectedCubicleCount;
+  const effectiveInstallRate = form.installationRatePerCubicle ?? (effectiveCubicleCount > 0 && form.installationCharge ? Math.round(Number(form.installationCharge) / effectiveCubicleCount) : 1000);
 
   const installationCharge = Number(form.installationCharge) || 0;
   const freightAmount = Number(form.freightAmount) || 0;
@@ -856,7 +858,7 @@ export default function DraftQuotationPage() {
         validityDays: Number(form.validityDays) || 30,
         installationCharge: Number(form.installationCharge) || 0,
         installationRatePerCubicle: Number(form.installationCharge) > 0 ? (form.installationRatePerCubicle ?? 1000) : undefined,
-        installationCubicleCount: Number(form.installationCharge) > 0 ? (form.installationCubicleCount || detectedCubicleCount || 1) : undefined,
+        installationCubicleCount: Number(form.installationCharge) > 0 ? (form.installationCubicleCount || detectedCubicleCount || undefined) : undefined,
         freightTerms: form.freightTerms,
         freightAmount: Number(form.freightAmount) || 0,
         gstRate: Number(form.gstRate) || 18,
@@ -1291,7 +1293,7 @@ export default function DraftQuotationPage() {
                   key={p.label}
                   type="button"
                   onClick={() => {
-                    const cCount = form.installationCubicleCount || detectedCubicleCount || 1;
+                    const cCount = form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : detectedCubicleCount;
                     const tot = p.rate * (p.rate === 0 ? 0 : cCount);
                     setForm((f) => ({
                       ...f,
@@ -1319,7 +1321,7 @@ export default function DraftQuotationPage() {
                 value={form.installationRatePerCubicle ?? 1000}
                 onChange={(e) => {
                   const rate = Number(e.target.value) || 0;
-                  const count = form.installationCubicleCount || detectedCubicleCount || 1;
+                  const count = form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : detectedCubicleCount;
                   setForm((f) => ({
                     ...f,
                     installationRatePerCubicle: rate,
@@ -1339,7 +1341,7 @@ export default function DraftQuotationPage() {
                 type="number"
                 min="0"
                 step="1"
-                value={form.installationCubicleCount || (detectedCubicleCount || 1)}
+                value={form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : (detectedCubicleCount || '')}
                 onChange={(e) => {
                   const count = Number(e.target.value) || 0;
                   const rate = form.installationRatePerCubicle ?? 1000;
@@ -1353,7 +1355,11 @@ export default function DraftQuotationPage() {
                 className={inputCls}
                 placeholder="Number of cubicles"
               />
-              <span className="text-[10px] text-slate-400">Auto-detected: {detectedCubicleCount || 1} Cubicles</span>
+              <span className="text-[10px] text-slate-400">
+                {detectedCubicleCount > 0
+                  ? `Auto-detected: ${detectedCubicleCount} Cubicle${detectedCubicleCount === 1 ? '' : 's'}`
+                  : '0 Cubicles in item list (Hardware/Board only)'}
+              </span>
             </div>
 
             <div>
@@ -1365,7 +1371,7 @@ export default function DraftQuotationPage() {
                 value={form.installationCharge}
                 onChange={(e) => {
                   const total = Number(e.target.value) || 0;
-                  const count = form.installationCubicleCount || detectedCubicleCount || 1;
+                  const count = form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : detectedCubicleCount;
                   const derivedRate = count > 0 ? Math.round(total / count) : 0;
                   setForm((f) => ({
                     ...f,
@@ -1385,8 +1391,8 @@ export default function DraftQuotationPage() {
           <div className="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
             <span>
               📄 <strong>Mentioned on document:</strong> Cubicle Installation Charges{' '}
-              {form.installationCharge > 0
-                ? `(@ ₹ ${(form.installationRatePerCubicle ?? 1000).toLocaleString('en-IN')}/Cubicle for ${form.installationCubicleCount || detectedCubicleCount || 1} Cubicle${(form.installationCubicleCount || detectedCubicleCount || 1) === 1 ? '' : 's'})`
+              {form.installationCharge > 0 && (form.installationCubicleCount || detectedCubicleCount) > 0
+                ? `(@ ₹ ${(form.installationRatePerCubicle ?? 1000).toLocaleString('en-IN')}/Cubicle for ${form.installationCubicleCount || detectedCubicleCount} Cubicle${(form.installationCubicleCount || detectedCubicleCount) === 1 ? '' : 's'})`
                 : '(Nil / Client Scope)'}
             </span>
             <span className="font-mono font-bold text-white">

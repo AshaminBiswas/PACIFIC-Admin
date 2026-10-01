@@ -2608,6 +2608,49 @@ When `usersService.createUser()` was called from `POST /api/v1/users`, the gener
 - **Production Build**: `npm run build` in `PACIFIC-Admin` exited with code 0.
 - **Zero TypeScript Errors**: Enforced strictly across all modified files.
 
+---
+
+## 41. Restroom Cubicle Quantity-Only Installation Billing Logic (Excluding Boards, Hardware & Urinal Partitions)
+
+### 1. Requirements & Business Domain Context
+- **Commercial Line Item Heterogeneity**:
+  Commercial projects frequently mix restroom cubicles with raw compact laminate / HPL board sheets (unit `SQFT`, `SQM`, `SHEET`), custom hardware fittings (gravity hinges, indicator locks, supporting legs, coat hooks [unit `SET`, `PAIR`, `NOS`]), urinal modesty dividers (UMP [unit `NOS`]), modular lockers, and vanities.
+- **Crucial Rule**:
+  Installation charges must **only be computed from true Restroom Cubicle quantities**. Under no circumstance should raw boards, individual hardware pieces, urinal modesty screens, or lockers inflate the installation cubicle count.
+- **Zero-Cubicle (Board-Only / Hardware-Only) Handling**:
+  When a quote or sales order is generated for "Board Only" or "Custom Hardware Only", the detected cubicle count is strictly `0`. The installation charge defaults to `0` / Nil, and the UI displays `0 Cubicles in item list (Hardware/Board only)` instead of forcing 1 cubicle.
+
+### 2. Implementation & Architecture
+- **Frontend Centralized Classifier (`src/utils/tax.ts` -> `isRestroomCubicleItem`)**:
+  - Excludes non-cubicle units: `SQFT`, `SQM`, `SFT`, `SHEET`, `SHEETS`, `BOARD`, `BOARDS`, `PAIR`, `PAIRS`, `MTR`, `KG`, `BOX`, `PKT`, `BAG`.
+  - Excludes non-cubicle categories / itemTypes: `'board'`, `'hardware'`, `'ump'`, `'locker'`, `'vanity'`, `'freight'`, `'transportation'`, `'installation'`.
+  - Excludes service & hardware SAC/HSN codes: `995469`, `996511`, `8302`.
+  - Excludes keyword matches in descriptions: `urinal`, `ump`, `modesty`, `screen`, `divider`, `locker`, `vanity`, `sheet`, `board`, `laminate`, `hardware`, `hinge`, `lock`, `leg`, `clamp`, `bracket`, `hook`, `pull`, `knob`, `freight`, `transport`.
+  - Positively matches: unit `'CUBICLE'`, systemCategory `'cubicle'`, catalog cubicle model names (`classy`, `master`, `elite`, `privo`, `titanium`, `aerolam`, `kids`, `solid plastic`, `vibrant`, `comfort`), or description keywords `cubicle`, `cubical`, `toilet partition`, `restroom partition`.
+- **Frontend Pages Wired**:
+  - **`DraftQuotationPage.tsx` & `EditSalesQuotationPage.tsx`**:
+    Auto-detects cubicles via `items.filter(isRestroomCubicleItem)`. Quick chips and custom input cleanly reflect the exact cubicle count, or 0 if only boards/hardware are quoted.
+  - **`CreateProformaPage.tsx` & `EditProformaInvoicePage.tsx`**:
+    Auto-derives cubicle count using `items.filter(isRestroomCubicleItem)`. `handleAddInstallationItem` inserts SAC `995469` line with exact cubicle count.
+  - **`CreateSalesOrderPage.tsx` & `EditSalesOrderPage.tsx`**:
+    Derives cubicle count strictly via `isRestroomCubicleItem` filter. Preserves 0-cubicle counts for board/hardware orders.
+  - **`CreateInvoicePage.tsx`**:
+    `handleOrderSelect` and `handleAddInstallationLine` derive cubicle count solely from `ord.items.filter(isRestroomCubicleItem)`.
+- **Backend PDF Engine (`PACIFIC-Backend/src/modules/pdf/pdf.service.ts`)**:
+  - Top-level `isCubiclePdfItem(it: any): boolean` helper mirrors the frontend classifier.
+  - Filters line items in:
+    1. Quotation PDF pricing summary row and Terms Clause 4.
+    2. Proforma Invoice PDF pricing summary row.
+    3. Sales Order PDF pricing summary row.
+    4. Tax Invoice PDF summary table.
+  - Guarded against division by zero: if `cubCount === 0`, suppresses per-cubicle rate notation and displays standard line or skips empty installation.
+
+### 3. Verification & Compliance
+- **Backend Typecheck & Build**: `npm run build` in `PACIFIC-Backend` completed with 0 errors.
+- **Admin Console Typecheck**: `npx tsc --noEmit` in `PACIFIC-Admin` completed with 0 errors.
+- **Admin Console Build**: `npm run build` in `PACIFIC-Admin` completed with 0 errors.
+- **Strict Compliance**: Zero TypeScript errors, clean compilation, and full cross-stack parity across frontend builders, detail pages, and server-rendered vector PDFs.
+
 
 
 

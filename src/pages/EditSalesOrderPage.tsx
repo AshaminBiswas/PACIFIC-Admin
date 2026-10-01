@@ -31,7 +31,7 @@ import {
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import CustomerSearchSelect from '../components/common/CustomerSearchSelect';
 import type { BusinessParty, ProductCatalogModel, SalesOrder } from '../types/admin';
-import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP } from '../utils/tax';
+import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP, isRestroomCubicleItem } from '../utils/tax';
 import {
   DEFAULT_ACCESSORIES_TEXT,
   type CreateItem,
@@ -413,7 +413,7 @@ export default function EditSalesOrderPage() {
   };
 
   const handleAddInstallationItem = () => {
-    const count = effectiveCubicleCount;
+    const count = effectiveCubicleCount > 0 ? effectiveCubicleCount : 1;
     const rate = effectiveInstallRate;
     setItems((prev) => [
       ...prev,
@@ -436,12 +436,14 @@ export default function EditSalesOrderPage() {
 
   const detectedCubicleCount = useMemo(() => {
     return items
-      .filter((it) => it.unit === 'NOS' || it.unit === 'SET' || !it.unit || (it.unit as string) === 'CUBICLE')
+      .filter(isRestroomCubicleItem)
       .reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
   }, [items]);
 
-  const effectiveCubicleCount = installationCubicleCount || (detectedCubicleCount || 1);
-  const effectiveInstallRate = installationRatePerCubicle || (effectiveCubicleCount > 0 && installationCharge ? Math.round(Number(installationCharge) / effectiveCubicleCount) : 1000);
+  const effectiveCubicleCount = installationCubicleCount !== undefined && installationCubicleCount > 0
+    ? installationCubicleCount
+    : detectedCubicleCount;
+  const effectiveInstallRate = installationRatePerCubicle ?? (effectiveCubicleCount > 0 && installationCharge ? Math.round(Number(installationCharge) / effectiveCubicleCount) : 1000);
 
   const taxableTotal = subtotal + Number(freightAmount || 0) + Number(installationCharge || 0);
 
@@ -494,7 +496,7 @@ export default function EditSalesOrderPage() {
         freightAmount: Number(freightAmount) || 0,
         installationCharge: Number(installationCharge) || 0,
         installationRatePerCubicle: Number(installationCharge) > 0 ? (installationRatePerCubicle ?? 1000) : undefined,
-        installationCubicleCount: Number(installationCharge) > 0 ? (installationCubicleCount || detectedCubicleCount || 1) : undefined,
+        installationCubicleCount: Number(installationCharge) > 0 ? (installationCubicleCount || detectedCubicleCount || undefined) : undefined,
         taxRate: 18,
         accessoriesText,
         terms,
@@ -1251,7 +1253,7 @@ export default function EditSalesOrderPage() {
                   key={p.label}
                   type="button"
                   onClick={() => {
-                    const cCount = installationCubicleCount || detectedCubicleCount || 1;
+                    const cCount = installationCubicleCount !== undefined && installationCubicleCount > 0 ? installationCubicleCount : detectedCubicleCount;
                     const tot = p.rate * (p.rate === 0 ? 0 : cCount);
                     setInstallationRatePerCubicle(p.rate);
                     setInstallationCubicleCount(cCount);
@@ -1275,7 +1277,7 @@ export default function EditSalesOrderPage() {
                 value={installationRatePerCubicle ?? 1000}
                 onChange={(e) => {
                   const rate = Number(e.target.value) || 0;
-                  const count = installationCubicleCount || detectedCubicleCount || 1;
+                  const count = installationCubicleCount !== undefined && installationCubicleCount > 0 ? installationCubicleCount : detectedCubicleCount;
                   setInstallationRatePerCubicle(rate);
                   setInstallationCharge(rate * count);
                 }}
@@ -1291,7 +1293,7 @@ export default function EditSalesOrderPage() {
                 type="number"
                 min="0"
                 step="1"
-                value={installationCubicleCount || (detectedCubicleCount || 1)}
+                value={installationCubicleCount !== undefined && installationCubicleCount > 0 ? installationCubicleCount : (detectedCubicleCount || '')}
                 onChange={(e) => {
                   const count = Number(e.target.value) || 0;
                   const rate = installationRatePerCubicle ?? 1000;
@@ -1301,7 +1303,11 @@ export default function EditSalesOrderPage() {
                 className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white font-mono"
                 placeholder="Number of cubicles"
               />
-              <span className="text-[10px] text-slate-400">Auto-detected: {detectedCubicleCount || 1} Cubicles</span>
+              <span className="text-[10px] text-slate-400">
+                {detectedCubicleCount > 0
+                  ? `Auto-detected: ${detectedCubicleCount} Cubicle${detectedCubicleCount === 1 ? '' : 's'}`
+                  : '0 Cubicles in item list (Hardware/Board only)'}
+              </span>
             </div>
 
             <div>
@@ -1313,7 +1319,7 @@ export default function EditSalesOrderPage() {
                 value={installationCharge || 0}
                 onChange={(e) => {
                   const total = Number(e.target.value) || 0;
-                  const count = installationCubicleCount || detectedCubicleCount || 1;
+                  const count = installationCubicleCount !== undefined && installationCubicleCount > 0 ? installationCubicleCount : detectedCubicleCount;
                   const derivedRate = count > 0 ? Math.round(total / count) : 0;
                   setInstallationCharge(total);
                   setInstallationRatePerCubicle(derivedRate);
@@ -1326,8 +1332,8 @@ export default function EditSalesOrderPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs px-3 py-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
             <span>
               📄 <strong>Mentioned on Sales Order:</strong> Cubicle Installation Charges{' '}
-              {(installationCharge || 0) > 0
-                ? `(@ ₹ ${(installationRatePerCubicle ?? 1000).toLocaleString('en-IN')}/Cubicle for ${installationCubicleCount || detectedCubicleCount || 1} Cubicle${(installationCubicleCount || detectedCubicleCount || 1) === 1 ? '' : 's'})`
+              {(installationCharge || 0) > 0 && (installationCubicleCount || detectedCubicleCount) > 0
+                ? `(@ ₹ ${(installationRatePerCubicle ?? 1000).toLocaleString('en-IN')}/Cubicle for ${installationCubicleCount || detectedCubicleCount} Cubicle${(installationCubicleCount || detectedCubicleCount) === 1 ? '' : 's'})`
                 : '(Nil / Client Scope)'}
             </span>
             <div className="flex items-center gap-3">

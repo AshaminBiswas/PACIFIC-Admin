@@ -4,7 +4,7 @@ import { ArrowLeft, Save, RotateCcw, CheckCircle2, Plus, Trash2, Building2, MapP
 import { invoicesApi, crmApi, salesOrdersApi } from '../api/services';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import type { BusinessParty, SalesOrder } from '../types/admin';
-import { calculateGstSplit } from '../utils/tax';
+import { calculateGstSplit, isRestroomCubicleItem } from '../utils/tax';
 
 const LOCAL_STORAGE_KEY = 'pacific_create_invoice_v2';
 
@@ -159,8 +159,11 @@ export default function CreateInvoicePage() {
     // Auto-append Installation Charges with per-cubicle rate breakdown if present on order
     if (ord.installationCharge && Number(ord.installationCharge) > 0) {
       const installAmt = Number(ord.installationCharge);
-      const installRate = Number(ord.installationRatePerCubicle) || (ord.installationCubicleCount ? Math.round(installAmt / Number(ord.installationCubicleCount)) : installAmt);
-      const installCount = Number(ord.installationCubicleCount) || (installRate > 0 ? Math.round(installAmt / installRate) : 1);
+      const detectedCountFromItems = ord.items
+        ? ord.items.filter(isRestroomCubicleItem).reduce((sum: number, it: any) => sum + (Number(it.quantity) || 0), 0)
+        : 0;
+      const installCount = Number(ord.installationCubicleCount) || (detectedCountFromItems > 0 ? detectedCountFromItems : 1);
+      const installRate = Number(ord.installationRatePerCubicle) || (installCount > 0 ? Math.round(installAmt / installCount) : installAmt);
       orderItems.push({
         serialNumber: orderItems.length + 1,
         description: `Supply & Erection / Installation Charges for Restroom Cubicles (@ ₹ ${installRate.toLocaleString('en-IN')}/Cubicle for ${installCount} Cubicle${installCount === 1 ? '' : 's'})`,
@@ -226,13 +229,11 @@ export default function CreateInvoicePage() {
   };
 
   const handleAddInstallationLine = () => {
-    // Count cubicles from non-service items (exclude SAC 995469, 996511)
-    const cubicleCount = Math.max(
-      1,
-      formData.items
-        .filter((it) => it.hsnSac !== '995469' && it.hsnSac !== '996511')
-        .reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
-    );
+    // Count cubicles STRICTLY from cubicle items in the current invoice
+    const detectedCubicles = formData.items
+      .filter(isRestroomCubicleItem)
+      .reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+    const cubicleCount = detectedCubicles > 0 ? detectedCubicles : 1;
     const rate = 1000;
     const amount = cubicleCount * rate;
 

@@ -38,7 +38,7 @@ import {
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import CustomerSearchSelect from '../components/common/CustomerSearchSelect';
 import type { BusinessParty, CompanyProfile, ProductCatalogModel, SalesQuotation } from '../types/admin';
-import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP } from '../utils/tax';
+import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP, isRestroomCubicleItem } from '../utils/tax';
 
 const LOCAL_STORAGE_KEY = 'pacific_create_proforma_v3';
 
@@ -1156,12 +1156,14 @@ export default function CreateProformaPage() {
 
   const detectedCubicleCount = useMemo(() => {
     return formData.items
-      .filter((it) => it.itemType !== 'hardware' && (it.unit === 'NOS' || it.unit === 'SET' || !it.unit || (it.unit as string) === 'CUBICLE'))
+      .filter(isRestroomCubicleItem)
       .reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
   }, [formData.items]);
 
-  const effectiveCubicleCount = formData.installationCubicleCount || (detectedCubicleCount || 1);
-  const effectiveInstallRate = formData.installationRatePerCubicle || (effectiveCubicleCount > 0 && formData.installationCharge ? Math.round(Number(formData.installationCharge) / effectiveCubicleCount) : 1000);
+  const effectiveCubicleCount = formData.installationCubicleCount !== undefined && formData.installationCubicleCount > 0
+    ? formData.installationCubicleCount
+    : detectedCubicleCount;
+  const effectiveInstallRate = formData.installationRatePerCubicle ?? (effectiveCubicleCount > 0 && formData.installationCharge ? Math.round(Number(formData.installationCharge) / effectiveCubicleCount) : 1000);
 
   const freightAmount = Number(formData.freightAmount) || 0;
   const installationCharge = Number(formData.installationCharge) || 0;
@@ -1310,7 +1312,7 @@ export default function CreateProformaPage() {
         freightAmount: formData.freightAmount,
         installationCharge: Number(formData.installationCharge) || 0,
         installationRatePerCubicle: Number(formData.installationCharge) > 0 ? (formData.installationRatePerCubicle ?? 1000) : undefined,
-        installationCubicleCount: Number(formData.installationCharge) > 0 ? (formData.installationCubicleCount || detectedCubicleCount || 1) : undefined,
+        installationCubicleCount: Number(formData.installationCharge) > 0 ? (formData.installationCubicleCount || detectedCubicleCount || undefined) : undefined,
         advancePercentage: formData.advancePercentage,
         advanceRequiredAmount: requiredAdvance,
         billTo: {
@@ -3408,7 +3410,7 @@ export default function CreateProformaPage() {
                   key={p.label}
                   type="button"
                   onClick={() => {
-                    const cCount = formData.installationCubicleCount || detectedCubicleCount || 1;
+                    const cCount = formData.installationCubicleCount !== undefined && formData.installationCubicleCount > 0 ? formData.installationCubicleCount : detectedCubicleCount;
                     const tot = p.rate * (p.rate === 0 ? 0 : cCount);
                     setFormData((f) => ({
                       ...f,
@@ -3435,7 +3437,7 @@ export default function CreateProformaPage() {
                 value={formData.installationRatePerCubicle ?? 1000}
                 onChange={(e) => {
                   const rate = Number(e.target.value) || 0;
-                  const count = formData.installationCubicleCount || detectedCubicleCount || 1;
+                  const count = formData.installationCubicleCount !== undefined && formData.installationCubicleCount > 0 ? formData.installationCubicleCount : detectedCubicleCount;
                   setFormData((f) => ({
                     ...f,
                     installationRatePerCubicle: rate,
@@ -3454,7 +3456,7 @@ export default function CreateProformaPage() {
                 type="number"
                 min="0"
                 step="1"
-                value={formData.installationCubicleCount || (detectedCubicleCount || 1)}
+                value={formData.installationCubicleCount !== undefined && formData.installationCubicleCount > 0 ? formData.installationCubicleCount : (detectedCubicleCount || '')}
                 onChange={(e) => {
                   const count = Number(e.target.value) || 0;
                   const rate = formData.installationRatePerCubicle ?? 1000;
@@ -3467,7 +3469,11 @@ export default function CreateProformaPage() {
                 className={inputCls}
                 placeholder="Number of cubicles"
               />
-              <span className="text-[10px] text-slate-400">Auto-detected: {detectedCubicleCount || 1} Cubicles</span>
+              <span className="text-[10px] text-slate-400">
+                {detectedCubicleCount > 0
+                  ? `Auto-detected: ${detectedCubicleCount} Cubicle${detectedCubicleCount === 1 ? '' : 's'}`
+                  : '0 Cubicles in item list (Hardware/Board only)'}
+              </span>
             </div>
 
             <div>
@@ -3479,7 +3485,7 @@ export default function CreateProformaPage() {
                 value={formData.installationCharge || 0}
                 onChange={(e) => {
                   const total = Number(e.target.value) || 0;
-                  const count = formData.installationCubicleCount || detectedCubicleCount || 1;
+                  const count = formData.installationCubicleCount !== undefined && formData.installationCubicleCount > 0 ? formData.installationCubicleCount : detectedCubicleCount;
                   const derivedRate = count > 0 ? Math.round(total / count) : 0;
                   setFormData((f) => ({
                     ...f,
@@ -3495,8 +3501,8 @@ export default function CreateProformaPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs px-3 py-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
             <span>
               📄 <strong>Mentioned on PI Document:</strong> Cubicle Installation Charges{' '}
-              {(formData.installationCharge || 0) > 0
-                ? `(@ ₹ ${(formData.installationRatePerCubicle ?? 1000).toLocaleString('en-IN')}/Cubicle for ${formData.installationCubicleCount || detectedCubicleCount || 1} Cubicle${(formData.installationCubicleCount || detectedCubicleCount || 1) === 1 ? '' : 's'})`
+              {(formData.installationCharge || 0) > 0 && (formData.installationCubicleCount || detectedCubicleCount) > 0
+                ? `(@ ₹ ${(formData.installationRatePerCubicle ?? 1000).toLocaleString('en-IN')}/Cubicle for ${formData.installationCubicleCount || detectedCubicleCount} Cubicle${(formData.installationCubicleCount || detectedCubicleCount) === 1 ? '' : 's'})`
                 : '(Nil / Client Scope)'}
             </span>
             <div className="flex items-center gap-3">
