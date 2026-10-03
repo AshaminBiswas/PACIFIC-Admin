@@ -29,6 +29,7 @@ import {
   Award,
   ChevronRight,
   Share2,
+  Link2,
 } from 'lucide-react';
 import { salesQuotationsApi } from '../../api/salesQuotationsApi';
 import type {
@@ -120,8 +121,9 @@ export const QuotationFollowupModal: React.FC<QuotationFollowupModalProps> = ({
     : 'Within 15 Days';
   const projectName = quotation.projectName || quotation.subject || 'Restroom Cubicles Project';
 
-  // Quotation Document URLs
-  const pdfDownloadUrl = salesQuotationsApi.getDownloadPdfUrl(quotation.id);
+  // Quotation Document URLs (Clean short links without personal JWT tokens)
+  const shortDocUrl = salesQuotationsApi.getShortUrl(quotation.id, false);
+  const pdfDownloadUrl = salesQuotationsApi.getShortUrl(quotation.id, true);
   const pdfPreviewUrl = salesQuotationsApi.getPdfUrl(quotation.id);
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.pacificproduct.in';
   const verifyUrl = `${origin}/verify/${quotation.verificationToken || quotation.id}`;
@@ -636,8 +638,26 @@ export const QuotationFollowupModal: React.FC<QuotationFollowupModalProps> = ({
 
                   <button
                     type="button"
+                    onClick={() => handleCopy(shortDocUrl, 'short-url')}
+                    className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-200 text-xs font-semibold flex items-center gap-1.5 border border-white/10 transition-colors cursor-pointer"
+                    title="Copy concise short proposal link for sharing"
+                  >
+                    {copiedKey === 'short-url' ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" /> Copied Short Link!
+                      </>
+                    ) : (
+                      <>
+                        <Link2 className="w-3.5 h-3.5 text-indigo-400" /> Copy Short Link
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => handleCopy(pdfDownloadUrl, 'pdf-url')}
                     className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-200 text-xs font-semibold flex items-center gap-1.5 border border-white/10 transition-colors cursor-pointer"
+                    title="Copy direct download link"
                   >
                     {copiedKey === 'pdf-url' ? (
                       <>

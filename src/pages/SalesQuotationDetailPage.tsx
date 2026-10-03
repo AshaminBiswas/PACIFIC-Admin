@@ -4,7 +4,7 @@ import {
   FileText, ArrowLeft, Printer, Edit, CheckCircle2, Send,
   MapPin, Calendar, User, Building2, Hash, RefreshCw, Trash2,
   AlertTriangle, Clock, Mail, X, Phone, MessageCircle, MessageSquare, Sparkles,
-  Eye, ExternalLink,
+  Eye, ExternalLink, Download, Link2, Check,
 } from 'lucide-react';
 import { salesQuotationsApi } from '../api/salesQuotationsApi';
 import { useAdminAuth } from '../context/AdminAuthContext';
@@ -132,6 +132,19 @@ export default function SalesQuotationDetailPage() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
   const [showFollowupModal, setShowFollowupModal] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleCopyShortLink = async () => {
+    if (!id) return;
+    const url = salesQuotationsApi.getShortUrl(id);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch {
+      prompt('Copy proposal short link:', url);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -397,6 +410,33 @@ export default function SalesQuotationDetailPage() {
               <Phone className="w-4 h-4" /> Call
             </a>
           )}
+
+          <a
+            href={id ? salesQuotationsApi.getDownloadPdfUrl(id) : '#'}
+            target="_blank"
+            rel="noopener noreferrer"
+            download={`Quotation_${String(quotationNum).replace(/[\/\\]/g, '_')}.pdf`}
+            className="inline-flex items-center gap-2 px-4 py-2.5 min-h-[44px] bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded-xl text-sm font-semibold transition-all cursor-pointer"
+            title="Download Quotation PDF directly"
+          >
+            <Download className="w-4 h-4" /> Download PDF
+          </a>
+
+          <button
+            onClick={handleCopyShortLink}
+            className="inline-flex items-center gap-2 px-4 py-2.5 min-h-[44px] bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl text-sm font-semibold transition-all cursor-pointer"
+            title="Copy short shareable proposal link"
+          >
+            {copiedLink ? (
+              <>
+                <Check className="w-4 h-4 text-emerald-400" /> Copied Short Link!
+              </>
+            ) : (
+              <>
+                <Link2 className="w-4 h-4 text-amber-400" /> Copy Short Link
+              </>
+            )}
+          </button>
 
           <button
             onClick={handlePrintPdf}

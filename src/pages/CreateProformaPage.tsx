@@ -37,6 +37,7 @@ import {
 } from '../utils/quotationProductPresets';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import CustomerSearchSelect from '../components/common/CustomerSearchSelect';
+import BranchSelector from '../components/common/BranchSelector';
 import type { BusinessParty, CompanyProfile, ProductCatalogModel, SalesQuotation } from '../types/admin';
 import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP, isRestroomCubicleItem } from '../utils/tax';
 
@@ -1173,6 +1174,9 @@ export default function CreateProformaPage() {
   const taxable = basicPrice + freightAmount + installationCharge;
 
   // Tax calculation
+  const selectedCompany = companies.find((c) => c.id === formData.companyProfileId) || companies[0];
+  const sellerStateCode = selectedCompany?.stateCode || '07';
+
   const gstBreakdown = calculateGstSplit(
     taxable,
     formData.billingAddress.stateCode,
@@ -1180,7 +1184,8 @@ export default function CreateProformaPage() {
     false,
     18,
     formData.billingAddress.gstin,
-    formData.billingAddress.addressLine
+    formData.billingAddress.addressLine,
+    sellerStateCode
   );
   const grandTotal = gstBreakdown.grandTotal;
   const requiredAdvance = Math.round(grandTotal * (Number(formData.advancePercentage || 50) / 100));
@@ -1445,11 +1450,20 @@ export default function CreateProformaPage() {
         </div>
       </div>
 
-      {/* ── Card 1: Client Master & Company Profile Selector ────── */}
+      {/* ── Dynamic Issuing Branch & Entity Selection ───────── */}
+      <BranchSelector
+        companies={companies}
+        selectedCompanyId={formData.companyProfileId}
+        onSelectCompany={(compId) => setFormData((prev) => ({ ...prev, companyProfileId: compId }))}
+        label="Issuing Branch & Commercial Operating Entity"
+        sublabel="Select which branch is issuing this Proforma Invoice. Determines seller GST jurisdiction, billing address, bank remittance coordinates, and factory dispatch."
+      />
+
+      {/* ── Card 1: Client Master & Quotation Import ──────────── */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2">
           <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-[#7FB706]" /> Client Master &amp; Issuing Entity
+            <Building2 className="w-4 h-4 text-[#7FB706]" /> Client Master (Select Customer)
           </h3>
           {quotations.length > 0 && (
             <div className="flex items-center gap-2">
@@ -1470,7 +1484,7 @@ export default function CreateProformaPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
           <CustomerSearchSelect
             customers={customers}
             selectedCustomerId={formData.customerId}
@@ -1480,21 +1494,6 @@ export default function CreateProformaPage() {
             placeholder="Search party name, email, GST, phone..."
             required
           />
-
-          <div>
-            <label className={labelCls}>Issuing Company Profile *</label>
-            <select
-              value={formData.companyProfileId}
-              onChange={(e) => setFormData((prev) => ({ ...prev, companyProfileId: e.target.value }))}
-              className={inputCls}
-            >
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.companyName || c.legalName} ({c.taxRegime || 'GST'} - {c.entityCode || 'PPS'})
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
       </div>
 

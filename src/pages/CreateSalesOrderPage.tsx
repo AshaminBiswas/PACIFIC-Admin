@@ -32,6 +32,7 @@ import {
   extractModelDimensions,
 } from '../utils/quotationProductPresets';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
+import BranchSelector from '../components/common/BranchSelector';
 import type { BusinessParty, CompanyProfile, ProductCatalogModel, SalesQuotation, ProformaInvoice } from '../types/admin';
 import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP, isRestroomCubicleItem } from '../utils/tax';
 import {
@@ -584,6 +585,12 @@ export default function CreateSalesOrderPage() {
 
   const taxableTotal = subtotal + Number(formData.freightAmount || 0) + Number(formData.installationCharge || 0);
 
+  const selectedCompany = useMemo(
+    () => companies.find((c) => c.id === formData.companyProfileId) || companies[0],
+    [companies, formData.companyProfileId]
+  );
+  const sellerStateCode = (selectedCompany?.stateCode || (selectedCompany?.gstin ? selectedCompany.gstin.slice(0, 2) : '07')).trim();
+
   const gstBreakdown = useMemo(() => {
     return calculateGstSplit(
       taxableTotal,
@@ -592,9 +599,10 @@ export default function CreateSalesOrderPage() {
       false,
       18,
       formData.billingAddress.gstin,
-      formData.billingAddress.addressLine
+      formData.billingAddress.addressLine,
+      sellerStateCode
     );
-  }, [taxableTotal, formData.placeOfSupplyStateCode, formData.placeOfSupply, formData.billingAddress]);
+  }, [taxableTotal, formData.placeOfSupplyStateCode, formData.placeOfSupply, formData.billingAddress, sellerStateCode]);
 
   const grandTotal = Math.round(taxableTotal + gstBreakdown.totalTax);
 
@@ -824,6 +832,15 @@ export default function CreateSalesOrderPage() {
         </div>
       </div>
 
+      {/* ── Dynamic Issuing Branch & Entity Selection ───────── */}
+      <BranchSelector
+        companies={companies}
+        selectedCompanyId={formData.companyProfileId}
+        onSelectCompany={(compId) => setFormData((prev) => ({ ...prev, companyProfileId: compId }))}
+        label="Issuing Branch & Commercial Operating Entity"
+        sublabel="Select which branch is issuing this Sales Order. Determines seller GST jurisdiction, billing address, bank remittance coordinates, and factory dispatch."
+      />
+
       {/* ── Customer & Order Reference Metadata Card ───────────── */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
         <div className="flex items-center gap-2 pb-2 border-b border-white/5">
@@ -831,7 +848,7 @@ export default function CreateSalesOrderPage() {
           <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Order Header & Client Mapping</h3>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
           {/* Customer Selection */}
           <CustomerSearchSelect
             customers={customers}
@@ -842,22 +859,6 @@ export default function CreateSalesOrderPage() {
             placeholder="Search party name, email, GST, phone..."
             required
           />
-
-          {/* Company Profile */}
-          <div className="space-y-1.5">
-            <label className="text-gray-400 font-medium">Issuer Company Profile</label>
-            <select
-              value={formData.companyProfileId}
-              onChange={(e) => setFormData({ ...formData, companyProfileId: e.target.value })}
-              className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:border-[#7FB706] focus:outline-none"
-            >
-              {companies.map((cp) => (
-                <option key={cp.id} value={cp.id}>
-                  {cp.companyName}
-                </option>
-              ))}
-            </select>
-          </div>
 
           {/* Client PO Number */}
           <div className="space-y-1.5">

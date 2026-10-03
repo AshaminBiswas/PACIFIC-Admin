@@ -2,8 +2,10 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Save, RotateCcw, CheckCircle2, Plus, Trash2, Building2, MapPin, Receipt, ShieldCheck, Wrench } from 'lucide-react';
 import { invoicesApi, crmApi, salesOrdersApi } from '../api/services';
+import { companiesApi } from '../api/companyApi';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
-import type { BusinessParty, SalesOrder } from '../types/admin';
+import BranchSelector from '../components/common/BranchSelector';
+import type { BusinessParty, SalesOrder, CompanyProfile } from '../types/admin';
 import { calculateGstSplit, isRestroomCubicleItem } from '../utils/tax';
 
 const LOCAL_STORAGE_KEY = 'pacific_create_invoice_v2';
@@ -20,6 +22,7 @@ interface InvoiceItemRow {
 
 interface InvoiceFormData {
   customerId: string;
+  companyProfileId: string;
   orderId: string;
   invoiceDate: string;
   dueDate: string;
@@ -30,6 +33,7 @@ interface InvoiceFormData {
 
 const INITIAL_FORM_DATA: InvoiceFormData = {
   customerId: '',
+  companyProfileId: '',
   orderId: '',
   invoiceDate: new Date().toISOString().split('T')[0],
   dueDate: new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
@@ -57,6 +61,7 @@ export default function CreateInvoicePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [customers, setCustomers] = useState<BusinessParty[]>([]);
   const [orders, setOrders] = useState<SalesOrder[]>([]);
+  const [companies, setCompanies] = useState<CompanyProfile[]>([]);
 
   const [formData, setFormData] = useState<InvoiceFormData>(() => {
     try {
@@ -69,14 +74,23 @@ export default function CreateInvoicePage() {
   // Load lookup lists
   const loadLookups = useCallback(async () => {
     try {
-      const [custRes, orderRes] = await Promise.all([
+      const [custRes, orderRes, compRes] = await Promise.all([
         crmApi.listCustomers({ limit: 100 }),
         salesOrdersApi.list({ limit: 100 }),
+        companiesApi.list().catch(() => ({ data: { data: [] } })),
       ]);
       if (custRes.data?.data?.items) setCustomers(custRes.data.data.items);
       if (orderRes.data?.data?.items) setOrders(orderRes.data.data.items);
+      const companyList = compRes.data?.data;
+      if (companyList && companyList.length > 0) {
+        setCompanies(companyList);
+        setFormData((prev) => ({
+          ...prev,
+          companyProfileId: prev.companyProfileId || companyList[0].id,
+        }));
+      }
     } catch (err) {
-      console.error('Failed to load customers/orders for invoice:', err);
+      console.error('Failed to load customers/orders/companies for invoice:', err);
     }
   }, []);
 
@@ -193,6 +207,7 @@ export default function CreateInvoicePage() {
       ...prev,
       orderId: ordId,
       customerId: ord.customerId || prev.customerId,
+      companyProfileId: ord.companyProfileId || prev.companyProfileId,
       items: orderItems.length > 0 ? orderItems : prev.items,
       notes: `Tax invoice generated from Sales Order ${ord.orderNumber}.`,
     }));
@@ -267,6 +282,12 @@ export default function CreateInvoicePage() {
     [formData.items]
   );
 
+  const selectedCompany = useMemo(
+    () => companies.find((c) => c.id === formData.companyProfileId) || companies[0],
+    [companies, formData.companyProfileId]
+  );
+  const sellerStateCode = (selectedCompany?.stateCode || (selectedCompany?.gstin ? selectedCompany.gstin.slice(0, 2) : '07')).trim();
+
   const gstBreakdown = useMemo(() => {
     const addressStr = deliveryAddr
       ? [deliveryAddr.addressLine1, deliveryAddr.city, deliveryAddr.state].filter(Boolean).join(', ')
@@ -281,9 +302,10 @@ export default function CreateInvoicePage() {
       false,
       18,
       selectedCustomer?.gstin,
-      addressStr
+      addressStr,
+      sellerStateCode
     );
-  }, [subtotal, billingAddr, deliveryAddr, selectedCustomer]);
+  }, [subtotal, billingAddr, deliveryAddr, selectedCustomer, sellerStateCode]);
 
   const handleSubmit = async () => {
     try {
@@ -296,6 +318,7 @@ export default function CreateInvoicePage() {
       const payload = {
         orderId: formData.orderId || undefined,
         customerId: formData.customerId || undefined,
+        companyProfileId: formData.companyProfileId || undefined,
         subtotal: subtotal,
         taxAmount: gstBreakdown.totalTax,
         totalAmount: gstBreakdown.grandTotal,
@@ -365,6 +388,15 @@ export default function CreateInvoicePage() {
 
       {/* ── Document Flow Timeline (Stage 04) ───────────────────── */}
       <DocumentFlowTimeline currentStage={4} />
+
+      {/* ── Dynamic Issuing Branch & Billing Entity ───────────── */}
+      <BranchSelector
+        companies={companies}
+        selectedCompanyId={formData.companyProfileId}
+        onSelectCompany={(compId) => setFormData((prev) => ({ ...prev, companyProfileId: compId }))}
+        label="Issuing Branch & Billing Entity"
+        sublabel="Select which branch is issuing this Tax Invoice. Determines seller GST jurisdiction, billing address, bank remittance coordinates, and factory dispatch."
+      />
 
       {/* Form Container */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 sm:p-6 space-y-6">

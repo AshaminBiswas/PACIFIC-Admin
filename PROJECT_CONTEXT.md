@@ -3104,6 +3104,142 @@ Previously, additional cubicle model systems added to a Quotation or Proforma In
    - Touch targets strictly designed with `min-h-[44px]` touch targets.
    - On screens $< 640\text{px}$, a sticky bottom floating action bar appears with instant **Call**, **WhatsApp**, **New PO**, and **Edit** actions.
 
+---
+
+## 50. Dynamic Branch & Entity Selection Across Commercial ERP Documents (October 2026)
+
+### 50.1 Background & User Directives
+- **Direct User Request**: *"in the Quotation and PI, Bill, Issue everythin should have an option to select the branches make dynamic"*
+- **Context & Operational Need**:
+  - Pacific operates multiple commercial operating entities and manufacturing/depot branches in the `company_profiles` table (`PRC_IN` Delhi HQ, `PRC-KOL` Kolkata, `PRC-MUM` Mumbai, `PRC-UAE` Dubai, etc.).
+  - Previously, commercial creation and edit forms either lacked branch selection entirely (defaulting to entity #1 / Delhi Mandoli HQ) or utilized a cramped `<select>` element.
+  - Furthermore, tax computation engines across frontend and backend hardcoded seller state `07` (Delhi), incorrectly treating buyers outside Delhi as inter-state even when transacting with local state branches (e.g., West Bengal branch `19` selling to a Kolkata buyer).
+
+### 50.2 Cross-Stack Dynamic Tax Engine Hardening
+1. **Frontend Tax Engine (`src/utils/tax.ts`)**:
+   - Added `isIntraStateSupply` helper.
+   - Extended `calculateGstSplit` with `sellerStateCode = '07'` parameter.
+   - Dynamically determines intra-state vs. inter-state supply by checking `buyerStateCode === sellerStateCode`. If matching $\rightarrow$ splits CGST (50%) + SGST (50%); if different $\rightarrow$ computes IGST (100%).
+2. **Backend Tax Engine (`D:\PACIFIC-Backend\src\modules\tax\tax.engine.ts`)**:
+   - Updated `calculateGstTax` to dynamically inspect `cleanBuyerGstin.startsWith(sellerCode)` rather than hardcoding `'07'`.
+3. **Backend Proforma Invoice Engine (`src/modules/sales/pi.service.ts`)**:
+   - Dynamic `originStateCode` resolution in `update`: if `companyProfileId` is updated, fetches the new company profile state code and re-evaluates tax breakdown dynamically.
+   - Added `companyProfileId` persistence in `proformaInvoice.update`.
+4. **Backend Sales Order Engine (`src/modules/orders/orders.service.ts`)**:
+   - Dynamic `sellerCode` resolution in `update` from updated or existing company profile.
+   - Re-evaluates intra-state vs. inter-state taxes based on `placeOfSupplyStateCode === sellerCode`.
+   - Added `companyProfileId` persistence in `salesOrder.update`.
+5. **Backend Invoice Service (`src/modules/invoices/invoices.service.ts`)**:
+   - Sanitized `companyProfileId` and `customerId` on `invoicesService.create` to prevent Prisma unknown argument errors while embedding branch tracking into notes metadata.
+6. **Backend Quotations Service (`src/modules/quotations/quotations.service.ts`)**:
+   - Preserved and updated `companyProfileId` in `salesQuotation.update`.
+
+### 50.3 Reusable Component: `BranchSelector` (`src/components/common/BranchSelector.tsx`)
+- A modern, dark-themed responsive card component rendering:
+  - Branch Header with `Building2` icon, title, and subtitle.
+  - Active branch state jurisdiction pill badge (e.g., `State: 07 - Delhi`, `State: 19 - West Bengal`, `State: 27 - Maharashtra`).
+  - Quick-switch pill buttons for instant 1-tap switching between configured company profiles.
+  - Comprehensive details panel displaying:
+    - Company Legal Name & Trade Name
+    - Entity Code (`PRC_IN`, `PRC-KOL`, etc.)
+    - GSTIN & PAN tags
+    - Factory / Registered Dispatch Address
+    - Bank Remittance Coordinates (Bank Name, Account Number, IFSC)
+  - Full-width fallback dropdown selector for extensive branch networks.
+
+### 50.4 Universal Pipeline Integration Across All 7 Stages ("everythin")
+1. **Stage 1 — Sales Quotation**:
+   - **`DraftQuotationPage.tsx`**: Integrated `BranchSelector`, dynamically loads company profiles via `companiesApi.list()`, and passes `sellerStateCode` to `calculateGstSplit`.
+   - **`EditSalesQuotationPage.tsx`**: Integrated `BranchSelector`, loads company profiles, persists `companyProfileId` in form data and server update payload, and passes `sellerStateCode` to `calculateGstSplit`.
+2. **Stage 2 — Proforma Invoice (PI)**:
+   - **`CreateProformaPage.tsx`**: Integrated `BranchSelector`, loads company profiles, auto-defaults to active profile, and passes `sellerStateCode` to `calculateGstSplit`.
+   - **`EditProformaInvoicePage.tsx`**: Integrated `BranchSelector`, loads company profiles, pre-populates `companyProfileId` from loaded PI, persists `companyProfileId` in update payload, and passes `sellerStateCode` to `calculateGstSplit`.
+3. **Stage 3 — Sales Order**:
+   - **`CreateSalesOrderPage.tsx`**: Integrated `BranchSelector` above the Order Header card, replacing the cramped select with the full dynamic entity card, and passes `sellerStateCode` to `calculateGstSplit`.
+   - **`EditSalesOrderPage.tsx`**: Integrated `BranchSelector`, loads company profiles, pre-populates `companyProfileId`, updates payload on save, and passes `sellerStateCode` to `calculateGstSplit`.
+4. **Stage 4 — Bill & Tax Invoice**:
+   - **`CreateInvoicePage.tsx`**: Integrated `BranchSelector` between the document timeline and form container, loads company profiles, links selected order's branch, passes `sellerStateCode` to `calculateGstSplit`, and includes `companyProfileId` in invoice creation payload.
+5. **Stage 5 — Packing List**:
+   - **`CreatePackingListPage.tsx`**: Integrated `BranchSelector`, loads company profiles, and dynamically updates `consignorName` and `consignorAddress` from the selected branch warehouse/depot.
+6. **Stage 7 — Hardware Issue**:
+   - **`CreateHardwareIssuePage.tsx`**: Replaced the basic select with `BranchSelector`, loading company profiles and providing clear visibility of the issuing depot/warehouse.
+
+---
+
+## 51. Cloud PDF Generation & Short URL Routing Engine (`/q/:code`)
+
+### 51.1 Problem Statement & Root Cause
+1. **Render Container Headless Chrome Missing Error**:
+   - Downloading quotation PDFs threw: `Could not find Chrome (ver. 153.0.8010.36)... at ChromeLauncher.resolveExecutablePath... at htmlToPdfBuffer (/opt/render/project/src/dist/utils/htmlToPdf.js:13:21)`.
+   - On Render Linux containers, Puppeteer by default seeks Chrome in `/opt/render/.cache/puppeteer`. Render cleans external caches between build and run phases unless directed into the project workspace directory.
+   - Additionally, `package.json` had an `allowScripts` whitelist that omitted `"puppeteer": true`, preventing the npm lifecycle postinstall script from installing the browser binary.
+2. **Excessive URL Length & Sensitive JWT Exposure**:
+   - Quotation PDF links were ~385 characters long (e.g. `https://pacific-backend-psuw.onrender.com/api/v1/sales/quotations/d074c655-0e48-4968-aadc-c6243643dd06/pdf?download=true&token=eyJhbGciOi...`).
+   - `salesQuotationsApi.ts` was appending `&token=${encodeURIComponent(localStorage.getItem('pacific_access_token'))}`. This leaked the super-admin's session token into WhatsApp/SMS customer follow-ups and broke customer access when the JWT expired.
+   - The `/pdf` route is public and does not require an admin JWT.
+
+### 51.2 Solution Architecture
+1. **Cloud Puppeteer Configuration (`.puppeteerrc.cjs`)**:
+   - Configured `cacheDirectory: join(__dirname, '.cache', 'puppeteer')` to maintain the Chrome binary within the project repository boundary across Render build and runtime environments.
+   - Added `"puppeteer": true` to `allowScripts` in `package.json`.
+   - Added `npx puppeteer browsers install chrome` to both `"postinstall"` and `"build"` scripts in `package.json`.
+2. **Resilient Multi-Path Chrome Detection (`htmlToPdf.ts`)**:
+   - Implemented `scanForChromeBinary(dir)` and `findSystemChromeExecutable()` to scan:
+     - `process.env.PUPPETEER_EXECUTABLE_PATH`, `CHROME_BIN`, `CHROME_PATH`.
+     - `puppeteer.executablePath()` (sync or Promise-resolved).
+     - Project-local `.cache/puppeteer`, parent `.cache/puppeteer`, and `/opt/render/.cache/puppeteer`.
+     - Standard Linux distribution binaries (`/usr/bin/google-chrome-stable`, `/usr/bin/google-chrome`, `/usr/bin/chromium`, `/usr/bin/chromium-browser`).
+3. **Graceful Auto-Print HTML Fallback (`quotations.controller.ts`)**:
+   - Wrapped `htmlToPdfBuffer(html)` in `getPdf` and `getShortPdf` with a fallback mechanism.
+   - If headless Chrome ever encounters memory exhaustion or platform faults, the server gracefully returns a responsive printable HTML view with an executive top toolbar (`📥 Download PDF`, `🖨️ Print / Save as PDF`, `📐 View Drawing`) and triggers `window.print()` automatically, completely eliminating 500 JSON errors for end users.
+4. **Short URL Engine (`/q/:code` and `/api/v1/q/:code`)**:
+   - Mounted public route in `D:\PACIFIC-Backend\src\app.ts`:
+     `app.get(['/q/:code', `${prefix}/q/:code`, '/q/:code/pdf', `${prefix}/q/:code/pdf`], quotationsController.getShortPdf);`
+   - Added `quotationsService.getByCodeOrId(code)` supporting:
+     - Full 36-char UUID.
+     - 8-char short UUID prefix (e.g. `d074c655`).
+     - Reference number (e.g. `PRC/QT/2026-27/001` or `PRC-QT-2026-27-001`).
+   - URL length reduced by **86%** from ~385 characters to ~53 characters (`https://pacific-backend-psuw.onrender.com/q/d074c655`).
+5. **Frontend Omnichannel Cleanup & Sharing**:
+   - `salesQuotationsApi.ts`: Removed redundant `&token=...` from `getPdfUrl` and `getDownloadPdfUrl`; added `getShortUrl(idOrCode, download)`.
+   - `QuotationFollowupModal.tsx` & `QuotationFollowupPage.tsx`: Integrated short URLs across WhatsApp and SMS auto-generated templates and added direct "Copy Short Link" buttons.
+   - `SalesQuotationDetailPage.tsx`: Added "Download PDF" direct action and "Copy Short Link" button with interactive feedback.
+
+---
+
+## 52. System Model Visuals & Side-by-Side Quotation PDF Layout
+
+### 52.1 Feature Overview
+- **Product Model Visuals**: Added support for attaching architectural 3D render visuals for Restroom Cubicles, Urinal Modesty Partitions (UMP), Modular Lockers, Kids Toilets, and custom line items.
+- **Auto-Selection**: When an admin selects any standard model (e.g., Delight, Skylight, Platina, Gusto, SkyWings, Wall Hung, Model A–D, Tier 1–6 Lockers, Summer Fun, Azalea), the associated model image is automatically populated.
+- **Custom Upload & Overwrite**: Admins can upload custom images via direct ImageKit integration (`uploadToImageKit`) or provide manual URLs via the dedicated `ModelImageField` component.
+- **Quotation PDF Side-by-Side Page 2 Layout**:
+  - The hardware accessories list (`Standard Inclusions & Hardware Accessories`) is placed on the **left side (65% width)**.
+  - The corresponding **System Model Visual(s)** are rendered on the **right side (35% width)** with category badges, high-resolution visual cards, and model titles.
+  - Remote image URLs are converted to base64 data URIs via `fetchImageAsDataUri` on the backend so Puppeteer prints high-fidelity images offline without CORS/rendering blocks.
+
+### 52.2 Modified Files & Components
+1. **Admin Types (`src/types/admin.ts`)**:
+   - Added `modelImageUrl?: string` and `systemCategory?: string` to `SalesQuotationItem`.
+2. **Product Presets (`src/utils/quotationProductPresets.ts`)**:
+   - Backfilled standard preset models with high-resolution visual assets.
+   - Enhanced `getMergedQuotationModels()` to preserve and prioritize preset model visuals.
+3. **Shared Visual Component (`src/components/quotations/ModelImageField.tsx`)**:
+   - Reusable thumbnail card with ImageKit direct uploader (`quotations/models`), file input, URL input, and remove button.
+4. **Quotation Draft Wizard (`src/pages/DraftQuotationPage.tsx`)**:
+   - Integrated `ModelImageField` for Primary Cubicle, UMP, Modular Locker, and custom line items.
+   - Automatic image population on model dropdown change.
+   - Persistence of `modelImageUrl` in `customSpecsJson` and item payloads.
+5. **Quotation Editor (`src/pages/EditSalesQuotationPage.tsx`)**:
+   - Added `ModelImageField` for Primary Cubicle, UMP, Modular Locker, and custom line items.
+   - Auto-population on model selection and backward-compatible persistence.
+6. **Backend PDF Generation (`D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`)**:
+   - Two-column flex layout on Page 2 (Left: 65% hardware inclusions; Right: 35% model image gallery cards).
+7. **Backend Service (`D:\PACIFIC-Backend\src\modules\quotations\quotations.service.ts`)**:
+   - Line items model visual extraction, deduplication, and conversion to base64 data URIs (`fetchImageAsDataUri`).
+
+
+
 
 
 

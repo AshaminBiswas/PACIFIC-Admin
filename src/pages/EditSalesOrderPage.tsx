@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { salesOrdersApi } from '../api/salesOrdersApi';
 import { crmApi } from '../api/crmApi';
+import { companiesApi } from '../api/companyApi';
 import { productCatalogApi } from '../api/productCatalogApi';
 import {
   getMergedQuotationModels,
@@ -30,7 +31,8 @@ import {
 } from '../utils/quotationProductPresets';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import CustomerSearchSelect from '../components/common/CustomerSearchSelect';
-import type { BusinessParty, ProductCatalogModel, SalesOrder } from '../types/admin';
+import BranchSelector from '../components/common/BranchSelector';
+import type { BusinessParty, CompanyProfile, ProductCatalogModel, SalesOrder } from '../types/admin';
 import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP, isRestroomCubicleItem } from '../utils/tax';
 import {
   DEFAULT_ACCESSORIES_TEXT,
@@ -73,9 +75,11 @@ export default function EditSalesOrderPage() {
 
   // Lookups
   const [customers, setCustomers] = useState<BusinessParty[]>([]);
+  const [companies, setCompanies] = useState<CompanyProfile[]>([]);
   const [catalogModels, setCatalogModels] = useState<ProductCatalogModel[]>([]);
 
   // Metadata
+  const [companyProfileId, setCompanyProfileId] = useState('');
   const [orderNumber, setOrderNumber] = useState('');
   const [orderDate, setOrderDate] = useState('');
   const [status, setStatus] = useState('APPROVED');
@@ -145,16 +149,22 @@ export default function EditSalesOrderPage() {
     setLoading(true);
     setError(null);
     try {
-      const [orderRes, custRes, modelsList] = await Promise.all([
+      const [orderRes, custRes, compRes, modelsList] = await Promise.all([
         salesOrdersApi.getById(id),
         crmApi.listCustomers({ limit: 100 }).catch(() => ({ data: { data: { items: [] } } })),
+        companiesApi.list().catch(() => ({ data: { data: [] } })),
         productCatalogApi.listModels().catch(() => []),
       ]);
 
       const data: SalesOrder = (orderRes.data?.data ?? orderRes.data) as any;
       setCustomers(custRes.data?.data?.items || []);
+      const companyList = compRes.data?.data;
+      if (companyList && companyList.length > 0) {
+        setCompanies(companyList);
+      }
       setCatalogModels(getMergedQuotationModels(modelsList || []));
 
+      setCompanyProfileId(data.companyProfileId || (data as any).companyProfile?.id || (companyList && companyList[0]?.id) || '');
       setOrderNumber(data.orderNumber || '');
       setOrderDate(data.orderDate ? new Date(data.orderDate).toISOString().split('T')[0] : '');
       setStatus(data.status || 'APPROVED');
@@ -447,6 +457,12 @@ export default function EditSalesOrderPage() {
 
   const taxableTotal = subtotal + Number(freightAmount || 0) + Number(installationCharge || 0);
 
+  const selectedCompany = useMemo(
+    () => companies.find((c) => c.id === companyProfileId) || companies[0],
+    [companies, companyProfileId]
+  );
+  const sellerStateCode = (selectedCompany?.stateCode || (selectedCompany?.gstin ? selectedCompany.gstin.slice(0, 2) : '07')).trim();
+
   const gstBreakdown = useMemo(() => {
     return calculateGstSplit(
       taxableTotal,
@@ -455,9 +471,10 @@ export default function EditSalesOrderPage() {
       false,
       18,
       billingAddress.gstin,
-      billingAddress.addressLine
+      billingAddress.addressLine,
+      sellerStateCode
     );
-  }, [taxableTotal, placeOfSupplyStateCode, placeOfSupply, billingAddress]);
+  }, [taxableTotal, placeOfSupplyStateCode, placeOfSupply, billingAddress, sellerStateCode]);
 
   const grandTotal = Math.round(taxableTotal + gstBreakdown.totalTax);
 
@@ -487,6 +504,7 @@ export default function EditSalesOrderPage() {
     setSubmitting(true);
     try {
       const payload = {
+        companyProfileId: companyProfileId || undefined,
         orderDate: orderDate ? new Date(orderDate).toISOString() : new Date().toISOString(),
         customerId,
         customerPoNumber: clientPoNumber || null,
@@ -654,6 +672,15 @@ export default function EditSalesOrderPage() {
           orderNumber,
           piNumber,
         }}
+      />
+
+      {/* ── Dynamic Issuing Branch & Entity Selection ───────── */}
+      <BranchSelector
+        companies={companies}
+        selectedCompanyId={companyProfileId}
+        onSelectCompany={(compId) => setCompanyProfileId(compId)}
+        label="Issuing Branch & Commercial Operating Entity"
+        sublabel="Select which branch is issuing this Sales Order. Determines seller GST jurisdiction, billing address, bank remittance coordinates, and factory dispatch."
       />
 
       {/* ── Customer & Order Reference Metadata Card ───────────── */}

@@ -6,6 +6,7 @@ import {
   UploadCloud, ExternalLink, Eye,
 } from 'lucide-react';
 import { salesQuotationsApi } from '../api/salesQuotationsApi';
+import { companiesApi } from '../api/companyApi';
 import { productCatalogApi } from '../api/productCatalogApi';
 import {
   getMergedQuotationModels,
@@ -13,7 +14,9 @@ import {
   extractModelDimensions,
 } from '../utils/quotationProductPresets';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
-import type { ProductCatalogModel } from '../types/admin';
+import BranchSelector from '../components/common/BranchSelector';
+import ModelImageField from '../components/quotations/ModelImageField';
+import type { ProductCatalogModel, CompanyProfile } from '../types/admin';
 import { calculateGstSplit, isRestroomCubicleItem } from '../utils/tax';
 import { uploadToImageKit } from '../lib/imagekit';
 
@@ -22,6 +25,7 @@ interface EditItem {
   modelId?: string;
   customModelName?: string;
   modelName?: string;
+  modelImageUrl?: string;
   systemCategory?: 'cubicle' | 'ump' | 'locker' | 'custom' | string;
   description: string;
   unit: string;
@@ -39,6 +43,7 @@ interface EditItem {
 }
 
 interface EditFormData {
+  companyProfileId?: string;
   recipientSalutation: string;
   recipientName: string;
   recipientCompany: string;
@@ -93,9 +98,10 @@ export default function EditSalesQuotationPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [catalogModels, setCatalogModels] = useState<ProductCatalogModel[]>([]);
+  const [companies, setCompanies] = useState<CompanyProfile[]>([]);
 
   const cubicleModels = useMemo(
-    () => catalogModels.filter((m) => m.category === 'Cubicle'),
+    () => catalogModels.filter((m) => m.category === 'Cubicle' || m.category === 'Kids Toilet'),
     [catalogModels]
   );
   const lockerModels = useMemo(
@@ -112,9 +118,18 @@ export default function EditSalesQuotationPage() {
       .listModels()
       .then((models) => setCatalogModels(getMergedQuotationModels(models || [])))
       .catch(() => setCatalogModels(getMergedQuotationModels([])));
+
+    companiesApi
+      .list()
+      .then((res) => {
+        const comps = res.data?.data;
+        if (Array.isArray(comps)) setCompanies(comps);
+      })
+      .catch((err) => console.error('Failed to load companies:', err));
   }, []);
 
   const [form, setForm] = useState<EditFormData>({
+    companyProfileId: '',
     recipientSalutation: 'Mr.',
     recipientName: '',
     recipientCompany: '',
@@ -168,6 +183,7 @@ export default function EditSalesQuotationPage() {
 
         // Build form data from API response
         const serverForm: EditFormData = {
+          companyProfileId: q.companyProfileId || q.companyProfile?.id || '',
           recipientSalutation: q.recipientSalutation || 'Mr.',
           recipientName: q.recipientName || q.customer?.legalName || '',
           recipientCompany: q.recipientCompany || q.customer?.tradeName || '',
@@ -220,6 +236,7 @@ export default function EditSalesQuotationPage() {
             systemCategory: (it.customSpecsJson?.systemCategory) ||
               (it.description && it.description.toLowerCase().includes('locker') ? 'locker' :
                it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump')) ? 'ump' : 'cubicle'),
+            modelImageUrl: it.modelImageUrl || it.customSpecsJson?.modelImageUrl || it.customSpecsJson?.imageUrl || '',
             customSpecsJson: it.customSpecsJson,
           })),
         };
@@ -284,6 +301,9 @@ export default function EditSalesQuotationPage() {
   const activeStateCode = form.customerStateCode || (activeGstin && activeGstin.length >= 2 ? activeGstin.slice(0, 2) : null);
   const activeStateName = form.customerStateName || null;
 
+  const selectedCompany = companies.find((c) => c.id === form.companyProfileId) || companies[0];
+  const sellerStateCode = selectedCompany?.stateCode || '07';
+
   const gstBreakdown = calculateGstSplit(
     subtotal,
     activeStateCode,
@@ -291,7 +311,8 @@ export default function EditSalesQuotationPage() {
     Boolean(form.isSezExempt),
     Number(form.gstRate) || 18,
     activeGstin,
-    form.recipientAddress
+    form.recipientAddress,
+    sellerStateCode
   );
   const gstAmount = gstBreakdown.totalTax;
   const grandTotal = gstBreakdown.grandTotal;
@@ -409,6 +430,7 @@ export default function EditSalesQuotationPage() {
         boardType: dims.boardType,
         hardwarePackage: dims.hardwarePackage,
         make: dims.make || nextItems[idx].make || 'Pacific',
+        modelImageUrl: selected.imageUrl || '',
       };
 
       // Auto-fetch and replace "Standard Inclusions & Hardware Accessories *"
@@ -510,6 +532,7 @@ export default function EditSalesQuotationPage() {
         doorSize: 'N/A',
         overallHeight: dims.overallHeight || '1200mm',
         hardwarePackage: dims.hardwarePackage || 'Grade 304 Wall Mount Cantilever Clamps',
+        modelImageUrl: selected.imageUrl || '',
       };
       const remainingItems = f.items.filter((it) => it !== existingUmp && it.systemCategory !== 'ump');
       const nextItems = [...remainingItems, updatedUmpItem];
@@ -594,6 +617,7 @@ export default function EditSalesQuotationPage() {
         doorSize: dims.doorSize || 'Tier Modular Doors as per drawing',
         overallHeight: dims.overallHeight || '1900mm',
         hardwarePackage: dims.hardwarePackage || 'Heavy-Duty Uniform Standard Locker Hardware',
+        modelImageUrl: selected.imageUrl || '',
       };
       const remainingItems = f.items.filter((it) => it !== existingLocker && it.systemCategory !== 'locker');
       const nextItems = [...remainingItems, updatedLockerItem];
@@ -807,10 +831,13 @@ export default function EditSalesQuotationPage() {
           overallHeight: it.overallHeight || undefined,
           hardwarePackage: it.hardwarePackage || undefined,
           make: it.make || undefined,
+          modelImageUrl: it.modelImageUrl || undefined,
           customSpecsJson: {
             ...(typeof (it as any).customSpecsJson === 'object' ? (it as any).customSpecsJson : {}),
             customModelName: it.customModelName || undefined,
             modelName: it.customModelName || undefined,
+            modelImageUrl: it.modelImageUrl || undefined,
+            systemCategory: it.systemCategory || undefined,
             hardwarePackage: it.hardwarePackage || undefined,
             boardType: it.boardType || 'HPL',
             make: it.make || undefined,
@@ -987,6 +1014,15 @@ export default function EditSalesQuotationPage() {
           </button>
         </div>
       </div>
+
+      {/* ── Dynamic Issuing Branch & Entity Selection ───────── */}
+      <BranchSelector
+        companies={companies}
+        selectedCompanyId={form.companyProfileId || ''}
+        onSelectCompany={(compId) => setForm((f) => ({ ...f, companyProfileId: compId }))}
+        label="Issuing Branch & Commercial Operating Entity"
+        sublabel="Select which branch is issuing this quotation. Determines seller GST jurisdiction, billing address, and factory dispatch."
+      />
 
       {/* Section 1: Recipient */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
@@ -1454,6 +1490,18 @@ export default function EditSalesQuotationPage() {
                           </div>
                         )}
                         {fieldErrors[`item_${primaryCubicleIdx}_desc`] && <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${primaryCubicleIdx}_desc`]}</p>}
+
+                        <ModelImageField
+                          imageUrl={primaryCubicleItem.modelImageUrl}
+                          modelName={
+                            primaryCubicleItem.customModelName ||
+                            primaryCubicleItem.modelName ||
+                            (cubicleModels.find((m) => m.id === primaryCubicleItem.modelId)?.title) ||
+                            'Restroom Cubicle'
+                          }
+                          categoryLabel="Cubicle Model Visual"
+                          onImageChange={(newUrl) => handleItemChange(primaryCubicleIdx, 'modelImageUrl', newUrl)}
+                        />
                       </div>
 
                       <div>
@@ -1570,6 +1618,18 @@ export default function EditSalesQuotationPage() {
                     </div>
                   )}
                   {umpItem && (
+                    <ModelImageField
+                      imageUrl={umpItem.modelImageUrl}
+                      modelName={
+                        umpItem.customModelName ||
+                        (urinalModels.find((m) => m.id === umpItem.modelId)?.title) ||
+                        'Urinal Modesty Partition'
+                      }
+                      categoryLabel="Urinal Partition Visual"
+                      onImageChange={(newUrl) => handleUmpFieldChange('modelImageUrl', newUrl)}
+                    />
+                  )}
+                  {umpItem && (
                     <div className="space-y-3 pt-2 border-t border-cyan-500/20">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
@@ -1650,6 +1710,18 @@ export default function EditSalesQuotationPage() {
                       />
                       <span className="text-[11px] text-amber-300/80 italic whitespace-nowrap">Printed in PDF Model specification</span>
                     </div>
+                  )}
+                  {lockerItem && (
+                    <ModelImageField
+                      imageUrl={lockerItem.modelImageUrl}
+                      modelName={
+                        lockerItem.customModelName ||
+                        (lockerModels.find((m) => m.id === lockerItem.modelId)?.title) ||
+                        'Modular Locker'
+                      }
+                      categoryLabel="Modular Locker Visual"
+                      onImageChange={(newUrl) => handleLockerFieldChange('modelImageUrl', newUrl)}
+                    />
                   )}
                   {lockerItem && (
                     <div className="space-y-3 pt-2 border-t border-purple-500/20">
@@ -1753,6 +1825,15 @@ export default function EditSalesQuotationPage() {
                               )}
                             </div>
                           </div>
+                        </div>
+
+                        <div className="sm:col-span-3">
+                          <ModelImageField
+                            imageUrl={item.modelImageUrl}
+                            modelName={item.customModelName || item.description || `Item #${realIdx + 1}`}
+                            categoryLabel="Line Item Model Visual"
+                            onImageChange={(newUrl) => handleItemChange(realIdx, 'modelImageUrl', newUrl)}
+                          />
                         </div>
 
                         <div>

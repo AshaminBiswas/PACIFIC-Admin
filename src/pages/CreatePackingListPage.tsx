@@ -2,8 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Save, RotateCcw, CheckCircle2, Plus, Trash2 } from 'lucide-react';
 import { packingListsApi, salesOrdersApi, crmApi } from '../api/services';
+import { companiesApi } from '../api/companyApi';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
-import type { SalesOrder, BusinessParty } from '../types/admin';
+import BranchSelector from '../components/common/BranchSelector';
+import type { SalesOrder, BusinessParty, CompanyProfile } from '../types/admin';
 
 const LOCAL_STORAGE_KEY = 'pacific_create_packing_list_v1';
 
@@ -77,6 +79,7 @@ export default function CreatePackingListPage() {
   
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [customers, setCustomers] = useState<BusinessParty[]>([]);
+  const [companies, setCompanies] = useState<CompanyProfile[]>([]);
 
   const [formData, setFormData] = useState<PackingListFormData>(() => {
     try {
@@ -88,12 +91,28 @@ export default function CreatePackingListPage() {
 
   const loadLookups = useCallback(async () => {
     try {
-      const [ordRes, custRes] = await Promise.all([
+      const [ordRes, custRes, compRes] = await Promise.all([
         salesOrdersApi.list({ limit: 100 }),
         crmApi.listCustomers({ limit: 100 }),
+        companiesApi.list().catch(() => ({ data: { data: [] } })),
       ]);
       if (ordRes.data?.data?.items) setOrders(ordRes.data.data.items);
       if (custRes.data?.data?.items) setCustomers(custRes.data.data.items);
+      const compList = compRes.data?.data;
+      if (compList && compList.length > 0) {
+        setCompanies(compList);
+        setFormData((prev) => {
+          const initialCompId = prev.companyProfileId || compList[0].id;
+          const comp = compList.find((c: any) => c.id === initialCompId) || compList[0];
+          const compAddr = comp?.addresses?.[0] ? [comp.addresses[0].addressLine1, comp.addresses[0].city, comp.addresses[0].postalCode].filter(Boolean).join(', ') : (comp?.state || 'New Delhi');
+          return {
+            ...prev,
+            companyProfileId: initialCompId,
+            consignorName: prev.consignorName || comp?.legalName || comp?.companyName || 'M/s. Pacific Products & Solutions',
+            consignorAddress: prev.consignorAddress || compAddr,
+          };
+        });
+      }
     } catch (err) {
       console.error('Failed to load lookups:', err);
     }
@@ -110,14 +129,30 @@ export default function CreatePackingListPage() {
     } catch {}
   }, [formData]);
 
+  const handleSelectCompany = (compId: string) => {
+    const comp = companies.find((c) => c.id === compId);
+    const compAddr = comp?.addresses?.[0] ? [comp.addresses[0].addressLine1, comp.addresses[0].city, comp.addresses[0].postalCode].filter(Boolean).join(', ') : (comp?.state || 'New Delhi');
+    setFormData((prev) => ({
+      ...prev,
+      companyProfileId: compId,
+      consignorName: comp?.legalName || comp?.companyName || prev.consignorName,
+      consignorAddress: compAddr || prev.consignorAddress,
+    }));
+  };
+
   const handleOrderSelect = (ordId: string) => {
     const ord = orders.find((o) => o.id === ordId);
     if (ord) {
+      const ordCompId = ord.companyProfileId || formData.companyProfileId;
+      const comp = companies.find((c) => c.id === ordCompId);
+      const compAddr = comp?.addresses?.[0] ? [comp.addresses[0].addressLine1, comp.addresses[0].city, comp.addresses[0].postalCode].filter(Boolean).join(', ') : undefined;
       setFormData((prev) => ({
         ...prev,
         orderId: ord.id,
         customerId: ord.customerId,
-        companyProfileId: ord.companyProfileId,
+        companyProfileId: ordCompId,
+        consignorName: comp?.legalName || comp?.companyName || prev.consignorName,
+        consignorAddress: compAddr || prev.consignorAddress,
         shipToName: ord.customer?.legalName || '',
         shipToAddress: ord.siteAddress || ord.customer?.addresses?.[0]?.addressLine1 || '',
         siteContactName: ord.customer?.contacts?.[0]?.name || '',
@@ -218,6 +253,15 @@ export default function CreatePackingListPage() {
 
       {/* ── Document Flow Timeline (Stage 05 / 06) ──────────────── */}
       <DocumentFlowTimeline currentStage={5} />
+
+      {/* ── Dynamic Issuing Branch & Dispatch Warehouse ─────── */}
+      <BranchSelector
+        companies={companies}
+        selectedCompanyId={formData.companyProfileId}
+        onSelectCompany={handleSelectCompany}
+        label="Consignor Branch & Dispatch Warehouse"
+        sublabel="Select which branch facility / warehouse is dispatching this shipment. Determines consignor name, factory address, and state jurisdiction."
+      />
 
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 sm:p-6 space-y-6">
         <div className="p-4 rounded-xl bg-[#0a0a1a] border border-white/10 space-y-4">

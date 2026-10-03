@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { piApi } from '../api/proformaApi';
 import { crmApi } from '../api/crmApi';
+import { companiesApi } from '../api/companyApi';
 import { productCatalogApi } from '../api/productCatalogApi';
 import {
   getMergedQuotationModels,
@@ -32,7 +33,8 @@ import {
 } from '../utils/quotationProductPresets';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import CustomerSearchSelect from '../components/common/CustomerSearchSelect';
-import type { BusinessParty, ProductCatalogModel } from '../types/admin';
+import BranchSelector from '../components/common/BranchSelector';
+import type { BusinessParty, CompanyProfile, ProductCatalogModel } from '../types/admin';
 import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP, isRestroomCubicleItem } from '../utils/tax';
 import { DEFAULT_ACCESSORIES_TEXT, type CreateItem, type BillingAddressData, type DeliveryAddressData } from './CreateProformaPage';
 
@@ -46,10 +48,12 @@ export default function EditProformaInvoicePage() {
 
   // Lookups
   const [customers, setCustomers] = useState<BusinessParty[]>([]);
+  const [companies, setCompanies] = useState<CompanyProfile[]>([]);
   const [catalogModels, setCatalogModels] = useState<ProductCatalogModel[]>([]);
 
   // Metadata
   const [piNumber, setPiNumber] = useState('');
+  const [companyProfileId, setCompanyProfileId] = useState('');
   const [status, setStatus] = useState('DRAFT');
   const [customerId, setCustomerId] = useState('');
   const [placeOfSupply, setPlaceOfSupply] = useState('Delhi');
@@ -121,18 +125,24 @@ export default function EditProformaInvoicePage() {
     setLoading(true);
     setError(null);
     try {
-      const [piRes, custRes, modelsList] = await Promise.all([
+      const [piRes, custRes, compRes, modelsList] = await Promise.all([
         piApi.getById(id),
         crmApi.listCustomers({ limit: 100 }).catch(() => ({ data: { data: { items: [] } } })),
+        companiesApi.list().catch(() => ({ data: { data: [] } })),
         productCatalogApi.listModels().catch(() => []),
       ]);
 
       const data = piRes.data?.data ?? (piRes.data as any);
       setCustomers(custRes.data?.data?.items || []);
+      const companyList = compRes.data?.data;
+      if (companyList && companyList.length > 0) {
+        setCompanies(companyList);
+      }
       const availableModels = getMergedQuotationModels(modelsList || []);
       setCatalogModels(availableModels);
 
       setPiNumber(data.piNumber || '');
+      setCompanyProfileId(data.companyProfileId || data.companyProfile?.id || (companyList && companyList[0]?.id) || '');
       setStatus(data.status || 'DRAFT');
       setCustomerId(data.customerId || '');
       setPlaceOfSupply(data.placeOfSupply || 'Delhi');
@@ -790,6 +800,12 @@ export default function EditProformaInvoicePage() {
 
   const totalTaxable = basicPrice + Number(freightAmount || 0) + Number(installationCharge || 0);
 
+  const selectedCompany = useMemo(
+    () => companies.find((c) => c.id === companyProfileId) || companies[0],
+    [companies, companyProfileId]
+  );
+  const sellerStateCode = (selectedCompany?.stateCode || (selectedCompany?.gstin ? selectedCompany.gstin.slice(0, 2) : '07')).trim();
+
   const gstBreakdown = calculateGstSplit(
     totalTaxable,
     billingAddress.stateCode,
@@ -797,7 +813,8 @@ export default function EditProformaInvoicePage() {
     false,
     18,
     billingAddress.gstin,
-    billingAddress.addressLine
+    billingAddress.addressLine,
+    sellerStateCode
   );
   const grandTotal = gstBreakdown.grandTotal;
   const requiredAdvance = Math.round(grandTotal * (Number(advancePercentage || 50) / 100));
@@ -915,6 +932,7 @@ export default function EditProformaInvoicePage() {
 
       await piApi.update(id, {
         customerId,
+        companyProfileId: companyProfileId || undefined,
         placeOfSupply,
         placeOfSupplyStateCode,
         reverseCharge,
@@ -1015,6 +1033,15 @@ export default function EditProformaInvoicePage() {
           advanceRequired: requiredAdvance,
           advancePaymentStatus: status === 'ISSUED' ? 'PENDING' : 'DRAFT',
         }}
+      />
+
+      {/* ── Dynamic Issuing Branch & Entity Selection ───────── */}
+      <BranchSelector
+        companies={companies}
+        selectedCompanyId={companyProfileId}
+        onSelectCompany={(compId) => setCompanyProfileId(compId)}
+        label="Issuing Branch & Commercial Operating Entity"
+        sublabel="Select which branch is issuing this Proforma Invoice. Determines seller GST jurisdiction, billing address, bank remittance coordinates, and factory dispatch."
       />
 
       {/* ── Client Selection ────────────────────────────────────── */}

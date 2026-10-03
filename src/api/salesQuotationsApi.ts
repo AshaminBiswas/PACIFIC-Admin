@@ -47,12 +47,16 @@ export const salesQuotationsApi = {
   listTemplates: (category?: string) =>
     apiClient.get<ApiResponse<QuotationContentTemplate[]>>('/sales/quotations/templates', { params: { category } }),
   saveTemplate: (data: any) => apiClient.post<ApiResponse<QuotationContentTemplate>>('/sales/quotations/templates', data),
-  getPdfUrl: (id: string) => {
-    const token = localStorage.getItem('pacific_access_token');
-    return `${apiClient.defaults.baseURL}/sales/quotations/${id}/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  getPdfUrl: (id?: string) => {
+    return `${apiClient.defaults.baseURL}/sales/quotations/${id || ''}/pdf`;
   },
-  getDownloadPdfUrl: (id: string) => {
-    const token = localStorage.getItem('pacific_access_token');
-    return `${apiClient.defaults.baseURL}/sales/quotations/${id}/pdf?download=true${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+  getDownloadPdfUrl: (id?: string) => {
+    return `${apiClient.defaults.baseURL}/sales/quotations/${id || ''}/pdf?download=true`;
+  },
+  getShortUrl: (idOrCode?: string, download = false) => {
+    const clean = (idOrCode || '').trim();
+    const shortCode = clean.length === 36 && clean.includes('-') ? clean.slice(0, 8) : clean;
+    const base = apiClient.defaults.baseURL?.replace(/\/api\/v1\/?$/, '') || 'https://pacific-backend-psuw.onrender.com';
+    return `${base}/q/${shortCode}${download ? '?dl=1' : ''}`;
   },
 };

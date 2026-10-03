@@ -16,6 +16,8 @@ import {
   extractModelDimensions,
 } from '../utils/quotationProductPresets';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
+import BranchSelector from '../components/common/BranchSelector';
+import ModelImageField from '../components/quotations/ModelImageField';
 import type { BusinessParty, CompanyProfile, ProductCatalogModel } from '../types/admin';
 import { calculateGstSplit, isRestroomCubicleItem } from '../utils/tax';
 
@@ -26,6 +28,7 @@ export interface CreateItem {
   modelId?: string;
   customModelName?: string;
   modelName?: string;
+  modelImageUrl?: string;
   systemCategory?: 'cubicle' | 'ump' | 'locker' | 'board' | 'hardware' | 'custom';
   description: string;
   unit: string;
@@ -148,7 +151,7 @@ export default function DraftQuotationPage() {
   const [loadingLookups, setLoadingLookups] = useState(true);
 
   const cubicleModels = useMemo(
-    () => catalogModels.filter((m) => m.category === 'Cubicle'),
+    () => catalogModels.filter((m) => m.category === 'Cubicle' || m.category === 'Kids Toilet'),
     [catalogModels]
   );
   const lockerModels = useMemo(
@@ -477,6 +480,7 @@ export default function DraftQuotationPage() {
         boardType: dims.boardType,
         hardwarePackage: dims.hardwarePackage,
         make: dims.make || nextItems[idx].make || 'Pacific',
+        modelImageUrl: selected.imageUrl || '',
       };
 
       const umpItem = nextItems.find((it) => it.systemCategory === 'ump' || (it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump'))));
@@ -574,6 +578,7 @@ export default function DraftQuotationPage() {
         doorSize: 'N/A',
         overallHeight: dims.overallHeight || '1200mm (affixed 300mm above finished floor)',
         hardwarePackage: dims.hardwarePackage || 'Grade 304 Wall Mount Cantilever Clamps',
+        modelImageUrl: selected.imageUrl || '',
       };
 
       const remainingItems = f.items.filter(
@@ -687,6 +692,7 @@ export default function DraftQuotationPage() {
         doorSize: dims.doorSize || 'Tier Modular Doors as per drawing',
         overallHeight: dims.overallHeight || '1900mm (including 100mm plinth base)',
         hardwarePackage: dims.hardwarePackage || 'Heavy-Duty Uniform Standard Locker Hardware',
+        modelImageUrl: selected.imageUrl || '',
       };
 
       const remainingItems = f.items.filter(
@@ -892,6 +898,8 @@ export default function DraftQuotationPage() {
 
   const taxable = basicPrice + installationCharge + (form.freightTerms === 'Fixed' || (form.freightTerms === 'Extra as Actual / To pay' && freightAmount > 0) ? freightAmount : 0);
   const selectedCust = customers.find((c) => c.id === form.customerId);
+  const selectedCompany = companies.find((c) => c.id === form.companyProfileId) || companies[0];
+  const sellerStateCode = selectedCompany?.stateCode || '07';
   const activeGstin = selectedCust?.gstin || null;
   const activeStateCode = selectedCust?.addresses?.[0]?.stateCode || (activeGstin && activeGstin.length >= 2 ? activeGstin.slice(0, 2) : null);
   const activeStateName = selectedCust?.addresses?.[0]?.state || null;
@@ -903,7 +911,8 @@ export default function DraftQuotationPage() {
     Boolean(form.isSezExempt),
     gstRate,
     activeGstin,
-    form.recipientAddress
+    form.recipientAddress,
+    sellerStateCode
   );
   const gstAmount = gstBreakdown.totalTax;
   const grandTotal = gstBreakdown.grandTotal;
@@ -1044,6 +1053,7 @@ export default function DraftQuotationPage() {
           make: it.make || undefined,
           customModelName: it.customModelName || undefined,
           modelName: it.customModelName || undefined,
+          modelImageUrl: it.modelImageUrl || undefined,
           customSpecsJson: {
             hardwarePackage: it.hardwarePackage || undefined,
             boardType: it.boardType || (form.quotationScope === 'HARDWARE' ? undefined : 'HPL'),
@@ -1052,6 +1062,7 @@ export default function DraftQuotationPage() {
             make: it.make || undefined,
             customModelName: it.customModelName || undefined,
             modelName: it.customModelName || undefined,
+            modelImageUrl: it.modelImageUrl || undefined,
           },
         })),
       });
@@ -1242,45 +1253,36 @@ export default function DraftQuotationPage() {
         </div>
       </div>
 
-      {/* Customer & Company Entity Selection */}
-      <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
-        <h3 className="text-sm font-bold text-white border-b border-white/5 pb-2">Client Master &amp; Issuing Entity</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className={labelCls}>Customer (Client Master) *</label>
-            <select
-              value={form.customerId}
-              onChange={(e) => handleCustomerSelect(e.target.value)}
-              className={getInputCls('customerId')}
-              required
-            >
-              <option value="">-- Select Customer --</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.legalName} {c.gstin ? `(${c.gstin})` : ''}
-                </option>
-              ))}
-            </select>
-            {fieldErrors.customerId && (
-              <p className="mt-1 text-xs text-red-400">{fieldErrors.customerId}</p>
-            )}
-          </div>
+      {/* ── Dynamic Issuing Branch & Entity Selection ───────── */}
+      <BranchSelector
+        companies={companies}
+        selectedCompanyId={form.companyProfileId}
+        onSelectCompany={(compId) => setForm((f) => ({ ...f, companyProfileId: compId }))}
+        label="Issuing Branch & Commercial Operating Entity"
+        sublabel="Select which branch is issuing this quotation. Determines seller GST jurisdiction, billing address, and factory dispatch."
+      />
 
-          <div>
-            <label className={labelCls}>Issuing Company Profile *</label>
-            <select
-              value={form.companyProfileId}
-              onChange={(e) => setForm((f) => ({ ...f, companyProfileId: e.target.value }))}
-              className={inputCls}
-              required
-            >
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.companyName || c.legalName} ({c.taxRegime || 'GST'} - {c.entityCode || 'PPS'})
-                </option>
-              ))}
-            </select>
-          </div>
+      {/* Customer / Client Master Selection */}
+      <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
+        <h3 className="text-sm font-bold text-white border-b border-white/5 pb-2">Client Master (Select Customer)</h3>
+        <div>
+          <label className={labelCls}>Customer (Client Master) *</label>
+          <select
+            value={form.customerId}
+            onChange={(e) => handleCustomerSelect(e.target.value)}
+            className={getInputCls('customerId')}
+            required
+          >
+            <option value="">-- Select Customer --</option>
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.legalName} {c.gstin ? `(${c.gstin})` : ''}
+              </option>
+            ))}
+          </select>
+          {fieldErrors.customerId && (
+            <p className="mt-1 text-xs text-red-400">{fieldErrors.customerId}</p>
+          )}
         </div>
       </div>
 
@@ -2213,6 +2215,18 @@ export default function DraftQuotationPage() {
                         {fieldErrors[`item_${primaryCubicleIdx}_desc`] && (
                           <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${primaryCubicleIdx}_desc`]}</p>
                         )}
+
+                        <ModelImageField
+                          imageUrl={primaryCubicleItem.modelImageUrl}
+                          modelName={
+                            primaryCubicleItem.customModelName ||
+                            primaryCubicleItem.modelName ||
+                            (cubicleModels.find((m) => m.id === primaryCubicleItem.modelId)?.title) ||
+                            'Restroom Cubicle'
+                          }
+                          categoryLabel="Cubicle Model Visual"
+                          onImageChange={(newUrl) => handleItemChange(primaryCubicleIdx, 'modelImageUrl', newUrl)}
+                        />
                       </div>
 
                       <div>
@@ -2438,6 +2452,19 @@ export default function DraftQuotationPage() {
                   )}
 
                   {umpItem && (
+                    <ModelImageField
+                      imageUrl={umpItem.modelImageUrl}
+                      modelName={
+                        umpItem.customModelName ||
+                        (urinalModels.find((m) => m.id === umpItem.modelId)?.title) ||
+                        'Urinal Modesty Partition'
+                      }
+                      categoryLabel="Urinal Partition Visual"
+                      onImageChange={(newUrl) => handleUmpFieldChange('modelImageUrl', newUrl)}
+                    />
+                  )}
+
+                  {umpItem && (
                     <div className="space-y-3 pt-2 border-t border-cyan-500/20">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
@@ -2631,6 +2658,19 @@ export default function DraftQuotationPage() {
                       />
                       <span className="text-[11px] text-amber-300/80 italic whitespace-nowrap">Printed in PDF Model specification</span>
                     </div>
+                  )}
+
+                  {lockerItem && (
+                    <ModelImageField
+                      imageUrl={lockerItem.modelImageUrl}
+                      modelName={
+                        lockerItem.customModelName ||
+                        (lockerModels.find((m) => m.id === lockerItem.modelId)?.title) ||
+                        'Modular Locker'
+                      }
+                      categoryLabel="Modular Locker Visual"
+                      onImageChange={(newUrl) => handleLockerFieldChange('modelImageUrl', newUrl)}
+                    />
                   )}
 
                   {lockerItem && (
@@ -2847,6 +2887,15 @@ export default function DraftQuotationPage() {
                               )}
                             </div>
                           </div>
+                        </div>
+
+                        <div className="sm:col-span-2 lg:col-span-4">
+                          <ModelImageField
+                            imageUrl={item.modelImageUrl}
+                            modelName={item.customModelName || item.description || `Item #${realIdx + 1}`}
+                            categoryLabel="Line Item Model Visual"
+                            onImageChange={(newUrl) => handleItemChange(realIdx, 'modelImageUrl', newUrl)}
+                          />
                         </div>
 
                         <div>

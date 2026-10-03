@@ -32,6 +32,7 @@ import {
   Bell,
   BellRing,
   X,
+  Link2,
 } from 'lucide-react';
 import { salesQuotationsApi } from '../api/salesQuotationsApi';
 import type {
@@ -237,8 +238,9 @@ export default function QuotationFollowupPage() {
     : 'Within 15 Days';
   const projectName = quotation?.projectName || quotation?.subject || 'Restroom Cubicles Project';
 
-  // Quotation Document URLs
-  const pdfDownloadUrl = quotation ? salesQuotationsApi.getDownloadPdfUrl(quotation.id) : '';
+  // Quotation Document URLs (Clean short links without personal JWT tokens)
+  const shortDocUrl = quotation ? salesQuotationsApi.getShortUrl(quotation.id, false) : '';
+  const pdfDownloadUrl = quotation ? salesQuotationsApi.getShortUrl(quotation.id, true) : '';
   const pdfPreviewUrl = quotation ? salesQuotationsApi.getPdfUrl(quotation.id) : '';
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.pacificproduct.in';
   const verifyUrl = `${origin}/verify/${quotation?.verificationToken || quotation?.id || ''}`;
@@ -293,16 +295,16 @@ export default function QuotationFollowupPage() {
     // 3. SMS Template
     let sms = '';
     if (scenario === 'STANDARD') {
-      sms = `Hello ${clientName}, following up on Pacific Quotation ${quoteNum} (${formattedAmount}) for ${projectName}. Attached PDF: ${verifyUrl} - Pacific Solutions.`;
+      sms = `Hello ${clientName}, following up on Pacific Quotation ${quoteNum} (${formattedAmount}) for ${projectName}. Proposal: ${shortDocUrl} - Pacific.`;
     } else if (scenario === 'URGENT_VALIDITY') {
-      sms = `Urgent: Pacific Quotation ${quoteNum} (${formattedAmount}) validity ends on ${validUntilFormatted}. Confirm now to lock price: ${verifyUrl} - Pacific.`;
+      sms = `Urgent: Pacific Quotation ${quoteNum} (${formattedAmount}) validity ends on ${validUntilFormatted}. Confirm now: ${shortDocUrl} - Pacific.`;
     } else if (scenario === 'PRICE_NEGOTIATION') {
-      sms = `Hello ${clientName}, regarding quote ${quoteNum} (${formattedAmount}), we reviewed your budget request. Let's connect for 2 mins: ${verifyUrl} - Pacific.`;
+      sms = `Hello ${clientName}, regarding quote ${quoteNum} (${formattedAmount}), we reviewed your budget request. Let's connect: ${shortDocUrl} - Pacific.`;
     } else {
-      sms = `Hello ${clientName}, ready to initiate production for Pacific Quote ${quoteNum} (${formattedAmount}). View quote: ${verifyUrl} - Pacific.`;
+      sms = `Hello ${clientName}, ready to initiate production for Pacific Quote ${quoteNum} (${formattedAmount}). View quote: ${shortDocUrl} - Pacific.`;
     }
     setSmsText(sms);
-  }, [scenario, clientName, quoteNum, projectName, formattedAmount, validUntilFormatted, pdfDownloadUrl, verifyUrl, clientEmailAddress, quotation]);
+  }, [scenario, clientName, quoteNum, projectName, formattedAmount, validUntilFormatted, pdfDownloadUrl, shortDocUrl, clientEmailAddress, quotation]);
 
   // Quick next date setters
   const setQuickDate = (hoursAhead: number) => {
@@ -854,6 +856,23 @@ export default function QuotationFollowupPage() {
               >
                 <Download className="w-4 h-4 text-cyan-400" /> Download PDF
               </a>
+
+              <button
+                type="button"
+                onClick={() => handleCopy(shortDocUrl, 'page-short-url')}
+                className="min-h-[42px] px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-200 text-xs font-semibold flex items-center gap-1.5 border border-white/10 transition-colors cursor-pointer"
+                title="Copy concise short proposal link for sharing"
+              >
+                {copiedKey === 'page-short-url' ? (
+                  <>
+                    <Check className="w-4 h-4 text-emerald-400" /> Copied Short Link!
+                  </>
+                ) : (
+                  <>
+                    <Link2 className="w-4 h-4 text-indigo-400" /> Copy Short Link
+                  </>
+                )}
+              </button>
 
               <button
                 type="button"

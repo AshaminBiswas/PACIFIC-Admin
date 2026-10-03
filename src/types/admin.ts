@@ -1127,6 +1127,8 @@ export interface SalesQuotationItem {
   make?: string;
   customModelName?: string;
   modelName?: string;
+  modelImageUrl?: string;
+  systemCategory?: string;
   customSpecsJson?: any;
 }
 

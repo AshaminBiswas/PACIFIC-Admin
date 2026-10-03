@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Save, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { hardwareIssueApi, crmApi, salesOrdersApi, companiesApi } from '../api/services';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
+import BranchSelector from '../components/common/BranchSelector';
 import type { BusinessParty, SalesOrder, CompanyProfile } from '../types/admin';
 
 const LOCAL_STORAGE_KEY = 'pacific_create_hardware_issue_v1';
@@ -259,6 +260,15 @@ export default function CreateHardwareIssuePage() {
       {/* ── Document Flow Timeline (Stage 07) ───────────────────── */}
       <DocumentFlowTimeline currentStage={7} />
 
+      {/* ── Dynamic Issuing Branch & Entity Selection ───────── */}
+      <BranchSelector
+        companies={companies}
+        selectedCompanyId={formData.companyProfileId}
+        onSelectCompany={(compId) => updateForm('companyProfileId', compId)}
+        label="Issuing Branch & Warehouse / Depot"
+        sublabel="Select the branch warehouse or factory depot issuing hardware materials to site."
+      />
+
       {/* Form */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 sm:p-6 space-y-6">
         <h3 className="text-sm font-bold text-white border-b border-white/10 pb-2 mb-4">Customer & Project Details</h3>
@@ -274,18 +284,6 @@ export default function CreateHardwareIssuePage() {
               <option value="">-- Select Customer --</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>{c.legalName}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-300 mb-1.5">Issuing Company / Entity *</label>
-            <select
-              value={formData.companyProfileId}
-              onChange={(e) => updateForm('companyProfileId', e.target.value)}
-              className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
-            >
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>{c.legalName || c.companyName}</option>
               ))}
             </select>
           </div>

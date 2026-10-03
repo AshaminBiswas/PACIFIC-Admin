@@ -118,6 +118,39 @@ export function isDelhiState(
   return false;
 }
 
+export function isIntraStateSupply(
+  buyerStateCode?: string | null,
+  buyerStateName?: string | null,
+  buyerGstin?: string | null,
+  buyerAddress?: string | null,
+  sellerStateCode = '07'
+): boolean {
+  const cleanSellerCode = (sellerStateCode || '07').trim().padStart(2, '0');
+  const cleanBuyerGstin = (buyerGstin || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  if (cleanBuyerGstin.length >= 2) {
+    return cleanBuyerGstin.startsWith(cleanSellerCode);
+  }
+
+  if (buyerStateCode) {
+    const cleanBuyerCode = buyerStateCode.trim().padStart(2, '0');
+    if (cleanBuyerCode === cleanSellerCode) return true;
+    if (/^\d{1,2}$/.test(cleanBuyerCode)) return false;
+  }
+
+  if (buyerStateName) {
+    const sellerStateName = GST_STATE_CODE_MAP[cleanSellerCode]?.toLowerCase();
+    const bName = buyerStateName.trim().toLowerCase();
+    if (sellerStateName && (bName === sellerStateName || bName.includes(sellerStateName))) return true;
+  }
+
+  if (cleanSellerCode === '07') {
+    return isDelhiState(buyerStateCode, buyerStateName, buyerGstin, buyerAddress);
+  }
+
+  return false;
+}
+
 export function calculateGstSplit(
   taxableAmount: number,
   stateCode?: string | null,
@@ -125,15 +158,17 @@ export function calculateGstSplit(
   isSez = false,
   totalGstRate = 18,
   gstin?: string | null,
-  address?: string | null
+  address?: string | null,
+  sellerStateCode = '07'
 ): GstTaxBreakdown {
   const taxable = Math.max(0, Number(taxableAmount) || 0);
-  const isDelhi = isDelhiState(stateCode, stateName, gstin, address);
+  const isIntraState = isIntraStateSupply(stateCode, stateName, gstin, address, sellerStateCode);
+  const isDelhi = isIntraState && ((sellerStateCode || '07').trim().padStart(2, '0') === '07');
 
   if (isSez) {
     return {
       isDelhi,
-      isIntraState: isDelhi,
+      isIntraState,
       isSez: true,
       taxableAmount: taxable,
       totalGstRate: 0,
@@ -151,11 +186,11 @@ export function calculateGstSplit(
   const effectiveRate = Number(totalGstRate) || 18;
   const totalTax = Math.round(taxable * (effectiveRate / 100) * 100) / 100;
 
-  if (isDelhi) {
-    const halfRate = effectiveRate / 2; // 9%
+  if (isIntraState) {
+    const halfRate = effectiveRate / 2; // e.g. 9%
     const halfTax = Math.round(taxable * (halfRate / 100) * 100) / 100;
     return {
-      isDelhi: true,
+      isDelhi,
       isIntraState: true,
       isSez: false,
       taxableAmount: taxable,
