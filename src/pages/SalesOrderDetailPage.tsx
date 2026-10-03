@@ -60,8 +60,16 @@ function parseItemSpecs(item: any) {
   if (boardColor) specs.push({ label: 'Board Color', value: boardColor });
   if (cubicleSize) specs.push({ label: 'Cubicle Size', value: cubicleSize });
   if (doorSize) specs.push({ label: 'Door Size', value: doorSize });
-  if (overallHeight) specs.push({ label: 'Overall Height', value: overallHeight });
-  if (hardwarePackage && !hardwarePackage.includes('Golden, Black, SS')) specs.push({ label: 'Hardware Package', value: hardwarePackage });
+  if (
+    hardwarePackage &&
+    !hardwarePackage.includes('Golden, Black, SS') &&
+    !hardwarePackage.includes('SS 304 Stainless Steel (Satin/Brushed)') &&
+    !hardwarePackage.includes('SS 304 Stainless Steel') &&
+    !hardwarePackage.toLowerCase().includes('satin/brushed') &&
+    !hardwarePackage.toLowerCase().includes('ss 304')
+  ) {
+    specs.push({ label: 'Hardware Package', value: hardwarePackage });
+  }
 
   if (specs.length === 0 && mainDesc.includes('(') && mainDesc.includes(')')) {
     const match = mainDesc.match(/^(.*?)(?:\n|\s*)\((.*?)\)$/s);

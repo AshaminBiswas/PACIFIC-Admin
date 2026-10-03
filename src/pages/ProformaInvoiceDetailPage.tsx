@@ -47,8 +47,16 @@ function parseItemSpecs(item: any) {
   if (item.boardThickness) specs.push({ label: 'Thickness', value: item.boardThickness });
   else if (item.boardType) specs.push({ label: 'Board', value: item.boardType });
   if (item.doorSize) specs.push({ label: 'Door', value: item.doorSize });
-  if (item.overallHeight) specs.push({ label: 'Height', value: item.overallHeight });
-  if (item.hardwarePackage) specs.push({ label: 'Hardware', value: item.hardwarePackage });
+  if (
+    item.hardwarePackage &&
+    !item.hardwarePackage.includes('Golden, Black, SS') &&
+    !item.hardwarePackage.includes('SS 304 Stainless Steel (Satin/Brushed)') &&
+    !item.hardwarePackage.includes('SS 304 Stainless Steel') &&
+    !item.hardwarePackage.toLowerCase().includes('satin/brushed') &&
+    !item.hardwarePackage.toLowerCase().includes('ss 304')
+  ) {
+    specs.push({ label: 'Hardware', value: item.hardwarePackage });
+  }
 
   // If specs were serialized into the description string, e.g. "Pacific ...\n(Board: ... | Color: ...)"
   if (specs.length === 0 && mainDesc.includes('(') && mainDesc.includes(')')) {

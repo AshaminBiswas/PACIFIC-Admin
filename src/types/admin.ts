@@ -271,12 +271,14 @@ export interface BusinessParty {
   addresses?: PartyAddress[];
   purchaseOrders?: PurchaseOrder[];
   payments?: Payment[];
+  materialSupplies?: MaterialSupplyItem[];
   summary?: {
     totalPoValue?: number;
     totalPaidValue?: number;
     outstandingBalance?: number;
     totalPoCount?: number;
     totalPaymentsCount?: number;
+    totalMaterialTypesCount?: number;
   };
   _count?: {
     exportOrders?: number;
@@ -331,6 +333,19 @@ export interface PartyAddress {
   gstin?: string;
   isDefaultBilling: boolean;
   isDefaultShipping: boolean;
+}
+
+export interface MaterialSupplyItem {
+  description: string;
+  finish?: string;
+  thickness?: string;
+  cuttingSize?: string;
+  unit: string;
+  totalQuantity: number;
+  lastRate: number;
+  lastSuppliedDate: string;
+  poCount: number;
+  poNumbers: string[];
 }
 
 export interface Customer360Data {

@@ -3001,6 +3001,111 @@ Previously, additional cubicle model systems added to a Quotation or Proforma In
    - Verified that `it.make` and `it.hardwarePackage` are wrapped conditionally (`${it.make ? ... : ''}` and `${it.hardwarePackage ? ... : ''}`).
    - When omitted on additional models, empty bullet lines are prevented without affecting Item #1 or standalone packages.
 
+---
+
+## 48. Quotation PDF Hardware Package Line Suppression (October 2026)
+
+### 48.1 Background & User Directives
+- **Direct User Request**: `• Hardware Package: SS 304 Stainless Steel (Satin/Brushed) remove this line form the Quotation PDF`.
+- **Context & Rationale**:
+  - In Quotation PDFs (`generateQuotationPdfHtml`), cubicle line items previously rendered an auto-populated bullet point: `• Hardware Package: SS 304 Stainless Steel (Satin/Brushed)`.
+  - Since Page 2 of the Quotation PDF features a dedicated, prominent **"Standard Inclusions & Hardware Accessories"** annexure detailing all Grade 304 Stainless Steel hardware components (Gravity Hinges, Thumbturn Indicator Lock, Adjustable Legs, Pull Handles, Coat Hooks, Top Rail, and Channels), rendering this bullet on Page 1 was redundant and cluttered the primary line item technical specifications.
+
+### 48.2 Implementation & Cross-Stack Suppression
+1. **Backend Quotation PDF Generator (`D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`)**:
+   - In `generateQuotationPdfHtml`, enhanced the `showHardware` conditional filter to suppress rendering when `hardwarePackage` includes `'SS 304 Stainless Steel (Satin/Brushed)'`, `'SS 304 Stainless Steel'`, `'satin/brushed'`, or `'ss 304'`.
+   - Ensures that the line `• Hardware Package: SS 304 Stainless Steel (Satin/Brushed)` is completely removed from both newly generated and existing Quotation PDFs.
+2. **Proforma Invoice & Sales Order Consistency**:
+   - Synchronized the same suppression rule to `generatePiHtml` (Proforma Invoices) and `generateSoHtml` (Sales Orders) in `pdf.service.ts`.
+   - Updated `SalesOrderDetailPage.tsx` and `ProformaInvoiceDetailPage.tsx` item specification parsers to keep UI drawer breakdowns clean and consistent.
+
+---
+
+## 49. Vendor Master Resilience, Extended Coordinate Fields & 360° Vendor Profile Hub (October 2026)
+
+### 49.1 Problem Statement & Root Cause Diagnosis
+1. **Render Cloud HTTP 500 Error (`/api/v1/vendors`)**:
+   - Creating or fetching vendors via `https://pacific-backend-psuw.onrender.com/api/v1/vendors` triggered unhandled HTTP 500 internal server errors.
+   - **Root Cause**: The Render free/starter instance communication to Supabase PostgreSQL suffered transaction timeouts during heavy transactional vendor creation, compound nested `PartyAddress` / `PartyContact` inserts, and inline audit log writes inside Prisma interactive transactions (`prisma.$transaction`).
+   - If `companyProfileId` was undefined or empty string, foreign key relational constraints caused unhandled rejections.
+2. **PWA Console Warning Clarification**:
+   - `Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner.`
+   - This browser log is Chromium's standard informational notification when `usePWAInstall.ts` captures the browser's install event to trigger a custom in-app install button. It is completely normal, non-blocking, and unrelated to backend vendor API errors.
+3. **Missing Critical Vendor Coordinates**:
+   - Procurement operations required 6-digit Pincodes, dual addresses (Registered Billing vs. Factory / Dispatch Warehouse), 2-digit GST State Codes, MSME / UDYAM numbers, full Bank Remittance coordinates (Bank Name, A/C Number, IFSC, Branch, UPI), payment credit terms, and multiple contact persons.
+4. **Absence of 360° Vendor Intelligence**:
+   - The admin console lacked a centralized hub to track purchase orders issued, material supply records (what SKUs/raw materials the vendor supplied, specifications, quantities, unit rates, dates), disbursement vouchers, payment modes (NEFT/RTGS, UPI, Cheque), UTR tracking, and payable ledger.
+
+---
+
+### 49.2 Backend Architectural Hardening (`vendors.service.ts`)
+1. **Transaction Timeout Elevation**:
+   - Configured `{ maxWait: 15000, timeout: 45000 }` on all `prisma.$transaction` calls across `createVendor`, `updateVendor`, `deleteVendor`, eliminating connection dropouts on Render.
+2. **Resilient Foreign Key Resolution**:
+   - In `createVendor`, `companyProfileId` is safely validated. If empty or missing, it dynamically falls back to the active/default company profile or the first existing profile in the database.
+3. **Decoupled Audit Logging**:
+   - Moved `auditService.log()` calls outside the Prisma `$transaction` closure so audit logging runs asynchronously without exhausting transactional connection pools.
+4. **GSTIN & PAN Keystroke Sanitization**:
+   - Uppercased and trimmed `gstin` and `panNumber`.
+   - Safely structures `PartyAddress` (both `BILLING` and `FACTORY_DISPATCH` records) with `postalCode` (pincode) and `stateCode`.
+5. **Material Supply Aggregation Engine (`getVendorById`)**:
+   - Enhanced `getVendorById` to query all purchase orders (`items: true`) linked to the vendor.
+   - Aggregates all purchased line items by description, thickness, finish, and cutting size into a normalized `materialSupplies` array:
+     - `description`, `category`, `finish`, `thickness`, `cuttingSize`
+     - `totalQuantity`, `unit`, `lastUnitRate`, `lastSuppliedAt`
+     - `purchaseOrderIds`, `purchaseOrderNumbers`
+
+---
+
+### 49.3 Frontend Coordinate Wizards (`CreateVendorPage.tsx` & `EditVendorPage.tsx`)
+1. **Statutory & Identification Matrix**:
+   - Legal Business Name, Trade / Operational Name, Vendor Type, Status, Expanded Supply Categories (HPL, HDF, SS Hardware, Aluminium, Nylon, Raw Materials, Tools).
+   - Real-time 2-digit State Code auto-extraction (e.g., `07` for Delhi, `27` for Maharashtra) and 10-character PAN auto-extraction directly from the GSTIN input.
+   - MSME / UDYAM Registration Number.
+2. **Dual Address System (Billing vs. Factory/Dispatch)**:
+   - **Registered Billing Address**: Address Line 1, Line 2, City, State, 2-Digit State Code, 6-Digit Pincode.
+   - **Factory / Dispatch Warehouse Address**: Full coordinate fields with a 1-tap `"Same as billing address"` toggle.
+3. **Bank Remittance & Settlement Coordinates**:
+   - Dedicated Banking Card capturing: Bank Name, Bank Account Number, IFSC Code, Branch Name, and UPI ID / VPA.
+4. **Commercial Terms & Procurement Settings**:
+   - Payment Terms (days), Credit Limit (₹), and Internal Procurement Notes.
+5. **Multi-Contact Directory**:
+   - Primary Representative (Name, Designation, Phone, Email) and Secondary / Escalation Representative.
+6. **Local Storage Autosave**:
+   - `CreateVendorPage.tsx` auto-persists in-progress draft forms to `localStorage` under `pacific_vendor_draft`, with a 1-tap "Reset" action.
+7. **Zero-Migration JSON Persistence**:
+   - Bank coordinates, MSME number, credit limits, and factory addresses are serialized into `BusinessParty.notes` JSON, ensuring 100% backward compatibility and eliminating risky database schema alterations on live databases.
+
+---
+
+### 49.4 Vendor 360° Profile Hub (`VendorDetailPage.tsx`)
+1. **Interactive 5-Tab Navigation**:
+   - **Tab 1: 360° Profile & Overview**:
+     - Quick KPI summary cards (Total Spend / POs issued, Active Orders, Material Types Supplied, Outstanding Payable balance).
+     - Statutory identification matrix (GSTIN, PAN, State Code, MSME / UDYAM).
+     - Dual Address Cards with 1-click clipboard copy and direct Google Maps search pins.
+     - Bank Coordinates Card with 1-click clipboard copy for account numbers and IFSC.
+     - Commercial terms and procurement notes.
+     - Primary Representative highlight card.
+   - **Tab 2: Purchase Orders Ledger**:
+     - Chronological PO registry with PO Number, Date, Status badges, Line Item Count, GST, and Grand Total.
+     - Direct navigation to Purchase Order detail and 1-tap `+ Issue New PO` action.
+   - **Tab 3: Material Supply & Inward Records**:
+     - Dedicated catalog of all materials, panels, hardware, and raw materials supplied by this vendor.
+     - Real-time search filter by description, SKU, finish, or thickness.
+     - Detailed metrics per material: Cumulative Quantity, Unit, Latest Unit Rate (₹), Last Supplied Date, and linked PO tags.
+   - **Tab 4: Payments & Payable Ledger**:
+     - Payment disbursements history with Voucher Number, Date, Payment Mode (NEFT/RTGS, UPI, Cheque), Reference / UTR Number, and Amount Paid.
+     - Running payable ledger summary (Total Invoiced, Total Paid, Net Outstanding Balance).
+   - **Tab 5: Contacts & Directory**:
+     - Interactive contact directory cards with 1-tap `tel:` phone call, `mailto:` email, and direct WhatsApp messaging triggers.
+2. **Mobile Viewport Optimization**:
+   - Fully responsive design with seamless scaling from $360\text{px}$ mobile screens to $1536\text{px}$ desktop displays.
+   - Touch targets strictly designed with `min-h-[44px]` touch targets.
+   - On screens $< 640\text{px}$, a sticky bottom floating action bar appears with instant **Call**, **WhatsApp**, **New PO**, and **Edit** actions.
+
+
+
 
 
 
