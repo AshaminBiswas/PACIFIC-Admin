@@ -876,6 +876,9 @@ export default function EditProformaInvoicePage() {
       const enrichedItems = items.map((it) => {
         let desc = it.description;
         const specParts = [];
+        if (it.customModelName) {
+          specParts.push(`Model: ${it.customModelName}`);
+        }
         if (it.boardType || it.boardThickness) {
           specParts.push(`Board: ${[it.boardType, it.boardThickness].filter(Boolean).join(' ')}`);
         }
@@ -905,6 +908,8 @@ export default function EditProformaInvoicePage() {
           doorSize: it.doorSize || undefined,
           overallHeight: it.overallHeight || undefined,
           hardwarePackage: it.hardwarePackage || undefined,
+          customModelName: it.customModelName || undefined,
+          modelName: it.customModelName || undefined,
         };
       });
 
@@ -2116,39 +2121,47 @@ export default function EditProformaInvoicePage() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-3 space-y-1.5">
-                          <label className={labelCls}>Product Model Selection &amp; Description (Optional)</label>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <select
-                              value={item.modelId || ''}
-                              onChange={(e) => handleSelectModel(realIdx, e.target.value)}
-                              className="w-full bg-[#161536] border border-[#7FB706]/40 rounded-xl px-3 py-2.5 text-white font-semibold text-xs focus:border-[#7FB706] focus:outline-none"
-                            >
-                              <option value="">-- Choose Product Model (Optional) --</option>
-                              <option value="custom">-- Custom / Manual Specification (No Model) --</option>
-                              <optgroup label="Restroom Cubicles">
-                                {cubicleModels.map((m) => (
-                                  <option key={m.id} value={m.id}>
-                                    {m.title}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            </select>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className={labelCls}>
+                                  Product Model Name <span className="text-[11px] text-amber-300 font-medium">(Write Manually)</span>
+                                </label>
+                                <span className="text-[10px] text-amber-300/80">Printed on PI</span>
+                              </div>
+                              <input
+                                type="text"
+                                value={item.customModelName ?? (item.modelId && item.modelId !== 'CUSTOM' ? (catalogModels.find((m) => m.id === item.modelId)?.title || '') : '')}
+                                onChange={(e) => {
+                                  handleItemChange(realIdx, 'customModelName', e.target.value);
+                                  handleItemChange(realIdx, 'modelName', e.target.value);
+                                  handleItemChange(realIdx, 'modelId', 'CUSTOM');
+                                }}
+                                placeholder="e.g. Pacific Classique / Custom Model Name"
+                                className={inputCls + ' font-semibold text-white bg-[#0a0a1a] border-amber-500/40 focus:border-amber-400'}
+                              />
+                            </div>
 
-                            <input
-                              type="text"
-                              value={item.description}
-                              onChange={(e) => {
-                                handleItemChange(realIdx, 'description', e.target.value);
-                                clearFieldError(`item_${realIdx}_desc`);
-                              }}
-                              placeholder="Cubicle specification or system description"
-                              className={getInputCls(`item_${realIdx}_desc`)}
-                              required
-                            />
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className={labelCls}>Description *</label>
+                              </div>
+                              <input
+                                type="text"
+                                value={item.description}
+                                onChange={(e) => {
+                                  handleItemChange(realIdx, 'description', e.target.value);
+                                  clearFieldError(`item_${realIdx}_desc`);
+                                }}
+                                placeholder="Item description / specification"
+                                className={getInputCls(`item_${realIdx}_desc`)}
+                                required
+                              />
+                              {fieldErrors[`item_${realIdx}_desc`] && (
+                                <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${realIdx}_desc`]}</p>
+                              )}
+                            </div>
                           </div>
-                          {fieldErrors[`item_${realIdx}_desc`] && (
-                            <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${realIdx}_desc`]}</p>
-                          )}
                         </div>
 
                         <div>
@@ -2188,6 +2201,79 @@ export default function EditProformaInvoicePage() {
                             className={inputCls}
                             required
                           />
+                        </div>
+                      </div>
+
+                      {/* Technical Specifications (Without Make & Hardware Package) */}
+                      <div className="bg-[#121226]/80 border border-white/5 rounded-xl p-3.5 space-y-3">
+                        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span>⚙️</span> Technical Specifications
+                          </span>
+                          <span className="text-[11px] text-gray-400">Board type, dimensions &amp; colors</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          <div>
+                            <label className={labelCls}>Board Type</label>
+                            <select
+                              value={item.boardType || 'HPL'}
+                              onChange={(e) => handleItemChange(realIdx, 'boardType', e.target.value)}
+                              className={inputCls}
+                            >
+                              <option value="HPL">HPL (High Pressure Compact Laminate)</option>
+                              <option value="HDF">HDF (High Density Fibreboard)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className={labelCls}>Board Thickness</label>
+                            <input
+                              type="text"
+                              value={item.boardThickness || ''}
+                              onChange={(e) => handleItemChange(realIdx, 'boardThickness', e.target.value)}
+                              placeholder="e.g. 12mm / 18mm"
+                              className={inputCls}
+                            />
+                          </div>
+                          <div>
+                            <label className={labelCls}>Board Color</label>
+                            <input
+                              type="text"
+                              value={item.boardColor || ''}
+                              onChange={(e) => handleItemChange(realIdx, 'boardColor', e.target.value)}
+                              placeholder="e.g. D.No. 123 – Oyster White"
+                              className={inputCls}
+                            />
+                          </div>
+                          <div>
+                            <label className={labelCls}>Size / Dimension</label>
+                            <input
+                              type="text"
+                              value={item.cubicleSize || ''}
+                              onChange={(e) => handleItemChange(realIdx, 'cubicleSize', e.target.value)}
+                              placeholder="e.g. 1000mm W × 1500mm D"
+                              className={inputCls}
+                            />
+                          </div>
+                          <div>
+                            <label className={labelCls}>Door Size</label>
+                            <input
+                              type="text"
+                              value={item.doorSize || ''}
+                              onChange={(e) => handleItemChange(realIdx, 'doorSize', e.target.value)}
+                              placeholder="e.g. 600mm × 1785mm"
+                              className={inputCls}
+                            />
+                          </div>
+                          <div>
+                            <label className={labelCls}>Overall Height</label>
+                            <input
+                              type="text"
+                              value={item.overallHeight || ''}
+                              onChange={(e) => handleItemChange(realIdx, 'overallHeight', e.target.value)}
+                              placeholder="e.g. 1980mm (incl. 100mm clearance)"
+                              className={inputCls}
+                            />
+                          </div>
                         </div>
                       </div>
 

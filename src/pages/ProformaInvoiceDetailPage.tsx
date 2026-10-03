@@ -40,6 +40,8 @@ function parseItemSpecs(item: any) {
   const specs: { label: string; value: string }[] = [];
 
   // Direct properties
+  const customModel = item.customModelName || item.modelName || item.customSpecsJson?.customModelName || item.product?.title;
+  if (customModel) specs.push({ label: 'Model / System', value: customModel });
   if (item.cubicleSize) specs.push({ label: 'Size', value: item.cubicleSize });
   if (item.boardColor) specs.push({ label: 'Color', value: item.boardColor });
   if (item.boardThickness) specs.push({ label: 'Thickness', value: item.boardThickness });

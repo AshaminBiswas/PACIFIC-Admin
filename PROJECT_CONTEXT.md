@@ -636,35 +636,48 @@ The admin console implements an enterprise dual-layer auto-refresh engine to pre
 
 ## 18. Quotation Follow-Up & Omnichannel Client Engagement System
 
-1. **Auto-Scheduling Rule (Within 2 to 3 Hours)**:
-   - **Auto-Scheduler Trigger**: Whenever a quotation is created (`POST /sales/quotations`) or issued/sent (`POST /sales/quotations/:id/send`, `POST /sales/quotations/:id/send-email`), the backend automatically initializes `nextFollowupDate` to **2.5 hours** from the current timestamp (`Date.now() + 2.5 * 60 * 60 * 1000`) with `followupStatus: 'PENDING'`.
-   - **Scheduled Entry**: An initial `quotation_followups` record is seeded with `status: 'SCHEDULED'` and `discussionNotes: 'Initial follow-up auto-scheduled within 2.5 hours of quotation creation.'`.
+1. **Omnichannel Architecture Across Every Channel (`QuotationFollowupModal.tsx` & `QuotationFollowupPage.tsx`)**:
+   - Every communication channel (**WhatsApp**, **Email**, **Phone Call**, **SMS**) is equipped with:
+     - **Auto-Generated Messages**: Context-aware messages tailored to the quotation's client name, reference number, project name, total value with GST in INR, specifications, and call-to-action.
+     - **Quotation Attachment**: Official vector PDF document (`Quotation_<ref>.pdf`) attached/linked across every channel with live on-screen PDF preview modal, direct download button, tokenized PDF link copy, and `/verify/:token` cryptographic verification link.
+     - **Omnichannel Reminder & Alarm System**: Integrated reminder scheduler on every channel with quick presets (`+1 Hour`, `+2.5 Hours` standard rule, `+4 Hours`, `Tomorrow 10 AM`, `Tomorrow 3 PM`, `In 2 Days`, `In 1 Week`, custom datetime-local), HTML5 desktop notification permissions, Web Audio API chime synthesizer, and unified dispatch + reminder scheduling action.
 
-2. **Mobile-First Omnichannel Engagement Hub (`QuotationFollowupModal.tsx`)**:
-   - **Touch Target Standard**: Full $\ge 44\text{px}$ minimum clickable surfaces for mobile and desktop screens.
-   - **Omnichannel Channels**:
-     - **Phone Call**: Direct `tel:` link triggering the native dialer with immediate outcome logger focus.
-     - **WhatsApp**: Direct `https://wa.me/` link pre-populated with client name, quotation reference number, project name, total value, and professional pitch.
-     - **Messages (SMS)**: Direct `sms:` link for native mobile text message dispatch.
-     - **Email Follow-up Hub**: Integrated dispatch via Resend/Nodemailer (`POST /sales/quotations/:id/send-followup-email`) with customizable subject, message body, automatic next follow-up scheduling, and CRM timeline logging.
+2. **Auto-Generated Contextual Messages & Scenarios**:
+   - **5 Pitch Scenarios**:
+     1. `STANDARD` (Courteous Follow-Up & Review): Professional proposal review touchpoint with key specifications (12mm HPL board, Grade 304 SS hardware, 10-Yr board + 1-Yr hardware warranty).
+     2. `URGENT_VALIDITY` (Validity Expiring Soon): Time-sensitive alert regarding approved pricing and factory production slots.
+     3. `PRICE_NEGOTIATION` (Commercial Value & Discount Discussion): Value-engineering options and volume discussion without compromising warranty standards.
+     4. `SAMPLE_REQUEST` (Physical Mockup & Site Survey): Engineering visit proposal with physical 12mm Compact Laminate board swatches and SS hardware mockups.
+     5. `ORDER_CONFIRMATION` (Formal Closing & PO Finalization): Acceptance confirmation requesting formal Purchase Order (PO) and billing GSTIN.
+   - **Channel-Specific Formatting**:
+     - **WhatsApp**: Rich emojis, bold styling, quotation PDF link, technical bullet points, and copy button.
+     - **Email**: Dynamic subject line, structured email body with greeting, proposal summary table, PDF download link, and sign-off.
+     - **Phone Call**: Interactive sales call script with 4 talking points (Opening Greeting, Commercial Review, Technical Value Proposition, Next Step), objection handling, and quick discussion chips.
+     - **SMS**: Concise SMS (<160 characters counter indicator) containing client name, quote ref, grand total, and shortlink to the quotation document.
 
-3. **Discussion Logging & Outcome Statuses**:
+3. **Quotation Attachment for Every Channel**:
+   - **WhatsApp**: Embeds direct PDF download link in pre-filled message text; includes dedicated "Attached Quotation PDF" card with "Preview PDF", "Download", and "Copy PDF Link".
+   - **Email**: Backend `quotations.service.ts` (`sendFollowupEmail`) generates and attaches the real PDF buffer (`attachments: [{ filename, content: pdfBuffer, contentType: 'application/pdf' }]`). Frontend displays green "PDF Attached" badge and includes vector PDF download link.
+   - **Phone Call**: Interactive on-screen "Preview PDF" button allowing the sales executive to inspect the exact line items, rates, and terms while on call with the client.
+   - **SMS**: Embeds public verification / document link (`/verify/:token`) directly into the SMS text.
+
+4. **Omnichannel Reminder & Alarm System (`src/utils/followupReminder.ts`)**:
+   - **Web Audio API Synthesizer**: Produces a crisp dual-tone chime (784Hz $\rightarrow$ 1046.5Hz) without requiring external audio asset files.
+   - **Desktop Notification Engine**: Requests HTML5 notification permission (`Notification.requestPermission()`). Dispatches interactive notifications with click-to-open routing.
+   - **Background Monitor (`startReminderMonitor`)**: Runs in `AdminLayout.tsx` every 15 seconds, alerting users anywhere in the admin console when a scheduled follow-up reminder becomes due.
+   - **Floating Alarm Toast (`AdminLayout.tsx`)**: Displays an animated, high-priority reminder badge showing quotation number, client name, channel used, and one-tap button to navigate directly to the follow-up hub.
+   - **Local Storage Persistence**: Preserves active reminders in `localStorage` under `pacific_quotation_reminders`.
+
+5. **Discussion Logging & Outcome Statuses**:
    - **Outcome Statuses**: `COMPLETED`, `INTERESTED` (warm lead), `PRICE_NEGOTIATION`, `CALLBACK_REQUESTED`, `NO_ANSWER`, `ORDER_CONFIRMED` (automatically updates quotation status to `ACCEPTED`), `DROPPED`, `SCHEDULED`.
-   - **Quick Preset Chips**: Rapid 1-tap discussion notes presets ("Spoke with client, reviewing offer", "Client requested price negotiation / discount", "Shared formal quotation on WhatsApp", "Client requested site visit / mockup cubicle inspection", "Quotation accepted! Client preparing formal Purchase Order", "No response on call; sent WhatsApp message and email summary").
-   - **Quick Schedule Presets**: `+2 Hours`, `+4 Hours`, `Tomorrow 10 AM`, `Tomorrow 3 PM`, `In 2 Days`, `In 1 Week`, and native `datetime-local` picker.
-
-4. **Timeline History**:
-   - Reverse-chronological activity log displaying channel badges, performer name, outcome status pill, timestamp, and notes.
-
-5. **List & Detail Page Integration**:
-   - **`SalesQuotationsPage.tsx`**: Live Follow-up countdown pills (Overdue with pulsing badge, Due in X hours, Scheduled), direct WhatsApp and Call buttons on both desktop table rows and mobile card views, and dedicated Follow-Up modal trigger.
-   - **`SalesQuotationDetailPage.tsx`**: Top action buttons for Follow-Up, WhatsApp, and Call; dedicated 4th card in Info Grid ("Follow-Up Hub") with live status and one-tap logging; and `QuotationFollowupModal` integration.
+   - **Quick Preset Chips**: Rapid 1-tap discussion notes presets.
+   - **Primary Action Buttons**: One-tap action buttons that simultaneously perform the communication task (open WhatsApp / dispatch email / dial phone / open SMS) AND log the interaction in CRM history with the scheduled next touchpoint.
 
 6. **Database & API Cross-Stack Sync**:
    - **PostgreSQL Table**: `quotation_followups` (`id`, `quotationId` FK cascade, `channel`, `status`, `discussionNotes`, `nextFollowupDate`, `contactPerson`, `contactPhone`, `contactEmail`, `performedById`, `performedByName`, `createdAt`, `updatedAt`).
-   - **`sales_quotations` Columns**: `nextFollowupDate`, `followupStatus`, `lastFollowupDate`, `followupCount`.
+   - **`sales_quotations` Columns**: `nextFollowupDate`, `followupStatus`, `lastFollowupDate`, `followupCount`, `verificationToken`.
    - **API Endpoints**: `GET /sales/quotations/:id/follow-ups`, `POST /sales/quotations/:id/follow-ups`, `POST /sales/quotations/:id/send-followup-email`.
-   - **TypeScript Types**: `QuotationFollowup`, `QuotationFollowupChannel`, `QuotationFollowupStatus` in `src/types/admin.ts`.
+   - **TypeScript Types**: `SalesQuotation`, `QuotationFollowup`, `QuotationFollowupChannel`, `QuotationFollowupStatus` in `src/types/admin.ts`.
 
 ---
 
@@ -2860,8 +2873,135 @@ All 8 oversized 1.39 MB static logo assets across both repositories were re-enco
 
 ### 3. Verification & Compliance
 - **Zero TypeScript Errors**: `npx tsc --noEmit` on `D:\PACIFIC-Admin` exited with code 0.
-- **Admin Production Build**: `npm run build` on `D:\PACIFIC-Admin` exited with code 0 (`✓ built in 22.20s`).
-- **Frontend Production Build**: `npm run build` on `D:\Pacific Products And Solutions` exited with code 0 (`✓ built in 27.08s`).
+- **Admin Production Build**: `npm run build` on `D:\PACIFIC-Admin` exited with code 0.
+- **Frontend Production Build**: `npm run build` on `D:\Pacific Products And Solutions` exited with code 0.
+
+---
+
+## Technical SEO Overhaul, SERP Sitelinks & Favicon Architecture (October 2026)
+
+### 1. Diagnosis & Root Cause Resolutions
+1. **Bare Domain Name in Google Search**:
+   - **Root Cause**: Vite SPA initially served an empty `<div id="root"></div>` with client-side only meta tags and zero visible semantic HTML above the fold. Googlebot Pass 1 (prior to/without heavy JS execution) indexed only the raw domain shell without contextual headings, sitelinks, or meta descriptions.
+   - **Resolution**:
+     - Embedded a semantic, crawlable pre-rendered static HTML shell inside `<div id="root">` in `index.html` featuring `<header>`, `<nav>`, `<h1>Restroom Cubicles & Toilet Partitions Manufacturer in India</h1>`, category intro `<p>`, crawlable `<a href="...">` links for all 4 product categories, and `<footer>` links. React hydrates and seamlessly replaces this shell on mount.
+     - Calibrated raw `index.html` title to 58 characters (`Restroom Cubicles & Partitions Manufacturer India | Pacific`) and meta description to 160 characters.
+2. **Missing Logo / Favicon in Google Search Results**:
+   - **Root Cause**: `index.html` lacked multi-resolution square icon links (`/icon-192.png`, `/icon-512.png`) and standard `<link rel="icon" href="/favicon.ico" sizes="any">`. Furthermore, `Organization` JSON-LD declared a rectangular logo (`logo.webp`, 200×60px) which violates Google's SERP Rich Snippet guidelines requiring a 1:1 square image of at least 112×112px.
+   - **Resolution**:
+     - Linked square favicon assets in `<head>` (`/favicon.ico`, `favicon.png` 48×48, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png`).
+     - Updated `Organization` JSON-LD to declare square 1024×1024px logo (`https://www.pacificproduct.in/logo.png`).
+     - Enhanced `WebSite` JSON-LD with `alternateName` array ("Pacific Products", "Pacific Cubicles", "Pacific Restroom Cubicles", "Pacific Restroom & Cubicle").
+3. **Missing Sitelinks & onClick Navigation**:
+   - **Root Cause**: Bento grid cards on the homepage used `onClick={() => navigate(...)}` on `motion.div` instead of standard `<a>` or `<Link>` elements, preventing web crawlers from building search sitelinks.
+   - **Resolution**: Converted all category cards to `<Link to="...">` anchor elements with descriptive labels and semantic headings.
+4. **URL Slug Harmonization (`/products/kids-cubicles`) & 301 Permanent Redirects**:
+   - **Resolution**: Renamed `/products/kids-toilet` and `/products/kids-cubicle` to the canonical keyword-first slug `/products/kids-cubicles`. Configured server-level 301 permanent redirects in `vercel.json` and client-side `<Navigate replace />` fallbacks in `routes.tsx` for legacy paths (`/products/kids-toilet`, `/products/kids-cubicle`, `/kids-cubicle`, `/cubicles`, `/lockers`, `/urinal-partitions`).
+   - Cleaned out redirected URLs from `public/sitemap.xml`, ensuring 100% 200-OK canonical entries.
+5. **Heading Structure Enforcement**:
+   - Resolved dual-H1 / hidden-H1 issues by removing `<h1 className="sr-only">` from `Home.tsx` and adding a prominent, visible `<h1>` directly in the above-the-fold hero section.
+   - Standardized H1, H2, H3 hierarchy across category pages (`Commercial Restroom Cubicle Systems & Toilet Partitions`, `Modular Compact Laminate Locker Systems for Commercial Spaces`, `Hygienic Compact Laminate Urinal Partition Modesty Screens`, `Child-Safe Kids Toilet Cubicles & Preschool Restroom Partitions`).
+
+---
+
+## 45. Quotation Custom Model Write & ImageKit Architectural Drawing Subsystem (October 2026)
+
+### 1. Custom Model & Item Freeform Specification
+1. **Three-Section Model Selector Overhaul**:
+   - In both **Draft Quotation Page** (`DraftQuotationPage.tsx`) and **Edit Sales Quotation Page** (`EditSalesQuotationPage.tsx`), all 3 system sections provide an explicit `"CUSTOM"` option:
+     - **Section 1: Restroom Cubicle System** (`<option value="CUSTOM">Custom / Manual Specification (Write Model)</option>`)
+     - **Section 2: Urinal Modesty Partition (UMP)** (`<option value="CUSTOM">Custom / Manual Specification (Write Model)</option>`)
+     - **Section 3: Modular Locker System** (`<option value="CUSTOM">Custom / Manual Specification (Write Model)</option>`)
+2. **Prominent Custom Model Name Input**:
+   - Whenever `"CUSTOM"` is selected for any item (or when creating a custom item), a highlighted amber card renders a dedicated **Custom Model Name** input field (`customModelName`).
+   - Placeholder examples guide sales and engineering staff (e.g., `Pacific Luxe Floor-to-Ceiling / Custom Restroom Model`).
+3. **Dedicated "＋ Add Custom Item & Model" Action**:
+   - In Section 4 (Line Items header), added a dedicated **＋ Add Custom Item & Model** button alongside **Add Standard Item**.
+   - Appends a custom item with `systemCategory: 'custom'`, `modelId: 'CUSTOM'`, enabling arbitrary model names, descriptions, units, quantities, and rates.
+4. **Full Technical Specifications for Custom & Additional Items**:
+   - Additional and custom line items render the complete technical specifications card (Board Type HPL/HDF, Board Thickness, Board Color, Cubicle Size, Door Size, Overall Height, Make, and Hardware Package).
+   - Guarantees custom items receive identical fabrication and dimension specifications as catalog models.
+5. **PDF Generator Synchronization (`pdf.service.ts`)**:
+   - The line item specification box (`.spec-box`) in `generateQuotationPdfHtml` extracts `customModel` from `item.customModelName || item.modelName || item.customSpecsJson?.customModelName`.
+   - Renders `• Model / System: ${customModel}` directly at the top of the technical specs block on customer-facing Quotation PDFs.
+
+### 2. Architectural & Site Drawing Upload via ImageKit CDN
+1. **ImageKit Cloud Storage Integration**:
+   - Uploads drawings directly to ImageKit CDN folder `quotations/drawings` via `uploadToImageKit(file, fileName, 'quotations/drawings')` from `src/lib/imagekit.ts`.
+   - Supports CAD drawings and plans in `.pdf`, `.dwg`, `.dxf`, `.png`, `.jpg`, `.jpeg`, and `.webp` formats.
+2. **Interactive View Drawing Action**:
+   - Prominent **"View Drawing"** button with `Eye` and `ExternalLink` icons (`min-h-[44px]` touch target) opens the drawing CDN URL in a new browser tab (`target="_blank" rel="noopener noreferrer"`).
+   - Allows site supervisors, factory fabricators, and estimation teams to inspect site CAD drawings in high resolution.
+3. **Strict Customer PDF Privacy Constraint**:
+   - Embedded notification banner clarifies: *"🔒 Internal Technical Reference Only — Uploaded drawings are securely stored on ImageKit CDN for factory and engineering reference. Drawings are strictly excluded and never mentioned on the customer-facing Quotation PDF."*
+   - Verified zero occurrences or references to `drawingUrl`, `drawingFileName`, or `drawingFileId` anywhere in customer-facing PDF templates.
+4. **Cross-Stack Database & Type Persistence**:
+   - **Database (`sales_quotations`)**: Added columns `drawingUrl`, `drawingFileName`, `drawingFileId` via Prisma schema and migration.
+   - **Backend (`quotations.service.ts`)**: Persists drawing metadata on `create` and `update`, and preserves item `customModelName` inside `customSpecsJson`.
+   - **Frontend Types (`src/types/admin.ts`)**: Added `drawingUrl`, `drawingFileName`, `drawingFileId` to `SalesQuotation`, and `customModelName` to `SalesQuotationItem`.
+   - **Detail Page (`SalesQuotationDetailPage.tsx`)**: Renders internal Architectural Drawing Card with "View Drawing" button and displays `• Model / System: ...` on line item listings.
+
+---
+
+## 46. Manual Model Name Writing for Additional Systems (Quotation & Proforma Invoices)
+
+### 46.1 Problem & Requirement
+Previously, additional cubicle model systems added to a Quotation or Proforma Invoice presented a standard dropdown selection field (`<select>`) labeled *"Product Model Selection & Description (Optional)"*. Users requested the removal of the `<select>` dropdown for all additional added models in favor of directly and manually typing custom model names and item specifications.
+
+### 46.2 Changes & Architecture
+1. **Removal of Selection Dropdown**:
+   - Removed the `<select>` model selector from all additional systems (`additionalCubicleItems.map`) in:
+     - `DraftQuotationPage.tsx`
+     - `EditSalesQuotationPage.tsx`
+     - `CreateProformaPage.tsx`
+     - `EditProformaInvoicePage.tsx`
+2. **Direct Manual Model Writing**:
+   - Replaced the dropdown in Quotation wizards with a dedicated **Product Model Name (Write Manually)** input alongside the **Description** input.
+   - Automatically binds user input to `item.customModelName`, `item.modelName`, and sets `item.modelId = 'CUSTOM'`, ensuring seamless flow into `customSpecsJson` and printing on Quotation PDFs (`• Model / System: ...`).
+   - Removed duplicate amber custom model boxes, providing a streamlined, clutter-free form interface.
+   - Replaced selection fields in Proforma Invoice wizards with a direct, full-width manual specification input (`Item Description & Model Specification (Manual) *`).
+3. **Type Consistency**:
+   - Added `modelName?: string` to `CreateItem` and `EditItem` interfaces across frontend pages for strict TypeScript adherence.
+
+---
+
+## 47. Selective Removal of Make & Hardware Package from Additional Cubicle Models & Complete Proforma Invoice (PI) Synchronization
+
+### 47.1 Background & User Requirements
+1. **Targeted Field Exclusion**:
+   - In both Quotations and Proforma Invoices, additional cubicle model systems (`additionalCubicleItems`) required removal of the **"Make"** and **"Hardware Package"** specification fields.
+   - Crucially, **Item #1 (Primary Cubicle System)** and standalone hardware components must strictly retain their Make and Hardware Package configuration options.
+2. **Proforma Invoice (PI) Workflow Synchronization**:
+   - Replicate the custom model manual writing experience previously established on Quotations across all PI pages:
+     - `CreateProformaPage.tsx`
+     - `EditProformaInvoicePage.tsx`
+     - `ProformaInvoiceDetailPage.tsx`
+     - Backend PDF Generation (`D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`)
+
+### 47.2 Frontend Implementation
+1. **Quotation Wizards (`DraftQuotationPage.tsx` & `EditSalesQuotationPage.tsx`)**:
+   - Preserved Make and Hardware Package on Primary System Item #1.
+   - Removed Make and Hardware Package input fields from the Technical Specifications card inside `additionalCubicleItems.map`.
+   - Preserved Board Type, Board Thickness, Board Color, Cubicle Size, Door Size, and Overall Height.
+2. **Proforma Invoice Wizards (`CreateProformaPage.tsx` & `EditProformaInvoicePage.tsx`)**:
+   - Extended `CreateItem` and `EditItem` with `customModelName?: string`, `modelName?: string`, and `make?: string`.
+   - Updated `additionalCubicleItems.map`: replaced single description input with a side-by-side grid of **Product Model Name (Write Manually)** and **Description \***.
+   - Automatically binds `customModelName`, `modelName`, and sets `modelId: 'CUSTOM'`.
+   - Injected the comprehensive Technical Specifications card for each additional model in PI, omitting Make and Hardware Package while including Board Type, Board Thickness, Board Color, Cubicle Size, Door Size, and Overall Height.
+   - In `enrichedItems`, prepends `Model: ${it.customModelName}` to the serialized specification line and forwards `customModelName` & `modelName` in the payload.
+3. **Proforma Invoice Detail View (`ProformaInvoiceDetailPage.tsx`)**:
+   - Enhanced `parseItemSpecs(item)` to extract `customModel`: checks `item.customModelName`, `item.modelName`, `item.customSpecsJson?.customModelName`, or `item.product?.title`.
+   - Renders `• Model / System: ${customModel}` in the specifications breakdown bullet list.
+
+### 47.3 Backend PDF Service Synchronization (`PACIFIC-Backend/src/modules/pdf/pdf.service.ts`)
+1. **Model / System Bullet Rendering**:
+   - In `generatePiHtml()`, extracts `customModel` from `it.customModelName || it.modelName || it.customSpecsJson?.customModelName`.
+   - If present, renders `• Model / System: ${customModel}` in the item `.spec-box`.
+2. **Conditional Make & Hardware Package Formatting**:
+   - Verified that `it.make` and `it.hardwarePackage` are wrapped conditionally (`${it.make ? ... : ''}` and `${it.hardwarePackage ? ... : ''}`).
+   - When omitted on additional models, empty bullet lines are prevented without affecting Item #1 or standalone packages.
+
+
 
 
 

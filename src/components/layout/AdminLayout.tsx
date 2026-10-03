@@ -12,10 +12,13 @@ import {
   Receipt,
   CreditCard,
   Clock,
+  BellRing,
+  X,
 } from 'lucide-react';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { PWAInstallModal } from '../common/PWAInstallModal';
 import { PWAInstallBanner } from '../common/PWAInstallBanner';
+import { startReminderMonitor, dismissReminder, type FollowupReminder } from '../../utils/followupReminder';
 
 const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 const WARNING_BEFORE = 60 * 1000; // show warning 1 min before logout
@@ -129,6 +132,16 @@ export const AdminLayout: React.FC = () => {
       if (countdownRef.current) clearInterval(countdownRef.current);
     };
   }, [user, resetInactivityTimer, showTimeoutWarning]);
+
+  // ── Omnichannel Follow-Up Reminder & Alarm Monitor ───────
+  const [activeAlarm, setActiveAlarm] = useState<FollowupReminder | null>(null);
+
+  useEffect(() => {
+    const cleanup = startReminderMonitor((reminder) => {
+      setActiveAlarm(reminder);
+    });
+    return cleanup;
+  }, []);
 
   const isActive = (path: string) => {
     if (path === '/admin/dashboard') return location.pathname === path;
@@ -349,6 +362,71 @@ export const AdminLayout: React.FC = () => {
         isWindows={pwa.isWindows}
         canPromptDirectly={pwa.canPromptDirectly}
       />
+
+      {/* Follow-Up Reminder Alarm Floating Toast */}
+      {activeAlarm && (
+        <div className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-50 max-w-sm w-full bg-[#030213] border-2 border-[#7FB706] rounded-2xl p-4 shadow-2xl shadow-[#7FB706]/25 animate-in slide-in-from-bottom-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-[#7FB706]/20 text-[#B5F823] animate-pulse">
+                <BellRing className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    Follow-Up Due!
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#7FB706]/20 text-[#B5F823] font-mono font-bold">
+                    {activeAlarm.channel}
+                  </span>
+                </div>
+                <p className="text-xs font-bold text-white font-mono mt-0.5">
+                  {activeAlarm.quotationNumber}
+                </p>
+                <p className="text-[11px] text-gray-300">
+                  Client: <strong className="text-white">{activeAlarm.clientName}</strong>
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                dismissReminder(activeAlarm.id);
+                setActiveAlarm(null);
+              }}
+              className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {activeAlarm.discussionNotes && (
+            <p className="text-[11px] text-gray-400 line-clamp-2 mt-2 bg-white/5 p-2 rounded-lg">
+              {activeAlarm.discussionNotes}
+            </p>
+          )}
+          <div className="flex items-center gap-2 pt-3">
+            <button
+              onClick={() => {
+                const quoteId = activeAlarm.quotationId;
+                dismissReminder(activeAlarm.id);
+                setActiveAlarm(null);
+                navigate(`/admin/dashboard/sales-quotations/${quoteId}/follow-up`);
+              }}
+              className="flex-1 py-2 px-3 rounded-xl bg-[#7FB706] hover:bg-[#6fa005] text-black font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-md shadow-[#7FB706]/20 cursor-pointer"
+            >
+              <span>Open Follow-Up Hub</span>
+            </button>
+            <button
+              onClick={() => {
+                dismissReminder(activeAlarm.id);
+                setActiveAlarm(null);
+              }}
+              className="py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-semibold cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

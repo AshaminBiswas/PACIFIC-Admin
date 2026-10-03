@@ -3,7 +3,9 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   FileText, ArrowLeft, Save, Plus, Trash2, RefreshCw,
   AlertTriangle, RotateCcw, Sparkles, ShieldCheck, Wrench, CheckCircle2, Layers, Package,
+  UploadCloud, ExternalLink, Eye,
 } from 'lucide-react';
+import { uploadToImageKit } from '../lib/imagekit';
 import { salesQuotationsApi } from '../api/salesQuotationsApi';
 import { crmApi } from '../api/crmApi';
 import { companiesApi } from '../api/companyApi';
@@ -22,7 +24,9 @@ export type QuotationScope = 'CUBICLE' | 'BOARD' | 'HARDWARE';
 export interface CreateItem {
   id?: string;
   modelId?: string;
-  systemCategory?: 'cubicle' | 'ump' | 'locker' | 'board' | 'hardware';
+  customModelName?: string;
+  modelName?: string;
+  systemCategory?: 'cubicle' | 'ump' | 'locker' | 'board' | 'hardware' | 'custom';
   description: string;
   unit: string;
   quantity: number;
@@ -68,6 +72,10 @@ export interface CreateFormData {
   otherTerms: string;
   notes: string;
   selectedHardwarePreset?: string;
+  drawingUrl?: string;
+  drawingFileName?: string;
+  drawingFileId?: string;
+  drawingFileSize?: number;
   items: CreateItem[];
 }
 
@@ -107,6 +115,10 @@ const INITIAL_FORM_STATE: CreateFormData = {
   otherTerms: '',
   notes: '',
   selectedHardwarePreset: 'SS_304',
+  drawingUrl: '',
+  drawingFileName: '',
+  drawingFileId: '',
+  drawingFileSize: 0,
   items: [
     {
       systemCategory: 'cubicle',
@@ -434,7 +446,15 @@ export default function DraftQuotationPage() {
       return;
     }
     if (modelId === 'CUSTOM') {
-      handleItemChange(idx, 'modelId', 'CUSTOM');
+      setForm((f) => {
+        const next = [...f.items];
+        next[idx] = {
+          ...next[idx],
+          modelId: 'CUSTOM',
+          customModelName: next[idx].customModelName || '',
+        };
+        return { ...f, items: next };
+      });
       return;
     }
 
@@ -491,6 +511,39 @@ export default function DraftQuotationPage() {
           items: nextItems,
           accessoriesText: buildQuotationAccessoriesText(primaryModel, undefined, lockerModel),
         };
+      });
+      return;
+    }
+
+    if (modelId === 'CUSTOM') {
+      setForm((f) => {
+        const existingUmp = f.items.find(
+          (it) => it.systemCategory === 'ump' || (it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump')))
+        );
+        const currentQty = existingUmp ? Number(existingUmp.quantity) || 1 : 1;
+        const currentRate = existingUmp && existingUmp.rate > 0 ? existingUmp.rate : 5500;
+
+        const updatedUmpItem: CreateItem = {
+          modelId: 'CUSTOM',
+          customModelName: existingUmp?.customModelName || '',
+          systemCategory: 'ump',
+          description: existingUmp?.description || 'Pacific Custom Urinal Modesty Partition',
+          quantity: currentQty,
+          unit: existingUmp?.unit || 'NOS',
+          rate: currentRate,
+          boardType: existingUmp?.boardType || 'HPL',
+          boardThickness: existingUmp?.boardThickness || '12mm',
+          boardColor: existingUmp?.boardColor || 'D.No. 123 – Oyster White',
+          cubicleSize: existingUmp?.cubicleSize || '450mm W × 900mm H',
+          doorSize: 'N/A',
+          overallHeight: existingUmp?.overallHeight || '1200mm (affixed 300mm above finished floor)',
+          hardwarePackage: existingUmp?.hardwarePackage || 'Grade 304 Wall Mount Cantilever Clamps',
+        };
+
+        const remainingItems = f.items.filter(
+          (it) => it !== existingUmp && it.systemCategory !== 'ump' && !(it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump')))
+        );
+        return { ...f, items: [...remainingItems, updatedUmpItem] };
       });
       return;
     }
@@ -571,6 +624,39 @@ export default function DraftQuotationPage() {
           items: nextItems,
           accessoriesText: buildQuotationAccessoriesText(primaryModel, umpModel, undefined),
         };
+      });
+      return;
+    }
+
+    if (modelId === 'CUSTOM') {
+      setForm((f) => {
+        const existingLocker = f.items.find(
+          (it) => it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker'))
+        );
+        const currentQty = existingLocker ? Number(existingLocker.quantity) || 1 : 1;
+        const currentRate = existingLocker && existingLocker.rate > 0 ? existingLocker.rate : 14500;
+
+        const updatedLockerItem: CreateItem = {
+          modelId: 'CUSTOM',
+          customModelName: existingLocker?.customModelName || '',
+          systemCategory: 'locker',
+          description: existingLocker?.description || 'Pacific Custom Modular Lockers',
+          quantity: currentQty,
+          unit: existingLocker?.unit || 'NOS',
+          rate: currentRate,
+          boardType: existingLocker?.boardType || 'HPL',
+          boardThickness: existingLocker?.boardThickness || '12mm',
+          boardColor: existingLocker?.boardColor || 'D.No. 123 – Oyster White',
+          cubicleSize: existingLocker?.cubicleSize || '300mm W × 450mm D × 1800mm H',
+          doorSize: existingLocker?.doorSize || 'Tier Modular Doors as per drawing',
+          overallHeight: existingLocker?.overallHeight || '1900mm (including 100mm plinth base)',
+          hardwarePackage: existingLocker?.hardwarePackage || 'Heavy-Duty Uniform Standard Locker Hardware',
+        };
+
+        const remainingItems = f.items.filter(
+          (it) => it !== existingLocker && it.systemCategory !== 'locker' && !(it.description && it.description.toLowerCase().includes('locker'))
+        );
+        return { ...f, items: [...remainingItems, updatedLockerItem] };
       });
       return;
     }
@@ -697,6 +783,70 @@ export default function DraftQuotationPage() {
           doorSize: '600mm × 1785mm',
           overallHeight: '1980mm (incl. 100mm ground clearance)',
           hardwarePackage: defaultHardware,
+        },
+      ],
+    }));
+  };
+
+  const [uploadingDrawing, setUploadingDrawing] = useState(false);
+  const [drawingUploadError, setDrawingUploadError] = useState<string | null>(null);
+
+  const handleDrawingUpload = async (file: File) => {
+    if (!file) return;
+    setUploadingDrawing(true);
+    setDrawingUploadError(null);
+    try {
+      const cleanBaseName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const ext = file.name.split('.').pop() || 'pdf';
+      const fileName = `drawing_${Date.now()}_${cleanBaseName}.${ext}`;
+
+      const result = await uploadToImageKit(file, fileName, 'quotations/drawings');
+      setForm((f) => ({
+        ...f,
+        drawingUrl: result.url,
+        drawingFileName: file.name,
+        drawingFileId: result.fileId,
+        drawingFileSize: file.size,
+      }));
+    } catch (err: any) {
+      console.error('Failed to upload drawing to ImageKit:', err);
+      setDrawingUploadError(err.message || 'Failed to upload drawing file to ImageKit CDN');
+    } finally {
+      setUploadingDrawing(false);
+    }
+  };
+
+  const handleRemoveDrawing = () => {
+    setForm((f) => ({
+      ...f,
+      drawingUrl: '',
+      drawingFileName: '',
+      drawingFileId: '',
+      drawingFileSize: 0,
+    }));
+  };
+
+  const addCustomModelItem = () => {
+    setForm((f) => ({
+      ...f,
+      items: [
+        ...f.items,
+        {
+          systemCategory: 'custom',
+          modelId: 'CUSTOM',
+          customModelName: '',
+          description: '',
+          unit: 'NOS',
+          quantity: 1,
+          rate: 0,
+          boardType: 'HPL',
+          cubicleSize: '1000mm W × 1500mm D',
+          boardColor: 'D.No. 123 – Oyster White',
+          boardThickness: '12mm',
+          doorSize: '600mm × 1785mm',
+          overallHeight: '1980mm (incl. 100mm ground clearance)',
+          hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
+          make: 'Pacific',
         },
       ],
     }));
@@ -873,6 +1023,10 @@ export default function DraftQuotationPage() {
         accessoriesText: form.accessoriesText,
         generalTerms: form.generalTerms,
         otherTerms: form.otherTerms,
+        notes: form.notes,
+        drawingUrl: form.drawingUrl || undefined,
+        drawingFileName: form.drawingFileName || undefined,
+        drawingFileId: form.drawingFileId || undefined,
         items: form.items.map((it, idx) => ({
           serialNumber: idx + 1,
           description: it.description,
@@ -888,12 +1042,16 @@ export default function DraftQuotationPage() {
           overallHeight: it.overallHeight || undefined,
           hardwarePackage: it.hardwarePackage || undefined,
           make: it.make || undefined,
+          customModelName: it.customModelName || undefined,
+          modelName: it.customModelName || undefined,
           customSpecsJson: {
             hardwarePackage: it.hardwarePackage || undefined,
             boardType: it.boardType || (form.quotationScope === 'HARDWARE' ? undefined : 'HPL'),
             systemCategory: it.systemCategory || undefined,
             quotationScope: form.quotationScope || 'CUBICLE',
             make: it.make || undefined,
+            customModelName: it.customModelName || undefined,
+            modelName: it.customModelName || undefined,
           },
         })),
       });
@@ -1496,17 +1654,33 @@ export default function DraftQuotationPage() {
               <p className="text-xs text-red-400 mt-0.5">{fieldErrors.items}</p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              addItem();
-              clearFieldError('items');
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] rounded-lg text-xs font-bold cursor-pointer transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            {form.quotationScope === 'BOARD' ? 'Add Board Sheet' : form.quotationScope === 'HARDWARE' ? 'Add Hardware Item' : 'Add Item'}
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {(!form.quotationScope || form.quotationScope === 'CUBICLE') && (
+              <button
+                type="button"
+                onClick={() => {
+                  addCustomModelItem();
+                  clearFieldError('items');
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                title="Write custom model name and technical specifications"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                ＋ Add Custom Item &amp; Model
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                addItem();
+                clearFieldError('items');
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] rounded-lg text-xs font-bold cursor-pointer transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              {form.quotationScope === 'BOARD' ? 'Add Board Sheet' : form.quotationScope === 'HARDWARE' ? 'Add Hardware Item' : 'Add Standard Item'}
+            </button>
+          </div>
         </div>
 
         {/* 3-Way Mode / Scope Selector */}
@@ -2002,7 +2176,7 @@ export default function DraftQuotationPage() {
                                   ))}
                                 </optgroup>
                               )}
-                              <option value="CUSTOM">Custom / Manual Specification (No Model)</option>
+                              <option value="CUSTOM">Custom / Manual Specification (Write Model)</option>
                             </select>
                           </div>
 
@@ -2020,6 +2194,22 @@ export default function DraftQuotationPage() {
                             />
                           </div>
                         </div>
+
+                        {primaryCubicleItem.modelId === 'CUSTOM' && (
+                          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row gap-2.5 items-start sm:items-center">
+                            <span className="text-xs font-bold text-amber-300 whitespace-nowrap flex items-center gap-1.5">
+                              <span>✍️</span> Custom Model Name:
+                            </span>
+                            <input
+                              type="text"
+                              value={primaryCubicleItem.customModelName || ''}
+                              onChange={(e) => handleItemChange(primaryCubicleIdx, 'customModelName', e.target.value)}
+                              placeholder="e.g. Pacific Luxe Floor-to-Ceiling / Custom Restroom Model"
+                              className="flex-1 w-full bg-[#0a0a1a] border border-amber-500/40 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-amber-400 font-semibold"
+                            />
+                            <span className="text-[11px] text-amber-300/80 italic whitespace-nowrap">Printed in PDF Model specification</span>
+                          </div>
+                        )}
                         {fieldErrors[`item_${primaryCubicleIdx}_desc`] && (
                           <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${primaryCubicleIdx}_desc`]}</p>
                         )}
@@ -2218,7 +2408,7 @@ export default function DraftQuotationPage() {
                       className="w-full bg-[#161536] border border-cyan-500/40 rounded-xl px-3 py-2.5 text-white font-semibold text-xs focus:border-cyan-400 focus:outline-none"
                     >
                       <option value="">-- No Urinal Partitions Required (Optional) --</option>
-                      {urinalModels.length > 0 ? (
+                      {urinalModels.length > 0 && (
                         <optgroup label={`Urinal Partitions (${urinalModels.length} Listed)`}>
                           {urinalModels.map((m) => (
                             <option key={m.id} value={m.id}>
@@ -2226,11 +2416,26 @@ export default function DraftQuotationPage() {
                             </option>
                           ))}
                         </optgroup>
-                      ) : (
-                        <option disabled value="">No Urinal Partition models listed in DB</option>
                       )}
+                      <option value="CUSTOM">Custom / Manual Specification (Write Model)</option>
                     </select>
                   </div>
+
+                  {umpItem && umpItem.modelId === 'CUSTOM' && (
+                    <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row gap-2.5 items-start sm:items-center">
+                      <span className="text-xs font-bold text-amber-300 whitespace-nowrap flex items-center gap-1.5">
+                        <span>✍️</span> Custom UMP Model Name:
+                      </span>
+                      <input
+                        type="text"
+                        value={umpItem.customModelName || ''}
+                        onChange={(e) => handleUmpFieldChange('customModelName', e.target.value)}
+                        placeholder="e.g. Pacific Custom Modesty Partition / Designer Glass UMP"
+                        className="flex-1 w-full bg-[#0a0a1a] border border-amber-500/40 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-amber-400 font-semibold"
+                      />
+                      <span className="text-[11px] text-amber-300/80 italic whitespace-nowrap">Printed in PDF Model specification</span>
+                    </div>
+                  )}
 
                   {umpItem && (
                     <div className="space-y-3 pt-2 border-t border-cyan-500/20">
@@ -2399,7 +2604,7 @@ export default function DraftQuotationPage() {
                       className="w-full bg-[#161536] border border-purple-500/40 rounded-xl px-3 py-2.5 text-white font-semibold text-xs focus:border-purple-400 focus:outline-none"
                     >
                       <option value="">-- No Modular Lockers Required (Optional) --</option>
-                      {lockerModels.length > 0 ? (
+                      {lockerModels.length > 0 && (
                         <optgroup label={`Modular Lockers (${lockerModels.length} Listed)`}>
                           {lockerModels.map((m) => (
                             <option key={m.id} value={m.id}>
@@ -2407,11 +2612,26 @@ export default function DraftQuotationPage() {
                             </option>
                           ))}
                         </optgroup>
-                      ) : (
-                        <option disabled value="">No Modular Locker models listed in DB</option>
                       )}
+                      <option value="CUSTOM">Custom / Manual Specification (Write Model)</option>
                     </select>
                   </div>
+
+                  {lockerItem && lockerItem.modelId === 'CUSTOM' && (
+                    <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row gap-2.5 items-start sm:items-center">
+                      <span className="text-xs font-bold text-amber-300 whitespace-nowrap flex items-center gap-1.5">
+                        <span>✍️</span> Custom Locker Model Name:
+                      </span>
+                      <input
+                        type="text"
+                        value={lockerItem.customModelName || ''}
+                        onChange={(e) => handleLockerFieldChange('customModelName', e.target.value)}
+                        placeholder="e.g. Pacific Custom Tier Z-Lockers / Gym Locker"
+                        className="flex-1 w-full bg-[#0a0a1a] border border-amber-500/40 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-amber-400 font-semibold"
+                      />
+                      <span className="text-[11px] text-amber-300/80 italic whitespace-nowrap">Printed in PDF Model specification</span>
+                    </div>
+                  )}
 
                   {lockerItem && (
                     <div className="space-y-3 pt-2 border-t border-purple-500/20">
@@ -2586,29 +2806,31 @@ export default function DraftQuotationPage() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-3 space-y-1.5">
-                          <label className={labelCls}>Product Model Selection &amp; Description (Optional)</label>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                             <div>
-                              <select
-                                value={item.modelId || ''}
-                                onChange={(e) => handleSelectModel(realIdx, e.target.value)}
-                                className={inputCls + ' bg-[#161536] border-[#7FB706]/40 text-white font-semibold'}
-                              >
-                                <option value="">-- Choose Product Model (Optional) --</option>
-                                {cubicleModels.length > 0 && (
-                                  <optgroup label={`Restroom Cubicles (${cubicleModels.length} Listed)`}>
-                                    {cubicleModels.map((m) => (
-                                      <option key={m.id} value={m.id}>
-                                        {m.title}
-                                      </option>
-                                    ))}
-                                  </optgroup>
-                                )}
-                                <option value="CUSTOM">Custom / Manual Specification (No Model)</option>
-                              </select>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className={labelCls}>
+                                  Product Model Name <span className="text-[11px] text-amber-300 font-medium">(Write Manually)</span>
+                                </label>
+                                <span className="text-[10px] text-amber-300/80">Printed on PDF</span>
+                              </div>
+                              <input
+                                type="text"
+                                value={item.customModelName ?? (item.modelId && item.modelId !== 'CUSTOM' ? (cubicleModels.find((m) => m.id === item.modelId)?.title || '') : '')}
+                                onChange={(e) => {
+                                  handleItemChange(realIdx, 'customModelName', e.target.value);
+                                  handleItemChange(realIdx, 'modelName', e.target.value);
+                                  handleItemChange(realIdx, 'modelId', 'CUSTOM');
+                                }}
+                                placeholder="e.g. Pacific Classique / Custom Model Name"
+                                className={inputCls + ' font-semibold text-white bg-[#0a0a1a] border-amber-500/40 focus:border-amber-400'}
+                              />
                             </div>
 
                             <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className={labelCls}>Description *</label>
+                              </div>
                               <input
                                 type="text"
                                 value={item.description}
@@ -2616,10 +2838,13 @@ export default function DraftQuotationPage() {
                                   handleItemChange(realIdx, 'description', e.target.value);
                                   clearFieldError(`item_${realIdx}_desc`);
                                 }}
-                                placeholder="Description (auto-filled on model select)"
+                                placeholder="Item description / specification"
                                 className={getInputCls(`item_${realIdx}_desc`)}
                                 required
                               />
+                              {fieldErrors[`item_${realIdx}_desc`] && (
+                                <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${realIdx}_desc`]}</p>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -2664,6 +2889,79 @@ export default function DraftQuotationPage() {
                         </div>
                       </div>
 
+                      {/* Technical Specifications */}
+                      <div className="bg-[#121226]/80 border border-white/5 rounded-xl p-3.5 space-y-3">
+                        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span>⚙️</span> Technical Specifications
+                          </span>
+                          <span className="text-[11px] text-gray-400">Board type, dimensions &amp; colors</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          <div>
+                            <label className={labelCls}>Board Type</label>
+                            <select
+                              value={item.boardType || 'HPL'}
+                              onChange={(e) => handleItemChange(realIdx, 'boardType', e.target.value)}
+                              className={inputCls}
+                            >
+                              <option value="HPL">HPL (High Pressure Compact Laminate)</option>
+                              <option value="HDF">HDF (High Density Fibreboard)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className={labelCls}>Board Thickness</label>
+                            <input
+                              type="text"
+                              value={item.boardThickness || ''}
+                              onChange={(e) => handleItemChange(realIdx, 'boardThickness', e.target.value)}
+                              placeholder="e.g. 12mm / 18mm"
+                              className={inputCls}
+                            />
+                          </div>
+                          <div>
+                            <label className={labelCls}>Board Color</label>
+                            <input
+                              type="text"
+                              value={item.boardColor || ''}
+                              onChange={(e) => handleItemChange(realIdx, 'boardColor', e.target.value)}
+                              placeholder="e.g. D.No. 123 – Oyster White"
+                              className={inputCls}
+                            />
+                          </div>
+                          <div>
+                            <label className={labelCls}>Size / Dimension</label>
+                            <input
+                              type="text"
+                              value={item.cubicleSize || ''}
+                              onChange={(e) => handleItemChange(realIdx, 'cubicleSize', e.target.value)}
+                              placeholder="e.g. 1000mm W × 1500mm D"
+                              className={inputCls}
+                            />
+                          </div>
+                          <div>
+                            <label className={labelCls}>Door Size</label>
+                            <input
+                              type="text"
+                              value={item.doorSize || ''}
+                              onChange={(e) => handleItemChange(realIdx, 'doorSize', e.target.value)}
+                              placeholder="e.g. 600mm × 1785mm"
+                              className={inputCls}
+                            />
+                          </div>
+                          <div>
+                            <label className={labelCls}>Overall Height</label>
+                            <input
+                              type="text"
+                              value={item.overallHeight || ''}
+                              onChange={(e) => handleItemChange(realIdx, 'overallHeight', e.target.value)}
+                              placeholder="e.g. 1980mm (incl. 100mm clearance)"
+                              className={inputCls}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="text-right text-xs text-gray-400 font-mono pt-1">
                         Line Total: <span className="font-bold text-white text-sm">
                           ₹ {lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -2676,6 +2974,103 @@ export default function DraftQuotationPage() {
             );
           })())}
         </div>
+      </div>
+
+      {/* Section 4B: Architectural & Technical Drawing (CAD / Layout Plan) */}
+      <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2">
+          <div className="flex items-center gap-2">
+            <UploadCloud className="w-4 h-4 text-[#7FB706]" />
+            <h3 className="text-sm font-bold text-white">Architectural &amp; Site Drawing (CAD / Layout Plan)</h3>
+          </div>
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            ImageKit CDN Storage
+          </span>
+        </div>
+
+        <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-300 flex items-start gap-2">
+          <span className="text-sm">🔒</span>
+          <div>
+            <strong>Internal Technical Reference Only:</strong> Uploaded drawing is stored on ImageKit CDN for factory estimation, fabrication, and engineering reference. It is <em>strictly excluded</em> and will never appear on the customer-facing Quotation PDF.
+          </div>
+        </div>
+
+        {form.drawingUrl ? (
+          <div className="bg-[#0a0a1a] border border-[#7FB706]/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-[#7FB706]/10 border border-[#7FB706]/30 flex items-center justify-center text-[#7FB706] flex-shrink-0">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-white truncate">
+                  {form.drawingFileName || 'Architectural_Drawing.pdf'}
+                </div>
+                <div className="text-xs text-gray-400 flex items-center gap-2 mt-0.5">
+                  {form.drawingFileSize ? <span>{(form.drawingFileSize / 1024).toFixed(1)} KB</span> : null}
+                  <span className="text-[#7FB706] font-medium">✓ Uploaded to ImageKit</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <a
+                href={form.drawingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 min-h-[44px] bg-[#7FB706]/15 hover:bg-[#7FB706]/25 text-[#7FB706] border border-[#7FB706]/40 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                <Eye className="w-4 h-4" />
+                <span>View Drawing</span>
+                <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+              </a>
+
+              <button
+                type="button"
+                onClick={handleRemoveDrawing}
+                className="inline-flex items-center justify-center p-2.5 min-h-[44px] min-w-[44px] bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl text-xs font-semibold transition cursor-pointer"
+                title="Remove uploaded drawing"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <label
+              htmlFor="drawing-file-upload"
+              className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition ${
+                uploadingDrawing
+                  ? 'border-gray-600 bg-white/5 opacity-60 cursor-not-allowed'
+                  : 'border-white/10 hover:border-[#7FB706]/50 bg-[#0a0a1a] hover:bg-white/[0.02]'
+              }`}
+            >
+              <input
+                id="drawing-file-upload"
+                type="file"
+                className="hidden"
+                accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.webp"
+                disabled={uploadingDrawing}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleDrawingUpload(file);
+                }}
+              />
+              <UploadCloud className={`w-8 h-8 mb-2 ${uploadingDrawing ? 'text-gray-500 animate-bounce' : 'text-[#7FB706]'}`} />
+              <div className="text-sm font-semibold text-white">
+                {uploadingDrawing ? 'Uploading Drawing to ImageKit CDN...' : 'Click to Upload CAD / Site Drawing'}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Supports PDF, DWG, DXF, PNG, JPG (Internal technical reference)
+              </p>
+            </label>
+
+            {drawingUploadError && (
+              <p className="mt-2 text-xs text-red-400 flex items-center gap-1">
+                <span>⚠️</span> {drawingUploadError}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Section 5: Standard Inclusions & Hardware Accessories */}

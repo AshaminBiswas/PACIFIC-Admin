@@ -1110,6 +1110,8 @@ export interface SalesQuotationItem {
   overallHeight?: string;
   hardwarePackage?: string;
   make?: string;
+  customModelName?: string;
+  modelName?: string;
   customSpecsJson?: any;
 }
 
@@ -1194,6 +1196,9 @@ export interface SalesQuotation {
   otherTerms?: string;
   termsAndConditions?: string;
   notes?: string;
+  drawingUrl?: string;
+  drawingFileName?: string;
+  drawingFileId?: string;
   status: SalesQuotationStatus;
   sentAt?: string;
   convertedAt?: string;
@@ -1205,6 +1210,7 @@ export interface SalesQuotation {
   followupStatus?: string;
   lastFollowupDate?: string;
   followupCount?: number;
+  verificationToken?: string;
   followups?: QuotationFollowup[];
   createdAt: string;
   updatedAt: string;

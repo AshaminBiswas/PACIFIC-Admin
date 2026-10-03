@@ -4,6 +4,7 @@ import {
   FileText, ArrowLeft, Printer, Edit, CheckCircle2, Send,
   MapPin, Calendar, User, Building2, Hash, RefreshCw, Trash2,
   AlertTriangle, Clock, Mail, X, Phone, MessageCircle, MessageSquare, Sparkles,
+  Eye, ExternalLink,
 } from 'lucide-react';
 import { salesQuotationsApi } from '../api/salesQuotationsApi';
 import { useAdminAuth } from '../context/AdminAuthContext';
@@ -61,6 +62,10 @@ interface QuotationDetail {
   otherTerms?: string;
   notes?: string;
   termsAndConditions?: string;
+  // Technical Drawing
+  drawingUrl?: string;
+  drawingFileName?: string;
+  drawingFileId?: string;
   // Site (legacy draft format)
   siteName?: string;
   siteAddress?: string;
@@ -71,6 +76,10 @@ interface QuotationDetail {
   items: Array<{
     id?: string;
     serialNumber: number;
+    modelId?: string;
+    customModelName?: string;
+    modelName?: string;
+    customSpecsJson?: any;
     description?: string;
     itemDescription?: string;
     unit?: string;
@@ -745,6 +754,11 @@ export default function SalesQuotationDetailPage() {
                       <td className="py-3 px-4 text-center font-mono text-gray-400">{item.serialNumber ?? idx + 1}</td>
                       <td className="py-3 px-4">
                         <div className="font-medium text-white">{desc}</div>
+                        {(item.customModelName || item.modelName || (item as any).customSpecsJson?.customModelName) && (
+                          <div className="text-xs text-[#7FB706] font-semibold mt-0.5">
+                            • Model / System: {item.customModelName || item.modelName || (item as any).customSpecsJson?.customModelName}
+                          </div>
+                        )}
                         {(item.cubicleSize || item.boardThickness || item.boardColor || item.doorSize || item.overallHeight || item.make) && (
                           <div className="mt-1 text-[11px] text-gray-500 space-y-0.5">
                             {item.make && <div>• Make: <span className="text-gray-300 font-medium">{item.make}</span></div>}
@@ -783,6 +797,11 @@ export default function SalesQuotationDetailPage() {
                     <div className="flex-1">
                       <span className="text-xs text-gray-500 font-mono">#{item.serialNumber ?? idx + 1}</span>
                       <div className="font-medium text-white text-sm">{desc}</div>
+                      {(item.customModelName || item.modelName || (item as any).customSpecsJson?.customModelName) && (
+                        <div className="text-xs text-[#7FB706] font-semibold mt-0.5">
+                          • Model / System: {item.customModelName || item.modelName || (item as any).customSpecsJson?.customModelName}
+                        </div>
+                      )}
                     </div>
                     <div className="font-bold text-[#7FB706] font-mono text-sm ml-3">
                       ₹ {amount.toLocaleString('en-IN')}
@@ -794,6 +813,48 @@ export default function SalesQuotationDetailPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Internal Architectural & Technical Drawing Card */}
+      {quotation.drawingUrl && (
+        <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5 text-[#7FB706]" /> Architectural &amp; Technical Drawing
+            </h3>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              ImageKit CDN
+            </span>
+          </div>
+
+          <div className="p-4 rounded-xl bg-[#0a0a1a] border border-[#7FB706]/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-[#7FB706]/10 border border-[#7FB706]/30 flex items-center justify-center text-[#7FB706] flex-shrink-0">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-white truncate">
+                  {quotation.drawingFileName || 'Architectural_Site_Drawing.pdf'}
+                </div>
+                <div className="text-xs text-gray-400 flex items-center gap-2 mt-0.5">
+                  <span className="text-[#7FB706] font-medium">🔒 Internal Factory Technical Reference Only</span>
+                  <span className="text-gray-500">• (Strictly excluded from customer Quotation PDF)</span>
+                </div>
+              </div>
+            </div>
+
+            <a
+              href={quotation.drawingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 min-h-[44px] bg-[#7FB706]/15 hover:bg-[#7FB706]/25 text-[#7FB706] border border-[#7FB706]/40 rounded-xl text-xs font-bold transition cursor-pointer"
+            >
+              <Eye className="w-4 h-4" />
+              <span>View Drawing</span>
+              <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+            </a>
           </div>
         </div>
       )}
