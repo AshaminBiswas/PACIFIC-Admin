@@ -16,7 +16,7 @@ export default function AdjustMovementModal({
   onSuccess,
   movement,
 }: AdjustMovementModalProps) {
-  const [newQuantity, setNewQuantity] = useState<number | ''>('');
+  const [newQuantity, setNewQuantity] = useState<string | number>('');
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -154,9 +154,11 @@ export default function AdjustMovementModal({
               <input
                 type="number"
                 min="0"
+                step="any"
                 required
                 value={newQuantity}
-                onChange={(e) => setNewQuantity(e.target.value === '' ? '' : Number(e.target.value))}
+                onChange={(e) => setNewQuantity(e.target.value)}
+                placeholder="e.g. 4.5"
                 className="w-full bg-[#121029] border border-sky-500/50 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-sky-400 transition min-h-[44px]"
               />
             </div>

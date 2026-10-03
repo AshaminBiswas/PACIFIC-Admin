@@ -3238,6 +3238,32 @@ Previously, additional cubicle model systems added to a Quotation or Proforma In
 7. **Backend Service (`D:\PACIFIC-Backend\src\modules\quotations\quotations.service.ts`)**:
    - Line items model visual extraction, deduplication, and conversion to base64 data URIs (`fetchImageAsDataUri`).
 
+---
+
+## 53. Decimal Fraction Stock Inputs & Universal Board SKU Editor
+
+### 53.1 Feature Overview
+- **Decimal Fraction Values**: Enabled seamless fractional sheet entry (e.g. `4.5` sheets, offcuts, balance cuts) across all inventory stock inputs:
+  - Opening Stock (`CreateBoardModal`, `CreateBoardSkuPage`, `EditBoardModal`)
+  - Stock Inward (`StockInwardModal`)
+  - Stock Issue (`StockIssueModal`)
+  - Movement Adjustments (`AdjustMovementModal`)
+- **Resolved Input Issues**:
+  - Replaced browser-default `step="1"` with `step="any"` on all HTML `<input type="number">` controls to eliminate HTML5 validation blocks ("Please enter a valid value. The two nearest valid values are 4 and 5").
+  - Updated React local states to `string | number` so typing `4.` does not get truncated to `4` before the decimal point fraction can be keyed in.
+- **Universal Board SKU Editor (`EditBoardModal.tsx`)**:
+  - Created a dedicated modal component for updating SKU specifications (Design No, Shade/Finish, Size, Thickness, Board Type, Destination Warehouse, Supplier).
+  - Allows editing both **Opening Stock** and **Live Current Stock** with full fractional decimal precision (`step="any"`).
+  - Integrated direct "Edit SKU" actions (`<Edit2 />`) across:
+    - Restroom Cubicle Boards (`BoardInventoryPage.tsx`)
+    - Modular Lockers (`LockerInventoryPage.tsx`)
+    - Urinal Modesty Partitions (`UmpInventoryPage.tsx`)
+    - Store Hardware & Accessories (`StoreInventoryPage.tsx`)
+- **Backend Stock Synchronization (`boardInventory.service.ts`)**:
+  - Enhanced `updateBoard` to accept `openingStock`, `currentStock`, `warehouse`, `vendorId`, `vendorName`, and `category`.
+  - Recalculates stock balances (`openingDiff`), updates the initial opening movement record (`BSM-OPN-...`), adjusts status (`OUT_OF_STOCK`, `LOW_STOCK`, `ACTIVE`), and evaluates low stock alerts.
+
+
 
 
 

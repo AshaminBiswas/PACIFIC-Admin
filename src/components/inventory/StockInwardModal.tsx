@@ -22,13 +22,13 @@ export default function StockInwardModal({
 }: StockInwardModalProps) {
   const [selectedBoardId, setSelectedBoardId] = useState<string>('');
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
-  const [quantity, setQuantity] = useState<number | ''>('');
+  const [quantity, setQuantity] = useState<string | number>('');
   const [supplierInvoiceNo, setSupplierInvoiceNo] = useState('');
   const [supplierInvoiceDate, setSupplierInvoiceDate] = useState(
     new Date().toISOString().split('T')[0]
   );
   const [batchLotNo, setBatchLotNo] = useState('');
-  const [unitCost, setUnitCost] = useState<number | ''>('');
+  const [unitCost, setUnitCost] = useState<string | number>('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -207,11 +207,12 @@ export default function StockInwardModal({
               </label>
               <input
                 type="number"
-                min="1"
+                min="0.01"
+                step="any"
                 required
                 value={quantity}
-                onChange={(e) => setQuantity(e.target.value === '' ? '' : Number(e.target.value))}
-                placeholder="e.g. 50"
+                onChange={(e) => setQuantity(e.target.value)}
+                placeholder="e.g. 4.5"
                 className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706] transition min-h-[44px]"
               />
             </div>
@@ -222,9 +223,9 @@ export default function StockInwardModal({
               <input
                 type="number"
                 min="0"
-                step="0.01"
+                step="any"
                 value={unitCost}
-                onChange={(e) => setUnitCost(e.target.value === '' ? '' : Number(e.target.value))}
+                onChange={(e) => setUnitCost(e.target.value)}
                 placeholder="e.g. 4200.00"
                 className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706] transition min-h-[44px]"
               />

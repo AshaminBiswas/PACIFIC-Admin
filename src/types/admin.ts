@@ -2452,13 +2452,21 @@ export interface CreateBoardItemInput {
 }
 
 export interface UpdateBoardItemInput {
+  category?: string;
+  warehouse?: string;
+  vendorId?: string;
+  vendorName?: string;
   designNo?: string;
   designName?: string;
   size?: string;
   thickness?: string;
   boardType?: string;
+  openingStock?: number;
+  currentStock?: number;
+  totalInward?: number;
   reorderLevel?: number;
   unitCost?: number;
   locationRack?: string;
+  status?: string;
   notes?: string;
 }

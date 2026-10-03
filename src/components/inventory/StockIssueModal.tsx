@@ -19,7 +19,7 @@ export default function StockIssueModal({
   boards,
 }: StockIssueModalProps) {
   const [selectedBoardId, setSelectedBoardId] = useState<string>('');
-  const [quantity, setQuantity] = useState<number | ''>('');
+  const [quantity, setQuantity] = useState<string | number>('');
   const [issueReference, setIssueReference] = useState('');
   const [issuedToPerson, setIssuedToPerson] = useState('');
   const [notes, setNotes] = useState('');
@@ -173,12 +173,13 @@ export default function StockIssueModal({
               </label>
               <input
                 type="number"
-                min="1"
+                min="0.01"
+                step="any"
                 max={availableStock}
                 required
                 value={quantity}
-                onChange={(e) => setQuantity(e.target.value === '' ? '' : Number(e.target.value))}
-                placeholder={`Max ${availableStock}`}
+                onChange={(e) => setQuantity(e.target.value)}
+                placeholder={`Max ${availableStock} (e.g. 4.5)`}
                 className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-400 transition min-h-[44px]"
               />
             </div>

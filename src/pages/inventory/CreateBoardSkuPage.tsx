@@ -73,9 +73,9 @@ export default function CreateBoardSkuPage() {
   const [customThickness, setCustomThickness] = useState('');
 
   // Stock & Financials
-  const [openingStock, setOpeningStock] = useState<number | ''>(0);
-  const [reorderLevel, setReorderLevel] = useState<number | ''>(10);
-  const [unitCost, setUnitCost] = useState<number | ''>('');
+  const [openingStock, setOpeningStock] = useState<string | number>(0);
+  const [reorderLevel, setReorderLevel] = useState<string | number>(10);
+  const [unitCost, setUnitCost] = useState<string | number>('');
   const [locationRack, setLocationRack] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -595,12 +595,14 @@ export default function CreateBoardSkuPage() {
               <input
                 type="number"
                 min="0"
+                step="any"
                 value={openingStock}
-                onChange={(e) => setOpeningStock(e.target.value === '' ? '' : Number(e.target.value))}
+                onChange={(e) => setOpeningStock(e.target.value)}
+                placeholder="e.g. 4.5"
                 className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706] min-h-[44px]"
               />
               <span className="text-[10px] text-gray-500 mt-1 block">
-                Initial count loaded into warehouse inventory
+                Initial count loaded into warehouse inventory (supports decimal fractions like 4.5)
               </span>
             </div>
 
@@ -610,10 +612,11 @@ export default function CreateBoardSkuPage() {
               </label>
               <input
                 type="number"
-                min="1"
+                min="0"
+                step="any"
                 required
                 value={reorderLevel}
-                onChange={(e) => setReorderLevel(e.target.value === '' ? '' : Number(e.target.value))}
+                onChange={(e) => setReorderLevel(e.target.value)}
                 className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706] min-h-[44px]"
               />
               <span className="text-[10px] text-amber-400 mt-1 block flex items-center gap-1">
@@ -628,9 +631,9 @@ export default function CreateBoardSkuPage() {
               <input
                 type="number"
                 min="0"
-                step="0.01"
+                step="any"
                 value={unitCost}
-                onChange={(e) => setUnitCost(e.target.value === '' ? '' : Number(e.target.value))}
+                onChange={(e) => setUnitCost(e.target.value)}
                 placeholder="e.g. 3850.00"
                 className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706] min-h-[44px]"
               />

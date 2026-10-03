@@ -16,6 +16,7 @@ import {
   Trash2,
   MapPin,
   Package,
+  Edit2,
 } from 'lucide-react';
 import { boardInventoryApi } from '../../api/boardInventoryApi';
 import type {
@@ -29,6 +30,7 @@ import StockIssueModal from '../../components/inventory/StockIssueModal';
 import AdjustMovementModal from '../../components/inventory/AdjustMovementModal';
 import BoardLedgerModal from '../../components/inventory/BoardLedgerModal';
 import BoardReportsModal from '../../components/inventory/BoardReportsModal';
+import EditBoardModal from '../../components/inventory/EditBoardModal';
 
 export default function StoreInventoryPage() {
   const navigate = useNavigate();
@@ -47,12 +49,14 @@ export default function StoreInventoryPage() {
   // Modals state
   const [isInwardModalOpen, setIsInwardModalOpen] = useState(false);
   const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
   const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
 
   // Selected item
   const [activeItem, setActiveItem] = useState<BoardInventoryItem | null>(null);
+  const [activeEditItem, setActiveEditItem] = useState<BoardInventoryItem | null>(null);
   const [activeMovement, setActiveMovement] = useState<BoardStockMovement | null>(null);
 
   // Load General Store items scoped to STORE_HARDWARE
@@ -507,6 +511,18 @@ export default function StoreInventoryPage() {
                       {/* Actions */}
                       <td className="py-2.5 px-3 sm:py-3.5 sm:px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Edit SKU & Stock */}
+                          <button
+                            onClick={() => {
+                              setActiveEditItem(b);
+                              setIsEditModalOpen(true);
+                            }}
+                            className="p-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/20 transition min-w-[32px] min-h-[32px] flex items-center justify-center"
+                            title="Edit SKU & Stock"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+
                           {/* Inward */}
                           <button
                             onClick={() => {
@@ -595,6 +611,18 @@ export default function StoreInventoryPage() {
         }}
         onSuccess={loadData}
         movement={activeMovement}
+      />
+
+      {/* Edit Item Modal */}
+      <EditBoardModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setActiveEditItem(null);
+        }}
+        onSuccess={loadData}
+        boardItem={activeEditItem}
+        suppliers={suppliers}
       />
 
       <BoardReportsModal

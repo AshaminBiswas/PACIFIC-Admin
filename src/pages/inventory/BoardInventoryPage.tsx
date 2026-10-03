@@ -31,6 +31,7 @@ import StockInwardModal from '../../components/inventory/StockInwardModal';
 import StockIssueModal from '../../components/inventory/StockIssueModal';
 import AdjustMovementModal from '../../components/inventory/AdjustMovementModal';
 import CreateBoardModal from '../../components/inventory/CreateBoardModal';
+import EditBoardModal from '../../components/inventory/EditBoardModal';
 import BoardLedgerModal from '../../components/inventory/BoardLedgerModal';
 import BoardReportsModal from '../../components/inventory/BoardReportsModal';
 
@@ -55,12 +56,14 @@ export default function BoardInventoryPage() {
   const [isInwardModalOpen, setIsInwardModalOpen] = useState(false);
   const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
   const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
 
   // Selected item for specific modals
   const [activeBoardItem, setActiveBoardItem] = useState<BoardInventoryItem | null>(null);
+  const [activeEditBoard, setActiveEditBoard] = useState<BoardInventoryItem | null>(null);
   const [activeMovement, setActiveMovement] = useState<BoardStockMovement | null>(null);
 
   // Load all data with optional warehouse & category scope
@@ -655,6 +658,18 @@ export default function BoardInventoryPage() {
                       {/* Actions */}
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Edit SKU & Stock */}
+                          <button
+                            onClick={() => {
+                              setActiveEditBoard(b);
+                              setIsEditModalOpen(true);
+                            }}
+                            className="p-1.5 text-sky-400 hover:text-white hover:bg-sky-500/20 rounded-lg transition"
+                            title="Edit SKU specifications & stock"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+
                           {/* Quick Inward */}
                           <button
                             onClick={() => {
@@ -778,6 +793,18 @@ export default function BoardInventoryPage() {
         }}
         onSuccess={loadData}
         movement={activeMovement}
+      />
+
+      {/* Edit Board SKU Modal */}
+      <EditBoardModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setActiveEditBoard(null);
+        }}
+        onSuccess={loadData}
+        boardItem={activeEditBoard}
+        suppliers={suppliers}
       />
 
       {/* Visual Reports & Excel/PDF Modal */}

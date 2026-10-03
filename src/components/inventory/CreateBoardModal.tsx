@@ -43,9 +43,9 @@ export default function CreateBoardModal({
   const [thickness, setThickness] = useState('12mm');
   const [customThickness, setCustomThickness] = useState('');
   const [boardType, setBoardType] = useState('Compact HPL (Phenolic)');
-  const [openingStock, setOpeningStock] = useState<number | ''>(0);
-  const [reorderLevel, setReorderLevel] = useState<number | ''>(10);
-  const [unitCost, setUnitCost] = useState<number | ''>('');
+  const [openingStock, setOpeningStock] = useState<string | number>(0);
+  const [reorderLevel, setReorderLevel] = useState<string | number>(10);
+  const [unitCost, setUnitCost] = useState<string | number>('');
   const [locationRack, setLocationRack] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -277,8 +277,10 @@ export default function CreateBoardModal({
               <input
                 type="number"
                 min="0"
+                step="any"
                 value={openingStock}
-                onChange={(e) => setOpeningStock(e.target.value === '' ? '' : Number(e.target.value))}
+                onChange={(e) => setOpeningStock(e.target.value)}
+                placeholder="e.g. 4.5"
                 className="w-full bg-[#121029] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706] min-h-[44px]"
               />
             </div>
@@ -288,9 +290,10 @@ export default function CreateBoardModal({
               </label>
               <input
                 type="number"
-                min="1"
+                min="0"
+                step="any"
                 value={reorderLevel}
-                onChange={(e) => setReorderLevel(e.target.value === '' ? '' : Number(e.target.value))}
+                onChange={(e) => setReorderLevel(e.target.value)}
                 className="w-full bg-[#121029] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706] min-h-[44px]"
               />
             </div>
@@ -301,9 +304,9 @@ export default function CreateBoardModal({
               <input
                 type="number"
                 min="0"
-                step="0.01"
+                step="any"
                 value={unitCost}
-                onChange={(e) => setUnitCost(e.target.value === '' ? '' : Number(e.target.value))}
+                onChange={(e) => setUnitCost(e.target.value)}
                 placeholder="4200.00"
                 className="w-full bg-[#121029] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706] min-h-[44px]"
               />
