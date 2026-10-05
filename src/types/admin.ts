@@ -2470,3 +2470,46 @@ export interface UpdateBoardItemInput {
   status?: string;
   notes?: string;
 }
+
+export interface BoardInventoryFilterParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  vendorId?: string;
+  vendorName?: string;
+  boardType?: string;
+  size?: string;
+  thickness?: string;
+  status?: string;
+  warehouse?: string;
+  category?: string;
+}
+
+export interface BulkInwardStockPayload {
+  items: InwardStockInput[];
+}
+
+export interface BulkIssueStockPayload {
+  items: ManualIssueInput[];
+}
+
+export interface BulkCreateBoardItemPayload {
+  items: CreateBoardItemInput[];
+}
+
+export interface BulkInwardResult {
+  count: number;
+  items: BoardInventoryItem[];
+  movements: BoardStockMovement[];
+}
+
+export interface BulkIssueResult {
+  count: number;
+  items: BoardInventoryItem[];
+  movements: BoardStockMovement[];
+}
+
+export interface BulkCreateBoardResult {
+  count: number;
+  items: BoardInventoryItem[];
+}

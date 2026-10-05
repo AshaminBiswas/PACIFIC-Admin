@@ -17,7 +17,12 @@ import {
   Columns,
   Info,
   Edit2,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+  X,
 } from 'lucide-react';
+import { useDebounce } from '../../hooks/useDebounce';
 import { boardInventoryApi } from '../../api/boardInventoryApi';
 import type {
   BoardInventoryItem,
@@ -32,6 +37,16 @@ import BoardLedgerModal from '../../components/inventory/BoardLedgerModal';
 import BoardReportsModal from '../../components/inventory/BoardReportsModal';
 import EditBoardModal from '../../components/inventory/EditBoardModal';
 
+const COMMON_SIZES = [
+  '1220x2440mm (4x8ft)',
+  '1830x3660mm (6x12ft)',
+  '1525x3660mm (5x12ft)',
+  '1220x1830mm (4x6ft)',
+  '1525x1830mm (5x6ft)',
+];
+
+const COMMON_THICKNESSES = ['12mm', '18mm', '13mm', '9mm', '6mm', '3mm', '25mm'];
+
 export default function UmpInventoryPage() {
   const navigate = useNavigate();
   const [boards, setBoards] = useState<BoardInventoryItem[]>([]);
@@ -39,12 +54,18 @@ export default function UmpInventoryPage() {
   const [analytics, setAnalytics] = useState<BoardAnalyticsSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Dual Warehouse Filter: Delhi vs Kolkata
-  const [selectedWarehouse, setSelectedWarehouse] = useState<'ALL' | 'DELHI' | 'KOLKATA'>('ALL');
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
-  // Filters
+  // Filters State
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
+  const [selectedWarehouse, setSelectedWarehouse] = useState<string>('ALL');
   const [selectedSupplierName, setSelectedSupplierName] = useState<string>('ALL');
+  const [selectedSize, setSelectedSize] = useState<string>('ALL');
   const [selectedThickness, setSelectedThickness] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
 
@@ -61,19 +82,53 @@ export default function UmpInventoryPage() {
   const [activeEditBoard, setActiveEditBoard] = useState<BoardInventoryItem | null>(null);
   const [activeMovement, setActiveMovement] = useState<BoardStockMovement | null>(null);
 
-  // Load UMP data scoped to URINAL_PARTITION_UMP (also URINAL_PARTITION)
+  // Reset pagination to page 1 whenever any filter or search changes
+  useEffect(() => {
+    setPage(1);
+  }, [
+    debouncedSearch,
+    selectedWarehouse,
+    selectedSupplierName,
+    selectedSize,
+    selectedThickness,
+    selectedStatus,
+  ]);
+
+  // Load UMP data scoped to URINAL_PARTITION_UMP with pagination & server filters
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const warehouseParam = selectedWarehouse !== 'ALL' ? selectedWarehouse : undefined;
+      const vendorNameParam = selectedSupplierName !== 'ALL' ? selectedSupplierName : undefined;
+      const sizeParam = selectedSize !== 'ALL' ? selectedSize : undefined;
+      const thicknessParam = selectedThickness !== 'ALL' ? selectedThickness : undefined;
+      const statusParam = selectedStatus !== 'ALL' ? selectedStatus : undefined;
+      const searchParam = debouncedSearch.trim() || undefined;
+
       const [boardsRes, suppliersRes, analyticsRes] = await Promise.all([
-        boardInventoryApi.list({ limit: 100, warehouse: warehouseParam, category: 'URINAL_PARTITION_UMP' }),
+        boardInventoryApi.list({
+          page,
+          limit: pageSize,
+          warehouse: warehouseParam,
+          vendorName: vendorNameParam,
+          size: sizeParam,
+          thickness: thicknessParam,
+          status: statusParam,
+          search: searchParam,
+          category: 'URINAL_PARTITION_UMP',
+        }),
         boardInventoryApi.listSuppliers(),
         boardInventoryApi.getAnalytics({ warehouse: warehouseParam, category: 'URINAL_PARTITION_UMP' }),
       ]);
 
-      if (boardsRes.data?.data?.items) {
-        setBoards(boardsRes.data.data.items);
+      if (boardsRes.data?.data) {
+        const resp = boardsRes.data.data;
+        const items = resp.items || [];
+        setBoards(items);
+        const total = resp.total ?? (resp as any).pagination?.total ?? items.length;
+        setTotalRecords(total);
+        const pages = resp.totalPages ?? (resp as any).pagination?.totalPages ?? Math.max(1, Math.ceil(total / pageSize));
+        setTotalPages(pages);
       }
       if (suppliersRes.data?.data) {
         setSuppliers(suppliersRes.data.data);
@@ -86,69 +141,61 @@ export default function UmpInventoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedWarehouse]);
+  }, [
+    page,
+    pageSize,
+    debouncedSearch,
+    selectedWarehouse,
+    selectedSupplierName,
+    selectedSize,
+    selectedThickness,
+    selectedStatus,
+  ]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Fast client-side memoized filter
-  const filteredBoards = useMemo(() => {
-    return boards.filter((b) => {
-      // 0. Warehouse filter
-      if (selectedWarehouse !== 'ALL') {
-        const itemWarehouse = (b.warehouse || 'DELHI').toUpperCase();
-        if (itemWarehouse !== selectedWarehouse) return false;
-      }
-
-      // 1. Supplier filter
-      if (selectedSupplierName !== 'ALL') {
-        const matchesSupplier =
-          b.vendorName?.toLowerCase().includes(selectedSupplierName.toLowerCase()) ||
-          b.vendor?.party?.tradeName?.toLowerCase().includes(selectedSupplierName.toLowerCase()) ||
-          b.vendor?.party?.legalName?.toLowerCase().includes(selectedSupplierName.toLowerCase());
-        if (!matchesSupplier) return false;
-      }
-
-      // 2. Thickness filter
-      if (selectedThickness !== 'ALL') {
-        if (b.thickness !== selectedThickness) return false;
-      }
-
-      // 3. Status filter
-      if (selectedStatus !== 'ALL') {
-        if (b.status !== selectedStatus) return false;
-      }
-
-      // 4. Search query (matches D.No, Remarks, Finish, Size)
-      if (search.trim()) {
-        const q = search.toLowerCase();
-        const matches =
-          b.designNo.toLowerCase().includes(q) ||
-          (b.designName && b.designName.toLowerCase().includes(q)) ||
-          b.itemCode.toLowerCase().includes(q) ||
-          (b.notes && b.notes.toLowerCase().includes(q)) ||
-          (b.locationRack && b.locationRack.toLowerCase().includes(q)) ||
-          b.size.toLowerCase().includes(q);
-        if (!matches) return false;
-      }
-
-      return true;
-    });
-  }, [
-    boards,
-    selectedWarehouse,
-    selectedSupplierName,
-    selectedThickness,
-    selectedStatus,
-    search,
-  ]);
+  const availableSizes = useMemo(() => {
+    const set = new Set<string>(COMMON_SIZES);
+    boards.forEach((b) => b.size && set.add(b.size));
+    return Array.from(set).sort();
+  }, [boards]);
 
   const availableThicknesses = useMemo(() => {
-    const set = new Set<string>();
+    const set = new Set<string>(COMMON_THICKNESSES);
     boards.forEach((b) => b.thickness && set.add(b.thickness));
     return Array.from(set).sort();
   }, [boards]);
+
+  const handleClearFilters = () => {
+    setSearch('');
+    setSelectedWarehouse('ALL');
+    setSelectedSupplierName('ALL');
+    setSelectedSize('ALL');
+    setSelectedThickness('ALL');
+    setSelectedStatus('ALL');
+    setPage(1);
+  };
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    const maxVisible = 5;
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      let start = Math.max(2, page - 1);
+      let end = Math.min(totalPages - 1, page + 1);
+      if (page <= 2) end = 4;
+      if (page >= totalPages - 1) start = totalPages - 3;
+      if (start > 2) pages.push('...');
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (end < totalPages - 1) pages.push('...');
+      pages.push(totalPages);
+    }
+    return pages;
+  };
 
   const handleDeleteBoard = async (id: string, designNo: string) => {
     if (!window.confirm(`Are you sure you want to remove UMP Partition SKU ${designNo}?`)) return;
@@ -370,53 +417,124 @@ export default function UmpInventoryPage() {
       </div>
 
       {/* 3. Search and Secondary Filters Toolbar */}
-      <div className="bg-[#09071a] border border-white/10 rounded-2xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
-        {/* Search */}
-        <div className="relative flex-1 min-w-[240px]">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search UMP: D.No (Design), Size, Remarks, Rack..."
-            className="w-full bg-[#121029] border border-white/10 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-teal-400 min-h-[40px]"
-          />
+      {/* 3. Filters Toolbar - Horizontal Row on Desktop, Wrap cleanly on Tablet/Mobile */}
+      <div className="bg-[#09071a] border border-white/10 rounded-2xl p-2.5 sm:p-3 shadow-xl">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+          {/* Filter 1: Search */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search UMP: D.No, remarks, finish, rack..."
+              className="w-full h-10 bg-[#121029] border border-white/10 rounded-xl pl-9 pr-8 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-teal-400 transition"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter 2: Warehouse / Depot */}
+          <div className="w-full sm:w-auto min-w-[140px]">
+            <select
+              value={selectedWarehouse}
+              onChange={(e) => setSelectedWarehouse(e.target.value)}
+              className="w-full h-10 bg-[#121029] border border-white/10 rounded-xl px-3 text-xs text-white focus:outline-none focus:border-teal-400 transition cursor-pointer"
+            >
+              <option value="ALL">All Warehouses</option>
+              <option value="DELHI">Delhi Depot</option>
+              <option value="KOLKATA">Kolkata Depot</option>
+            </select>
+          </div>
+
+          {/* Filter 3: Supplier */}
+          <div className="w-full sm:w-auto min-w-[140px]">
+            <select
+              value={selectedSupplierName}
+              onChange={(e) => setSelectedSupplierName(e.target.value)}
+              className="w-full h-10 bg-[#121029] border border-white/10 rounded-xl px-3 text-xs text-white focus:outline-none focus:border-teal-400 transition cursor-pointer"
+            >
+              <option value="ALL">All Suppliers</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.name}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filter 4: Size */}
+          <div className="w-full sm:w-auto min-w-[130px]">
+            <select
+              value={selectedSize}
+              onChange={(e) => setSelectedSize(e.target.value)}
+              className="w-full h-10 bg-[#121029] border border-white/10 rounded-xl px-3 text-xs text-white focus:outline-none focus:border-teal-400 transition cursor-pointer"
+            >
+              <option value="ALL">All Sizes</option>
+              {availableSizes.map((sz) => (
+                <option key={sz} value={sz}>
+                  {sz}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filter 5: Thickness */}
+          <div className="w-full sm:w-auto min-w-[120px]">
+            <select
+              value={selectedThickness}
+              onChange={(e) => setSelectedThickness(e.target.value)}
+              className="w-full h-10 bg-[#121029] border border-white/10 rounded-xl px-3 text-xs text-white focus:outline-none focus:border-teal-400 transition cursor-pointer"
+            >
+              <option value="ALL">All Thicknesses</option>
+              {availableThicknesses.map((th) => (
+                <option key={th} value={th}>
+                  {th}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filter 6: Status */}
+          <div className="w-full sm:w-auto min-w-[130px]">
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full h-10 bg-[#121029] border border-white/10 rounded-xl px-3 text-xs text-white focus:outline-none focus:border-teal-400 transition cursor-pointer"
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="ACTIVE">Healthy Stock</option>
+              <option value="LOW_STOCK">Low Stock</option>
+              <option value="OUT_OF_STOCK">Out of Stock</option>
+            </select>
+          </div>
+
+          {/* Actions: Clear Filters & Refresh */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleClearFilters}
+              className="h-10 px-3.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 text-xs font-semibold transition flex items-center justify-center gap-1.5 whitespace-nowrap"
+              title="Reset all filters"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Clear Filters</span>
+            </button>
+
+            <button
+              onClick={loadData}
+              className="h-10 w-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 transition shrink-0"
+              title="Refresh Data"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
-
-        {/* Thickness Filter */}
-        <select
-          value={selectedThickness}
-          onChange={(e) => setSelectedThickness(e.target.value)}
-          className="bg-[#121029] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-teal-400 min-h-[40px]"
-        >
-          <option value="ALL">All Thicknesses</option>
-          {availableThicknesses.map((th) => (
-            <option key={th} value={th}>
-              {th}
-            </option>
-          ))}
-        </select>
-
-        {/* Stock Status Filter */}
-        <select
-          value={selectedStatus}
-          onChange={(e) => setSelectedStatus(e.target.value)}
-          className="bg-[#121029] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-teal-400 min-h-[40px]"
-        >
-          <option value="ALL">All Statuses</option>
-          <option value="ACTIVE">Healthy Stock</option>
-          <option value="LOW_STOCK">Low Stock</option>
-          <option value="OUT_OF_STOCK">Out of Stock</option>
-        </select>
-
-        {/* Reset / Refresh */}
-        <button
-          onClick={loadData}
-          className="p-2.5 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl border border-white/10 transition"
-          title="Refresh Data"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-        </button>
       </div>
 
       {/* 4. Requested UMP Partition Master Table:
@@ -447,7 +565,7 @@ export default function UmpInventoryPage() {
                     Loading Urinal Partition records...
                   </td>
                 </tr>
-              ) : filteredBoards.length === 0 ? (
+              ) : boards.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="py-16 text-center text-gray-400">
                     <div className="flex flex-col items-center justify-center gap-2">
@@ -472,7 +590,7 @@ export default function UmpInventoryPage() {
                   </td>
                 </tr>
               ) : (
-                filteredBoards.map((b, idx) => {
+                boards.map((b, idx) => {
                   const currStock = Number(b.currentStock);
                   const reorder = Number(b.reorderLevel);
                   const isLow = currStock <= reorder && currStock > 0;
@@ -482,7 +600,7 @@ export default function UmpInventoryPage() {
                     <tr key={b.id} className="hover:bg-white/[0.03] transition-colors group">
                       {/* S.No */}
                       <td className="py-2.5 px-3 sm:py-3.5 sm:px-4 font-mono text-gray-400 font-semibold">
-                        {idx + 1}
+                        {(page - 1) * pageSize + idx + 1}
                       </td>
 
                       {/* D.No */}
@@ -611,6 +729,81 @@ export default function UmpInventoryPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Server-Side Pagination Controls */}
+        <div className="p-3.5 sm:p-4 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-gray-400 bg-[#0c0a22]/50">
+          {/* Left: Records per page & Total count */}
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-gray-400">Rows per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="bg-[#121029] border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-teal-400 cursor-pointer"
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={250}>250</option>
+              </select>
+            </div>
+
+            <span className="text-[11px]">
+              Showing <strong className="text-white">{totalRecords > 0 ? (page - 1) * pageSize + 1 : 0}</strong>–
+              <strong className="text-white">{Math.min(page * pageSize, totalRecords)}</strong> of{' '}
+              <strong className="text-white">{totalRecords}</strong> urinal partitions
+            </span>
+          </div>
+
+          {/* Right: Pagination Navigation Controls */}
+          <div className="flex items-center gap-1.5 w-full md:w-auto justify-center md:justify-end">
+            {/* Previous */}
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1 || loading}
+              className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-semibold transition flex items-center gap-1"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>Previous</span>
+            </button>
+
+            {/* Page Numbers */}
+            <div className="flex items-center gap-1">
+              {getPageNumbers().map((pNum, idx) =>
+                pNum === '...' ? (
+                  <span key={`ellipsis-${idx}`} className="px-1.5 text-gray-500 select-none">
+                    ...
+                  </span>
+                ) : (
+                  <button
+                    key={`page-${pNum}`}
+                    onClick={() => setPage(Number(pNum))}
+                    className={`w-7 h-7 rounded-lg text-xs font-bold transition flex items-center justify-center ${
+                      page === pNum
+                        ? 'bg-teal-600 text-white shadow-md shadow-teal-600/30'
+                        : 'bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10'
+                    }`}
+                  >
+                    {pNum}
+                  </button>
+                )
+              )}
+            </div>
+
+            {/* Next */}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages || loading}
+              className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-semibold transition flex items-center gap-1"
+            >
+              <span>Next</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 

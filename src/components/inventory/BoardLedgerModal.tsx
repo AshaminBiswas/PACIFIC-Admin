@@ -38,7 +38,7 @@ export default function BoardLedgerModal({
       const res = await boardInventoryApi.getMovements({
         inventoryItemId: selectedBoard ? selectedBoard.id : undefined,
         movementType: typeFilter !== 'ALL' ? typeFilter : undefined,
-        limit: 100,
+        limit: 500,
       });
       if (res.data?.data) {
         setMovements(res.data.data);

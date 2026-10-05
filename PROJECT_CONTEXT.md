@@ -3377,6 +3377,55 @@ Previously, additional cubicle model systems added to a Quotation or Proforma In
      - `StoreInventoryPage.tsx`
    - All modules now link directly to `/admin/dashboard/inventory/boards/:id/edit`.
 
+---
+
+## 58. Complete Stock List & Inventory Scalability Upgrade (100-Board Limit Removal & Multi-Row Bulk Operations)
+
+### 58.1 Core Architectural Motivation & 100-Board Limit Removal
+- **Root Cause of 100-Board Limitation**: Previously, inventory views invoked `boardInventoryApi.list({ limit: 100 })` and executed in-memory filtering and slice operations on the browser client. Any catalog exceeding 100 items was truncated, and large stock transactions were blocked or required fragmented one-by-one network requests.
+- **End-to-End Elimination**:
+  1. **Backend Service & Route Level (`PACIFIC-Backend`)**:
+     - Upgraded `listBoards` in `boardInventoryService` to support dynamic server-side filters: `warehouse`, `vendorName`, `size`, `thickness`, `boardType`, `category`, `status`, and `search`.
+     - Standardized response formatting to return root `total`, `page`, `limit`, `totalPages`, alongside nested `pagination: { total, page, limit, totalPages }` for full backwards compatibility with `PaginatedResponse<T>`.
+     - Added atomic batch endpoints:
+       - `POST /api/v1/inventory/boards/inward/bulk`: Transactional bulk inward supporting unlimited line items with fractional sheets, unit costs, rack locations, and ledger entries.
+       - `POST /api/v1/inventory/boards/issue/bulk`: Transactional multi-item stock issue with strict pre-validation against live floor balances, atomic stock deductions, and low-stock alerting.
+       - `POST /api/v1/inventory/boards/bulk`: Bulk board SKU master creation.
+  2. **Frontend Type System & API (`PACIFIC-Admin`)**:
+     - `src/types/admin.ts`: Added `BoardInventoryFilterParams`, `BulkInwardStockPayload`, `BulkIssueStockPayload`, `BulkCreateBoardItemPayload`, `BulkInwardResult`, `BulkIssueResult`, and `BulkCreateBoardResult`.
+     - `src/api/boardInventoryApi.ts`: Added `createBulk()`, `bulkInward()`, and `bulkIssue()` methods, and fully typed `list(params?: BoardInventoryFilterParams)`.
+
+### 58.2 Unified Horizontal Desktop Filter Toolbar & Responsive Layout
+Across all four inventory modules (`BoardInventoryPage`, `LockerInventoryPage`, `UmpInventoryPage`, `StoreInventoryPage`):
+- **Desktop Single-Line Layout**: Arranged in a compact horizontal toolbar:
+  `Search (with 300ms debounce & clear 'X') | Warehouse/Depot ▼ | Supplier ▼ | Size ▼ | Thickness ▼ | Status ▼ | Clear Filters | Refresh`
+- **Responsiveness**: Filters sit in one continuous row on wide desktop viewports, wrap cleanly without breaking layouts on tablet viewports, and stack gracefully with touch-friendly controls on mobile devices, with zero horizontal page overflow.
+- **Filter-Pagination Sync**: Modifying any search input or dropdown filter instantly resets pagination back to page 1 while preserving all active filter parameters.
+- **Clear Filters Action**: One-click reset restores all filter dropdowns to `'ALL'` and clears search.
+
+### 58.3 Full Server-Side Pagination
+Implemented server-side pagination across all four inventory hubs:
+- **Controls**: Rows-per-page dropdown (`25`, `50`, `100`, `250`), `Previous` button, dynamic page numbers with ellipsis windowing (`1 ... 4 5 6 ... 12`), `Next` button, and item range counters (e.g., `Showing 1–25 of 142 board SKUs`).
+- **Global Serial Numbering**: Sl No computes dynamically based on current page index: `(page - 1) * pageSize + idx + 1`.
+
+### 58.4 Multi-Row Bulk Inward & Bulk Issue Popups
+1. **Stock Inward Modal (`StockInwardModal.tsx`)**:
+   - Expanded modal dimensions to `max-w-5xl`.
+   - Added interactive filter bar: Warehouse, Supplier, Size, Thickness, and Search.
+   - Dynamic multi-row repeater (`+ Add Row`, `+5 Rows`, per-row delete).
+   - Per-row board SKU selector, fractional inward quantity (`step="any"`, e.g. `4.5` sheets), unit purchase cost, and rack location.
+   - Live Consignment Summary card computing total sheets inwarded and total purchase value.
+   - Prevents duplicate submissions and submits atomically via `boardInventoryApi.bulkInward`.
+2. **Stock Issue Modal (`StockIssueModal.tsx`)**:
+   - Expanded modal dimensions to `max-w-5xl`.
+   - Multi-item issue repeater supporting project/client tagging, destination requisition, and movement notes.
+   - Live Floor Balance Display with color-coded health badges and real-time remaining balance calculations.
+   - Strict validation preventing submission if any item quantity exceeds available stock or is non-positive.
+   - Atomic submission via `boardInventoryApi.bulkIssue`.
+3. **Master Creation Modal (`CreateBoardModal.tsx`)**:
+   - Mode switcher between Single SKU and Bulk Add.
+   - Bulk Add mode features shared default fields (Warehouse, Supplier, Thickness, Board Type) and a multi-row grid with `+ Add Row`, `+5 Rows`, and `+10 Rows` buttons, submitting via `boardInventoryApi.createBulk`.
+
 
 
 

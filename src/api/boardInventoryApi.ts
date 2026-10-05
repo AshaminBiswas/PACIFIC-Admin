@@ -12,6 +12,13 @@ import type {
   AutoDeductInput,
   CreateBoardItemInput,
   UpdateBoardItemInput,
+  BoardInventoryFilterParams,
+  BulkInwardStockPayload,
+  BulkIssueStockPayload,
+  BulkCreateBoardItemPayload,
+  BulkInwardResult,
+  BulkIssueResult,
+  BulkCreateBoardResult,
 } from '../types/admin';
 
 export const SUPPLIERS_CACHE_KEY = 'pacific_inventory_suppliers_cache_v1';
@@ -100,7 +107,7 @@ export function isActionTesaVendor(
 }
 
 export const boardInventoryApi = {
-  list: (params?: Record<string, any>) =>
+  list: (params?: BoardInventoryFilterParams | Record<string, any>) =>
     apiClient.get<ApiResponse<PaginatedResponse<BoardInventoryItem>>>('/inventory/boards', { params }),
 
   getById: (id: string) =>
@@ -108,6 +115,11 @@ export const boardInventoryApi = {
 
   create: (data: CreateBoardItemInput) =>
     apiClient.post<ApiResponse<BoardInventoryItem>>('/inventory/boards', data),
+
+  createBulk: (data: BulkCreateBoardItemPayload | CreateBoardItemInput[]) => {
+    const payload = Array.isArray(data) ? { items: data } : data;
+    return apiClient.post<ApiResponse<BulkCreateBoardResult>>('/inventory/boards/bulk', payload);
+  },
 
   update: (id: string, data: UpdateBoardItemInput) =>
     apiClient.put<ApiResponse<BoardInventoryItem>>(`/inventory/boards/${id}`, data),
@@ -118,8 +130,18 @@ export const boardInventoryApi = {
   inward: (data: InwardStockInput) =>
     apiClient.post<ApiResponse<{ item: BoardInventoryItem; movement: BoardStockMovement }>>('/inventory/boards/inward', data),
 
+  bulkInward: (data: BulkInwardStockPayload | InwardStockInput[]) => {
+    const payload = Array.isArray(data) ? { items: data } : data;
+    return apiClient.post<ApiResponse<BulkInwardResult>>('/inventory/boards/inward/bulk', payload);
+  },
+
   issue: (data: ManualIssueInput) =>
     apiClient.post<ApiResponse<{ item: BoardInventoryItem; movement: BoardStockMovement }>>('/inventory/boards/issue', data),
+
+  bulkIssue: (data: BulkIssueStockPayload | ManualIssueInput[]) => {
+    const payload = Array.isArray(data) ? { items: data } : data;
+    return apiClient.post<ApiResponse<BulkIssueResult>>('/inventory/boards/issue/bulk', payload);
+  },
 
   autoDeduct: (data: AutoDeductInput) =>
     apiClient.post<ApiResponse<{ success: boolean; deductions: Array<{ itemCode: string; designNo: string; deductedQty: number; movementId: string }>; totalDeducted: number }>>('/inventory/boards/auto-deduct', data),
