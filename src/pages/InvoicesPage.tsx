@@ -3,7 +3,7 @@ import {
   Receipt, Search, Plus, RefreshCw, Eye, Trash2, Printer,
   ChevronRight, FileText, Package, Wrench, ShoppingBag,
   CheckCircle2, Clock, AlertCircle, XCircle, CreditCard,
-  ArrowRight, Filter, X, ExternalLink, Layers,
+  ArrowRight, Filter, X, ExternalLink, Layers, Building2,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { invoicesApi } from '../api/services';
@@ -52,6 +52,7 @@ const InvoicesPage: React.FC = () => {
   const [page, setPage]                 = useState(1);
   const [search, setSearch]             = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [branchFilter, setBranchFilter] = useState<'ALL' | 'MAIN' | 'KOLKATA'>('ALL');
   const [isLoading, setIsLoading]       = useState(true);
 
   // PDF modal
@@ -67,6 +68,7 @@ const InvoicesPage: React.FC = () => {
       const params: Record<string, any> = { page, limit: 20 };
       if (search.trim())              params.search = search.trim();
       if (statusFilter !== 'ALL')     params.status = statusFilter;
+      if (branchFilter !== 'ALL')     params.branch = branchFilter;
       const { data } = await invoicesApi.list(params);
       setInvoices(data.data?.items ?? []);
       setTotal(data.data?.total ?? 0);
@@ -76,9 +78,15 @@ const InvoicesPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [page, search, statusFilter]);
+  }, [page, search, statusFilter, branchFilter]);
 
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
+
+  const displayedInvoices = invoices.filter((inv) => {
+    if (branchFilter === 'KOLKATA') return inv.invoiceNumber?.startsWith('PPSK/');
+    if (branchFilter === 'MAIN') return !inv.invoiceNumber?.startsWith('PPSK/');
+    return true;
+  });
 
   const handleDelete = async (inv: Invoice) => {
     if (!confirm(`Delete Invoice ${inv.invoiceNumber}? This action cannot be undone.`)) return;
@@ -199,8 +207,8 @@ const InvoicesPage: React.FC = () => {
 
       {/* ── Filter Bar ──────────────────────────────────────────────────── */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-4 flex flex-col gap-3">
-        {/* Search */}
-        <div className="flex gap-2">
+        {/* Search & Branch */}
+        <div className="flex flex-col lg:flex-row gap-2">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
@@ -216,9 +224,35 @@ const InvoicesPage: React.FC = () => {
               </button>
             )}
           </div>
+
+          {/* Branch Filter Tabs */}
+          <div className="flex items-center gap-1 bg-[#0a0a1a] p-1 rounded-xl border border-white/10 shrink-0 overflow-x-auto">
+            <Building2 className="w-3.5 h-3.5 text-gray-500 ml-1.5 hidden sm:block shrink-0" />
+            {[
+              { id: 'ALL', label: 'All Branches' },
+              { id: 'MAIN', label: 'Main (Delhi)' },
+              { id: 'KOLKATA', label: 'Kolkata' },
+            ].map((b) => (
+              <button
+                key={b.id}
+                onClick={() => {
+                  setBranchFilter(b.id as any);
+                  setPage(1);
+                }}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap min-h-[36px] ${
+                  branchFilter === b.id
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+
           <button
             onClick={fetchInvoices}
-            className="px-3 py-2.5 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+            className="px-3 py-2.5 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer shrink-0"
             title="Refresh"
           >
             <RefreshCw className="w-4 h-4" />
@@ -251,7 +285,7 @@ const InvoicesPage: React.FC = () => {
             <div className="animate-spin w-8 h-8 border-2 border-[#7FB706] border-t-transparent rounded-full mx-auto mb-3" />
             <p className="text-gray-400 text-sm">Loading invoices…</p>
           </div>
-        ) : invoices.length === 0 ? (
+        ) : displayedInvoices.length === 0 ? (
           <div className="p-12 text-center space-y-3">
             <Receipt className="w-12 h-12 mx-auto text-gray-700" />
             <p className="text-white font-semibold">No invoices found</p>
@@ -292,7 +326,7 @@ const InvoicesPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {invoices.map((inv, idx) => (
+                  {displayedInvoices.map((inv, idx) => (
                     <tr
                       key={inv.id}
                       onClick={() => setSelectedInvoiceForTimeline(inv)}
@@ -303,8 +337,17 @@ const InvoicesPage: React.FC = () => {
 
                       {/* Invoice number */}
                       <td className="py-3 px-4">
-                        <div className="font-mono font-bold text-white group-hover:text-[#7FB706] transition-colors flex items-center gap-1">
+                        <div className="font-mono font-bold text-white group-hover:text-[#7FB706] transition-colors flex items-center gap-1.5">
                           {inv.invoiceNumber}
+                          {inv.invoiceNumber?.startsWith('PPSK/') ? (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                              Kolkata
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-white/5 text-gray-400">
+                              Main
+                            </span>
+                          )}
                           {isDue(inv) && <span className="text-[9px] px-1 py-0.5 rounded bg-red-500/10 text-red-400 font-bold">OVERDUE</span>}
                         </div>
                         {inv.paidAt && (
@@ -422,7 +465,7 @@ const InvoicesPage: React.FC = () => {
 
             {/* ── Mobile Cards ───────────────────────────────────────── */}
             <div className="md:hidden divide-y divide-white/5">
-              {invoices.map((inv, idx) => (
+              {displayedInvoices.map((inv, idx) => (
                 <div key={inv.id} className={`p-4 space-y-3 ${isDue(inv) ? 'border-l-2 border-l-red-500/40' : ''}`}>
                   {/* Header row */}
                   <div className="flex items-start justify-between">
@@ -430,6 +473,15 @@ const InvoicesPage: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-mono text-gray-500 bg-white/5 px-1.5 py-0.5 rounded">#{serial(idx)}</span>
                         <span className="font-mono font-bold text-white text-sm">{inv.invoiceNumber}</span>
+                        {inv.invoiceNumber?.startsWith('PPSK/') ? (
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                            Kolkata
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-white/5 text-gray-400">
+                            Main
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-gray-400 mt-0.5">
                         {(inv as any).customer?.legalName || '—'}

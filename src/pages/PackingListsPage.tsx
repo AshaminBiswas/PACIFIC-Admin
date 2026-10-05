@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Package, Search, Plus, Filter, Printer, CheckCircle2,
   Clock, Truck, AlertTriangle, Eye, ChevronRight, X,
-  FileText, QrCode, RefreshCw, Layers, ShieldCheck, MapPin, Phone, Edit, Trash2
+  FileText, QrCode, RefreshCw, Layers, ShieldCheck, MapPin, Phone, Edit, Trash2, Building2
 } from 'lucide-react';
 import { packingListsApi, salesOrdersApi, crmApi, companiesApi } from '../api/services';
 import { useAdminAuth } from '../context/AdminAuthContext';
@@ -20,6 +20,7 @@ export default function PackingListsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [receiptFilter, setReceiptFilter] = useState<string>('ALL');
+  const [branchFilter, setBranchFilter] = useState<'ALL' | 'MAIN' | 'KOLKATA'>('ALL');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedPlForTimeline, setSelectedPlForTimeline] = useState<PackingList | null>(null);
@@ -66,6 +67,7 @@ export default function PackingListsPage() {
     try {
       const params: any = { page, limit: 15, search };
       if (receiptFilter !== 'ALL') params.receiptStatus = receiptFilter;
+      if (branchFilter !== 'ALL') params.branch = branchFilter;
       const res = await packingListsApi.list(params);
       if (res.data?.data) {
         setPackingLists(res.data.data.items || []);
@@ -76,7 +78,13 @@ export default function PackingListsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, receiptFilter]);
+  }, [page, search, receiptFilter, branchFilter]);
+
+  const displayedPackingLists = packingLists.filter((pl) => {
+    if (branchFilter === 'KOLKATA') return pl.packingListNumber?.startsWith('PPSK/');
+    if (branchFilter === 'MAIN') return !pl.packingListNumber?.startsWith('PPSK/');
+    return true;
+  });
 
   const loadLookups = useCallback(async () => {
     try {
@@ -209,21 +217,63 @@ export default function PackingListsPage() {
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="bg-[#121226] border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search by packing list ref (PPS/PL/...), ship-to client, or site contact..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706]"
-          />
+      <div className="bg-[#121226] border border-white/5 rounded-2xl p-4 flex flex-col gap-3">
+        {/* Search & Branch */}
+        <div className="flex flex-col lg:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search by packing list ref (PPS/PL/..., PPSK/PL/...), ship-to client, or site contact..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706] min-h-[44px]"
+            />
+            {search && (
+              <button onClick={() => { setSearch(''); setPage(1); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Branch Filter Tabs */}
+          <div className="flex items-center gap-1 bg-[#0a0a1a] p-1 rounded-xl border border-white/10 shrink-0 overflow-x-auto">
+            <Building2 className="w-3.5 h-3.5 text-gray-500 ml-1.5 hidden sm:block shrink-0" />
+            {[
+              { id: 'ALL', label: 'All Branches' },
+              { id: 'MAIN', label: 'Main (Delhi)' },
+              { id: 'KOLKATA', label: 'Kolkata' },
+            ].map((b) => (
+              <button
+                key={b.id}
+                onClick={() => {
+                  setBranchFilter(b.id as any);
+                  setPage(1);
+                }}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap min-h-[36px] ${
+                  branchFilter === b.id
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => fetchPackingLists()}
+            className="p-2.5 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer shrink-0"
+            title="Refresh"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
         </div>
 
+        {/* Receipt Status Tabs */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
           {(['ALL', 'DISPATCHED', 'DELIVERED', 'ACKNOWLEDGED'] as const).map((st) => (
             <button
@@ -232,7 +282,7 @@ export default function PackingListsPage() {
                 setReceiptFilter(st);
                 setPage(1);
               }}
-              className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap min-h-[44px] ${
+              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap min-h-[36px] ${
                 receiptFilter === st
                   ? 'bg-[#7FB706] text-white shadow-md shadow-[#7FB706]/20'
                   : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
@@ -241,13 +291,6 @@ export default function PackingListsPage() {
               {st}
             </button>
           ))}
-          <button
-            onClick={() => fetchPackingLists()}
-            className="p-2.5 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
-            title="Refresh"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
         </div>
       </div>
 
@@ -255,7 +298,7 @@ export default function PackingListsPage() {
       <div className="bg-[#121226] border border-white/5 rounded-2xl overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-gray-400">Loading packing lists...</div>
-        ) : packingLists.length === 0 ? (
+        ) : displayedPackingLists.length === 0 ? (
           <div className="p-12 text-center text-gray-500 space-y-2">
             <Package className="w-10 h-10 mx-auto opacity-30" />
             <p className="text-sm">No packing lists found matching criteria</p>
@@ -277,7 +320,7 @@ export default function PackingListsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {packingLists.map((pl, idx) => (
+                  {displayedPackingLists.map((pl, idx) => (
                     <tr
                       key={pl.id}
                       onClick={() => setSelectedPlForTimeline(pl)}
@@ -287,7 +330,18 @@ export default function PackingListsPage() {
                         {(page - 1) * 15 + idx + 1}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-mono font-semibold text-white">{pl.packingListNumber}</div>
+                        <div className="font-mono font-semibold text-white flex items-center gap-1.5">
+                          {pl.packingListNumber}
+                          {pl.packingListNumber?.startsWith('PPSK/') ? (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                              Kolkata
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-white/5 text-gray-400">
+                              Main
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-gray-500">
                           {new Date(pl.date).toLocaleDateString('en-GB')}
                         </div>
@@ -392,13 +446,24 @@ export default function PackingListsPage() {
 
             {/* Mobile Cards View (< md) */}
             <div className="md:hidden divide-y divide-white/5">
-              {packingLists.map((pl, idx) => (
+              {displayedPackingLists.map((pl, idx) => (
                 <div key={pl.id} className="p-4 space-y-3">
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-mono text-gray-400 bg-white/5 px-1.5 py-0.5 rounded">#{(page - 1) * 15 + idx + 1}</span>
-                        <div className="font-mono font-bold text-white">{pl.packingListNumber}</div>
+                        <div className="font-mono font-bold text-white flex items-center gap-1.5">
+                          {pl.packingListNumber}
+                          {pl.packingListNumber?.startsWith('PPSK/') ? (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                              Kolkata
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-white/5 text-gray-400">
+                              Main
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="text-xs text-gray-400">{pl.shipToName}</div>
                     </div>

@@ -3426,6 +3426,60 @@ Implemented server-side pagination across all four inventory hubs:
    - Mode switcher between Single SKU and Bulk Add.
    - Bulk Add mode features shared default fields (Warehouse, Supplier, Thickness, Board Type) and a multi-row grid with `+ Add Row`, `+5 Rows`, and `+10 Rows` buttons, submitting via `boardInventoryApi.createBulk`.
 
+---
+
+## 59. Kolkata Branch Sequence Engine, Commercial Hub Filters, Model Header & Public QR Verification
+
+### 59.1 Kolkata Branch Numbering Sequence (`PPSK/<TYPE>/<YEAR>/00001`)
+- **Format**: All Kolkata branch commercial documents follow the strict standardized prefix:
+  `PPSK/<TYPE>/<fiscal_year>/00001` with 5-digit zero-padding (`00001`, `00002`, ...).
+- **Document Code Mappings**:
+  - Sales Quotations: `PPSK/QT/<fiscal_year>/00001` (Main: `PPS/QT/<fiscal_year>/00001`)
+  - Proforma Invoices: `PPSK/PI/<fiscal_year>/00001` (Main: `PPS/PI/<fiscal_year>/00001`)
+  - Sales Orders: `PPSK/SO/<fiscal_year>/00001` (Main: `PPS/SO/<fiscal_year>/00001`)
+  - Bill & Tax Invoices: `PPSK/INV/<fiscal_year>/00001` (Main: `PPS/INV/<fiscal_year>/00001`)
+  - Packing Lists: `PPSK/PL/<fiscal_year>/00001` (Main: `PPS/PL/<fiscal_year>/00001`)
+- **Backend Atomic Sequences (`PACIFIC-Backend`)**:
+  - Implemented in `src/modules/sequences/sequence.service.ts`: dynamic entity lookup detecting Kolkata branch (`code: 'KOLKATA'` or name matching `/kolkata/i`) selecting the `PPSK` prefix.
+  - Invoices (`invoices.service.ts`) migrated from legacy random generator to atomic sequential `sequenceService.getNextDocumentNumber(companyProfileId, 'INV')`.
+
+### 59.2 Universal Branch Filters Across All Commercial Hubs
+Integrated universal branch filtering across both Desktop Table and Mobile Card views in all 5 primary commercial hubs:
+1. **Sales Quotations Hub (`SalesQuotationsPage.tsx`)**:
+   - Toolbar: `All Branches | Main Branch (Delhi) | Kolkata Branch`.
+   - Desktop & Mobile: Displays distinct purple badge (`Kolkata`) or neutral badge (`Main`).
+2. **Proforma Invoices Hub (`ProformaInvoicesPage.tsx`)**:
+   - Toolbar: `All Branches | Main (Delhi) | Kolkata`.
+   - Desktop & Mobile: Branch indicators on PI numbers, syncing with server `branch` filter and client filter fallback.
+3. **Sales Orders Hub (`SalesOrdersPage.tsx`)**:
+   - Toolbar: Branch switcher tabs beside search input.
+   - Desktop & Mobile: Order number tag styling distinguishing Kolkata orders (`PPSK/SO/...`) from Main Delhi orders (`PPS/SO/...`).
+4. **Bill & Tax Invoices Hub (`InvoicesPage.tsx`)**:
+   - Toolbar: Branch tabs alongside status pills.
+   - Desktop & Mobile: Branch badges rendered on invoice numbers with `displayedInvoices` reactivity.
+5. **Packing Lists Hub (`PackingListsPage.tsx`)**:
+   - Toolbar: Branch tabs alongside receipt status filters.
+   - Desktop & Mobile: Real-time branch badges next to packing list numbers with `displayedPackingLists` reactivity.
+
+### 59.3 Quotation Model Visual Section Header & Name Clean-Up
+- **Header Styling (`pdf.service.ts`)**:
+  - Replaced old black background (`#18181b`) with Pacific Brand Green (`#7FB706`).
+  - Font styling updated to bold white with subtle green branding highlights.
+- **Model Name Sanitization (`quotations.service.ts` & `pdf.service.ts`)**:
+  - Stripped redundant boilerplate descriptions and secondary text tags.
+  - Removed `${img.category}` badge pill from the image container.
+  - Displays exclusively the clean model name (e.g., `PACIFIC PRIME`, `PACIFIC ELITE`).
+
+### 59.4 Official Domain `www.pacificproduct.in` QR Code Prefix & Public Read-Only Verification
+- **Official Domain Prefix**:
+  - QR Code generation across all documents (`qr.service.ts`, `pi.service.ts`, `pdf.service.ts`) now strictly points to:
+    `https://www.pacificproduct.in/verify/<token>`
+- **Customer Read-Only Public Verification Route (`PublicVerifyPage.tsx`)**:
+  - Accessible without login via `/verify/:token`.
+  - Displays official cryptographic verification status, document issuance details, and issuing entity & branch badges (`Kolkata Branch` vs `Main Branch Delhi HQ`).
+  - Zero edit permissions, strictly read-only for customer verification and compliance.
+
+
 
 
 

@@ -4,7 +4,7 @@ import {
   FileText, Search, Plus, Printer, Download,
   CheckCircle2, Send,
   RefreshCw, X, Edit, Trash2, Mail, AlertTriangle,
-  Clock, Calendar,
+  Clock, Calendar, Building2,
 } from 'lucide-react';
 import { salesQuotationsApi } from '../api/services';
 import { useAdminAuth } from '../context/AdminAuthContext';
@@ -20,6 +20,7 @@ export default function SalesQuotationsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [branchFilter, setBranchFilter] = useState<'ALL' | 'MAIN' | 'KOLKATA'>('ALL');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -105,6 +106,7 @@ export default function SalesQuotationsPage() {
     try {
       const params: any = { page, limit: 15, search };
       if (statusFilter !== 'ALL') params.status = statusFilter;
+      if (branchFilter !== 'ALL') params.branch = branchFilter;
       const res = await salesQuotationsApi.list(params);
       if (res.data?.data) {
         setQuotations(res.data.data.items || []);
@@ -115,11 +117,17 @@ export default function SalesQuotationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter]);
+  }, [page, search, statusFilter, branchFilter]);
 
   useEffect(() => {
     fetchQuotations();
   }, [fetchQuotations]);
+
+  const displayedQuotations = quotations.filter((q) => {
+    if (branchFilter === 'KOLKATA') return q.referenceNumber?.startsWith('PPSK/') || q.quotationNumber?.startsWith('PPSK/');
+    if (branchFilter === 'MAIN') return !q.referenceNumber?.startsWith('PPSK/') && !q.quotationNumber?.startsWith('PPSK/');
+    return true;
+  });
 
   // 1-Click Convert to Proforma Invoice (Stage 2)
   const handleConvertToPI = async (quote: SalesQuotation) => {
@@ -268,7 +276,7 @@ export default function SalesQuotationsPage() {
       </div>
 
       {/* Filter & Search Bar */}
-      <div className="bg-[#121226] border border-white/5 rounded-xl sm:rounded-2xl p-2.5 sm:p-4 flex flex-col sm:flex-row gap-2 sm:gap-3">
+      <div className="bg-[#121226] border border-white/5 rounded-xl sm:rounded-2xl p-2.5 sm:p-4 flex flex-col lg:flex-row gap-2 sm:gap-3">
         <div className="relative flex-1">
           <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -281,6 +289,31 @@ export default function SalesQuotationsPage() {
             }}
             className="w-full bg-[#0a0a1a] border border-white/10 rounded-lg sm:rounded-xl pl-8 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706]"
           />
+        </div>
+
+        {/* Branch Filter Tabs */}
+        <div className="flex items-center gap-1 bg-[#0a0a1a] p-1 rounded-lg sm:rounded-xl border border-white/10 shrink-0 overflow-x-auto">
+          <Building2 className="w-3.5 h-3.5 text-gray-500 ml-1.5 hidden sm:block shrink-0" />
+          {[
+            { id: 'ALL', label: 'All Branches' },
+            { id: 'MAIN', label: 'Main (Delhi)' },
+            { id: 'KOLKATA', label: 'Kolkata' },
+          ].map((b) => (
+            <button
+              key={b.id}
+              onClick={() => {
+                setBranchFilter(b.id as any);
+                setPage(1);
+              }}
+              className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer whitespace-nowrap ${
+                branchFilter === b.id
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {b.label}
+            </button>
+          ))}
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
@@ -314,7 +347,7 @@ export default function SalesQuotationsPage() {
       <div className="bg-[#121226] border border-white/5 rounded-xl sm:rounded-2xl overflow-hidden">
         {loading ? (
           <div className="p-8 sm:p-12 text-center text-gray-400 text-xs sm:text-sm">Loading sales quotations...</div>
-        ) : quotations.length === 0 ? (
+        ) : displayedQuotations.length === 0 ? (
           <div className="p-8 sm:p-12 text-center text-gray-500 space-y-2">
             <FileText className="w-8 h-8 sm:w-10 sm:h-10 mx-auto opacity-30" />
             <p className="text-xs sm:text-sm">No sales quotations found matching criteria</p>
@@ -337,7 +370,7 @@ export default function SalesQuotationsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {quotations.map((q, idx) => (
+                  {displayedQuotations.map((q, idx) => (
                     <tr
                       key={q.id}
                       className="hover:bg-white/[0.02] transition-colors cursor-pointer"
@@ -349,6 +382,15 @@ export default function SalesQuotationsPage() {
                       <td className="py-2.5 sm:py-3 px-3 sm:px-4">
                         <div className="font-mono font-semibold text-white flex items-center gap-1.5">
                           {q.referenceNumber || q.quotationNumber || '—'}
+                          {q.referenceNumber?.startsWith('PPSK/') ? (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                              Kolkata
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-white/5 text-gray-400">
+                              Main
+                            </span>
+                          )}
                         </div>
                         {q.isSez && (
                           <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
@@ -442,7 +484,7 @@ export default function SalesQuotationsPage() {
 
             {/* Mobile Card View (< md) */}
             <div className="md:hidden divide-y divide-white/5">
-              {quotations.map((q, idx) => (
+              {displayedQuotations.map((q, idx) => (
                 <div
                   key={q.id}
                   className="p-3 sm:p-4 space-y-2 sm:space-y-2.5 hover:bg-white/[0.02] transition-colors cursor-pointer"
@@ -456,6 +498,15 @@ export default function SalesQuotationsPage() {
                       <span className="font-mono font-bold text-xs sm:text-sm text-white truncate">
                         {q.referenceNumber || q.quotationNumber || '—'}
                       </span>
+                      {q.referenceNumber?.startsWith('PPSK/') ? (
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                          Kolkata
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-white/5 text-gray-400">
+                          Main
+                        </span>
+                      )}
                       {q.isSez && (
                         <span className="text-[9px] font-semibold text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded flex-shrink-0">
                           SEZ

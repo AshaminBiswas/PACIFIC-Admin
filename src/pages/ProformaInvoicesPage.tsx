@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   FileText, Search, Plus, CheckCircle, Printer,
-  Eye, RefreshCw, X, ShieldCheck, Edit, Trash2
+  Eye, RefreshCw, X, ShieldCheck, Edit, Trash2, Building2
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { piApi, crmApi } from '../api/services';
@@ -17,6 +17,7 @@ export default function ProformaInvoicesPage() {
   const [customers, setCustomers] = useState<BusinessParty[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [branchFilter, setBranchFilter] = useState<'ALL' | 'MAIN' | 'KOLKATA'>('ALL');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -28,7 +29,9 @@ export default function ProformaInvoicesPage() {
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await piApi.list({ page, limit: 20, search });
+      const params: any = { page, limit: 20, search };
+      if (branchFilter !== 'ALL') params.branch = branchFilter;
+      const res = await piApi.list(params);
       if (res.data?.data) {
         setInvoices(res.data.data.items || []);
         setTotalPages(res.data.data.totalPages || 1);
@@ -38,7 +41,13 @@ export default function ProformaInvoicesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search]);
+  }, [page, search, branchFilter]);
+
+  const displayedInvoices = invoices.filter((pi) => {
+    if (branchFilter === 'KOLKATA') return pi.piNumber?.startsWith('PPSK/');
+    if (branchFilter === 'MAIN') return !pi.piNumber?.startsWith('PPSK/');
+    return true;
+  });
 
   useEffect(() => {
     fetchInvoices();
@@ -120,7 +129,7 @@ export default function ProformaInvoicesPage() {
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-[#121226] border border-white/5 rounded-xl sm:rounded-2xl p-2.5 sm:p-4 flex flex-col sm:flex-row gap-2 sm:gap-3">
+      <div className="bg-[#121226] border border-white/5 rounded-xl sm:rounded-2xl p-2.5 sm:p-4 flex flex-col lg:flex-row gap-2 sm:gap-3">
         <div className="relative flex-1">
           <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -134,9 +143,35 @@ export default function ProformaInvoicesPage() {
             className="w-full bg-[#0a0a1a] border border-white/10 rounded-lg sm:rounded-xl pl-8 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706]"
           />
         </div>
+
+        {/* Branch Filter Tabs */}
+        <div className="flex items-center gap-1 bg-[#0a0a1a] p-1 rounded-lg sm:rounded-xl border border-white/10 shrink-0 overflow-x-auto">
+          <Building2 className="w-3.5 h-3.5 text-gray-500 ml-1.5 hidden sm:block shrink-0" />
+          {[
+            { id: 'ALL', label: 'All Branches' },
+            { id: 'MAIN', label: 'Main (Delhi)' },
+            { id: 'KOLKATA', label: 'Kolkata' },
+          ].map((b) => (
+            <button
+              key={b.id}
+              onClick={() => {
+                setBranchFilter(b.id as any);
+                setPage(1);
+              }}
+              className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer whitespace-nowrap ${
+                branchFilter === b.id
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+
         <button
           onClick={() => fetchInvoices()}
-          className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-white/5 hover:bg-white/10 text-gray-300 text-xs sm:text-sm font-medium rounded-lg sm:rounded-xl border border-white/5 flex items-center justify-center gap-2 cursor-pointer min-h-[36px] sm:min-h-[40px]"
+          className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-white/5 hover:bg-white/10 text-gray-300 text-xs sm:text-sm font-medium rounded-lg sm:rounded-xl border border-white/5 flex items-center justify-center gap-2 cursor-pointer min-h-[36px] sm:min-h-[40px] shrink-0"
         >
           <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Refresh
         </button>
@@ -149,7 +184,7 @@ export default function ProformaInvoicesPage() {
             <div className="animate-spin w-7 h-7 sm:w-8 sm:h-8 border-2 border-[#7FB706] border-t-transparent rounded-full mx-auto mb-3" />
             Loading Proforma Invoices...
           </div>
-        ) : invoices.length === 0 ? (
+        ) : displayedInvoices.length === 0 ? (
           <div className="p-8 sm:p-12 text-center text-gray-400">
             <FileText className="w-8 h-8 sm:w-12 sm:h-12 text-gray-600 mx-auto mb-3 opacity-40" />
             <p className="text-xs sm:text-sm font-medium text-white">No Proforma Invoices found</p>
@@ -173,7 +208,7 @@ export default function ProformaInvoicesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {invoices.map((pi, idx) => (
+                  {displayedInvoices.map((pi, idx) => (
                     <tr
                       key={pi.id}
                       onClick={() => navigate(`/admin/dashboard/proforma-invoices/${pi.id}`)}
@@ -183,9 +218,18 @@ export default function ProformaInvoicesPage() {
                         {(page - 1) * 20 + idx + 1}
                       </td>
                       <td className="py-2.5 sm:py-3 px-3 sm:px-4">
-                        <div className="font-mono font-bold text-white flex items-center gap-1.5">
+                        <div className="font-mono font-bold text-white flex items-center gap-1.5 flex-wrap">
                           {pi.status === 'ISSUED' && <ShieldCheck className="w-3.5 h-3.5 text-[#7FB706]" />}
-                          {pi.piNumber}
+                          <span>{pi.piNumber}</span>
+                          {pi.piNumber?.startsWith('PPSK/') ? (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                              Kolkata
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-white/5 text-gray-400">
+                              Main
+                            </span>
+                          )}
                         </div>
                         <div className="mt-1">
                           {pi.quotationRef ? (
@@ -272,14 +316,14 @@ export default function ProformaInvoicesPage() {
 
             {/* Mobile View */}
             <div className="lg:hidden divide-y divide-white/5">
-              {invoices.map((pi, idx) => (
+              {displayedInvoices.map((pi, idx) => (
                 <div
                   key={pi.id}
                   onClick={() => navigate(`/admin/dashboard/proforma-invoices/${pi.id}`)}
                   className="p-3 sm:p-4 space-y-2 sm:space-y-2.5 hover:bg-white/[0.02] transition-colors cursor-pointer"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                       <span className="text-[10px] font-mono text-gray-400 bg-white/5 px-1.5 py-0.5 rounded flex-shrink-0">
                         #{(page - 1) * 20 + idx + 1}
                       </span>
@@ -287,6 +331,15 @@ export default function ProformaInvoicesPage() {
                         {pi.status === 'ISSUED' && <ShieldCheck className="w-3.5 h-3.5 text-[#7FB706] flex-shrink-0" />}
                         {pi.piNumber}
                       </span>
+                      {pi.piNumber?.startsWith('PPSK/') ? (
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                          Kolkata
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-white/5 text-gray-400">
+                          Main
+                        </span>
+                      )}
                       {pi.quotationRef && (
                         <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 flex-shrink-0">
                           {pi.quotationRef}

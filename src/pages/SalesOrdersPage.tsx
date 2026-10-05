@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   ShoppingBag, Search, Plus, Filter, CheckCircle2,
   Clock, Eye, ChevronRight, X, RefreshCw,
-  Edit, Trash2, Calendar
+  Edit, Trash2, Calendar, Building2
 } from 'lucide-react';
 import { salesOrdersApi } from '../api/services';
 import { useAdminAuth } from '../context/AdminAuthContext';
@@ -15,6 +15,7 @@ export default function SalesOrdersPage() {
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   const [orders, setOrders] = useState<SalesOrder[]>([]);
+  const [branchFilter, setBranchFilter] = useState<'ALL' | 'MAIN' | 'KOLKATA'>('ALL');
 
   const renderFollowupBadge = (o: SalesOrder) => {
     if (o.status === 'FULLY_DISPATCHED') {
@@ -108,6 +109,7 @@ export default function SalesOrdersPage() {
     try {
       const params: any = { page, limit: 15, search };
       if (statusFilter !== 'ALL') params.status = statusFilter;
+      if (branchFilter !== 'ALL') params.branch = branchFilter;
       const res = await salesOrdersApi.list(params);
       if (res.data?.data) {
         setOrders(res.data.data.items || []);
@@ -118,11 +120,17 @@ export default function SalesOrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter]);
+  }, [page, search, statusFilter, branchFilter]);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  const displayedOrders = orders.filter((o) => {
+    if (branchFilter === 'KOLKATA') return o.orderNumber?.startsWith('PPSK/');
+    if (branchFilter === 'MAIN') return !o.orderNumber?.startsWith('PPSK/');
+    return true;
+  });
 
   // Global Cross-Document Search
   const handleGlobalSearch = async () => {
@@ -334,7 +342,7 @@ export default function SalesOrdersPage() {
       </div>
 
       {/* Orders Filter Tabs */}
-      <div className="bg-[#121226] border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row gap-3">
+      <div className="bg-[#121226] border border-white/5 rounded-2xl p-4 flex flex-col lg:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
@@ -347,6 +355,31 @@ export default function SalesOrdersPage() {
             }}
             className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706]"
           />
+        </div>
+
+        {/* Branch Filter Tabs */}
+        <div className="flex items-center gap-1 bg-[#0a0a1a] p-1 rounded-xl border border-white/10 shrink-0 overflow-x-auto">
+          <Building2 className="w-3.5 h-3.5 text-gray-500 ml-1.5 hidden sm:block shrink-0" />
+          {[
+            { id: 'ALL', label: 'All Branches' },
+            { id: 'MAIN', label: 'Main (Delhi)' },
+            { id: 'KOLKATA', label: 'Kolkata' },
+          ].map((b) => (
+            <button
+              key={b.id}
+              onClick={() => {
+                setBranchFilter(b.id as any);
+                setPage(1);
+              }}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap min-h-[36px] ${
+                branchFilter === b.id
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {b.label}
+            </button>
+          ))}
         </div>
 
         <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
@@ -388,7 +421,7 @@ export default function SalesOrdersPage() {
       <div className="bg-[#121226] border border-white/5 rounded-2xl overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-gray-400">Loading sales orders...</div>
-        ) : orders.length === 0 ? (
+        ) : displayedOrders.length === 0 ? (
           <div className="p-12 text-center text-gray-500 space-y-2">
             <ShoppingBag className="w-10 h-10 mx-auto opacity-30" />
             <p className="text-sm">No sales orders found matching criteria</p>
@@ -411,7 +444,7 @@ export default function SalesOrdersPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {orders.map((o, idx) => (
+                  {displayedOrders.map((o, idx) => (
                     <tr
                       key={o.id}
                       onClick={() => navigate(`/admin/dashboard/sales-orders/${o.id}`)}
@@ -421,8 +454,17 @@ export default function SalesOrdersPage() {
                         {(page - 1) * 15 + idx + 1}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-mono font-semibold text-white group-hover:text-[#7FB706] transition-colors flex items-center gap-1.5">
+                        <div className="font-mono font-semibold text-white group-hover:text-[#7FB706] transition-colors flex items-center gap-1.5 flex-wrap">
                           <span>{o.orderNumber}</span>
+                          {o.orderNumber?.startsWith('PPSK/') ? (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                              Kolkata
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-white/5 text-gray-400">
+                              Main
+                            </span>
+                          )}
                           <ChevronRight className="w-3.5 h-3.5 text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
                         {o.clientPoNumber && (
@@ -507,7 +549,7 @@ export default function SalesOrdersPage() {
 
             {/* Mobile Cards View (< md) */}
             <div className="md:hidden divide-y divide-white/5">
-              {orders.map((o, idx) => (
+              {displayedOrders.map((o, idx) => (
                 <div
                   key={o.id}
                   onClick={() => navigate(`/admin/dashboard/sales-orders/${o.id}`)}
@@ -515,9 +557,18 @@ export default function SalesOrdersPage() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="font-mono font-bold text-white text-sm flex items-center gap-1.5 hover:text-[#7FB706]">
+                      <div className="font-mono font-bold text-white text-sm flex items-center gap-1.5 hover:text-[#7FB706] flex-wrap">
                         <span className="text-gray-500 font-mono text-xs">#{(page - 1) * 15 + idx + 1}</span>
                         <span className="truncate">{o.orderNumber}</span>
+                        {o.orderNumber?.startsWith('PPSK/') ? (
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                            Kolkata
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-white/5 text-gray-400">
+                            Main
+                          </span>
+                        )}
                         <ChevronRight className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
                       </div>
                       <div className="text-xs text-gray-300 font-medium truncate mt-0.5">

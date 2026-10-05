@@ -164,15 +164,17 @@ export default function PublicVerifyPage() {
                       ? 'Proforma Invoice (PI)'
                       : result.document?.documentType === 'PO'
                       ? 'Purchase Order (PO)'
-                      : result.document?.documentType === 'QUOTATION'
-                      ? 'Domestic Quotation'
+                      : result.document?.documentType === 'QUOTATION' || result.document?.documentType === 'QT'
+                      ? 'Domestic Sales Quotation'
                       : result.document?.documentType === 'EXPORT_QUOTATION'
                       ? 'Export Quotation'
-                      : result.document?.documentType === 'ORDER'
+                      : result.document?.documentType === 'ORDER' || result.document?.documentType === 'SO'
                       ? 'Sales Order'
-                      : result.document?.documentType === 'PACKING_LIST'
-                      ? 'Packing List / Dispatch Voucher'
-                      : result.document?.documentType === 'HARDWARE_ISSUE'
+                      : result.document?.documentType === 'INVOICE' || result.document?.documentType === 'INV'
+                      ? 'Tax Invoice / Bill'
+                      : result.document?.documentType === 'PACKING_LIST' || result.document?.documentType === 'PL'
+                      ? 'Packing List / Dispatch Consignment'
+                      : result.document?.documentType === 'HARDWARE_ISSUE' || result.document?.documentType === 'HIL'
                       ? 'Hardware Issue Slip'
                       : result.document?.documentType}
                   </span>
@@ -191,11 +193,22 @@ export default function PublicVerifyPage() {
 
               <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
                 <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold block mb-1">
-                  Issuing Company
+                  Issuing Entity & Branch
                 </span>
                 <div className="flex items-center gap-2 text-white font-medium text-xs">
                   <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
                   <span className="truncate">{result.document?.companyName}</span>
+                </div>
+                <div className="mt-1">
+                  {result.document?.documentNumber?.startsWith('PPSK/') || result.document?.companyName?.toLowerCase().includes('kolkata') ? (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                      Kolkata Branch
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-[#7FB706]/15 text-[#7FB706] border border-[#7FB706]/30">
+                      Main Branch (Delhi HQ)
+                    </span>
+                  )}
                 </div>
               </div>
 
