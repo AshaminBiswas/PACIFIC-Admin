@@ -589,6 +589,7 @@ export default function DraftQuotationPage() {
 
       const updatedUmpItem: CreateItem = {
         modelId: selected.id,
+        customModelName: selected.title,
         systemCategory: 'ump',
         description: `Pacific ${selected.title} (Urinal Partitions)`,
         quantity: currentQty,

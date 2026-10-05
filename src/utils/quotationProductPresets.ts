@@ -507,7 +507,7 @@ export const PACIFIC_STANDARD_QUOTATION_MODELS: ProductCatalogModel[] = [
   {
     id: 'std-urinal-model-a',
     slug: 'urinal-model-a',
-    title: 'model A',
+    title: 'Model A',
     category: 'Urinal Partitions',
     subtitle: 'Floor & Wall Supported Partition with Extra Supporting Leg',
     description: 'Engineered for high-impact commercial restrooms. Model A incorporates an extra adjustable floor-supporting leg to anchor the outer bottom edge, eliminating cantilever wall stress.',
@@ -528,7 +528,7 @@ export const PACIFIC_STANDARD_QUOTATION_MODELS: ProductCatalogModel[] = [
   {
     id: 'std-urinal-model-b',
     slug: 'urinal-model-b',
-    title: 'model B',
+    title: 'Model B',
     category: 'Urinal Partitions',
     subtitle: 'Cantilever Wall-Hung Floating Screen (Corner Clamp Mount)',
     description: 'Clean floating cantilevered urinal partition anchored to the wall using three heavy-duty stainless steel corner brackets. Unobstructed floor facilitates swift sanitization.',
@@ -548,7 +548,7 @@ export const PACIFIC_STANDARD_QUOTATION_MODELS: ProductCatalogModel[] = [
   {
     id: 'std-urinal-model-c',
     slug: 'urinal-model-c',
-    title: 'model C',
+    title: 'Model C',
     category: 'Urinal Partitions',
     subtitle: 'Continuous Channel Wall-Mount Partition Screen',
     description: 'Features a full-height continuous anodized aluminum U-channel wall profile that conceals fasteners and provides an ultra-clean architectural junction.',
@@ -568,7 +568,7 @@ export const PACIFIC_STANDARD_QUOTATION_MODELS: ProductCatalogModel[] = [
   {
     id: 'std-urinal-model-d',
     slug: 'urinal-model-d',
-    title: 'model D',
+    title: 'Model D',
     category: 'Urinal Partitions',
     subtitle: 'Extended Full-Privacy Structural Screen',
     description: 'An enlarged 1200mm high privacy shield designed for luxury executive washrooms. Reinforced with four structural corner brackets.',

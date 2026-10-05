@@ -11,6 +11,7 @@ import DocumentFlowTimelineModal from '../components/common/DocumentFlowTimeline
 import type {
   PackingList, SalesOrder, BusinessParty, CompanyProfile
 } from '../types/admin';
+import { isKolkataBranch, filterByBranch } from '../utils/branchHelper';
 
 export default function PackingListsPage() {
   const { user } = useAdminAuth();
@@ -80,11 +81,7 @@ export default function PackingListsPage() {
     }
   }, [page, search, receiptFilter, branchFilter]);
 
-  const displayedPackingLists = packingLists.filter((pl) => {
-    if (branchFilter === 'KOLKATA') return pl.packingListNumber?.startsWith('PPSK/');
-    if (branchFilter === 'MAIN') return !pl.packingListNumber?.startsWith('PPSK/');
-    return true;
-  });
+  const displayedPackingLists = filterByBranch(packingLists, branchFilter);
 
   const loadLookups = useCallback(async () => {
     try {
@@ -332,7 +329,7 @@ export default function PackingListsPage() {
                       <td className="py-3 px-4">
                         <div className="font-mono font-semibold text-white flex items-center gap-1.5">
                           {pl.packingListNumber}
-                          {pl.packingListNumber?.startsWith('PPSK/') ? (
+                          {isKolkataBranch(pl) ? (
                             <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
                               Kolkata
                             </span>
@@ -454,7 +451,7 @@ export default function PackingListsPage() {
                         <span className="text-xs font-mono text-gray-400 bg-white/5 px-1.5 py-0.5 rounded">#{(page - 1) * 15 + idx + 1}</span>
                         <div className="font-mono font-bold text-white flex items-center gap-1.5">
                           {pl.packingListNumber}
-                          {pl.packingListNumber?.startsWith('PPSK/') ? (
+                          {isKolkataBranch(pl) ? (
                             <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
                               Kolkata
                             </span>

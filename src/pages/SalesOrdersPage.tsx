@@ -8,6 +8,7 @@ import {
 import { salesOrdersApi } from '../api/services';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import type { SalesOrder } from '../types/admin';
+import { isKolkataBranch, filterByBranch } from '../utils/branchHelper';
 
 export default function SalesOrdersPage() {
   const navigate = useNavigate();
@@ -126,11 +127,7 @@ export default function SalesOrdersPage() {
     fetchOrders();
   }, [fetchOrders]);
 
-  const displayedOrders = orders.filter((o) => {
-    if (branchFilter === 'KOLKATA') return o.orderNumber?.startsWith('PPSK/');
-    if (branchFilter === 'MAIN') return !o.orderNumber?.startsWith('PPSK/');
-    return true;
-  });
+  const displayedOrders = filterByBranch(orders, branchFilter);
 
   // Global Cross-Document Search
   const handleGlobalSearch = async () => {
@@ -456,7 +453,7 @@ export default function SalesOrdersPage() {
                       <td className="py-3 px-4">
                         <div className="font-mono font-semibold text-white group-hover:text-[#7FB706] transition-colors flex items-center gap-1.5 flex-wrap">
                           <span>{o.orderNumber}</span>
-                          {o.orderNumber?.startsWith('PPSK/') ? (
+                          {isKolkataBranch(o) ? (
                             <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
                               Kolkata
                             </span>
@@ -560,7 +557,7 @@ export default function SalesOrdersPage() {
                       <div className="font-mono font-bold text-white text-sm flex items-center gap-1.5 hover:text-[#7FB706] flex-wrap">
                         <span className="text-gray-500 font-mono text-xs">#{(page - 1) * 15 + idx + 1}</span>
                         <span className="truncate">{o.orderNumber}</span>
-                        {o.orderNumber?.startsWith('PPSK/') ? (
+                        {isKolkataBranch(o) ? (
                           <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
                             Kolkata
                           </span>

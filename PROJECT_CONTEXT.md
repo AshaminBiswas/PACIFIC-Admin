@@ -3514,6 +3514,43 @@ In Restroom Cubicle quotations, installation charges are typically calculated on
 ### 60.5 Quotation Detail View (`src/pages/SalesQuotationDetailPage.tsx`)
 - Updated pricing summary card: When `installationCharge === 0`, the card displays the resolved installation term badge (e.g. `Included in Basic Price`, `Extra to Pay (At Actuals)`) instead of hiding the row, ensuring commercial clarity for sales executives and clients.
 
+---
+
+## 61. Urinal Model Visual Formatting, Universal QR Public Quotation View & Kolkata Branch Filter
+
+### 61.1 Urinal Partition Model Visual & Title Standardization (`Model "A"`)
+- **Quotation Presets (`src/utils/quotationProductPresets.ts`)**: Capitalized Urinal Partition model titles to `Model A`, `Model B`, `Model C`, and `Model D`.
+- **Quotation Creator & Editor (`DraftQuotationPage.tsx` & `EditSalesQuotationPage.tsx`)**: Preserves model title dynamically with `customModelName: selected.title` in `updatedUmpItem` so model designation is never dropped during item addition or edits.
+- **Backend Model Image Extraction (`PACIFIC-Backend/src/modules/quotations/quotations.service.ts`)**: Overhauled regex and pattern detection for Page 2 Annexure model visual gallery. Automatically identifies urinal partition line items and formats titles consistently as `Model "A"`, `Model "B"`, etc., eliminating stripped single-character titles and providing high-resolution fallback visuals.
+
+### 61.2 Universal Document QR Code Public Verification & Details
+- **Backend Verification Engine (`PACIFIC-Backend/src/modules/qr/qr.service.ts`)**:
+  - Enriched `verifyPublicToken(rawToken)` to dynamically hydrate full document records.
+  - When token resolves to a Quotation, returns full specification breakdown, line items (serial number, description, model, board type, thickness, cubicle dimensions, quantity, rate, total amount), commercial pricing (basic supply, installation charge & mode, freight terms, GST 18%, grand total, amount in words), company profile (GSTIN, branch, contact info), and direct `pdfDownloadUrl`.
+  - Added full data hydration for Proforma Invoices (`PI`), Sales Orders (`ORDER`), Tax Invoices (`INVOICE`), and Packing Lists (`PACKING_LIST`).
+  - Added fallback multi-identifier lookup across `documentVerificationToken`, `qrCode`, and core document tables.
+- **Admin Public Verification Page (`src/pages/PublicVerifyPage.tsx`)**:
+  - Expanded layout to responsive `max-w-4xl`.
+  - Displays authentic digital verification certificate with security token and timestamp.
+  - Renders complete quotation itemized specification table and commercial breakdown.
+  - Provides direct one-click "Download PDF" and "Print Certificate" actions.
+- **Customer Website Public Route (`frontend/src/app/App.tsx` & `frontend/src/pages/PublicVerifyPage.tsx`)**:
+  - Registered `<Route path="/verify/:token" element={<PublicVerifyPage />} />` matching the QR code URL (`https://www.pacificproduct.in/verify/<token>`).
+  - Implemented responsive, brand-aligned public verification view displaying complete quotation specifications, pricing, line items, and instant PDF download.
+
+### 61.3 Multi-Criteria Kolkata Branch Detection & Filter
+- **Centralized Helper (`src/utils/branchHelper.ts`)**:
+  - `isKolkataBranch(doc)` checks document number prefix (`PPSK/`), number string (`KOL`), and company profile entity code (`KOL`, `PPS-KOL`), state code (`19`), and state name (`West Bengal`).
+  - `filterByBranch(items, branchFilter)` filters all document collections reliably.
+- **Admin Hub Views Integrated**:
+  - `SalesQuotationsPage.tsx`: Integrated multi-criteria Kolkata detection and table badges.
+  - `ProformaInvoicesPage.tsx`: Integrated multi-criteria Kolkata detection and table badges.
+  - `SalesOrdersPage.tsx`: Integrated multi-criteria Kolkata detection and table badges.
+  - `InvoicesPage.tsx`: Integrated multi-criteria Kolkata detection and table badges.
+  - `PackingListsPage.tsx`: Integrated multi-criteria Kolkata detection and table badges.
+- **Backend Service Alignment**:
+  - `quotations.service.ts`, `pi.service.ts`, `orders.service.ts`, `invoices.service.ts`, `packing-lists.service.ts`: Updated `where.branch` queries to check both `PPSK/` prefix and `companyProfile` West Bengal / Kolkata entity attributes, with `include: { companyProfile: true }`.
+
 
 
 

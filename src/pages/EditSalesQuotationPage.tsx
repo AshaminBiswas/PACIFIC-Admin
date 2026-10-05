@@ -604,6 +604,7 @@ export default function EditSalesQuotationPage() {
       const existingUmp = f.items.find((it) => it.systemCategory === 'ump' || (it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump'))));
       const updatedUmpItem: EditItem = {
         modelId: selected.id,
+        customModelName: selected.title,
         systemCategory: 'ump',
         description: `Pacific ${selected.title} (Urinal Partitions)`,
         quantity: existingUmp ? Number(existingUmp.quantity) || 1 : 1,

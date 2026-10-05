@@ -9,6 +9,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { invoicesApi } from '../api/services';
 import DocumentFlowTimelineModal from '../components/common/DocumentFlowTimelineModal';
 import type { Invoice, InvoiceStatus } from '../types/admin';
+import { isKolkataBranch, filterByBranch } from '../utils/branchHelper';
 
 /* ─── Status helpers ──────────────────────────────────────────────────────── */
 
@@ -82,11 +83,7 @@ const InvoicesPage: React.FC = () => {
 
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
 
-  const displayedInvoices = invoices.filter((inv) => {
-    if (branchFilter === 'KOLKATA') return inv.invoiceNumber?.startsWith('PPSK/');
-    if (branchFilter === 'MAIN') return !inv.invoiceNumber?.startsWith('PPSK/');
-    return true;
-  });
+  const displayedInvoices = filterByBranch(invoices, branchFilter);
 
   const handleDelete = async (inv: Invoice) => {
     if (!confirm(`Delete Invoice ${inv.invoiceNumber}? This action cannot be undone.`)) return;
@@ -339,7 +336,7 @@ const InvoicesPage: React.FC = () => {
                       <td className="py-3 px-4">
                         <div className="font-mono font-bold text-white group-hover:text-[#7FB706] transition-colors flex items-center gap-1.5">
                           {inv.invoiceNumber}
-                          {inv.invoiceNumber?.startsWith('PPSK/') ? (
+                          {isKolkataBranch(inv) ? (
                             <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
                               Kolkata
                             </span>
@@ -473,7 +470,7 @@ const InvoicesPage: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-mono text-gray-500 bg-white/5 px-1.5 py-0.5 rounded">#{serial(idx)}</span>
                         <span className="font-mono font-bold text-white text-sm">{inv.invoiceNumber}</span>
-                        {inv.invoiceNumber?.startsWith('PPSK/') ? (
+                        {isKolkataBranch(inv) ? (
                           <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
                             Kolkata
                           </span>

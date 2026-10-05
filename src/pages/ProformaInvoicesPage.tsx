@@ -7,6 +7,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { piApi, crmApi } from '../api/services';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import type { ProformaInvoice, BusinessParty } from '../types/admin';
+import { isKolkataBranch, filterByBranch } from '../utils/branchHelper';
 
 export default function ProformaInvoicesPage() {
   const navigate = useNavigate();
@@ -43,11 +44,7 @@ export default function ProformaInvoicesPage() {
     }
   }, [page, search, branchFilter]);
 
-  const displayedInvoices = invoices.filter((pi) => {
-    if (branchFilter === 'KOLKATA') return pi.piNumber?.startsWith('PPSK/');
-    if (branchFilter === 'MAIN') return !pi.piNumber?.startsWith('PPSK/');
-    return true;
-  });
+  const displayedInvoices = filterByBranch(invoices, branchFilter);
 
   useEffect(() => {
     fetchInvoices();
@@ -221,7 +218,7 @@ export default function ProformaInvoicesPage() {
                         <div className="font-mono font-bold text-white flex items-center gap-1.5 flex-wrap">
                           {pi.status === 'ISSUED' && <ShieldCheck className="w-3.5 h-3.5 text-[#7FB706]" />}
                           <span>{pi.piNumber}</span>
-                          {pi.piNumber?.startsWith('PPSK/') ? (
+                          {isKolkataBranch(pi) ? (
                             <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
                               Kolkata
                             </span>
@@ -331,7 +328,7 @@ export default function ProformaInvoicesPage() {
                         {pi.status === 'ISSUED' && <ShieldCheck className="w-3.5 h-3.5 text-[#7FB706] flex-shrink-0" />}
                         {pi.piNumber}
                       </span>
-                      {pi.piNumber?.startsWith('PPSK/') ? (
+                      {isKolkataBranch(pi) ? (
                         <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
                           Kolkata
                         </span>

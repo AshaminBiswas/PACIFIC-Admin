@@ -10,6 +10,7 @@ import { salesQuotationsApi } from '../api/services';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import type { SalesQuotation } from '../types/admin';
 import QuotationFollowupModal from '../components/quotations/QuotationFollowupModal';
+import { isKolkataBranch, filterByBranch } from '../utils/branchHelper';
 
 export default function SalesQuotationsPage() {
   const { user } = useAdminAuth();
@@ -123,11 +124,7 @@ export default function SalesQuotationsPage() {
     fetchQuotations();
   }, [fetchQuotations]);
 
-  const displayedQuotations = quotations.filter((q) => {
-    if (branchFilter === 'KOLKATA') return q.referenceNumber?.startsWith('PPSK/') || q.quotationNumber?.startsWith('PPSK/');
-    if (branchFilter === 'MAIN') return !q.referenceNumber?.startsWith('PPSK/') && !q.quotationNumber?.startsWith('PPSK/');
-    return true;
-  });
+  const displayedQuotations = filterByBranch(quotations, branchFilter);
 
   // 1-Click Convert to Proforma Invoice (Stage 2)
   const handleConvertToPI = async (quote: SalesQuotation) => {
@@ -382,7 +379,7 @@ export default function SalesQuotationsPage() {
                       <td className="py-2.5 sm:py-3 px-3 sm:px-4">
                         <div className="font-mono font-semibold text-white flex items-center gap-1.5">
                           {q.referenceNumber || q.quotationNumber || '—'}
-                          {q.referenceNumber?.startsWith('PPSK/') ? (
+                          {isKolkataBranch(q) ? (
                             <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
                               Kolkata
                             </span>
@@ -498,7 +495,7 @@ export default function SalesQuotationsPage() {
                       <span className="font-mono font-bold text-xs sm:text-sm text-white truncate">
                         {q.referenceNumber || q.quotationNumber || '—'}
                       </span>
-                      {q.referenceNumber?.startsWith('PPSK/') ? (
+                      {isKolkataBranch(q) ? (
                         <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
                           Kolkata
                         </span>

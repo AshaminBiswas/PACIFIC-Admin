@@ -872,6 +872,12 @@ export interface PublicVerificationData {
     status: string;
     verifiedAt: string;
   };
+  quotation?: any;
+  proformaInvoice?: any;
+  order?: any;
+  invoice?: any;
+  packingList?: any;
+  pdfDownloadUrl?: string;
 }
 
 // ─── Audit Log ────────────────────────────────────────────────────────────────
