@@ -3263,6 +3263,74 @@ Previously, additional cubicle model systems added to a Quotation or Proforma In
   - Enhanced `updateBoard` to accept `openingStock`, `currentStock`, `warehouse`, `vendorId`, `vendorName`, and `category`.
   - Recalculates stock balances (`openingDiff`), updates the initial opening movement record (`BSM-OPN-...`), adjusts status (`OUT_OF_STOCK`, `LOW_STOCK`, `ACTIVE`), and evaluates low stock alerts.
 
+---
+
+## 54. Stock Management Automated Mailing System — Temporary Pause
+
+### 54.1 Architectural Details
+- **Mailing Pause Enacted**: Temporarily paused automated low-stock and reorder notification emails dispatched to the 5 alert recipients (`ashaminbiswas1@gmail.com`, `ejaj@pacificproduct.in`, `info@pacificproduct.in`, `info.kolkata@pacificproduct.in`, `info.pacificproduct@gmail.com`).
+- **Backend Service Controls (`inventoryAlert.service.ts`)**:
+  - Introduced `isPaused = true` flag (configurable via `ENABLE_STOCK_EMAIL_ALERTS` environment variable, defaulting to `false`/paused).
+  - Bypassed automated Resend/email dispatch across SKU creation, updates, manual stock issues, automated issue-list deductions, and movement adjustments.
+  - Added `getAlertStatus()` and `toggleAlerts()` methods for programmatic control.
+- **REST Endpoints (`boardInventory.routes.ts` & `boardInventory.controller.ts`)**:
+  - Added `GET /api/v1/inventory/boards/alert-status` returning current pause state.
+  - Added `POST /api/v1/inventory/boards/toggle-alerts` allowing seamless re-activation when needed.
+  - Updated `POST /api/v1/inventory/boards/:id/alert` to return a graceful `"Stock alert email system is temporarily paused."` response.
+- **Frontend Inventory UI Context**:
+  - Updated `CreateBoardSkuPage.tsx` and `EditBoardModal.tsx` reorder threshold indicators to clarify that automated alert emails are currently paused.
+
+---
+
+## 55. Vendor & Supplier Master Client-Side LocalStorage Caching (Computational Cost Optimization)
+
+### 55.1 Problem Statement & Computational Cost Reduction
+- **Issue**: Each time users opened "Add New Stock" (`CreateBoardSkuPage.tsx`) or navigated between inventory categories (Restroom Cubicles, Lockers, UMPs, Store Hardware), the application dispatched repeated HTTP calls to `GET /inventory/boards/suppliers`.
+- **Backend Overhead**: The backend supplier endpoint queried `prisma.businessParty.findMany` with relational joins across vendor profiles, contacts, and all associated board items, summing stock totals on every invocation. Rapid navigation and repetitive stock additions placed unnecessary load and computational costs on the database.
+- **Solution**: Implemented a client-side **Two-Tier (Memory L1 + LocalStorage L2) Caching Architecture** that requests the vendor list from the database once, stores it in browser local storage, and serves all future reads instantly with 0 database queries.
+
+### 55.2 Technical Implementation
+
+1. **Dual-Tier Cache Engine (`src/api/boardInventoryApi.ts`)**:
+   - **Cache Key**: `pacific_inventory_suppliers_cache_v1`
+   - **TTL**: 24 Hours (`24 * 60 * 60 * 1000 ms`)
+   - **Synchronous Reader (`getCachedSuppliersSync`)**:
+     - Checks L1 in-memory envelope first (< 1ms).
+     - Checks L2 `localStorage` envelope second.
+     - Enables React components to initialize state synchronously on initial render with 0 spinner flicker.
+   - **Cache Writer (`setCachedSuppliersSync`)**:
+     - Serializes timestamped envelope to both memory and browser `localStorage`.
+   - **Cache Invalidation (`clearSupplierCache`)**:
+     - Wipes both memory and `localStorage` cache entries.
+   - **Smart `listSuppliers(forceRefresh = false)`**:
+     - Resolves immediately from local storage cache if present and non-expired.
+     - Falls back to server request only on cache miss or when `forceRefresh = true`.
+
+2. **Automatic Cache Invalidation on Vendor Mutations (`src/api/crmApi.ts` & `CreateVendorPage.tsx`)**:
+   - `vendorsApi.createVendor()` automatically calls `clearSupplierCache()`.
+   - `vendorsApi.updateVendor()` automatically calls `clearSupplierCache()`.
+   - `vendorsApi.deleteVendor()` automatically calls `clearSupplierCache()`.
+   - `CreateVendorPage.tsx` explicitly invokes `clearSupplierCache()` upon successful supplier registration.
+
+3. **Add Stock Page Instant Rendering & DB Sync (`CreateBoardSkuPage.tsx`)**:
+   - `suppliers` and `vendorId` states are initialized synchronously from `getCachedSuppliersSync()`.
+   - Skips network request on page mount if cached vendors exist.
+   - Added `Local Cache (X)` status badge beside the vendor label.
+   - Added on-demand **"Sync from DB"** (`<RotateCcw />`) action allowing users to force-refresh vendors from the database anytime.
+   - Displays selected vendor details (vendor type, existing SKU master count) right under the dropdown.
+
+4. **Inventory Hubs & Modal Fallbacks**:
+   - Initialized supplier state from `getCachedSuppliersSync()` across:
+     - `BoardInventoryPage.tsx`
+     - `LockerInventoryPage.tsx`
+     - `UmpInventoryPage.tsx`
+     - `StoreInventoryPage.tsx`
+   - Added instant cached supplier fallbacks in:
+     - `CreateBoardModal.tsx`
+     - `EditBoardModal.tsx`
+     - `StockInwardModal.tsx`
+
+
 
 
 

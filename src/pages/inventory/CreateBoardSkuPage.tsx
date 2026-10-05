@@ -12,7 +12,9 @@ import {
   Boxes,
   ShieldAlert,
   Sparkles,
+  RotateCcw,
 } from 'lucide-react';
+
 import { boardInventoryApi } from '../../api/boardInventoryApi';
 import type { BoardSupplier } from '../../types/admin';
 
@@ -43,9 +45,15 @@ export default function CreateBoardSkuPage() {
   const paramCategory = searchParams.get('category');
   const paramWarehouse = searchParams.get('warehouse')?.toUpperCase();
 
-  // Lookups
-  const [suppliers, setSuppliers] = useState<BoardSupplier[]>([]);
-  const [loadingLookups, setLoadingLookups] = useState(true);
+  // Lookups (instantly pre-populated from browser localStorage cache)
+  const [suppliers, setSuppliers] = useState<BoardSupplier[]>(() => {
+    return boardInventoryApi.getCachedSuppliersSync() || [];
+  });
+  const [loadingLookups, setLoadingLookups] = useState(() => {
+    const cached = boardInventoryApi.getCachedSuppliersSync();
+    return !cached || cached.length === 0;
+  });
+  const [isRefreshingSuppliers, setIsRefreshingSuppliers] = useState(false);
 
   // Form State
   const [category, setCategory] = useState(
@@ -55,7 +63,10 @@ export default function CreateBoardSkuPage() {
     paramWarehouse === 'KOLKATA' ? 'KOLKATA' : 'DELHI'
   );
   const [customWarehouse, setCustomWarehouse] = useState('');
-  const [vendorId, setVendorId] = useState('');
+  const [vendorId, setVendorId] = useState(() => {
+    const cached = boardInventoryApi.getCachedSuppliersSync();
+    return cached && cached.length > 0 ? cached[0].id : '';
+  });
   const [designNo, setDesignNo] = useState('');
   const [designName, setDesignName] = useState('');
 
@@ -82,25 +93,33 @@ export default function CreateBoardSkuPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch approved suppliers
-  useEffect(() => {
-    async function loadSuppliers() {
-      try {
+  // Fetch approved suppliers with caching (zero network requests if already cached in localStorage)
+  const loadSuppliers = async (force = false) => {
+    try {
+      if (force) {
+        setIsRefreshingSuppliers(true);
+      } else if (suppliers.length === 0) {
         setLoadingLookups(true);
-        const res = await boardInventoryApi.listSuppliers();
-        if (res.data?.data) {
-          setSuppliers(res.data.data);
-          if (res.data.data.length > 0) {
-            setVendorId(res.data.data[0].id);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load suppliers:', err);
-      } finally {
-        setLoadingLookups(false);
       }
+      const res = await boardInventoryApi.listSuppliers(force);
+      const supplierList = res.data?.data;
+      if (supplierList && supplierList.length > 0) {
+        setSuppliers(supplierList);
+        setVendorId((prev) => prev || supplierList[0].id);
+      }
+    } catch (err) {
+      console.error('Failed to load suppliers:', err);
+    } finally {
+      setLoadingLookups(false);
+      setIsRefreshingSuppliers(false);
     }
-    loadSuppliers();
+  };
+
+  useEffect(() => {
+    // Only hit network if no cached suppliers are present in localStorage
+    if (suppliers.length === 0) {
+      loadSuppliers(false);
+    }
   }, []);
 
   // Compute final dimensions string
@@ -356,18 +375,41 @@ export default function CreateBoardSkuPage() {
 
             {/* Vendor & Supplier Master */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-gray-300">
-                  Approved Supplier / Manufacturer * (Vendor & Supplier Master)
-                </label>
-                <Link
-                  to="/admin/dashboard/vendors"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[11px] text-[#7FB706] hover:underline flex items-center gap-1 font-semibold"
-                >
-                  Manage in Vendor Master ↗
-                </Link>
+              <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <label className="block text-xs font-semibold text-gray-300">
+                    Approved Supplier / Manufacturer * (Vendor & Supplier Master)
+                  </label>
+                  {suppliers.length > 0 && (
+                    <span
+                      className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium inline-flex items-center gap-1.5"
+                      title="Vendors loaded from local storage cache to minimize server database queries"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                      Local Cache ({suppliers.length})
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => loadSuppliers(true)}
+                    disabled={isRefreshingSuppliers}
+                    className="text-[11px] text-gray-400 hover:text-white flex items-center gap-1.5 transition-colors disabled:opacity-50 px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 border border-white/5 min-h-[28px]"
+                    title="Force refresh vendor list from database and update local storage"
+                  >
+                    <RotateCcw className={`w-3 h-3 ${isRefreshingSuppliers ? 'animate-spin text-[#7FB706]' : ''}`} />
+                    <span>{isRefreshingSuppliers ? 'Refreshing...' : 'Sync from DB'}</span>
+                  </button>
+                  <Link
+                    to="/admin/dashboard/vendors"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-[#7FB706] hover:underline flex items-center gap-1 font-semibold"
+                  >
+                    Manage in Vendor Master ↗
+                  </Link>
+                </div>
               </div>
               <select
                 value={vendorId}
@@ -386,6 +428,17 @@ export default function CreateBoardSkuPage() {
                   </option>
                 ))}
               </select>
+              {selectedSupplier && (
+                <div className="mt-2 p-2.5 bg-white/[0.02] border border-white/5 rounded-xl flex items-center justify-between text-xs text-gray-400 flex-wrap gap-2">
+                  <span className="truncate">
+                    <span className="text-gray-300 font-medium">{selectedSupplier.name}</span>
+                    {selectedSupplier.vendorType && ` • ${selectedSupplier.vendorType.replace(/_/g, ' ')}`}
+                  </span>
+                  <span className="shrink-0 text-[11px] text-gray-500">
+                    {selectedSupplier.totalSkus || 0} existing SKUs in Master
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Design / Shade No & Finish */}
@@ -619,8 +672,8 @@ export default function CreateBoardSkuPage() {
                 onChange={(e) => setReorderLevel(e.target.value)}
                 className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706] min-h-[44px]"
               />
-              <span className="text-[10px] text-amber-400 mt-1 block flex items-center gap-1">
-                <ShieldAlert className="w-3 h-3" /> Auto-emails alert to 5 recipients when stock hits this level
+              <span className="text-[10px] text-amber-400/80 mt-1 block flex items-center gap-1">
+                <ShieldAlert className="w-3 h-3" /> Reorder threshold level (Automated email alerts temporarily paused)
               </span>
             </div>
 

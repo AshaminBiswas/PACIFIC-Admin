@@ -35,7 +35,7 @@ import EditBoardModal from '../../components/inventory/EditBoardModal';
 export default function StoreInventoryPage() {
   const navigate = useNavigate();
   const [items, setItems] = useState<BoardInventoryItem[]>([]);
-  const [suppliers, setSuppliers] = useState<BoardSupplier[]>([]);
+  const [suppliers, setSuppliers] = useState<BoardSupplier[]>(() => boardInventoryApi.getCachedSuppliersSync() || []);
   const [analytics, setAnalytics] = useState<BoardAnalyticsSummary | null>(null);
   const [loading, setLoading] = useState(true);
 

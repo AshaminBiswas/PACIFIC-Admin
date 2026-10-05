@@ -33,8 +33,12 @@ export default function CreateBoardModal({
   isOpen,
   onClose,
   onSuccess,
-  suppliers,
+  suppliers: propSuppliers,
 }: CreateBoardModalProps) {
+  const suppliers =
+    propSuppliers && propSuppliers.length > 0
+      ? propSuppliers
+      : boardInventoryApi.getCachedSuppliersSync() || [];
   const [vendorId, setVendorId] = useState('');
   const [designNo, setDesignNo] = useState('');
   const [designName, setDesignName] = useState('');

@@ -1,5 +1,6 @@
 import apiClient from './client';
 import type { ApiResponse, PaginatedResponse, BusinessParty, Customer360Data } from '../types/admin';
+import { clearSupplierCache } from './boardInventoryApi';
 
 export const crmApi = {
   listCustomers: (params?: Record<string, any>) =>
@@ -22,7 +23,17 @@ export const vendorsApi = {
   listVendors: (params?: Record<string, any>) =>
     apiClient.get<ApiResponse<PaginatedResponse<BusinessParty>>>('/vendors', { params }),
   getVendorById: (id: string) => apiClient.get<ApiResponse<BusinessParty>>(`/vendors/${id}`),
-  createVendor: (data: any) => apiClient.post<ApiResponse<BusinessParty>>('/vendors', data),
-  updateVendor: (id: string, data: any) => apiClient.patch<ApiResponse<BusinessParty>>(`/vendors/${id}`, data),
-  deleteVendor: (id: string) => apiClient.delete(`/vendors/${id}`),
+  createVendor: async (data: any) => {
+    clearSupplierCache();
+    return apiClient.post<ApiResponse<BusinessParty>>('/vendors', data);
+  },
+  updateVendor: async (id: string, data: any) => {
+    clearSupplierCache();
+    return apiClient.patch<ApiResponse<BusinessParty>>(`/vendors/${id}`, data);
+  },
+  deleteVendor: async (id: string) => {
+    clearSupplierCache();
+    return apiClient.delete(`/vendors/${id}`);
+  },
 };
+

@@ -17,6 +17,7 @@ import {
   Landmark,
 } from 'lucide-react';
 import { vendorsApi } from '../api/services';
+import { boardInventoryApi } from '../api/boardInventoryApi';
 
 const LOCAL_STORAGE_KEY = 'pacific_create_vendor_v2';
 
@@ -342,6 +343,7 @@ export default function CreateVendorPage() {
       });
 
       localStorage.removeItem(LOCAL_STORAGE_KEY);
+      boardInventoryApi.clearSupplierCache();
       alert(`Supplier "${form.legalName}" registered successfully!`);
       navigate('/admin/dashboard/vendors');
     } catch (err: any) {

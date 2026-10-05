@@ -38,7 +38,7 @@ import BoardReportsModal from '../../components/inventory/BoardReportsModal';
 export default function BoardInventoryPage() {
   const navigate = useNavigate();
   const [boards, setBoards] = useState<BoardInventoryItem[]>([]);
-  const [suppliers, setSuppliers] = useState<BoardSupplier[]>([]);
+  const [suppliers, setSuppliers] = useState<BoardSupplier[]>(() => boardInventoryApi.getCachedSuppliersSync() || []);
   const [analytics, setAnalytics] = useState<BoardAnalyticsSummary | null>(null);
   const [loading, setLoading] = useState(true);
 

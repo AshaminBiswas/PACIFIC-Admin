@@ -17,9 +17,13 @@ export default function StockInwardModal({
   onClose,
   onSuccess,
   initialBoardId,
-  suppliers,
+  suppliers: propSuppliers,
   boards,
 }: StockInwardModalProps) {
+  const suppliers =
+    propSuppliers && propSuppliers.length > 0
+      ? propSuppliers
+      : boardInventoryApi.getCachedSuppliersSync() || [];
   const [selectedBoardId, setSelectedBoardId] = useState<string>('');
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
   const [quantity, setQuantity] = useState<string | number>('');

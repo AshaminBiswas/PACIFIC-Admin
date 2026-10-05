@@ -35,8 +35,12 @@ export default function EditBoardModal({
   onClose,
   onSuccess,
   boardItem,
-  suppliers,
+  suppliers: propSuppliers,
 }: EditBoardModalProps) {
+  const suppliers =
+    propSuppliers && propSuppliers.length > 0
+      ? propSuppliers
+      : boardInventoryApi.getCachedSuppliersSync() || [];
   const [vendorId, setVendorId] = useState('');
   const [warehouse, setWarehouse] = useState<'DELHI' | 'KOLKATA'>('DELHI');
   const [designNo, setDesignNo] = useState('');
@@ -383,7 +387,7 @@ export default function EditBoardModal({
                   className="w-full bg-[#121029] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-[#7FB706] min-h-[44px]"
                 />
                 <span className="text-[10px] text-amber-400/80 mt-0.5 block">
-                  Low stock notification
+                  Low stock notification (Email alerts temporarily paused)
                 </span>
               </div>
 
