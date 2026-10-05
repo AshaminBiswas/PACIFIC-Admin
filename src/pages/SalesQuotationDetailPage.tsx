@@ -608,7 +608,7 @@ export default function SalesQuotationDetailPage() {
               <span className="text-gray-400">Basic Price</span>
               <span className="text-gray-300 font-mono">₹ {basicPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
             </div>
-            {Number(quotation.installationCharge || 0) > 0 && (
+            {Number(quotation.installationCharge || 0) > 0 ? (
               <div className="flex justify-between text-xs">
                 <span className="text-gray-400">
                   Installation
@@ -619,6 +619,27 @@ export default function SalesQuotationDetailPage() {
                   ) : null}
                 </span>
                 <span className="text-gray-300 font-mono">₹ {Number(quotation.installationCharge).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+            ) : (
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-400">Installation</span>
+                <span className="text-[#7FB706] font-semibold text-xs">
+                  {(() => {
+                    const opt = (quotation as any).installationOption;
+                    if (opt) {
+                      if (opt === 'Custom' && (quotation as any).installationCustomNote) {
+                        return (quotation as any).installationCustomNote;
+                      }
+                      return opt;
+                    }
+                    const gt = `${quotation.generalTerms || ''} ${quotation.otherTerms || ''}`.toLowerCase();
+                    if (gt.includes('extra to pay') || gt.includes('payable extra') || gt.includes('at actuals')) return 'Extra to Pay (At Actuals)';
+                    if (gt.includes('client scope') || gt.includes("buyer's scope") || gt.includes("client's scope")) return "In Client's Scope";
+                    if (gt.includes('not applicable') || gt.includes('supply only')) return 'Not Applicable (Supply Only)';
+                    if (gt.includes('included')) return 'Included in Basic Price';
+                    return 'Included (Free of Cost)';
+                  })()}
+                </span>
               </div>
             )}
             {Number(quotation.freightAmount || 0) > 0 && (

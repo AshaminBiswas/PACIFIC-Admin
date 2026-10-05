@@ -20,6 +20,14 @@ import BranchSelector from '../components/common/BranchSelector';
 import ModelImageField from '../components/quotations/ModelImageField';
 import type { BusinessParty, CompanyProfile, ProductCatalogModel } from '../types/admin';
 import { calculateGstSplit, isRestroomCubicleItem } from '../utils/tax';
+import {
+  INSTALLATION_OPTIONS,
+  RATE_PRESETS,
+  getInstallationMentionText,
+  formatInstallationTermClause,
+  syncInstallationToGeneralTerms,
+  type InstallationPricingMode,
+} from '../utils/quotationInstallation';
 
 export type QuotationScope = 'CUBICLE' | 'BOARD' | 'HARDWARE';
 
@@ -62,6 +70,8 @@ export interface CreateFormData {
   installationCharge: number;
   installationRatePerCubicle?: number;
   installationCubicleCount?: number;
+  installationOption?: string;
+  installationCustomNote?: string;
   freightTerms: string;
   freightAmount: number;
   gstRate: number;
@@ -105,6 +115,8 @@ const INITIAL_FORM_STATE: CreateFormData = {
   installationCharge: 0,
   installationRatePerCubicle: 1000,
   installationCubicleCount: 0,
+  installationOption: 'Included',
+  installationCustomNote: '',
   freightTerms: 'Extra as Actual / To pay',
   freightAmount: 0,
   gstRate: 18,
@@ -166,6 +178,17 @@ export default function DraftQuotationPage() {
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [installationMode, setInstallationMode] = useState<InstallationPricingMode>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Number(parsed.installationCharge) > 0) return 'RATE';
+        if (parsed.installationOption) return 'OPTION';
+      }
+    } catch {}
+    return 'RATE';
+  });
 
   // Initialize form with local storage draft or clean initial state
   const [form, setForm] = useState<CreateFormData>(() => {
@@ -893,6 +916,64 @@ export default function DraftQuotationPage() {
   const effectiveInstallRate = form.installationRatePerCubicle ?? (effectiveCubicleCount > 0 && form.installationCharge ? Math.round(Number(form.installationCharge) / effectiveCubicleCount) : 1000);
 
   const installationCharge = Number(form.installationCharge) || 0;
+
+  const handleSelectRatePreset = (presetRate: number) => {
+    setInstallationMode('RATE');
+    const cCount = form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : detectedCubicleCount;
+    const tot = presetRate * cCount;
+    const clause = formatInstallationTermClause('RATE', undefined, presetRate, cCount, undefined, tot);
+    setForm((f) => ({
+      ...f,
+      installationRatePerCubicle: presetRate,
+      installationCubicleCount: cCount,
+      installationCharge: tot,
+      installationOption: undefined,
+      generalTerms: syncInstallationToGeneralTerms(f.generalTerms, clause),
+    }));
+    clearFieldError('installationCharge');
+  };
+
+  const handleSelectOption = (opt: string) => {
+    setInstallationMode('OPTION');
+    const clause = formatInstallationTermClause('OPTION', opt, undefined, undefined, form.installationCustomNote, 0);
+    setForm((f) => ({
+      ...f,
+      installationRatePerCubicle: 0,
+      installationCharge: 0,
+      installationOption: opt,
+      generalTerms: syncInstallationToGeneralTerms(f.generalTerms, clause),
+    }));
+    clearFieldError('installationCharge');
+  };
+
+  const handleInstallationModeChange = (mode: InstallationPricingMode) => {
+    setInstallationMode(mode);
+    if (mode === 'RATE') {
+      const rate = form.installationRatePerCubicle && form.installationRatePerCubicle > 0 ? form.installationRatePerCubicle : 1000;
+      const count = form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : detectedCubicleCount;
+      const tot = rate * count;
+      const clause = formatInstallationTermClause('RATE', undefined, rate, count, undefined, tot);
+      setForm((f) => ({
+        ...f,
+        installationRatePerCubicle: rate,
+        installationCubicleCount: count,
+        installationCharge: tot,
+        installationOption: undefined,
+        generalTerms: syncInstallationToGeneralTerms(f.generalTerms, clause),
+      }));
+    } else {
+      const opt = form.installationOption || 'Included';
+      const clause = formatInstallationTermClause('OPTION', opt, undefined, undefined, form.installationCustomNote, 0);
+      setForm((f) => ({
+        ...f,
+        installationRatePerCubicle: 0,
+        installationCharge: 0,
+        installationOption: opt,
+        generalTerms: syncInstallationToGeneralTerms(f.generalTerms, clause),
+      }));
+    }
+    clearFieldError('installationCharge');
+  };
   const freightAmount = Number(form.freightAmount) || 0;
   const gstRate = form.isSezExempt ? 0 : Number(form.gstRate) || 18;
 
@@ -1018,9 +1099,11 @@ export default function DraftQuotationPage() {
         title: form.title || 'Quotation for Supply of Toilet Cubicles',
         validUntil: form.validUntil || undefined,
         validityDays: Number(form.validityDays) || 30,
-        installationCharge: Number(form.installationCharge) || 0,
-        installationRatePerCubicle: Number(form.installationCharge) > 0 ? (form.installationRatePerCubicle ?? 1000) : undefined,
+        installationCharge: installationMode === 'RATE' ? (Number(form.installationCharge) || 0) : 0,
+        installationRatePerCubicle: installationMode === 'RATE' && Number(form.installationCharge) > 0 ? (form.installationRatePerCubicle ?? 1000) : undefined,
         installationCubicleCount: Number(form.installationCharge) > 0 ? (form.installationCubicleCount || detectedCubicleCount || undefined) : undefined,
+        installationOption: installationMode === 'OPTION' ? (form.installationOption || 'Included') : undefined,
+        installationCustomNote: installationMode === 'OPTION' && form.installationOption === 'Custom' ? form.installationCustomNote : undefined,
         freightTerms: form.freightTerms,
         freightAmount: Number(form.freightAmount) || 0,
         gstRate: Number(form.gstRate) || 18,
@@ -1161,12 +1244,17 @@ export default function DraftQuotationPage() {
         <div className="text-gray-400">
           Basic: <span className="text-white font-mono font-semibold">₹ {basicPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
         </div>
-        {installationCharge > 0 && (
+        {installationMode === 'RATE' && installationCharge > 0 ? (
           <div className="text-gray-400">
             Installation: <span className="text-white font-mono font-semibold">₹ {installationCharge.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
             <span className="text-xs text-[#7FB706] font-mono ml-1 font-bold">
               (@ ₹ {effectiveInstallRate.toLocaleString('en-IN')}/Cubicle for {effectiveCubicleCount} Cubicles)
             </span>
+          </div>
+        ) : (
+          <div className="text-gray-400">
+            Installation: <span className="text-[#7FB706] font-semibold">{form.installationOption || 'Included'}</span>
+            <span className="text-xs text-slate-400 font-mono ml-1">(₹ 0.00)</span>
           </div>
         )}
         {freightAmount > 0 && (
@@ -1440,127 +1528,300 @@ export default function DraftQuotationPage() {
         </div>
 
         {/* Installation Charges Per Cubicle Sub-block */}
-        <div className="p-4 rounded-xl bg-black/20 border border-white/5 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-              <span>🔧 Installation Charges (Per Cubicle Calculation)</span>
-            </label>
+        <div className="p-4 rounded-xl bg-black/20 border border-white/5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <span>🔧 Installation Charges (Per Cubicle Calculation)</span>
+              </label>
+              {installationMode === 'OPTION' && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30">
+                  {form.installationOption || 'Included'}
+                </span>
+              )}
+            </div>
+
+            {/* Mode Switcher Tabs */}
+            <div className="inline-flex items-center p-0.5 rounded-lg bg-black/40 border border-white/10">
+              <button
+                type="button"
+                onClick={() => handleInstallationModeChange('RATE')}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                  installationMode === 'RATE'
+                    ? 'bg-[#7FB706] text-black shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Rate (₹/Cubicle)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleInstallationModeChange('OPTION')}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                  installationMode === 'OPTION'
+                    ? 'bg-[#7FB706] text-black shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Select Option (Included, Extra to Pay, etc.)
+              </button>
+            </div>
+          </div>
+
+          {/* Presets Bar */}
+          <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[11px] text-slate-400">Presets:</span>
-              {[
-                { label: '₹ 800', rate: 800 },
-                { label: '₹ 1,000 (Std)', rate: 1000 },
-                { label: '₹ 1,200', rate: 1200 },
-                { label: '₹ 1,500', rate: 1500 },
-                { label: 'Free (₹ 0)', rate: 0 },
-              ].map((p) => (
+              <span className="text-[11px] text-slate-400">Rate Presets:</span>
+              {RATE_PRESETS.map((p) => (
                 <button
                   key={p.label}
                   type="button"
-                  onClick={() => {
-                    const cCount = form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : detectedCubicleCount;
-                    const tot = p.rate * (p.rate === 0 ? 0 : cCount);
-                    setForm((f) => ({
-                      ...f,
-                      installationRatePerCubicle: p.rate,
-                      installationCubicleCount: cCount,
-                      installationCharge: tot,
-                    }));
-                    clearFieldError('installationCharge');
-                  }}
-                  className="px-2 py-0.5 rounded text-[11px] font-medium bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors"
+                  onClick={() => handleSelectRatePreset(p.rate)}
+                  className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                    installationMode === 'RATE' && form.installationRatePerCubicle === p.rate
+                      ? 'bg-[#7FB706]/20 border-[#7FB706] text-[#7FB706] font-bold'
+                      : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border-white/10'
+                  }`}
                 >
                   {p.label}
                 </button>
               ))}
             </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] text-slate-400">Non-Rated Options:</span>
+              {INSTALLATION_OPTIONS.filter((o) => o.id !== 'Custom').map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => handleSelectOption(opt.id)}
+                  className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                    installationMode === 'OPTION' && form.installationOption === opt.id
+                      ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 font-bold'
+                      : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border-white/10'
+                  }`}
+                >
+                  {opt.badgeLabel}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className={labelCls}>Rate (₹ / Cubicle)</label>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={form.installationRatePerCubicle ?? 1000}
-                onChange={(e) => {
-                  const rate = Number(e.target.value) || 0;
-                  const count = form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : detectedCubicleCount;
-                  setForm((f) => ({
-                    ...f,
-                    installationRatePerCubicle: rate,
-                    installationCharge: rate * count,
-                  }));
-                  clearFieldError('installationCharge');
-                }}
-                className={inputCls}
-                placeholder="1000"
-              />
-              <span className="text-[10px] text-slate-400">Default: ₹ 1,000 / Cubicle</span>
-            </div>
+          {/* Conditional Rendering based on Mode */}
+          {installationMode === 'RATE' ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className={labelCls}>Rate (₹ / Cubicle)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.installationRatePerCubicle ?? 1000}
+                    onChange={(e) => {
+                      const rate = Number(e.target.value) || 0;
+                      const count = form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : detectedCubicleCount;
+                      const tot = rate * count;
+                      if (rate === 0) {
+                        setForm((f) => ({ ...f, installationRatePerCubicle: 0, installationCharge: 0 }));
+                      } else {
+                        const clause = formatInstallationTermClause('RATE', undefined, rate, count, undefined, tot);
+                        setForm((f) => ({
+                          ...f,
+                          installationRatePerCubicle: rate,
+                          installationCharge: tot,
+                          installationOption: undefined,
+                          generalTerms: syncInstallationToGeneralTerms(f.generalTerms, clause),
+                        }));
+                      }
+                      clearFieldError('installationCharge');
+                    }}
+                    className={inputCls}
+                    placeholder="1000"
+                  />
+                  <span className="text-[10px] text-slate-400">Default: ₹ 1,000 / Cubicle</span>
+                </div>
 
-            <div>
-              <label className={labelCls}>Cubicles (Qty)</label>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : (detectedCubicleCount || '')}
-                onChange={(e) => {
-                  const count = Number(e.target.value) || 0;
-                  const rate = form.installationRatePerCubicle ?? 1000;
-                  setForm((f) => ({
-                    ...f,
-                    installationCubicleCount: count,
-                    installationCharge: rate * count,
-                  }));
-                  clearFieldError('installationCharge');
-                }}
-                className={inputCls}
-                placeholder="Number of cubicles"
-              />
-              <span className="text-[10px] text-slate-400">
-                {detectedCubicleCount > 0
-                  ? `Auto-detected: ${detectedCubicleCount} Cubicle${detectedCubicleCount === 1 ? '' : 's'}`
-                  : '0 Cubicles in item list (Hardware/Board only)'}
-              </span>
-            </div>
+                <div>
+                  <label className={labelCls}>Cubicles (Qty)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : (detectedCubicleCount || '')}
+                    onChange={(e) => {
+                      const count = Number(e.target.value) || 0;
+                      const rate = form.installationRatePerCubicle ?? 1000;
+                      const tot = rate * count;
+                      const clause = formatInstallationTermClause('RATE', undefined, rate, count, undefined, tot);
+                      setForm((f) => ({
+                        ...f,
+                        installationCubicleCount: count,
+                        installationCharge: tot,
+                        generalTerms: syncInstallationToGeneralTerms(f.generalTerms, clause),
+                      }));
+                      clearFieldError('installationCharge');
+                    }}
+                    className={inputCls}
+                    placeholder="Number of cubicles"
+                  />
+                  <span className="text-[10px] text-slate-400">
+                    {detectedCubicleCount > 0
+                      ? `Auto-detected: ${detectedCubicleCount} Cubicle${detectedCubicleCount === 1 ? '' : 's'}`
+                      : '0 Cubicles in item list (Hardware/Board only)'}
+                  </span>
+                </div>
 
-            <div>
-              <label className={labelCls}>Total Installation Charge (₹)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.installationCharge}
-                onChange={(e) => {
-                  const total = Number(e.target.value) || 0;
-                  const count = form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : detectedCubicleCount;
-                  const derivedRate = count > 0 ? Math.round(total / count) : 0;
-                  setForm((f) => ({
-                    ...f,
-                    installationCharge: total,
-                    installationRatePerCubicle: derivedRate,
-                  }));
-                  clearFieldError('installationCharge');
-                }}
-                className={getInputCls('installationCharge')}
-              />
-              {fieldErrors.installationCharge && (
-                <p className="mt-1 text-xs text-red-400">{fieldErrors.installationCharge}</p>
+                <div>
+                  <label className={labelCls}>Total Installation Charge (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.installationCharge}
+                    onChange={(e) => {
+                      const total = Number(e.target.value) || 0;
+                      const count = form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : detectedCubicleCount;
+                      const derivedRate = count > 0 ? Math.round(total / count) : 0;
+                      const clause = total > 0 ? formatInstallationTermClause('RATE', undefined, derivedRate, count, undefined, total) : '';
+                      setForm((f) => ({
+                        ...f,
+                        installationCharge: total,
+                        installationRatePerCubicle: derivedRate,
+                        generalTerms: total > 0 ? syncInstallationToGeneralTerms(f.generalTerms, clause) : f.generalTerms,
+                      }));
+                      clearFieldError('installationCharge');
+                    }}
+                    className={getInputCls('installationCharge')}
+                  />
+                  {fieldErrors.installationCharge && (
+                    <p className="mt-1 text-xs text-red-400">{fieldErrors.installationCharge}</p>
+                  )}
+                </div>
+              </div>
+
+              {(!form.installationRatePerCubicle || form.installationRatePerCubicle === 0) && (
+                <div className="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300">
+                  <span>💡 Rate is 0 or not charged. You can select an option below (e.g. Included, Extra to Pay):</span>
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectOption('Included')}
+                      className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 font-medium"
+                    >
+                      Included
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectOption('Extra to Pay')}
+                      className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 font-medium"
+                    >
+                      Extra to Pay
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectOption('Client Scope')}
+                      className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-200 hover:bg-sky-500/30 font-medium"
+                    >
+                      Client Scope
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
-          </div>
+          ) : (
+            /* Option Selected (Rate Not Selected) */
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="sm:col-span-2 lg:col-span-1">
+                  <label className={labelCls}>Select Option (Rate Not Charged) *</label>
+                  <select
+                    value={form.installationOption || 'Included'}
+                    onChange={(e) => handleSelectOption(e.target.value)}
+                    className={inputCls}
+                  >
+                    {INSTALLATION_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id} className="bg-[#0a0a1a]">
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[10px] text-slate-400">
+                    {INSTALLATION_OPTIONS.find((o) => o.id === form.installationOption)?.description ||
+                      'Installation term mentioned on quote'}
+                  </span>
+                </div>
 
-          <div className="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
-            <span>
-              📄 <strong>Mentioned on document:</strong> Cubicle Installation Charges{' '}
-              {form.installationCharge > 0 && (form.installationCubicleCount || detectedCubicleCount) > 0
-                ? `(@ ₹ ${(form.installationRatePerCubicle ?? 1000).toLocaleString('en-IN')}/Cubicle for ${form.installationCubicleCount || detectedCubicleCount} Cubicle${(form.installationCubicleCount || detectedCubicleCount) === 1 ? '' : 's'})`
-                : '(Nil / Client Scope)'}
+                <div>
+                  <label className={labelCls}>Cubicles (Qty Reference)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.installationCubicleCount !== undefined && form.installationCubicleCount > 0 ? form.installationCubicleCount : (detectedCubicleCount || '')}
+                    onChange={(e) => {
+                      const count = Number(e.target.value) || 0;
+                      setForm((f) => ({ ...f, installationCubicleCount: count }));
+                    }}
+                    className={inputCls}
+                    placeholder="Number of cubicles"
+                  />
+                  <span className="text-[10px] text-slate-400">
+                    {detectedCubicleCount > 0
+                      ? `Auto-detected: ${detectedCubicleCount} Cubicle${detectedCubicleCount === 1 ? '' : 's'}`
+                      : '0 Cubicles in item list'}
+                  </span>
+                </div>
+
+                <div>
+                  <label className={labelCls}>Installation Cost Added</label>
+                  <div className="h-10 px-3 flex items-center rounded-lg bg-black/30 border border-white/10 text-emerald-400 font-mono text-sm font-semibold">
+                    ₹ 0.00 <span className="ml-2 text-xs text-slate-400 font-normal">({form.installationOption || 'Included'})</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">No extra charge added to total quotation price</span>
+                </div>
+              </div>
+
+              {form.installationOption === 'Custom' && (
+                <div>
+                  <label className={labelCls}>Custom Installation Term / Scope *</label>
+                  <input
+                    type="text"
+                    value={form.installationCustomNote || ''}
+                    onChange={(e) => {
+                      const note = e.target.value;
+                      const clause = formatInstallationTermClause('OPTION', 'Custom', undefined, undefined, note, 0);
+                      setForm((f) => ({
+                        ...f,
+                        installationCustomNote: note,
+                        generalTerms: syncInstallationToGeneralTerms(f.generalTerms, clause),
+                      }));
+                    }}
+                    placeholder="e.g. Extra to Pay @ actuals at site (transport & lodging extra)"
+                    className={inputCls}
+                  />
+                  <span className="text-[10px] text-slate-400">This custom text will appear on the quotation document</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Document Mention Banner */}
+          <div className="flex items-center justify-between text-xs px-3.5 py-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+            <span className="flex items-center gap-1.5 flex-wrap">
+              <span>📄 <strong>Mentioned on document:</strong></span>
+              <span className="font-medium text-white">
+                {getInstallationMentionText(
+                  installationMode,
+                  form.installationOption,
+                  form.installationRatePerCubicle,
+                  effectiveCubicleCount,
+                  form.installationCustomNote,
+                  form.installationCharge
+                )}
+              </span>
             </span>
-            <span className="font-mono font-bold text-white">
+            <span className="font-mono font-bold text-white shrink-0">
               ₹ {Number(form.installationCharge).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </span>
           </div>

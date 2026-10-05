@@ -563,6 +563,8 @@ export interface ProformaInvoice {
   installationCharge?: number;
   installationRatePerCubicle?: number;
   installationCubicleCount?: number;
+  installationOption?: 'Included' | 'Extra to Pay' | 'Client Scope' | 'Not Applicable' | 'Custom' | string;
+  installationCustomNote?: string;
   freightAmount: number;
   taxableAmount: number;
   cgstAmount: number;
@@ -1186,6 +1188,8 @@ export interface SalesQuotation {
   installationCharge?: number;
   installationRatePerCubicle?: number;
   installationCubicleCount?: number;
+  installationOption?: 'Included' | 'Extra to Pay' | 'Client Scope' | 'Not Applicable' | 'Custom' | string;
+  installationCustomNote?: string;
   freightTerms?: string;
   freightAmount?: number;
   gstRate?: number;
