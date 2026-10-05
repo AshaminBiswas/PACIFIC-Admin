@@ -3479,6 +3479,42 @@ Integrated universal branch filtering across both Desktop Table and Mobile Card 
   - Displays official cryptographic verification status, document issuance details, and issuing entity & branch badges (`Kolkata Branch` vs `Main Branch Delhi HQ`).
   - Zero edit permissions, strictly read-only for customer verification and compliance.
 
+---
+
+## 60. Quotation Installation Charges & Non-Rated Option Selection (Included, Extra to Pay, etc.)
+
+### 60.1 Overview & Business Requirement
+In Restroom Cubicle quotations, installation charges are typically calculated on a per-cubicle basis (e.g., ₹800, ₹1,000, ₹1,200, ₹1,500 per cubicle). However, in many commercial scenarios, installation is either included in the basic square-foot / running-foot rate, billed extra at actuals, entrusted to the client's civil team, or not applicable. Previously, setting the rate to 0 could leave ambiguous terms or omit installation details from the quotation.
+
+### 60.2 Modular Architecture (`src/utils/quotationInstallation.ts`)
+- **Installation Options (`INSTALLATION_OPTIONS`)**:
+  - `Included`: Installation included in basic price (₹ 0.00 in calculation).
+  - `Extra to Pay`: Installation charges extra to pay at actuals by client / site.
+  - `Client Scope`: Installation under client / contractor scope.
+  - `Not Applicable`: Supply only / installation not applicable.
+  - `Custom`: Custom specified installation term.
+- **Rate Presets (`RATE_PRESETS`)**: ₹800, ₹1,000, ₹1,200, ₹1,500 per cubicle quick-fill pills.
+- **Helper Utilities**:
+  - `getInstallationMentionText(mode, option, rate, total, customNote)`: Generates concise badge and line item mentions.
+  - `formatInstallationTermClause(mode, option, rate, total, customNote)`: Formats standard legal clause for Clause 4 under General Terms & Conditions.
+  - `syncInstallationToGeneralTerms(terms, mode, option, rate, total, customNote)`: Automatically updates or inserts Clause 4 in General Terms without overwriting custom modifications to other clauses.
+  - `detectInstallationOption(charge, terms, existingOption)`: Auto-detects whether an existing quotation uses a rated calculation or a non-rated term option.
+
+### 60.3 Types Alignment (`src/types/admin.ts`)
+- Added `installationOption?: 'Included' | 'Extra to Pay' | 'Client Scope' | 'Not Applicable' | 'Custom' | string;` and `installationCustomNote?: string;` across `SalesQuotation`, `ProformaInvoice`, and `SalesOrder`.
+
+### 60.4 Create Wizard (`src/pages/DraftQuotationPage.tsx`) & Editor (`src/pages/EditSalesQuotationPage.tsx`)
+- **Mode Toggle Switcher**: Dual-mode tabs:
+  - `Rate (₹/Cubicle)`: Enter numeric per-cubicle rate or click quick preset pills (₹800, ₹1,000, ₹1,200, ₹1,500). Auto-calculates `cubicleCount * rate`.
+  - `Select Option (Included, Extra to Pay, etc.)`: Quick-select pills for `Included`, `Extra to Pay`, `Client Scope`, `Not Applicable`, and `Custom` with optional custom specification input.
+- **Real-Time Live Total Banner**: When non-rated mode is active, the installation pill indicates `Installation: Included (₹ 0.00)` or `Installation: Extra to Pay` instead of a plain zero.
+- **Document Mention Preview Banner**: Displays a real-time info banner showing the exact wording that will appear on client-facing proposals and server-rendered PDF documents.
+- **LocalStorage Draft Persistence**: `installationOption`, `installationCustomNote`, and `installationMode` are stored and restored seamlessly during auto-save and page reloads.
+
+### 60.5 Quotation Detail View (`src/pages/SalesQuotationDetailPage.tsx`)
+- Updated pricing summary card: When `installationCharge === 0`, the card displays the resolved installation term badge (e.g. `Included in Basic Price`, `Extra to Pay (At Actuals)`) instead of hiding the row, ensuring commercial clarity for sales executives and clients.
+
+
 
 
 
