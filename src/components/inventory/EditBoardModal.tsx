@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Edit2, Building2, Layers, AlertCircle, Save, MapPin } from 'lucide-react';
-import { boardInventoryApi } from '../../api/boardInventoryApi';
+import { boardInventoryApi, isActionTesaVendor } from '../../api/boardInventoryApi';
+
 import type { BoardInventoryItem, BoardSupplier } from '../../types/admin';
 
 interface EditBoardModalProps {
@@ -56,6 +57,16 @@ export default function EditBoardModal({
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const selectedSupplier = suppliers.find((s) => s.id === vendorId);
+
+  const handleVendorChange = (newVendorId: string) => {
+    setVendorId(newVendorId);
+    const targetSup = suppliers.find((s) => s.id === newVendorId);
+    if (isActionTesaVendor(targetSup)) {
+      setBoardType('HDF Board');
+    }
+  };
 
   useEffect(() => {
     if (boardItem) {
@@ -200,7 +211,7 @@ export default function EditBoardModal({
             </label>
             <select
               value={vendorId}
-              onChange={(e) => setVendorId(e.target.value)}
+              onChange={(e) => handleVendorChange(e.target.value)}
               className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706] transition min-h-[44px]"
             >
               <option value="">-- Keep Current Supplier ({boardItem.vendorName || 'Default'}) --</option>
@@ -298,9 +309,16 @@ export default function EditBoardModal({
 
           {/* Board Type */}
           <div>
-            <label className="block text-xs font-semibold text-gray-300 mb-1.5 flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-[#7FB706]" /> Board Material / Substrate Type
-            </label>
+            <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+              <label className="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-[#7FB706]" /> Board Material / Substrate Type
+              </label>
+              {isActionTesaVendor(selectedSupplier) && (boardType === 'HDF Board' || boardType === 'HDF') && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium inline-flex items-center gap-1">
+                  ⚡ Auto-defaulted to HDF for Balaji Action Tesa
+                </span>
+              )}
+            </div>
             <input
               type="text"
               required

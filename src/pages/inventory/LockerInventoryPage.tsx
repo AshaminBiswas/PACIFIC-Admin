@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Boxes,
   Search,
@@ -604,17 +604,14 @@ export default function LockerInventoryPage() {
                       {/* Actions */}
                       <td className="py-2.5 px-3 sm:py-3.5 sm:px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* Edit SKU & Stock */}
-                          <button
-                            onClick={() => {
-                              setActiveEditBoard(b);
-                              setIsEditModalOpen(true);
-                            }}
+                          {/* Edit SKU & Stock (Dedicated New Page) */}
+                          <Link
+                            to={`/admin/dashboard/inventory/boards/${b.id}/edit`}
                             className="p-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/20 transition min-w-[32px] min-h-[32px] flex items-center justify-center"
-                            title="Edit SKU & Stock"
+                            title="Edit SKU & Stock (opens new page)"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
-                          </button>
+                          </Link>
 
                           {/* Inward */}
                           <button

@@ -15,7 +15,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 
-import { boardInventoryApi } from '../../api/boardInventoryApi';
+import { boardInventoryApi, isActionTesaVendor } from '../../api/boardInventoryApi';
 import type { BoardSupplier } from '../../types/admin';
 
 // Preset standard sheet sizes with both feet & metric mm notation
@@ -121,6 +121,27 @@ export default function CreateBoardSkuPage() {
       loadSuppliers(false);
     }
   }, []);
+
+  // Helper to handle vendor change and auto-set boardType default for Balaji Action Tesa
+  const handleVendorChange = (newVendorId: string) => {
+    setVendorId(newVendorId);
+    const targetSup = suppliers.find((s) => s.id === newVendorId);
+    if (isActionTesaVendor(targetSup)) {
+      setBoardType('HDF');
+    } else if (boardType === 'HDF') {
+      setBoardType('HPL');
+    }
+  };
+
+  // Auto-default boardType to HDF if the active supplier is Balaji Action Tesa
+  useEffect(() => {
+    if (vendorId && suppliers.length > 0) {
+      const selectedSup = suppliers.find((s) => s.id === vendorId);
+      if (isActionTesaVendor(selectedSup) && boardType === 'HPL') {
+        setBoardType('HDF');
+      }
+    }
+  }, [vendorId, suppliers]);
 
   // Compute final dimensions string
   const resolvedSize =
@@ -413,7 +434,7 @@ export default function CreateBoardSkuPage() {
               </div>
               <select
                 value={vendorId}
-                onChange={(e) => setVendorId(e.target.value)}
+                onChange={(e) => handleVendorChange(e.target.value)}
                 required
                 className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-[#7FB706] min-h-[44px]"
               >
@@ -480,9 +501,16 @@ export default function CreateBoardSkuPage() {
 
             {/* Board Type: HPL, HDF, Custom */}
             <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1.5">
-                Board Type * (HPL, HDF, or Custom)
-              </label>
+              <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                <label className="block text-xs font-semibold text-gray-300">
+                  Board Type * (HPL, HDF, or Custom)
+                </label>
+                {isActionTesaVendor(selectedSupplier) && boardType === 'HDF' && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium inline-flex items-center gap-1">
+                    ⚡ Auto-defaulted to HDF for Balaji Action Tesa
+                  </span>
+                )}
+              </div>
               <div className="grid grid-cols-3 gap-2">
                 {BOARD_TYPES.map((bt) => (
                   <button

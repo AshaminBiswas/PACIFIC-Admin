@@ -84,6 +84,21 @@ export function clearSupplierCache(): void {
   }
 }
 
+/**
+ * Detects if a vendor or supplier represents Balaji Action Tesa (Action Buildwell / Action Tesa).
+ */
+export function isActionTesaVendor(
+  vendor?: { name?: string | null; legalName?: string | null } | null
+): boolean {
+  if (!vendor) return false;
+  const combined = `${vendor.name || ''} ${vendor.legalName || ''}`.toLowerCase();
+  return (
+    (combined.includes('balaji') && combined.includes('tesa')) ||
+    combined.includes('action tesa') ||
+    combined.includes('action buildwell')
+  );
+}
+
 export const boardInventoryApi = {
   list: (params?: Record<string, any>) =>
     apiClient.get<ApiResponse<PaginatedResponse<BoardInventoryItem>>>('/inventory/boards', { params }),
@@ -144,6 +159,7 @@ export const boardInventoryApi = {
   getCachedSuppliersSync,
   setCachedSuppliersSync,
   clearSupplierCache,
+  isActionTesaVendor,
 
   getMovements: (params?: {
     inventoryItemId?: string;

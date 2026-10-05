@@ -71,6 +71,7 @@ const AdminManagementPage = lazyWithRetry(() => import('./pages/AdminManagementP
 const AdminProfilePage = lazyWithRetry(() => import('./pages/AdminProfilePage'));
 const BoardInventoryPage = lazyWithRetry(() => import('./pages/inventory/BoardInventoryPage'));
 const CreateBoardSkuPage = lazyWithRetry(() => import('./pages/inventory/CreateBoardSkuPage'));
+const EditBoardSkuPage = lazyWithRetry(() => import('./pages/inventory/EditBoardSkuPage'));
 const LockerInventoryPage = lazyWithRetry(() => import('./pages/inventory/LockerInventoryPage'));
 const UmpInventoryPage = lazyWithRetry(() => import('./pages/inventory/UmpInventoryPage'));
 const StoreInventoryPage = lazyWithRetry(() => import('./pages/inventory/StoreInventoryPage'));
@@ -446,6 +447,14 @@ export default function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <CreateBoardSkuPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="inventory/boards/:id/edit"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <EditBoardSkuPage />
                 </Suspense>
               }
             />

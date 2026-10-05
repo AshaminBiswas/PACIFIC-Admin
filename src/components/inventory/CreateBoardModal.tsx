@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Plus, Building2, Layers, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { boardInventoryApi } from '../../api/boardInventoryApi';
+import { boardInventoryApi, isActionTesaVendor } from '../../api/boardInventoryApi';
+
 import type { BoardSupplier } from '../../types/admin';
 
 interface CreateBoardModalProps {
@@ -54,6 +55,29 @@ export default function CreateBoardModal({
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const selectedVendor = suppliers.find((s) => s.id === vendorId);
+
+  // Helper to handle vendor change with auto-default HDF for Balaji Action Tesa
+  const handleVendorChange = (newVendorId: string) => {
+    setVendorId(newVendorId);
+    const targetSup = suppliers.find((s) => s.id === newVendorId);
+    if (isActionTesaVendor(targetSup)) {
+      setBoardType('HDF Board');
+    } else if (boardType === 'HDF Board') {
+      setBoardType('Compact HPL (Phenolic)');
+    }
+  };
+
+  // Auto-default boardType to HDF Board if the active supplier is Balaji Action Tesa
+  useEffect(() => {
+    if (vendorId && suppliers.length > 0) {
+      const targetSup = suppliers.find((s) => s.id === vendorId);
+      if (isActionTesaVendor(targetSup) && boardType === 'Compact HPL (Phenolic)') {
+        setBoardType('HDF Board');
+      }
+    }
+  }, [vendorId, suppliers]);
 
   if (!isOpen) return null;
 
@@ -159,7 +183,7 @@ export default function CreateBoardModal({
             </div>
             <select
               value={vendorId}
-              onChange={(e) => setVendorId(e.target.value)}
+              onChange={(e) => handleVendorChange(e.target.value)}
               required
               className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706] transition min-h-[44px]"
             >
@@ -203,9 +227,16 @@ export default function CreateBoardModal({
 
           {/* Board Type */}
           <div>
-            <label className="block text-xs font-semibold text-gray-300 mb-1.5 flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-[#7FB706]" /> Board Type *
-            </label>
+            <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+              <label className="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-[#7FB706]" /> Board Type *
+              </label>
+              {isActionTesaVendor(selectedVendor) && (boardType === 'HDF Board' || boardType === 'Boilo / HDHMR') && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium inline-flex items-center gap-1">
+                  ⚡ Auto-defaulted to HDF for Balaji Action Tesa
+                </span>
+              )}
+            </div>
             <select
               value={boardType}
               onChange={(e) => setBoardType(e.target.value)}

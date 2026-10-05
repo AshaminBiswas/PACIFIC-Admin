@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Layers,
   Search,
@@ -658,17 +658,14 @@ export default function BoardInventoryPage() {
                       {/* Actions */}
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* Edit SKU & Stock */}
-                          <button
-                            onClick={() => {
-                              setActiveEditBoard(b);
-                              setIsEditModalOpen(true);
-                            }}
-                            className="p-1.5 text-sky-400 hover:text-white hover:bg-sky-500/20 rounded-lg transition"
-                            title="Edit SKU specifications & stock"
+                          {/* Edit SKU & Stock (Dedicated New Page) */}
+                          <Link
+                            to={`/admin/dashboard/inventory/boards/${b.id}/edit`}
+                            className="p-1.5 text-sky-400 hover:text-white hover:bg-sky-500/20 rounded-lg transition inline-flex items-center justify-center min-w-[32px] min-h-[32px]"
+                            title="Edit SKU specifications & stock (opens new page)"
                           >
                             <Edit2 className="w-4 h-4" />
-                          </button>
+                          </Link>
 
                           {/* Quick Inward */}
                           <button

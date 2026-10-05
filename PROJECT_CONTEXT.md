@@ -3330,6 +3330,54 @@ Previously, additional cubicle model systems added to a Quotation or Proforma In
      - `EditBoardModal.tsx`
      - `StockInwardModal.tsx`
 
+---
+
+## 56. Balaji Action Tesa Default Board Type (HDF) Automation
+
+### 56.1 Overview & Business Rule
+- **Rule**: When selecting manufacturer/supplier **Balaji Action Tesa** (e.g. `Balaji Action Tesa`, `BALAJI ACTION BUILDWELL (ACTION TESA)`), the Board Core Material / Type must default automatically to **`HDF`** (High-Density Fiberboard) instead of standard `HPL`.
+
+### 56.2 Implementation Details
+1. **Vendor Detection Utility (`src/api/boardInventoryApi.ts`)**:
+   - Implemented `isActionTesaVendor(vendor)`: Case-insensitive matcher inspecting both `tradeName`/`name` and `legalName` against `"balaji"`, `"tesa"`, `"action tesa"`, and `"action buildwell"`.
+   - Exported directly from `src/api/boardInventoryApi.ts` and attached to `boardInventoryApi` object for cross-component reusability.
+
+2. **Add Stock Page (`CreateBoardSkuPage.tsx`)**:
+   - `handleVendorChange`: Automatically switches `boardType` to `'HDF'` upon selecting Balaji Action Tesa, and resets to `'HPL'` if switched to a different supplier.
+   - Initial Mount Detection: Automatically defaults `boardType` to `'HDF'` if Balaji Action Tesa was pre-selected from cache or URL parameters.
+   - UI Confirmation: Renders a `⚡ Auto-defaulted to HDF for Balaji Action Tesa` indicator pill directly above the Board Type selector.
+
+3. **Quick Creation & SKU Editor Modals**:
+   - `CreateBoardModal.tsx`: Automatically updates `boardType` to `'HDF Board'` when Balaji Action Tesa is selected, with visual indicator badge.
+   - `EditBoardModal.tsx`: Automatically switches core material to `'HDF Board'` if supplier is switched to Balaji Action Tesa, displaying the confirmation pill.
+
+---
+
+## 57. Dedicated Board SKU Editor Page (`EditBoardSkuPage.tsx`)
+
+### 57.1 Architectural Overview
+- **Motivation**: Shifted SKU specification and stock editing from restrictive popups to a full-featured, responsive, mobile-first dedicated page at `/admin/dashboard/inventory/boards/:id/edit`.
+- **Deep Linking & Tabs Support**: Converted all item "Edit" triggers across all inventory modules into standard semantic router `<Link>` elements, enabling seamless in-app navigation as well as right-click "Open in new tab".
+
+### 57.2 Key Features & Enhancements
+1. **Dedicated View (`src/pages/inventory/EditBoardSkuPage.tsx`)**:
+   - Fetches live SKU details via `boardInventoryApi.getById(id)` with branded loading fallback and not-found error handling.
+   - **Warehouse & Category Selection**: Editable Destination Warehouse Depot (Delhi / Kolkata / Custom) and Product System (Restroom Cubicles, Lockers, UMP, Store Hardware).
+   - **Vendor Master with Caching & Automation**: Connects with cached suppliers from `localStorage` (`getCachedSuppliersSync`), on-demand database sync (`RotateCcw`), and automatic `HDF` default when Balaji Action Tesa is active.
+   - **Material, Dimensions & Core**: Standard imperial/metric presets (`4/4`, `6/6`, `6/7`, `6/8`, `10/4`) and custom mm inputs; standard thicknesses (`12mm`, `18mm`, `9mm`, `3mm`, Custom); substrate core material selection.
+   - **Fractional Stock Editing**: Full decimal support (`step="any"`, e.g. `4.5` sheets) for both **Opening Stock** and **Live Current Stock**.
+   - **Live SKU Code & Stock Summary Preview**: Real-time reactive card generating the standardized barcode/SKU preview and active floor balance.
+   - **Contextual Return Navigation**: Upon saving changes (`boardInventoryApi.update`), automatically navigates back to the relevant category hub.
+
+2. **Cross-Module Link Synchronization**:
+   - Updated edit buttons in:
+     - `BoardInventoryPage.tsx`
+     - `LockerInventoryPage.tsx`
+     - `UmpInventoryPage.tsx`
+     - `StoreInventoryPage.tsx`
+   - All modules now link directly to `/admin/dashboard/inventory/boards/:id/edit`.
+
+
 
 
 
