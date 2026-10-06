@@ -894,8 +894,19 @@ export default function EditSalesQuotationPage() {
     }
     setSaving(true);
     try {
+      const currentClause = formatInstallationTermClause(
+        installationMode,
+        form.installationOption,
+        form.installationRatePerCubicle,
+        form.installationCubicleCount || detectedCubicleCount,
+        form.installationCustomNote,
+        form.installationCharge
+      );
+      const syncedGeneralTerms = syncInstallationToGeneralTerms(form.generalTerms, currentClause);
+
       await salesQuotationsApi.update(id, {
         ...form,
+        generalTerms: syncedGeneralTerms,
         drawingUrl: form.drawingUrl || undefined,
         drawingFileName: form.drawingFileName || undefined,
         drawingFileId: form.drawingFileId || undefined,

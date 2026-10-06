@@ -3576,6 +3576,31 @@ In Restroom Cubicle quotations, installation charges are typically calculated on
   - When scanned by any smartphone camera, displays full cryptographic verification certificate, authentic document status, complete itemized cubicle specification table, commercial pricing, terms, and one-click PDF download.
   - Pushed to `origin/main` in `Pacific-Products-And-Solutions` and `PACIFIC-Backend`.
 
+### 61.6 Quotation Installation Charges: Non-Rated ("Included", "Extra to Pay", etc.) & Edit Synchronization
+- **Issue**:
+  - When creating or editing a quotation, if a non-rated installation option was selected (e.g. "Installation: Included", "Extra to Pay", "In Client's Scope", "Not Applicable", or "Custom"), the Quotation PDF omitted the installation row from the Page 1 pricing summary because `data.installationCharge` evaluated to 0 / false.
+  - Furthermore, after editing an existing quotation, if `generalTerms` was not manually re-typed, the installation terms were not reliably persisted, and backend term parser falsely detected "buyer's scope" due to Clause 3 ("Unloading & Safe Storage: In buyer's scope at site").
+- **Backend Enhancements (`d:\PACIFIC-Backend`)**:
+  - `src/modules/pdf/pdf.service.ts`:
+    - Extended `QuotationPdfData` with `installationOption?: string` and `installationCustomNote?: string`.
+    - Overhauled Pricing Summary table row rendering to always display a dedicated Cubicle Installation line:
+      - If `installationCharge > 0`: renders rated amount (`₹X,XXX` with cubicle calculation details).
+      - If `installationOption === 'included'` (or 0 charge with included term): displays `Cubicle Installation: Included in Basic Price (Free of Cost)` with green pill `Included` and ₹0.00.
+      - If `installationOption === 'extra'`: displays `Cubicle Installation: Extra to Pay (Payable at actuals by client)` with amber pill `Extra to Pay`.
+      - If `installationOption === 'client_scope'`: displays `Cubicle Installation: In Client's / Buyer's Scope (Pacific supply only)` with neutral pill `Client's Scope`.
+      - If `installationOption === 'not_applicable'`: displays `Cubicle Installation: Not Applicable (Material Supply Only)` with neutral pill `N/A`.
+      - If `installationOption === 'custom'`: displays `Cubicle Installation: [Custom Note]`.
+    - Fixed Clause 4 in General Terms & Conditions on Page 2 to guarantee that the installation clause is displayed accurately based on the resolved option.
+  - `src/modules/quotations/quotations.service.ts`:
+    - In `getPdfHtml`, isolates the specific term line matching `/installation/i` before keyword matching. Prioritizes `'included'` / `'free of cost'` before testing `'buyer's scope'` / `'client'`, preventing collisions with Clause 3 ("Unloading & Safe Storage: In buyer's scope").
+    - Passes resolved `installationOption`, `cubCount`, and `ratePerCub` to `pdfService.generateQuotationPdfHtml`.
+- **Admin Console Enhancements (`d:\PACIFIC-Admin`)**:
+  - `src/utils/quotationInstallation.ts`:
+    - Updated `detectInstallationOption` to isolate the line matching `/installation/i` and prioritize `'included'` / `'free of cost'`, preventing false matches against other clauses with "scope".
+  - `src/pages/EditSalesQuotationPage.tsx` & `src/pages/DraftQuotationPage.tsx`:
+    - In `handleSubmit`, automatically synchronizes `generalTerms` with `syncInstallationToGeneralTerms(form.generalTerms, currentClause)` prior to API submission. Ensures that toggling the installation option and saving persists the change directly into the quotation terms, reflecting immediately upon PDF generation or subsequent edits.
+
+
 
 
 

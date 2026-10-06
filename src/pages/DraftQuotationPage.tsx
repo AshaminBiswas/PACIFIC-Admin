@@ -1114,7 +1114,17 @@ export default function DraftQuotationPage() {
         deliveryTerms: form.deliveryTerms,
         warrantyText: form.warrantyText,
         accessoriesText: form.accessoriesText,
-        generalTerms: form.generalTerms,
+        generalTerms: syncInstallationToGeneralTerms(
+          form.generalTerms,
+          formatInstallationTermClause(
+            installationMode,
+            form.installationOption,
+            form.installationRatePerCubicle,
+            form.installationCubicleCount || detectedCubicleCount,
+            form.installationCustomNote,
+            installationCharge
+          )
+        ),
         otherTerms: form.otherTerms,
         notes: form.notes,
         drawingUrl: form.drawingUrl || undefined,

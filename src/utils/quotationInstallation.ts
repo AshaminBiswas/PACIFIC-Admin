@@ -181,19 +181,26 @@ export function syncInstallationToGeneralTerms(
  * Detects the installation term from existing quotation text if installationCharge is 0.
  */
 export function detectInstallationOption(generalTerms?: string, otherTerms?: string): InstallationTermOption {
-  const combined = `${generalTerms || ''} ${otherTerms || ''}`.toLowerCase();
-  if (combined.includes('extra to pay') || combined.includes('payable extra') || combined.includes('at actuals')) {
+  const combined = `${generalTerms || ''}\n${otherTerms || ''}`;
+  const lines = combined.split('\n');
+  const installLine = lines.find((l) => /installation/i.test(l)) || '';
+  const target = (installLine || combined).toLowerCase();
+
+  if (target.includes('included') || target.includes('f.o.c') || target.includes('free of cost')) {
+    return 'Included';
+  }
+  if (target.includes('extra to pay') || target.includes('payable extra') || target.includes('at actuals')) {
     return 'Extra to Pay';
   }
   if (
-    combined.includes("buyer's scope") ||
-    combined.includes("buyer’s scope") ||
-    combined.includes("client's scope") ||
-    combined.includes('client scope')
+    target.includes("buyer's scope") ||
+    target.includes("buyer’s scope") ||
+    target.includes("client's scope") ||
+    target.includes('client scope')
   ) {
     return 'Client Scope';
   }
-  if (combined.includes('not applicable') || combined.includes('supply only')) {
+  if (target.includes('not applicable') || target.includes('supply only')) {
     return 'Not Applicable';
   }
   return 'Included';
