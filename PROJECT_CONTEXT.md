@@ -3565,6 +3565,17 @@ In Restroom Cubicle quotations, installation charges are typically calculated on
 - **Admin Console Sync (`src/utils/branchHelper.ts`)**:
   - Updated `filterByBranch` to accept `'MAIN'`, `'DELHI'`, `'KOLKATA'`, and `'KOL'`, ensuring unified client-side badge rendering and filter resilience across all 5 ERP document hubs.
 
+### 61.5 Phone Camera QR Scanning Reliability & Vercel Public Verification Deployment
+- **Phone Camera Scanning Detection (Quiet Zone & Contrast)**:
+  - Previously, `QRCode.toDataURL` used `margin: 1` and rendered at 72x72px without a dedicated quiet zone card. Phone camera scanners (Apple Camera, Google Lens) require at least 4 modules of quiet zone to differentiate finder patterns from surrounding table borders and text.
+  - Overhauled `qr.service.ts` to `margin: 4`, `width: 360`, and `errorCorrectionLevel: 'M'`.
+  - In `pdf.service.ts` (Quotations, PI, Tax Invoices, Packing Lists), wrapped QR in a high-contrast white card (`padding: 4px`, `border: 1px solid #cbd5e1`, `border-radius: 6px`) sized at 88x88px with a high-contrast "SCAN TO VERIFY" caption.
+- **Production Public Verification Portal on Vercel (`www.pacificproduct.in`)**:
+  - Identified that `https://www.pacificproduct.in` is deployed on Vercel from repository `Pacific Products And Solutions`.
+  - Created `src/app/pages/PublicVerifyPage.tsx` and registered the route `/verify/:token` in `src/app/routes.tsx`.
+  - When scanned by any smartphone camera, displays full cryptographic verification certificate, authentic document status, complete itemized cubicle specification table, commercial pricing, terms, and one-click PDF download.
+  - Pushed to `origin/main` in `Pacific-Products-And-Solutions` and `PACIFIC-Backend`.
+
 
 
 
