@@ -60,11 +60,11 @@ export function isKolkataBranch(doc: any): boolean {
   return false;
 }
 
-export function filterByBranch<T>(items: T[], branchFilter: 'ALL' | 'MAIN' | 'KOLKATA'): T[] {
-  if (branchFilter === 'KOLKATA') {
+export function filterByBranch<T>(items: T[], branchFilter: 'ALL' | 'MAIN' | 'KOLKATA' | 'DELHI' | string): T[] {
+  if (branchFilter === 'KOLKATA' || branchFilter === 'KOL') {
     return items.filter((item) => isKolkataBranch(item));
   }
-  if (branchFilter === 'MAIN') {
+  if (branchFilter === 'MAIN' || branchFilter === 'DELHI') {
     return items.filter((item) => !isKolkataBranch(item));
   }
   return items;

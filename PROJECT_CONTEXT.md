@@ -3551,6 +3551,20 @@ In Restroom Cubicle quotations, installation charges are typically calculated on
 - **Backend Service Alignment**:
   - `quotations.service.ts`, `pi.service.ts`, `orders.service.ts`, `invoices.service.ts`, `packing-lists.service.ts`: Updated `where.branch` queries to check both `PPSK/` prefix and `companyProfile` West Bengal / Kolkata entity attributes, with `include: { companyProfile: true }`.
 
+### 61.4 Delhi / Main Branch Filter Resolution & Prisma Query Architecture
+- **Root Cause Fixed**:
+  - In Prisma v5.22.0, passing `mode: 'insensitive'` within a negated string match (e.g. `{ not: { contains: 'KOL', mode: 'insensitive' } }`) triggers a runtime `PrismaClientValidationError: Unknown argument mode. Did you mean lte?`.
+  - When users toggled "Main (Delhi)" (`branchFilter === 'MAIN'`), the backend API threw a 500 error, resulting in empty table state across Quotations, Sales Orders, Proforma Invoices, Invoices, and Packing Lists.
+  - Additionally, previous direct assignment to `where.OR` caused collisions if search filters were simultaneously active.
+- **Backend Service Overhaul**:
+  - `quotations.service.ts`, `pi.service.ts`, `orders.service.ts`, `invoices.service.ts`, `packing-lists.service.ts`:
+  - Re-architected query composition using an array of `andClauses: any[]` assigned to `where.AND`.
+  - Normalized branch codes (`'MAIN'` / `'DELHI'` and `'KOLKATA'` / `'KOL'`).
+  - For Delhi / Main branch, constructed clean `NOT: [ { referenceNumber: { startsWith: 'PPSK/' } }, { referenceNumber: { contains: 'KOL' } }, { companyProfileId: KOLKATA_ID }, ... ]` without invalid nested `mode: 'insensitive'`.
+  - Guaranteed full orthogonality between branch filter and full-text search `OR` clauses.
+- **Admin Console Sync (`src/utils/branchHelper.ts`)**:
+  - Updated `filterByBranch` to accept `'MAIN'`, `'DELHI'`, `'KOLKATA'`, and `'KOL'`, ensuring unified client-side badge rendering and filter resilience across all 5 ERP document hubs.
+
 
 
 
