@@ -205,3 +205,21 @@ export function detectInstallationOption(generalTerms?: string, otherTerms?: str
   }
   return 'Included';
 }
+
+/**
+ * Updates or appends installation clause in PI terms array.
+ */
+export function syncInstallationToPiTerms(
+  terms: string[],
+  newClause: string
+): string[] {
+  const cleanClause = newClause.replace(/^(Installation:\s*|4\.\s*Installation:\s*)/i, '').trim();
+  const installClauseText = `Installation: ${cleanClause}`;
+  const installIdx = terms.findIndex((t) => /(installation|site readiness)/i.test(t));
+  if (installIdx >= 0) {
+    const updated = [...terms];
+    updated[installIdx] = installClauseText;
+    return updated;
+  }
+  return [...terms, installClauseText];
+}

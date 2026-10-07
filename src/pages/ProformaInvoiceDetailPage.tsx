@@ -749,7 +749,7 @@ export default function ProformaInvoiceDetailPage() {
               <span>Subtotal:</span>
               <span className="font-mono">₹{Number(pi.subtotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
             </div>
-            {Number(pi.installationCharge) > 0 && (
+            {Number(pi.installationCharge) > 0 ? (
               <div className="flex items-center justify-between text-gray-300">
                 <span>
                   Installation Charges
@@ -760,6 +760,22 @@ export default function ProformaInvoiceDetailPage() {
                   ) : null}
                 </span>
                 <span className="font-mono">₹{Number(pi.installationCharge).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between text-gray-300">
+                <span>Installation:</span>
+                <span className="text-xs font-semibold text-[#7FB706]">
+                  {(() => {
+                    const opt = (pi as any).installationOption;
+                    if (opt) {
+                      if (opt === 'Custom' && (pi as any).installationCustomNote) {
+                        return (pi as any).installationCustomNote;
+                      }
+                      return opt;
+                    }
+                    return 'Included in Basic Price';
+                  })()}
+                </span>
               </div>
             )}
             {Number(pi.freightAmount) > 0 && (

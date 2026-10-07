@@ -3643,6 +3643,26 @@ In Restroom Cubicle quotations, installation charges are typically calculated on
   - Ensured safe numeric casting (`Number(data.installationCharge || 0) > 0` and `Number(data.freightAmount || 0) > 0`) for Page 1 pricing summary rows.
   - Guaranteed installation terms appear under Commercial Terms & Conditions on Page 2 whenever an installation charge is applied.
 
+### Proforma Invoice Commercial Add-ons & Installation Charges UI Alignment
+
+- **Parity with Sales Quotation (`EditProformaInvoicePage.tsx` & `CreateProformaPage.tsx`)**:
+  - Aligned Card 7 ("Commercial Add-ons & Installation Charges") in both PI creation and edit workflows with the exact UI and features of Sales Quotations (`EditSalesQuotationPage.tsx` / `DraftQuotationPage.tsx`).
+  - **Dual Mode Switcher Tabs**:
+    - `Rate (₹/Cubicle)`: 3-column input grid (`Rate (₹/Cubicle)`, `Cubicles (Qty)`, `Total Installation Charge (₹)`), with auto-detected cubicle counts from line items and fallback hint bar if rate is 0.
+    - `Select Option (Included, Extra to Pay, etc.)`: Dropdown for non-rated terms (`Included in Basic Price`, `Extra to Pay (At Actuals)`, `In Client's / Buyer's Scope`, `Not Applicable (Supply Only)`, `Custom Terms / Scope...`), cubicle quantity reference, `₹ 0.00` badge ("No extra charge added to total proforma invoice price"), and custom note input when `Custom` is chosen.
+  - **Presets Bar**:
+    - Rate Presets: `₹ 800`, `₹ 1,000 (Std)`, `₹ 1,200`, `₹ 1,500`.
+    - Non-Rated Option badges: `Included`, `Extra to Pay`, `Client Scope`, `Supply Only (N/A)`.
+  - **Document Mention Banner**:
+    - Dynamic summary banner: `📄 Mentioned on PI Document: Cubicle Installation Charges ...` with total charge amount and 1-click `+ Add as Line Item` button.
+  - **Terms & Conditions Auto-Sync**:
+    - Synchronizes installation clauses directly into PI terms (`terms: string[]` via `syncInstallationToPiTerms`).
+  - **Detail View & Live Summary Card**:
+    - Live summary card and `ProformaInvoiceDetailPage.tsx` display the selected non-rated option (e.g. `Included`, `Extra to Pay`, or custom note) in emerald when `installationCharge === 0`.
+  - **Quotation Import**:
+    - In `CreateProformaPage.tsx`, importing from a quotation auto-detects and transfers `installationOption`, `installationCustomNote`, and sets `installationMode` accordingly.
+
+
 
 
 

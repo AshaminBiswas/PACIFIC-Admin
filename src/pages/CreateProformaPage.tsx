@@ -41,6 +41,15 @@ import BranchSelector from '../components/common/BranchSelector';
 import HsnSelectInput from '../components/common/HsnSelectInput';
 import type { BusinessParty, CompanyProfile, ProductCatalogModel, SalesQuotation } from '../types/admin';
 import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP, isRestroomCubicleItem } from '../utils/tax';
+import {
+  type InstallationPricingMode,
+  INSTALLATION_OPTIONS,
+  RATE_PRESETS,
+  getInstallationMentionText,
+  formatInstallationTermClause,
+  syncInstallationToPiTerms,
+  detectInstallationOption,
+} from '../utils/quotationInstallation';
 
 const LOCAL_STORAGE_KEY = 'pacific_create_proforma_v3';
 
@@ -115,6 +124,8 @@ export interface CreateFormData {
   installationCharge?: number;
   installationRatePerCubicle?: number;
   installationCubicleCount?: number;
+  installationOption?: string;
+  installationCustomNote?: string;
   advancePercentage: number;
   selectedHardwarePreset?: string;
   accessoriesText: string;
@@ -149,6 +160,8 @@ const INITIAL_FORM: CreateFormData = {
   installationCharge: 0,
   installationRatePerCubicle: 1000,
   installationCubicleCount: 0,
+  installationOption: 'Included',
+  installationCustomNote: '',
   advancePercentage: 50,
   selectedHardwarePreset: 'SS_304',
   accessoriesText: DEFAULT_ACCESSORIES_TEXT,
@@ -285,6 +298,19 @@ export default function CreateProformaPage() {
       }
     } catch {}
     return INITIAL_FORM;
+  });
+
+  const [installationMode, setInstallationMode] = useState<InstallationPricingMode>(() => {
+    try {
+      const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Number(parsed.installationCharge) > 0 || (parsed.installationRatePerCubicle && parsed.installationRatePerCubicle > 0)) {
+          return 'RATE';
+        }
+      }
+    } catch {}
+    return 'OPTION';
   });
 
   const [lastSaved, setLastSaved] = useState('');
@@ -554,6 +580,15 @@ export default function CreateProformaPage() {
       const posState = isDel ? 'Delhi' : (q.recipientAddress?.split(',').pop()?.trim() || 'Delhi');
       const posCode = isDel ? '07' : '07';
 
+      const qInstallCharge = Number(q.installationCharge) || 0;
+      if (qInstallCharge > 0) {
+        setInstallationMode('RATE');
+      } else {
+        setInstallationMode('OPTION');
+      }
+      const qInstallOption = (q as any).installationOption || (qInstallCharge === 0 ? detectInstallationOption(q.generalTerms, q.otherTerms) : 'Included');
+      const qInstallCustomNote = (q as any).installationCustomNote || '';
+
       setFormData((prev) => ({
         ...prev,
         piScope: importedScope,
@@ -563,9 +598,11 @@ export default function CreateProformaPage() {
         placeOfSupply: posState,
         placeOfSupplyStateCode: posCode,
         freightAmount: Number(q.freightAmount) || 0,
-        installationCharge: Number(q.installationCharge) || 0,
-        installationRatePerCubicle: q.installationRatePerCubicle || (Number(q.installationCharge) > 0 ? Math.round(Number(q.installationCharge) / (q.installationCubicleCount || 1)) : 1000),
+        installationCharge: qInstallCharge,
+        installationRatePerCubicle: q.installationRatePerCubicle || (qInstallCharge > 0 ? Math.round(qInstallCharge / (q.installationCubicleCount || 1)) : 1000),
         installationCubicleCount: q.installationCubicleCount || 0,
+        installationOption: qInstallOption,
+        installationCustomNote: qInstallCustomNote,
         accessoriesText: q.accessoriesText || prev.accessoriesText,
         billingAddress: {
           ...prev.billingAddress,
@@ -1129,6 +1166,61 @@ export default function CreateProformaPage() {
     : detectedCubicleCount;
   const effectiveInstallRate = formData.installationRatePerCubicle ?? (effectiveCubicleCount > 0 && formData.installationCharge ? Math.round(Number(formData.installationCharge) / effectiveCubicleCount) : 1000);
 
+  const handleSelectRatePreset = (presetRate: number) => {
+    setInstallationMode('RATE');
+    const cCount = formData.installationCubicleCount !== undefined && formData.installationCubicleCount > 0 ? formData.installationCubicleCount : detectedCubicleCount;
+    const tot = presetRate * cCount;
+    const clause = formatInstallationTermClause('RATE', undefined, presetRate, cCount, undefined, tot);
+    setFormData((f) => ({
+      ...f,
+      installationRatePerCubicle: presetRate,
+      installationCubicleCount: cCount,
+      installationCharge: tot,
+      installationOption: undefined,
+      terms: syncInstallationToPiTerms(f.terms, clause),
+    }));
+  };
+
+  const handleSelectOption = (opt: string) => {
+    setInstallationMode('OPTION');
+    const clause = formatInstallationTermClause('OPTION', opt, undefined, undefined, formData.installationCustomNote, 0);
+    setFormData((f) => ({
+      ...f,
+      installationRatePerCubicle: 0,
+      installationCharge: 0,
+      installationOption: opt,
+      terms: syncInstallationToPiTerms(f.terms, clause),
+    }));
+  };
+
+  const handleInstallationModeChange = (mode: InstallationPricingMode) => {
+    setInstallationMode(mode);
+    if (mode === 'RATE') {
+      const rate = formData.installationRatePerCubicle && formData.installationRatePerCubicle > 0 ? formData.installationRatePerCubicle : 1000;
+      const count = formData.installationCubicleCount !== undefined && formData.installationCubicleCount > 0 ? formData.installationCubicleCount : detectedCubicleCount;
+      const tot = rate * count;
+      const clause = formatInstallationTermClause('RATE', undefined, rate, count, undefined, tot);
+      setFormData((f) => ({
+        ...f,
+        installationRatePerCubicle: rate,
+        installationCubicleCount: count,
+        installationCharge: tot,
+        installationOption: undefined,
+        terms: syncInstallationToPiTerms(f.terms, clause),
+      }));
+    } else {
+      const opt = formData.installationOption || 'Included';
+      const clause = formatInstallationTermClause('OPTION', opt, undefined, undefined, formData.installationCustomNote, 0);
+      setFormData((f) => ({
+        ...f,
+        installationRatePerCubicle: 0,
+        installationCharge: 0,
+        installationOption: opt,
+        terms: syncInstallationToPiTerms(f.terms, clause),
+      }));
+    }
+  };
+
   const freightAmount = Number(formData.freightAmount) || 0;
   const installationCharge = Number(formData.installationCharge) || 0;
   const taxable = basicPrice + freightAmount + installationCharge;
@@ -1288,6 +1380,8 @@ export default function CreateProformaPage() {
         installationCharge: Number(formData.installationCharge) || 0,
         installationRatePerCubicle: Number(formData.installationCharge) > 0 ? (formData.installationRatePerCubicle ?? 1000) : undefined,
         installationCubicleCount: Number(formData.installationCharge) > 0 ? (formData.installationCubicleCount || detectedCubicleCount || undefined) : undefined,
+        installationOption: installationMode === 'OPTION' ? (formData.installationOption || 'Included') : undefined,
+        installationCustomNote: installationMode === 'OPTION' && formData.installationOption === 'Custom' ? formData.installationCustomNote : undefined,
         advancePercentage: formData.advancePercentage,
         advanceRequiredAmount: requiredAdvance,
         billTo: {
@@ -3433,120 +3527,294 @@ export default function CreateProformaPage() {
         </div>
 
         {/* Installation Charges Per Cubicle Sub-block */}
-        <div className="p-4 rounded-xl bg-black/20 border border-white/5 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-              <span>🔧 Cubicle Installation Charges (Per Cubicle Calculation)</span>
-            </label>
+        <div className="p-4 rounded-xl bg-black/20 border border-white/5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <span>🔧 Installation Charges (Per Cubicle Calculation)</span>
+              </label>
+              {installationMode === 'OPTION' && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30">
+                  {formData.installationOption || 'Included'}
+                </span>
+              )}
+            </div>
+
+            {/* Mode Switcher Tabs */}
+            <div className="inline-flex items-center p-0.5 rounded-lg bg-black/40 border border-white/10">
+              <button
+                type="button"
+                onClick={() => handleInstallationModeChange('RATE')}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                  installationMode === 'RATE'
+                    ? 'bg-[#7FB706] text-black shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Rate (₹/Cubicle)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleInstallationModeChange('OPTION')}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                  installationMode === 'OPTION'
+                    ? 'bg-[#7FB706] text-black shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Select Option (Included, Extra to Pay, etc.)
+              </button>
+            </div>
+          </div>
+
+          {/* Presets Bar */}
+          <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[11px] text-slate-400">Presets:</span>
-              {[
-                { label: '₹ 800', rate: 800 },
-                { label: '₹ 1,000 (Std)', rate: 1000 },
-                { label: '₹ 1,200', rate: 1200 },
-                { label: '₹ 1,500', rate: 1500 },
-                { label: 'Free (₹ 0)', rate: 0 },
-              ].map((p) => (
+              <span className="text-[11px] text-slate-400">Rate Presets:</span>
+              {RATE_PRESETS.map((p) => (
                 <button
                   key={p.label}
                   type="button"
-                  onClick={() => {
-                    const cCount = formData.installationCubicleCount !== undefined && formData.installationCubicleCount > 0 ? formData.installationCubicleCount : detectedCubicleCount;
-                    const tot = p.rate * (p.rate === 0 ? 0 : cCount);
-                    setFormData((f) => ({
-                      ...f,
-                      installationRatePerCubicle: p.rate,
-                      installationCubicleCount: cCount,
-                      installationCharge: tot,
-                    }));
-                  }}
-                  className="px-2 py-0.5 rounded text-[11px] font-medium bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors"
+                  onClick={() => handleSelectRatePreset(p.rate)}
+                  className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                    installationMode === 'RATE' && formData.installationRatePerCubicle === p.rate
+                      ? 'bg-[#7FB706]/20 border-[#7FB706] text-[#7FB706] font-bold'
+                      : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border-white/10'
+                  }`}
                 >
                   {p.label}
                 </button>
               ))}
             </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] text-slate-400">Non-Rated Options:</span>
+              {INSTALLATION_OPTIONS.filter((o) => o.id !== 'Custom').map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => handleSelectOption(opt.id)}
+                  className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                    installationMode === 'OPTION' && formData.installationOption === opt.id
+                      ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 font-bold'
+                      : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border-white/10'
+                  }`}
+                >
+                  {opt.badgeLabel}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className={labelCls}>Rate (₹ / Cubicle)</label>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={formData.installationRatePerCubicle ?? 1000}
-                onChange={(e) => {
-                  const rate = Number(e.target.value) || 0;
-                  const count = formData.installationCubicleCount !== undefined && formData.installationCubicleCount > 0 ? formData.installationCubicleCount : detectedCubicleCount;
-                  setFormData((f) => ({
-                    ...f,
-                    installationRatePerCubicle: rate,
-                    installationCharge: rate * count,
-                  }));
-                }}
-                className={inputCls}
-                placeholder="1000"
-              />
-              <span className="text-[10px] text-slate-400">Default: ₹ 1,000 / Cubicle</span>
-            </div>
+          {/* Conditional Rendering based on Mode */}
+          {installationMode === 'RATE' ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className={labelCls}>Rate (₹ / Cubicle)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={formData.installationRatePerCubicle ?? 1000}
+                    onChange={(e) => {
+                      const rate = Number(e.target.value) || 0;
+                      const count = formData.installationCubicleCount !== undefined && formData.installationCubicleCount > 0 ? formData.installationCubicleCount : detectedCubicleCount;
+                      const tot = rate * count;
+                      if (rate === 0) {
+                        setFormData((f) => ({ ...f, installationRatePerCubicle: 0, installationCharge: 0 }));
+                      } else {
+                        const clause = formatInstallationTermClause('RATE', undefined, rate, count, undefined, tot);
+                        setFormData((f) => ({
+                          ...f,
+                          installationRatePerCubicle: rate,
+                          installationCharge: tot,
+                          installationOption: undefined,
+                          terms: syncInstallationToPiTerms(f.terms, clause),
+                        }));
+                      }
+                    }}
+                    className={inputCls}
+                    placeholder="1000"
+                  />
+                  <span className="text-[10px] text-slate-400">Default: ₹ 1,000 / Cubicle</span>
+                </div>
 
-            <div>
-              <label className={labelCls}>Cubicles (Qty)</label>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={formData.installationCubicleCount !== undefined && formData.installationCubicleCount > 0 ? formData.installationCubicleCount : (detectedCubicleCount || '')}
-                onChange={(e) => {
-                  const count = Number(e.target.value) || 0;
-                  const rate = formData.installationRatePerCubicle ?? 1000;
-                  setFormData((f) => ({
-                    ...f,
-                    installationCubicleCount: count,
-                    installationCharge: rate * count,
-                  }));
-                }}
-                className={inputCls}
-                placeholder="Number of cubicles"
-              />
-              <span className="text-[10px] text-slate-400">
-                {detectedCubicleCount > 0
-                  ? `Auto-detected: ${detectedCubicleCount} Cubicle${detectedCubicleCount === 1 ? '' : 's'}`
-                  : '0 Cubicles in item list (Hardware/Board only)'}
+                <div>
+                  <label className={labelCls}>Cubicles (Qty)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={formData.installationCubicleCount !== undefined && formData.installationCubicleCount > 0 ? formData.installationCubicleCount : (detectedCubicleCount || '')}
+                    onChange={(e) => {
+                      const count = Number(e.target.value) || 0;
+                      const rate = formData.installationRatePerCubicle ?? 1000;
+                      const tot = rate * count;
+                      const clause = formatInstallationTermClause('RATE', undefined, rate, count, undefined, tot);
+                      setFormData((f) => ({
+                        ...f,
+                        installationCubicleCount: count,
+                        installationCharge: tot,
+                        terms: syncInstallationToPiTerms(f.terms, clause),
+                      }));
+                    }}
+                    className={inputCls}
+                    placeholder="Number of cubicles"
+                  />
+                  <span className="text-[10px] text-slate-400">
+                    {detectedCubicleCount > 0
+                      ? `Auto-detected: ${detectedCubicleCount} Cubicle${detectedCubicleCount === 1 ? '' : 's'}`
+                      : '0 Cubicles in item list (Hardware/Board only)'}
+                  </span>
+                </div>
+
+                <div>
+                  <label className={labelCls}>Total Installation Charge (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.installationCharge || 0}
+                    onChange={(e) => {
+                      const total = Number(e.target.value) || 0;
+                      const count = formData.installationCubicleCount !== undefined && formData.installationCubicleCount > 0 ? formData.installationCubicleCount : detectedCubicleCount;
+                      const derivedRate = count > 0 ? Math.round(total / count) : 0;
+                      const clause = total > 0 ? formatInstallationTermClause('RATE', undefined, derivedRate, count, undefined, total) : '';
+                      setFormData((f) => ({
+                        ...f,
+                        installationCharge: total,
+                        installationRatePerCubicle: derivedRate,
+                        terms: total > 0 ? syncInstallationToPiTerms(f.terms, clause) : f.terms,
+                      }));
+                    }}
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+
+              {(!formData.installationRatePerCubicle || formData.installationRatePerCubicle === 0) && (
+                <div className="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300">
+                  <span>💡 Rate is 0 or not charged. You can select an option below (e.g. Included, Extra to Pay):</span>
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectOption('Included')}
+                      className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 font-medium"
+                    >
+                      Included
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectOption('Extra to Pay')}
+                      className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 font-medium"
+                    >
+                      Extra to Pay
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectOption('Client Scope')}
+                      className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-200 hover:bg-sky-500/30 font-medium"
+                    >
+                      Client Scope
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Option Selected (Rate Not Selected) */
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="sm:col-span-2 lg:col-span-1">
+                  <label className={labelCls}>Select Option (Rate Not Charged) *</label>
+                  <select
+                    value={formData.installationOption || 'Included'}
+                    onChange={(e) => handleSelectOption(e.target.value)}
+                    className={inputCls}
+                  >
+                    {INSTALLATION_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id} className="bg-[#0a0a1a]">
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[10px] text-slate-400">
+                    {INSTALLATION_OPTIONS.find((o) => o.id === formData.installationOption)?.description ||
+                      'Installation term mentioned on PI'}
+                  </span>
+                </div>
+
+                <div>
+                  <label className={labelCls}>Cubicles (Qty Reference)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={formData.installationCubicleCount !== undefined && formData.installationCubicleCount > 0 ? formData.installationCubicleCount : (detectedCubicleCount || '')}
+                    onChange={(e) => {
+                      const count = Number(e.target.value) || 0;
+                      setFormData((f) => ({ ...f, installationCubicleCount: count }));
+                    }}
+                    className={inputCls}
+                    placeholder="Number of cubicles"
+                  />
+                  <span className="text-[10px] text-slate-400">
+                    {detectedCubicleCount > 0
+                      ? `Auto-detected: ${detectedCubicleCount} Cubicle${detectedCubicleCount === 1 ? '' : 's'}`
+                      : '0 Cubicles in item list'}
+                  </span>
+                </div>
+
+                <div>
+                  <label className={labelCls}>Installation Cost Added</label>
+                  <div className="h-10 px-3 flex items-center rounded-lg bg-black/30 border border-white/10 text-emerald-400 font-mono text-sm font-semibold">
+                    ₹ 0.00 <span className="ml-2 text-xs text-slate-400 font-normal">({formData.installationOption || 'Included'})</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">No extra charge added to total proforma invoice price</span>
+                </div>
+              </div>
+
+              {formData.installationOption === 'Custom' && (
+                <div>
+                  <label className={labelCls}>Custom Installation Term / Scope *</label>
+                  <input
+                    type="text"
+                    value={formData.installationCustomNote || ''}
+                    onChange={(e) => {
+                      const note = e.target.value;
+                      const clause = formatInstallationTermClause('OPTION', 'Custom', undefined, undefined, note, 0);
+                      setFormData((f) => ({
+                        ...f,
+                        installationCustomNote: note,
+                        terms: syncInstallationToPiTerms(f.terms, clause),
+                      }));
+                    }}
+                    placeholder="e.g. Extra to Pay @ actuals at site (transport & lodging extra)"
+                    className={inputCls}
+                  />
+                  <span className="text-[10px] text-slate-400">This custom text will appear on the proforma invoice document</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Document Mention Banner */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs px-3.5 py-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+            <span className="flex items-center gap-1.5 flex-wrap">
+              <span>📄 <strong>Mentioned on PI Document:</strong></span>
+              <span className="font-medium text-white">
+                {getInstallationMentionText(
+                  installationMode,
+                  formData.installationOption,
+                  formData.installationRatePerCubicle,
+                  effectiveCubicleCount,
+                  formData.installationCustomNote,
+                  formData.installationCharge
+                )}
               </span>
-            </div>
-
-            <div>
-              <label className={labelCls}>Total Installation Charge (₹)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={formData.installationCharge || 0}
-                onChange={(e) => {
-                  const total = Number(e.target.value) || 0;
-                  const count = formData.installationCubicleCount !== undefined && formData.installationCubicleCount > 0 ? formData.installationCubicleCount : detectedCubicleCount;
-                  const derivedRate = count > 0 ? Math.round(total / count) : 0;
-                  setFormData((f) => ({
-                    ...f,
-                    installationCharge: total,
-                    installationRatePerCubicle: derivedRate,
-                  }));
-                }}
-                className={inputCls}
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs px-3 py-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
-            <span>
-              📄 <strong>Mentioned on PI Document:</strong> Cubicle Installation Charges{' '}
-              {(formData.installationCharge || 0) > 0 && (formData.installationCubicleCount || detectedCubicleCount) > 0
-                ? `(@ ₹ ${(formData.installationRatePerCubicle ?? 1000).toLocaleString('en-IN')}/Cubicle for ${formData.installationCubicleCount || detectedCubicleCount} Cubicle${(formData.installationCubicleCount || detectedCubicleCount) === 1 ? '' : 's'})`
-                : '(Nil / Client Scope)'}
             </span>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 shrink-0">
               <span className="font-mono font-bold text-white text-sm">
                 ₹ {Number(formData.installationCharge || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
@@ -3610,9 +3878,13 @@ export default function CreateProformaPage() {
           <div className="p-3 bg-[#0a0a1a] rounded-xl border border-white/5">
             <span className="text-gray-400 block mb-1">
               Installation
-              {(formData.installationCharge || 0) > 0 && (
+              {(formData.installationCharge || 0) > 0 ? (
                 <span className="text-[10px] text-[#7FB706] block font-mono">
                   @₹{effectiveInstallRate}/cubicle
+                </span>
+              ) : (
+                <span className="text-[10px] text-emerald-400 block font-semibold">
+                  {formData.installationOption || 'Included'}
                 </span>
               )}
             </span>
