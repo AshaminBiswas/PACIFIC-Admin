@@ -3597,8 +3597,29 @@ In Restroom Cubicle quotations, installation charges are typically calculated on
 - **Admin Console Enhancements (`d:\PACIFIC-Admin`)**:
   - `src/utils/quotationInstallation.ts`:
     - Updated `detectInstallationOption` to isolate the line matching `/installation/i` and prioritize `'included'` / `'free of cost'`, preventing false matches against other clauses with "scope".
-  - `src/pages/EditSalesQuotationPage.tsx` & `src/pages/DraftQuotationPage.tsx`:
-    - In `handleSubmit`, automatically synchronizes `generalTerms` with `syncInstallationToGeneralTerms(form.generalTerms, currentClause)` prior to API submission. Ensures that toggling the installation option and saving persists the change directly into the quotation terms, reflecting immediately upon PDF generation or subsequent edits.
+### 61.7 Proforma Invoice (PI) Scope Isolation, Empty Hardware Defaults & Dynamic HSN Select Inputs
+- **Board & Hardware PI Edit Scope Isolation (`EditProformaInvoicePage.tsx`)**:
+  - **Issue**: Previously, editing a PI created under "Board Only" or "Custom Hardware Only" automatically injected and rendered "Item #1 (Primary System) Cubicle Model System" due to an unconditional `items[0]` fallback in `primaryCubicleItem` and lack of scope-specific rendering in edit mode.
+  - **Resolution**:
+    - Added `piScope` state (`'CUBICLE' | 'BOARD' | 'HARDWARE'`) to `EditProformaInvoicePage.tsx`.
+    - Enhanced `loadData()` to automatically detect scope based on items (`HARDWARE` if all items are hardware fittings/accessories, `BOARD` if all items are board sheets, otherwise `CUBICLE`).
+    - Added Active Scope Preset banner and 3-Way Mode selector (`Restroom Cubicle System`, `Board Only (HPL / HDF)`, `Custom Hardware Only`) to Edit PI Card 4.
+    - Partitioned Card 4 line item rendering:
+      - `piScope === 'BOARD'`: Renders exclusively raw board sheet supply items (`+ Add Board Sheet`).
+      - `piScope === 'HARDWARE'`: Renders exclusively custom hardware fitting items (`+ Add Hardware Item`).
+      - `piScope === 'CUBICLE'`: Renders cubicle models without `|| items[0]` fallback.
+    - Prevented spurious appending of cubicle specifications (Door/Height) to Board or Hardware items in `handleSubmit`.
+- **Hardware Items Clean / Empty Defaults (`CreateProformaPage.tsx` & `EditProformaInvoicePage.tsx`)**:
+  - In `CreateProformaPage.tsx`, replaced pre-filled dummy hardware presets with 1 clean item with empty fields (`description: ''`, `hardwarePackage: ''`, `hsnSac: ''`, `rate: 0`).
+  - Updated `handleAddHardwareItem` across both creation and edit pages to initialize with all empty fields, allowing clean user entry.
+  - Removed the "Custom Hardware Only Mode Active" banner and "Quick Add:" hardware chips section from `CreateProformaPage.tsx`.
+- **Reusable HSN Code Select Input (`HsnSelectInput.tsx`)**:
+  - Created reusable component `src/components/common/HsnSelectInput.tsx` providing a standard dropdown select with pre-configured GST HSN/SAC options, `-- Select HSN --` empty state, and a seamless `Custom HSN...` fallback enabling arbitrary typed input.
+  - Configured tailored HSN options across creation and editing views:
+    - **Hardware Items**: Options `['3925', '8302', '7610']` + custom input.
+    - **Board Items**: Options `['4823', '4411']` + custom input.
+    - **Cubicle Items (Primary & Additional)**: Options `['48239019', '44119229']` + custom input.
+
 
 
 

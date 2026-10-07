@@ -38,6 +38,7 @@ import {
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import CustomerSearchSelect from '../components/common/CustomerSearchSelect';
 import BranchSelector from '../components/common/BranchSelector';
+import HsnSelectInput from '../components/common/HsnSelectInput';
 import type { BusinessParty, CompanyProfile, ProductCatalogModel, SalesQuotation } from '../types/admin';
 import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP, isRestroomCubicleItem } from '../utils/tax';
 
@@ -960,55 +961,12 @@ export default function CreateProformaPage() {
             itemType: 'hardware',
             isCustom: true,
             systemCategory: 'hardware',
-            description: 'SS 304 Gravity Hinges (Self-Closing Pair with Nylon Cam Mechanism)',
-            hsnSac: '8302',
-            unit: 'PAIR',
-            quantity: 10,
-            rate: 450,
-            gstRate: 18,
-          },
-          {
-            itemType: 'hardware',
-            isCustom: true,
-            systemCategory: 'hardware',
-            description: 'SS 304 Occupancy Indicator Privacy Lock with Emergency Release',
-            hsnSac: '8302',
+            description: '',
+            hardwarePackage: '',
+            hsnSac: '',
             unit: 'SET',
-            quantity: 5,
-            rate: 650,
-            gstRate: 18,
-          },
-          {
-            itemType: 'hardware',
-            isCustom: true,
-            systemCategory: 'hardware',
-            description: 'SS 304 Adjustable Supporting Legs (100mm to 150mm Ground Clearance)',
-            hsnSac: '8302',
-            unit: 'NOS',
-            quantity: 10,
-            rate: 350,
-            gstRate: 18,
-          },
-          {
-            itemType: 'hardware',
-            isCustom: true,
-            systemCategory: 'hardware',
-            description: 'SS 304 Ergonomic Door Pull Handle / Knob',
-            hsnSac: '8302',
-            unit: 'NOS',
-            quantity: 5,
-            rate: 180,
-            gstRate: 18,
-          },
-          {
-            itemType: 'hardware',
-            isCustom: true,
-            systemCategory: 'hardware',
-            description: 'SS 304 Heavy Duty Coat Hook with Integrated Rubber Buffer Stop',
-            hsnSac: '8302',
-            unit: 'NOS',
-            quantity: 5,
-            rate: 120,
+            quantity: 1,
+            rate: 0,
             gstRate: 18,
           },
         ],
@@ -1081,8 +1039,10 @@ export default function CreateProformaPage() {
         {
           itemType: 'hardware',
           isCustom: true,
+          systemCategory: 'hardware',
           description: '',
-          hsnSac: '8302',
+          hardwarePackage: '',
+          hsnSac: '',
           unit: 'SET',
           quantity: 1,
           rate: 0,
@@ -1281,8 +1241,10 @@ export default function CreateProformaPage() {
         }
         if (it.boardColor) specParts.push(`Color: ${it.boardColor}`);
         if (it.cubicleSize) specParts.push(`Size: ${it.cubicleSize}`);
-        if (it.doorSize) specParts.push(`Door: ${it.doorSize}`);
-        if (it.overallHeight) specParts.push(`Height: ${it.overallHeight}`);
+        if (it.systemCategory !== 'board' && it.itemType !== 'hardware') {
+          if (it.doorSize) specParts.push(`Door: ${it.doorSize}`);
+          if (it.overallHeight) specParts.push(`Height: ${it.overallHeight}`);
+        }
         if (it.hardwarePackage) specParts.push(`Hardware: ${it.hardwarePackage}`);
 
         if (specParts.length > 0 && !desc.includes('Board:')) {
@@ -1292,7 +1254,7 @@ export default function CreateProformaPage() {
         return {
           productId: (it.modelId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(it.modelId)) ? it.modelId : undefined,
           description: desc,
-          hsnSac: it.hsnSac || (it.itemType === 'hardware' ? '8302' : '9403'),
+          hsnSac: it.hsnSac || (it.itemType === 'hardware' ? '8302' : it.systemCategory === 'board' ? '4823' : '48239019'),
           quantity: Number(it.quantity) || 1,
           unit: it.unit || (it.itemType === 'hardware' ? 'SET' : 'NOS'),
           rate: Number(it.rate) || 0,
@@ -2217,11 +2179,10 @@ export default function CreateProformaPage() {
 
                       <div className="sm:col-span-2 space-y-1">
                         <label className={labelCls}>HSN / SAC</label>
-                        <input
-                          type="text"
+                        <HsnSelectInput
                           value={item.hsnSac || '4823'}
-                          onChange={(e) => handleItemChange(idx, 'hsnSac', e.target.value)}
-                          className={inputCls + ' font-mono'}
+                          onChange={(val) => handleItemChange(idx, 'hsnSac', val)}
+                          options={['4823', '4411']}
                         />
                       </div>
 
@@ -2296,45 +2257,18 @@ export default function CreateProformaPage() {
             </div>
           ) : formData.piScope === 'HARDWARE' ? (
             <div className="space-y-4">
-              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-cyan-300">
-                <span className="flex items-center gap-2 font-medium">
-                  <Wrench className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  <span><strong>Custom Hardware Only Mode Active:</strong> Proforma Invoice for individual restroom cubicle hardware fittings. Cubicle model is not required.</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={handleAddHardwareItem}
-                  className="px-3 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded-lg font-semibold flex items-center gap-1 cursor-pointer transition self-start sm:self-auto"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Add Hardware Item
-                </button>
-              </div>
-
-              {/* Quick Insert Hardware Chips */}
-              <div className="flex flex-wrap items-center gap-1.5 p-2.5 rounded-xl bg-[#0a0a1a] border border-white/5">
-                <span className="text-[11px] text-gray-400 mr-1 flex items-center gap-1 font-semibold">
-                  <Sparkles className="w-3 h-3 text-cyan-400" /> Quick Add:
-                </span>
-                {[
-                  { name: 'SS 304 Gravity Hinges (Pair)', unit: 'PAIR', rate: 450 },
-                  { name: 'SS 304 Occupancy Indicator Lock with Release', unit: 'SET', rate: 650 },
-                  { name: 'SS 304 Adjustable Supporting Legs (100-150mm)', unit: 'NOS', rate: 350 },
-                  { name: 'SS 304 Door Pull Handle / Knob', unit: 'NOS', rate: 180 },
-                  { name: 'SS 304 Heavy Duty Coat Hook with Buffer', unit: 'NOS', rate: 120 },
-                  { name: 'Continuous Top Headrail Extrusion (Mtr)', unit: 'MTR', rate: 550 },
-                  { name: 'SS 304 Wall U-Channels Extrusion (Mtr)', unit: 'MTR', rate: 320 },
-                  { name: 'Grade 304 Stainless Fastener & Anchor Pack', unit: 'SET', rate: 250 },
-                ].map((chip) => (
+              {formData.items.length === 0 && (
+                <div className="text-center py-6 border border-dashed border-cyan-500/30 rounded-xl bg-cyan-500/5">
+                  <p className="text-xs text-gray-400 mb-2">No hardware items configured yet.</p>
                   <button
-                    key={chip.name}
                     type="button"
-                    onClick={() => handleAddHardwarePresetItem(chip.name, chip.unit, chip.rate)}
-                    className="text-[11px] px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 transition cursor-pointer flex items-center gap-1"
+                    onClick={handleAddHardwareItem}
+                    className="px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
                   >
-                    <Plus className="w-3.5 h-3.5" /> {chip.name}
+                    <Plus className="w-3.5 h-3.5" /> Add Hardware Item
                   </button>
-                ))}
-              </div>
+                </div>
+              )}
 
               {formData.items.map((item, idx) => {
                 const lineTotal = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
@@ -2360,7 +2294,7 @@ export default function CreateProformaPage() {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                      <div className="sm:col-span-5 space-y-1">
+                      <div className="sm:col-span-4 space-y-1">
                         <label className={labelCls}>Hardware Description / Name *</label>
                         <input
                           type="text"
@@ -2389,13 +2323,12 @@ export default function CreateProformaPage() {
                         />
                       </div>
 
-                      <div className="sm:col-span-1 space-y-1">
+                      <div className="sm:col-span-2 space-y-1">
                         <label className={labelCls}>HSN / SAC</label>
-                        <input
-                          type="text"
-                          value={item.hsnSac || '8302'}
-                          onChange={(e) => handleItemChange(idx, 'hsnSac', e.target.value)}
-                          className={inputCls + ' font-mono text-xs'}
+                        <HsnSelectInput
+                          value={item.hsnSac || ''}
+                          onChange={(val) => handleItemChange(idx, 'hsnSac', val)}
+                          options={['3925', '8302', '7610']}
                         />
                       </div>
 
@@ -2465,7 +2398,7 @@ export default function CreateProformaPage() {
                 onClick={handleAddHardwareItem}
                 className="w-full py-2.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-dashed border-cyan-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <Plus className="w-4 h-4" /> Add Another Hardware Item
+                <Plus className="w-4 h-4" /> Add Hardware Item
               </button>
             </div>
           ) : (
@@ -2556,6 +2489,17 @@ export default function CreateProformaPage() {
                         {fieldErrors[`item_${primaryCubicleIdx}_desc`] && (
                           <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${primaryCubicleIdx}_desc`]}</p>
                         )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <div>
+                        <label className={labelCls}>HSN / SAC</label>
+                        <HsnSelectInput
+                          value={primaryCubicleItem.hsnSac || '48239019'}
+                          onChange={(val) => handleItemChange(primaryCubicleIdx, 'hsnSac', val)}
+                          options={['48239019', '44119229']}
+                        />
                       </div>
 
                       <div>
@@ -3105,8 +3049,8 @@ export default function CreateProformaPage() {
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="sm:col-span-3 space-y-1.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                        <div className="sm:col-span-4 space-y-1.5">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                             <div>
                               <div className="flex items-center justify-between mb-1">
@@ -3148,6 +3092,15 @@ export default function CreateProformaPage() {
                               )}
                             </div>
                           </div>
+                        </div>
+
+                        <div>
+                          <label className={labelCls}>HSN / SAC</label>
+                          <HsnSelectInput
+                            value={item.hsnSac || '48239019'}
+                            onChange={(val) => handleItemChange(realIdx, 'hsnSac', val)}
+                            options={['48239019', '44119229']}
+                          />
                         </div>
 
                         <div>
@@ -3347,11 +3300,10 @@ export default function CreateProformaPage() {
 
                               <div className="sm:col-span-2 space-y-1">
                                 <label className={labelCls}>HSN / SAC</label>
-                                <input
-                                  type="text"
+                                <HsnSelectInput
                                   value={item.hsnSac || '8302'}
-                                  onChange={(e) => handleItemChange(realIdx, 'hsnSac', e.target.value)}
-                                  className={inputCls + ' font-mono text-xs'}
+                                  onChange={(val) => handleItemChange(realIdx, 'hsnSac', val)}
+                                  options={['3925', '8302', '7610']}
                                 />
                               </div>
 
