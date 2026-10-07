@@ -3620,6 +3620,29 @@ In Restroom Cubicle quotations, installation charges are typically calculated on
     - **Board Items**: Options `['4823', '4411']` + custom input.
     - **Cubicle Items (Primary & Additional)**: Options `['48239019', '44119229']` + custom input.
 
+### 61.8 Proforma Invoice (PI) Installation Charges & Freight Persistence & PDF Display
+- **Database Schema Migration (`proforma_invoices`)**:
+  - Added columns `installationCharge` (`NUMERIC(12, 2) DEFAULT 0`), `installationRatePerCubicle` (`NUMERIC(10, 2)`), and `installationCubicleCount` (`INT`) to `proforma_invoices` in `fix-db.js` and Prisma schemas (`PACIFIC-Backend` & `PACIFIC-Admin`).
+  - Executed idempotent DDL patch directly on Supabase PostgreSQL database.
+- **GST Tax Engine Recalculation (`tax.engine.ts`)**:
+  - Extended `TaxCalculationParams` and `TaxCalculationResult` with `installationCharge?: number`, `installationGstRate?: number`, `installationCharge: number`, and `installationTax: number`.
+  - Added GST calculation on `installationCharge` (standard 18% SAC 995469 erection/installation rate) for intra-state (CGST 9% + SGST 9%) and inter-state (IGST 18%).
+  - Integrated `installationCharge` into `totalTaxableAmount = round2(subtotal + freightAmount + installationCharge)` and tax summary buckets.
+- **Proforma Invoice Service Persistence (`pi.service.ts`)**:
+  - `update(id, data)`:
+    - Fixed omission where edited `freightAmount`, `installationCharge`, `installationRatePerCubicle`, `installationCubicleCount`, and `taxableAmount` were discarded during `tx.proformaInvoice.update`.
+    - Implemented reactive tax recalculation triggered whenever `items`, `freightAmount`, or `installationCharge` changes.
+    - Persisted `freightAmount`, `installationCharge`, `installationRatePerCubicle`, `installationCubicleCount`, and updated tax buckets.
+  - `create(data)`:
+    - Incorporated `installationCharge`, `installationRatePerCubicle`, and `installationCubicleCount` into `calculateGstTax` and `tx.proformaInvoice.create`.
+  - `duplicate(id)`:
+    - Preserved `installationCharge`, `installationRatePerCubicle`, and `installationCubicleCount` on PI duplication.
+  - `getPdfHtml(id)`:
+    - Passed `installationCharge`, `installationRatePerCubicle`, `installationCubicleCount`, and `freightAmount` to `pdfService.generatePiHtml`.
+- **PI PDF Generation (`pdf.service.ts`)**:
+  - Ensured safe numeric casting (`Number(data.installationCharge || 0) > 0` and `Number(data.freightAmount || 0) > 0`) for Page 1 pricing summary rows.
+  - Guaranteed installation terms appear under Commercial Terms & Conditions on Page 2 whenever an installation charge is applied.
+
 
 
 
