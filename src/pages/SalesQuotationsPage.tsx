@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   FileText, Search, Plus, Printer, Download,
   CheckCircle2, Send,
   RefreshCw, X, Edit, Trash2, Mail, AlertTriangle,
-  Clock, Calendar, Building2,
+  Clock, Calendar, Building2, ArrowDown, ArrowUp, ArrowUpDown,
 } from 'lucide-react';
 import { salesQuotationsApi } from '../api/services';
 import { useAdminAuth } from '../context/AdminAuthContext';
@@ -22,6 +22,7 @@ export default function SalesQuotationsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [branchFilter, setBranchFilter] = useState<'ALL' | 'MAIN' | 'KOLKATA'>('ALL');
+  const [dateSortOrder, setDateSortOrder] = useState<'desc' | 'asc'>('desc');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -105,7 +106,13 @@ export default function SalesQuotationsPage() {
   const fetchQuotations = useCallback(async () => {
     setLoading(true);
     try {
-      const params: any = { page, limit: 15, search };
+      const params: any = {
+        page,
+        limit: 15,
+        search,
+        sortBy: 'date',
+        sortOrder: dateSortOrder,
+      };
       if (statusFilter !== 'ALL') params.status = statusFilter;
       if (branchFilter !== 'ALL') params.branch = branchFilter;
       const res = await salesQuotationsApi.list(params);
@@ -118,13 +125,29 @@ export default function SalesQuotationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter, branchFilter]);
+  }, [page, search, statusFilter, branchFilter, dateSortOrder]);
 
   useEffect(() => {
     fetchQuotations();
   }, [fetchQuotations]);
 
-  const displayedQuotations = filterByBranch(quotations, branchFilter);
+  const displayedQuotations = useMemo(() => {
+    const filtered = filterByBranch(quotations, branchFilter);
+    return [...filtered].sort((a, b) => {
+      const timeA = new Date(a.date).getTime() || 0;
+      const timeB = new Date(b.date).getTime() || 0;
+      if (timeA !== timeB) {
+        return dateSortOrder === 'asc' ? timeA - timeB : timeB - timeA;
+      }
+      const createdA = new Date((a as any).createdAt || 0).getTime() || 0;
+      const createdB = new Date((b as any).createdAt || 0).getTime() || 0;
+      return dateSortOrder === 'asc' ? createdA - createdB : createdB - createdA;
+    });
+  }, [quotations, branchFilter, dateSortOrder]);
+
+  const toggleDateSort = () => {
+    setDateSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
+  };
 
   // 1-Click Convert to Proforma Invoice (Stage 2)
   const handleConvertToPI = async (quote: SalesQuotation) => {
@@ -313,6 +336,25 @@ export default function SalesQuotationsPage() {
           ))}
         </div>
 
+        {/* Date Sort Toggle Button */}
+        <button
+          onClick={toggleDateSort}
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold rounded-lg sm:rounded-xl transition-all cursor-pointer whitespace-nowrap min-h-[34px] sm:min-h-[40px] border ${
+            dateSortOrder === 'desc'
+              ? 'bg-[#7FB706]/10 text-[#7FB706] border-[#7FB706]/30 hover:bg-[#7FB706]/20'
+              : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/20'
+          }`}
+          title={`Sorted date-wise (${dateSortOrder === 'desc' ? 'Newest first' : 'Oldest first'}). Click to toggle.`}
+        >
+          <Calendar className="w-3.5 h-3.5" />
+          <span>Date: {dateSortOrder === 'desc' ? 'Newest' : 'Oldest'}</span>
+          {dateSortOrder === 'desc' ? (
+            <ArrowDown className="w-3.5 h-3.5" />
+          ) : (
+            <ArrowUp className="w-3.5 h-3.5" />
+          )}
+        </button>
+
         <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
           {(['ALL', 'DRAFT', 'SENT', 'ACCEPTED', 'CONVERTED'] as const).map((st) => (
             <button
@@ -359,7 +401,26 @@ export default function SalesQuotationsPage() {
                     <th className="py-2.5 sm:py-3 px-3 sm:px-4 text-center w-12">#</th>
                     <th className="py-2.5 sm:py-3 px-3 sm:px-4">Quotation Number</th>
                     <th className="py-2.5 sm:py-3 px-3 sm:px-4">Customer</th>
-                    <th className="py-2.5 sm:py-3 px-3 sm:px-4">Date</th>
+                    <th
+                      className="py-2.5 sm:py-3 px-3 sm:px-4 cursor-pointer select-none group hover:text-white transition-colors"
+                      onClick={toggleDateSort}
+                      title={`Sorted date-wise (${dateSortOrder === 'desc' ? 'Newest first' : 'Oldest first'}). Click to toggle.`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Date</span>
+                        <span className={`inline-flex items-center justify-center p-0.5 rounded transition-colors ${
+                          dateSortOrder === 'desc'
+                            ? 'bg-[#7FB706]/20 text-[#7FB706]'
+                            : 'bg-cyan-500/20 text-cyan-400'
+                        }`}>
+                          {dateSortOrder === 'desc' ? (
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          ) : (
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          )}
+                        </span>
+                      </div>
+                    </th>
                     <th className="py-2.5 sm:py-3 px-3 sm:px-4">Grand Total</th>
                     <th className="py-2.5 sm:py-3 px-3 sm:px-4">Status</th>
                     <th className="py-2.5 sm:py-3 px-3 sm:px-4">Follow-Up</th>
@@ -399,7 +460,13 @@ export default function SalesQuotationsPage() {
                         <div className="font-medium text-white">{q.customer?.legalName || q.recipientCompany || 'N/A'}</div>
                       </td>
                       <td className="py-2.5 sm:py-3 px-3 sm:px-4 text-xs text-gray-300">
-                        <div>{new Date(q.date).toLocaleDateString('en-GB')}</div>
+                        <div className="font-medium text-white flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-[#7FB706] flex-shrink-0" />
+                          <span>{new Date(q.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                        </div>
+                        <div className="text-[10px] text-gray-400 pl-5">
+                          {new Date(q.date).toLocaleDateString('en-GB')}
+                        </div>
                       </td>
                       <td className="py-2.5 sm:py-3 px-3 sm:px-4 font-semibold text-[#7FB706]">
                         ₹ {Number(q.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -530,8 +597,14 @@ export default function SalesQuotationsPage() {
                   </div>
 
                   <div className="flex items-center justify-between text-xs">
-                    <div className="text-gray-400 text-[11px] sm:text-xs">
-                      {new Date(q.date).toLocaleDateString('en-GB')}
+                    <div className="flex items-center gap-1.5 text-gray-300 text-[11px] sm:text-xs">
+                      <Calendar className="w-3.5 h-3.5 text-[#7FB706] flex-shrink-0" />
+                      <span className="font-medium text-white">
+                        {new Date(q.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </span>
+                      <span className="text-gray-400 text-[10px]">
+                        ({new Date(q.date).toLocaleDateString('en-GB')})
+                      </span>
                     </div>
                     <div className="font-bold text-sm sm:text-base text-[#7FB706]">
                       ₹ {Number(q.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}

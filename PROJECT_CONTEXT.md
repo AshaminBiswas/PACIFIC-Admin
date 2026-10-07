@@ -3663,10 +3663,25 @@ In Restroom Cubicle quotations, installation charges are typically calculated on
     - In `CreateProformaPage.tsx`, importing from a quotation auto-detects and transfers `installationOption`, `installationCustomNote`, and sets `installationMode` accordingly.
 
 
+### 60. Quotation Page Date-Wise Sorting & Chronological Guarantees
 
+#### 60.1 Frontend List Sorting (`SalesQuotationsPage.tsx`)
+- **Strict Date-Wise Ordering by Default**:
+  - The Sales Quotation Hub (`/admin/dashboard/sales-quotations`) lists quotations strictly ordered by date (`dateSortOrder: 'desc'` by default, latest quotations first).
+  - Client-side memoized sorting (`displayedQuotations`) guarantees immediate, robust sorting across branch filters (`All Branches`, `Main (Delhi)`, `Kolkata`) with tie-breaker fallback to `createdAt` and `id`.
+- **Interactive Date Sorting Controls**:
+  - **Filter Toolbar Toggle Button**: Added an interactive Date Sort button next to the Branch Filter tabs on both desktop and mobile layouts: `📅 Date: Newest` / `Date: Oldest` with dynamic directional arrow badges (`ArrowDown` for descending, `ArrowUp` for ascending).
+  - **Sortable Table Header**: Clicking the `Date` column header (`<th>`) toggles sort order between newest first and oldest first with clear visual sort direction indicators.
+- **Enhanced Date Display**:
+  - Desktop table displays dual formatted dates: primary highlighted date `DD MMM YYYY` (with Calendar icon) and secondary numeric date `DD/MM/YYYY`.
+  - Mobile card view presents clean calendar badge with formatted date `DD MMM YYYY (DD/MM/YYYY)`.
 
-
-
+#### 60.2 Backend Query Sorting (`quotations.service.ts`)
+- **Query Parameter Integration**:
+  - Supported `sortBy?: string` and `sortOrder?: 'asc' | 'desc'` in `quotationsService.list`.
+  - Configured deterministic multi-column sorting when sorting by `date`:
+    `orderBy = [{ date: sortOrder }, { createdAt: sortOrder }, { id: 'desc' }]`
+  - Eliminates arbitrary PostgreSQL ordering when multiple quotations share the same calendar date.
 
 
 
