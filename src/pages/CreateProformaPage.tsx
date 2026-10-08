@@ -49,6 +49,11 @@ import {
   formatInstallationTermClause,
   syncInstallationToPiTerms,
   detectInstallationOption,
+  FREIGHT_OPTIONS,
+  type FreightTermOption,
+  getFreightMentionText,
+  formatFreightTermClause,
+  syncFreightToPiTerms,
 } from '../utils/quotationInstallation';
 
 const LOCAL_STORAGE_KEY = 'pacific_create_proforma_v3';
@@ -121,6 +126,8 @@ export interface CreateFormData {
   linkedPoNumber: string;
   linkedPoDate: string;
   freightAmount: number;
+  freightTerms?: string;
+  freightCustomNote?: string;
   installationCharge?: number;
   installationRatePerCubicle?: number;
   installationCubicleCount?: number;
@@ -157,6 +164,8 @@ const INITIAL_FORM: CreateFormData = {
   linkedPoNumber: '',
   linkedPoDate: '',
   freightAmount: 0,
+  freightTerms: 'Extra as Actual / To pay',
+  freightCustomNote: '',
   installationCharge: 0,
   installationRatePerCubicle: 1000,
   installationCubicleCount: 0,
@@ -598,6 +607,8 @@ export default function CreateProformaPage() {
         placeOfSupply: posState,
         placeOfSupplyStateCode: posCode,
         freightAmount: Number(q.freightAmount) || 0,
+        freightTerms: (q as any).freightTerms || (Number(q.freightAmount || 0) > 0 ? 'Fixed' : 'Extra as Actual / To pay'),
+        freightCustomNote: '',
         installationCharge: qInstallCharge,
         installationRatePerCubicle: q.installationRatePerCubicle || (qInstallCharge > 0 ? Math.round(qInstallCharge / (q.installationCubicleCount || 1)) : 1000),
         installationCubicleCount: q.installationCubicleCount || 0,
@@ -1219,6 +1230,39 @@ export default function CreateProformaPage() {
         terms: syncInstallationToPiTerms(f.terms, clause),
       }));
     }
+  };
+
+  const handleFreightOptionChange = (opt: string) => {
+    const isFixed = opt === 'Fixed';
+    const newAmt = isFixed ? (Number(formData.freightAmount) > 0 ? Number(formData.freightAmount) : 0) : 0;
+    const clause = formatFreightTermClause(opt, newAmt, formData.freightCustomNote);
+    setFormData((f) => ({
+      ...f,
+      freightTerms: opt,
+      freightAmount: newAmt,
+      terms: syncFreightToPiTerms(f.terms, clause),
+    }));
+  };
+
+  const handleFreightAmountChange = (amt: number) => {
+    const newAmt = Math.max(0, amt);
+    const newTerms = newAmt > 0 ? 'Fixed' : (formData.freightTerms === 'Fixed' ? 'Extra as Actual / To pay' : (formData.freightTerms || 'Extra as Actual / To pay'));
+    const clause = formatFreightTermClause(newTerms, newAmt, formData.freightCustomNote);
+    setFormData((f) => ({
+      ...f,
+      freightAmount: newAmt,
+      freightTerms: newTerms,
+      terms: syncFreightToPiTerms(f.terms, clause),
+    }));
+  };
+
+  const handleFreightCustomNoteChange = (note: string) => {
+    const clause = formatFreightTermClause(formData.freightTerms || 'Custom', Number(formData.freightAmount) || 0, note);
+    setFormData((f) => ({
+      ...f,
+      freightCustomNote: note,
+      terms: syncFreightToPiTerms(f.terms, clause),
+    }));
   };
 
   const freightAmount = Number(formData.freightAmount) || 0;

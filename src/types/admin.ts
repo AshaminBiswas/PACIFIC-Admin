@@ -566,6 +566,8 @@ export interface ProformaInvoice {
   installationOption?: 'Included' | 'Extra to Pay' | 'Client Scope' | 'Not Applicable' | 'Custom' | string;
   installationCustomNote?: string;
   freightAmount: number;
+  freightTerms?: 'Extra as Actual / To pay' | 'Included' | 'Fixed' | 'Client Scope' | 'Custom' | string;
+  freightCustomNote?: string;
   taxableAmount: number;
   cgstAmount: number;
   sgstAmount: number;

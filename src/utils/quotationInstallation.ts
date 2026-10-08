@@ -223,3 +223,117 @@ export function syncInstallationToPiTerms(
   }
   return [...terms, installClauseText];
 }
+
+// ─────────────────────────────────────────────────────────────
+// FREIGHT & TRANSPORTATION CONSTANTS & UTILITIES
+// ─────────────────────────────────────────────────────────────
+
+export type FreightTermOption =
+  | 'Extra as Actual / To pay'
+  | 'Included'
+  | 'Client Scope'
+  | 'Fixed'
+  | 'Custom';
+
+export interface FreightOptionDef {
+  id: FreightTermOption;
+  label: string;
+  badgeLabel: string;
+  description: string;
+  shortDesc: string;
+}
+
+export const FREIGHT_OPTIONS: readonly FreightOptionDef[] = [
+  {
+    id: 'Included',
+    label: 'Included in Basic Price (FOR Site)',
+    badgeLabel: 'Included',
+    description: 'Freight & transportation is INCLUDED in basic price (FOR site delivery)',
+    shortDesc: 'Included in Basic Price',
+  },
+  {
+    id: 'Extra as Actual / To pay',
+    label: 'Extra as Actual / To Pay (At Actuals)',
+    badgeLabel: 'Extra as Actual',
+    description: 'Freight is EXTRA AS ACTUAL / TO PAY (payable at actuals by consignee at site)',
+    shortDesc: 'Extra as Actual / To Pay',
+  },
+  {
+    id: 'Client Scope',
+    label: "In Client's / Buyer's Scope",
+    badgeLabel: 'Client Scope',
+    description: "Transportation is in Buyer's / Client's scope (Self pickup from factory/godown)",
+    shortDesc: "In Client's Scope",
+  },
+  {
+    id: 'Fixed',
+    label: 'Fixed Freight Charge',
+    badgeLabel: 'Fixed',
+    description: 'Fixed freight & handling amount added to the commercial invoice total',
+    shortDesc: 'Fixed Freight',
+  },
+  {
+    id: 'Custom',
+    label: 'Custom Freight Terms / Scope...',
+    badgeLabel: 'Custom',
+    description: 'Custom freight & handling term / note specified by user',
+    shortDesc: 'Custom Terms',
+  },
+] as const;
+
+export function getFreightMentionText(
+  terms: string = 'Extra as Actual / To pay',
+  amount: number = 0,
+  customNote?: string
+): string {
+  if (amount > 0) {
+    return `Freight & Handling — ₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} (Fixed Charge Included in Total)`;
+  }
+  const cleanTerms = (terms || 'Extra as Actual / To pay').trim();
+  if (cleanTerms === 'Included' || cleanTerms.toLowerCase().includes('included')) {
+    return 'Freight & Handling — Included in Basic Price (FOR Site Delivery)';
+  }
+  if (cleanTerms === 'Client Scope' || cleanTerms.toLowerCase().includes('client')) {
+    return "Freight & Handling — In Client's / Buyer's Scope (Self Pickup)";
+  }
+  if (cleanTerms === 'Custom' && customNote?.trim()) {
+    return `Freight & Handling — ${customNote.trim()}`;
+  }
+  return 'Freight & Handling — Extra as Actual / To Pay (By Consignee at Site)';
+}
+
+export function formatFreightTermClause(
+  terms: string = 'Extra as Actual / To pay',
+  amount: number = 0,
+  customNote?: string
+): string {
+  if (amount > 0) {
+    return `Freight & Transportation: Freight and handling charges are fixed at ₹ ${amount.toLocaleString('en-IN')}, included in the total invoice value.`;
+  }
+  const cleanTerms = (terms || 'Extra as Actual / To pay').trim();
+  if (cleanTerms === 'Included' || cleanTerms.toLowerCase().includes('included')) {
+    return 'Freight & Transportation: Freight & transportation charges are INCLUDED in the basic product price (FOR site delivery).';
+  }
+  if (cleanTerms === 'Client Scope' || cleanTerms.toLowerCase().includes('client')) {
+    return "Freight & Transportation: Transportation & logistics is in Buyer's / Client's scope. Material to be picked up from our factory/warehouse.";
+  }
+  if (cleanTerms === 'Custom' && customNote?.trim()) {
+    return `Freight & Transportation: ${customNote.trim()}`;
+  }
+  return 'Freight & Transportation: Freight and handling charges are EXTRA AS ACTUAL / TO PAY by client/buyer at the time of site delivery.';
+}
+
+export function syncFreightToPiTerms(
+  terms: string[] = [],
+  newClause: string
+): string[] {
+  const cleanClause = newClause.replace(/^(Freight & Transportation:\s*|Freight:\s*)/i, '').trim();
+  const freightClauseText = `Freight & Transportation: ${cleanClause}`;
+  const freightIdx = terms.findIndex((t) => /(freight|transportation|dispatch transit)/i.test(t));
+  if (freightIdx >= 0) {
+    const updated = [...terms];
+    updated[freightIdx] = freightClauseText;
+    return updated;
+  }
+  return [...terms, freightClauseText];
+}
