@@ -19,6 +19,8 @@ export const financeApi = {
     apiClient.get<ApiResponse<PaginatedResponse<Payment>>>('/finance/payments', { params }),
   getPaymentById: (id: string) => apiClient.get<ApiResponse<Payment>>(`/finance/payments/${id}`),
   recordPayment: (data: any) => apiClient.post<ApiResponse<Payment>>('/finance/payments', data),
+  updatePayment: (id: string, data: any) => apiClient.patch<ApiResponse<Payment>>(`/finance/payments/${id}`, data),
+  deletePayment: (id: string) => apiClient.delete<ApiResponse<any>>(`/finance/payments/${id}`),
   getReceivables: (params?: Record<string, any>) =>
     apiClient.get<ApiResponse<ReceivableEntry[]>>('/finance/receivables', { params }),
   getPayables: (params?: Record<string, any>) =>

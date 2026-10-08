@@ -31,8 +31,10 @@ import {
   Wrench,
 } from 'lucide-react';
 import { piApi } from '../api/proformaApi';
-import type { ProformaInvoice, PIStatus } from '../types/admin';
+import { financeApi } from '../api/financeApi';
+import type { ProformaInvoice, PIStatus, Payment } from '../types/admin';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
+import { EditPaymentModal } from '../components/finance/EditPaymentModal';
 import { calculateGstSplit, isDelhiState } from '../utils/tax';
 
 function parseItemSpecs(item: any) {
@@ -114,6 +116,11 @@ export default function ProformaInvoiceDetailPage() {
   const [converting, setConverting] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Edit / Delete Payment state
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
+
   const loadPi = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -137,6 +144,25 @@ export default function ProformaInvoiceDetailPage() {
   useEffect(() => {
     loadPi();
   }, [loadPi]);
+
+  const handleDeletePayment = async (paymentId: string) => {
+    if (
+      !confirm(
+        'Are you sure you want to permanently delete this advance payment record? This will revert the advance status on this Proforma Invoice.'
+      )
+    ) {
+      return;
+    }
+    try {
+      setDeletingPaymentId(paymentId);
+      await financeApi.deletePayment(paymentId);
+      await loadPi();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err?.message || 'Failed to delete payment record');
+    } finally {
+      setDeletingPaymentId(null);
+    }
+  };
 
   // Issue PI
   const handleIssuePi = async () => {
@@ -564,6 +590,158 @@ export default function ProformaInvoiceDetailPage() {
             {pi.advancePaymentMode && <span>Mode: <strong className="text-white">{pi.advancePaymentMode}</strong></span>}
           </div>
         )}
+
+        {/* Recorded Advance Payment Entries & Allocations */}
+        {((pi.paymentAllocations && pi.paymentAllocations.length > 0) || recvAdv > 0) && (
+          <div className="pt-3 border-t border-white/10 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                Recorded Advance Receipts & Allocations
+              </span>
+              <span className="text-[11px] text-gray-400 font-mono">
+                {(pi.paymentAllocations?.length || (recvAdv > 0 ? 1 : 0))} record(s)
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {pi.paymentAllocations && pi.paymentAllocations.length > 0 ? (
+                pi.paymentAllocations.map((alloc) => {
+                  const paymentObj = alloc.payment;
+                  const payId = alloc.paymentId || paymentObj?.id;
+                  const dateStr = paymentObj?.paymentDate || alloc.allocatedAt || alloc.createdAt || pi.advancePaymentDate;
+                  const refStr = paymentObj?.referenceNumber || pi.advancePaymentReference || '—';
+                  const modeStr = paymentObj?.paymentMethod || pi.advancePaymentMode || 'NEFT_RTGS';
+                  const allocAmount = Number(alloc.allocatedAmount ?? alloc.amount ?? paymentObj?.amount ?? 0);
+                  const notesStr = paymentObj?.notes || alloc.notes;
+
+                  return (
+                    <div
+                      key={alloc.id || payId || Math.random().toString()}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white/[0.03] hover:bg-white/[0.05] border border-white/5 rounded-xl transition-all"
+                    >
+                      <div className="flex items-start sm:items-center gap-3">
+                        <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 shrink-0">
+                          <CheckCircle className="w-4 h-4" />
+                        </div>
+                        <div className="space-y-0.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-black text-white">
+                              ₹ {allocAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </span>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-white/10 text-gray-300">
+                              {String(modeStr).replace('_', '/')}
+                            </span>
+                            {paymentObj?.paymentType && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                {paymentObj.paymentType}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-400">
+                            {dateStr && (
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3 text-gray-500" />
+                                {new Date(dateStr).toLocaleDateString('en-GB')}
+                              </span>
+                            )}
+                            <span className="font-mono text-gray-300">
+                              Ref: <strong>{refStr}</strong>
+                            </span>
+                            {notesStr && (
+                              <span className="text-gray-400 italic truncate max-w-xs">
+                                “{notesStr}”
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action buttons: Edit & Delete */}
+                      <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                        {payId && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const targetPayment: Payment = paymentObj || {
+                                id: payId,
+                                companyProfileId: pi.companyProfileId,
+                                partyId: pi.customerId,
+                                paymentType: 'ADVANCE',
+                                paymentMethod: (modeStr as any) || 'NEFT_RTGS',
+                                referenceNumber: refStr !== '—' ? refStr : '',
+                                paymentDate: dateStr || new Date().toISOString(),
+                                amount: allocAmount,
+                                unallocatedAmount: 0,
+                                currency: pi.currency || 'INR',
+                                notes: notesStr || '',
+                                status: 'CONFIRMED',
+                                createdAt: dateStr || new Date().toISOString(),
+                              };
+                              setEditingPayment(targetPayment);
+                              setShowEditPaymentModal(true);
+                            }}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                            title="Edit Payment Record"
+                          >
+                            <Edit className="w-4 h-4 text-sky-400" />
+                          </button>
+                        )}
+                        {payId && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePayment(payId)}
+                            disabled={deletingPaymentId === payId}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors disabled:opacity-50"
+                            title="Delete Payment Record"
+                          >
+                            {deletingPaymentId === payId ? (
+                              <div className="w-4 h-4 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4 text-rose-400" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                /* Fallback for legacy PI advance record if no allocation array */
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white/[0.03] border border-white/5 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                      <CheckCircle className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-black text-white">
+                          ₹ {recvAdv.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </span>
+                        {pi.advancePaymentMode && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-white/10 text-gray-300">
+                            {pi.advancePaymentMode}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-gray-400 mt-0.5">
+                        {pi.advancePaymentDate && (
+                          <span>Date: {new Date(pi.advancePaymentDate).toLocaleDateString('en-GB')}</span>
+                        )}
+                        {pi.advancePaymentReference && (
+                          <span>Ref: <strong className="text-white font-mono">{pi.advancePaymentReference}</strong></span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500 italic">
+                    Direct Proforma Advance Record
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Bill To & Ship To 2-Column Grid ────────────────────── */}
@@ -778,10 +956,29 @@ export default function ProformaInvoiceDetailPage() {
                 </span>
               </div>
             )}
-            {Number(pi.freightAmount) > 0 && (
+            {Number(pi.freightAmount) > 0 ? (
               <div className="flex items-center justify-between text-gray-300">
                 <span>Freight &amp; Handling:</span>
                 <span className="font-mono">₹{Number(pi.freightAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between text-gray-300">
+                <span>Freight &amp; Handling:</span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                  ((pi as any).freightTerms === 'Included' || ((pi as any).freightTerms && (pi as any).freightTerms.toLowerCase().includes('included')))
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    : ((pi as any).freightTerms === 'Client Scope' || ((pi as any).freightTerms && (pi as any).freightTerms.toLowerCase().includes('client')))
+                    ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
+                    : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                }`}>
+                  {(() => {
+                    const terms = (pi as any).freightTerms || 'Extra as Actual / To pay';
+                    if (terms === 'Included' || terms.toLowerCase().includes('included')) return 'Included in Basic Price';
+                    if (terms === 'Client Scope' || terms.toLowerCase().includes('client')) return "In Client's Scope";
+                    if (terms === 'Custom' && (pi as any).freightCustomNote) return (pi as any).freightCustomNote;
+                    return 'Extra as Actual / To Pay';
+                  })()}
+                </span>
               </div>
             )}
             {(() => {
@@ -1220,6 +1417,17 @@ export default function ProformaInvoiceDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Payment Modal */}
+      <EditPaymentModal
+        isOpen={showEditPaymentModal}
+        onClose={() => {
+          setShowEditPaymentModal(false);
+          setEditingPayment(null);
+        }}
+        payment={editingPayment}
+        onSuccess={loadPi}
+      />
     </div>
   );
 }

@@ -4,7 +4,7 @@ import {
   CreditCard, Plus, Search, CheckCircle, AlertTriangle,
   Clock, DollarSign, ArrowUpRight, ArrowDownLeft, RefreshCw, X,
   Mail, Printer, Download, Filter, FileText, ChevronRight, Calendar, User, ExternalLink, Sparkles,
-  History, Building, Copy, Check
+  History, Building, Copy, Check, Edit2, Trash2
 } from 'lucide-react';
 import { financeApi, followupsApi, crmApi } from '../api/services';
 import type {
@@ -16,6 +16,7 @@ import { SendLedgerEmailModal } from '../components/finance/SendLedgerEmailModal
 import { LogFollowupModal } from '../components/finance/LogFollowupModal';
 import { RecordPaymentModal } from '../components/finance/RecordPaymentModal';
 import { ManualLedgerEntryModal } from '../components/finance/ManualLedgerEntryModal';
+import { EditPaymentModal } from '../components/finance/EditPaymentModal';
 
 export default function PaymentsPage() {
   const [activeTab, setActiveTab] = useState<'payments' | 'receivables' | 'recovery' | 'ledger'>('payments');
@@ -26,6 +27,11 @@ export default function PaymentsPage() {
   const [followups, setFollowups] = useState<PaymentFollowup[]>([]);
   const [customers, setCustomers] = useState<BusinessParty[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Edit / Delete Payment state
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
 
   // Follow-up quick modal (general)
   const [showFollowupModal, setShowFollowupModal] = useState(false);
@@ -86,6 +92,25 @@ export default function PaymentsPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleDeletePayment = async (paymentId: string) => {
+    if (
+      !confirm(
+        'Are you sure you want to permanently delete this payment record? This will remove it from the customer ledger and recalculate all advance balances.'
+      )
+    ) {
+      return;
+    }
+    try {
+      setDeletingPaymentId(paymentId);
+      await financeApi.deletePayment(paymentId);
+      await fetchData();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err?.message || 'Failed to delete payment record');
+    } finally {
+      setDeletingPaymentId(null);
+    }
+  };
 
   // Fetch Customer Ledger when customer or date range changes
   const fetchCustomerLedger = useCallback(async (customerId: string, from?: string, to?: string) => {
@@ -574,12 +599,13 @@ export default function PaymentsPage() {
                   <th className="py-3 px-4">Date</th>
                   <th className="py-3 px-4">Amount</th>
                   <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {payments.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-gray-500 text-xs">No payment records yet</td>
+                    <td colSpan={7} className="p-8 text-center text-gray-500 text-xs">No payment records yet</td>
                   </tr>
                 ) : (
                   payments.map((p) => (
@@ -588,7 +614,7 @@ export default function PaymentsPage() {
                       <td className="py-3 px-4 text-xs font-mono text-gray-400">{p.paymentType}</td>
                       <td className="py-3 px-4 text-xs">
                         <div className="font-semibold text-gray-200">{p.paymentMethod}</div>
-                        {p.referenceNumber && <div className="text-gray-500">Ref: {p.referenceNumber}</div>}
+                        {p.referenceNumber && <div className="text-gray-500 font-mono text-[11px]">Ref: {p.referenceNumber}</div>}
                       </td>
                       <td className="py-3 px-4 text-xs">{new Date(p.paymentDate).toLocaleDateString('en-GB')}</td>
                       <td className="py-3 px-4 font-bold text-[#7FB706]">₹ {Number(p.amount).toLocaleString('en-IN')}</td>
@@ -596,6 +622,30 @@ export default function PaymentsPage() {
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-500/10 text-green-400 border border-green-500/20">
                           {p.status}
                         </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingPayment(p);
+                              setShowEditPaymentModal(true);
+                            }}
+                            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-amber-300 hover:text-white transition cursor-pointer"
+                            title="Edit Payment Record"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={deletingPaymentId === p.id}
+                            onClick={() => handleDeletePayment(p.id)}
+                            className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 transition cursor-pointer disabled:opacity-50"
+                            title="Delete Payment Record"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -1218,6 +1268,17 @@ export default function PaymentsPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Payment Modal */}
+      <EditPaymentModal
+        isOpen={showEditPaymentModal}
+        onClose={() => {
+          setShowEditPaymentModal(false);
+          setEditingPayment(null);
+        }}
+        payment={editingPayment}
+        onSuccess={fetchData}
+      />
     </div>
   );
 }

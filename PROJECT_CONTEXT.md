@@ -3683,6 +3683,55 @@ In Restroom Cubicle quotations, installation charges are typically calculated on
     `orderBy = [{ date: sortOrder }, { createdAt: sortOrder }, { id: 'desc' }]`
   - Eliminates arbitrary PostgreSQL ordering when multiple quotations share the same calendar date.
 
+---
+
+### 61. Proforma Invoice Freight Terms, Payment Cascade Deletion & Universal Payment Edit/Delete
+
+#### 61.1 Freight & Handling Terms Configuration (`CreateProformaPage.tsx`, `EditProformaInvoicePage.tsx`, `ProformaInvoiceDetailPage.tsx`, `pdf.service.ts`)
+- **Selectable Freight Options when Amount is Zero**:
+  - When Freight & Handling amount is ₹0 or empty, provides selectable term options:
+    - `Included in Basic Price (FOR Site)`
+    - `Extra as Actual / To Pay (At Actuals)`
+    - `In Client's / Buyer's Scope`
+    - `Custom Freight Terms...`
+  - Quick preset pills: `[ Included in Price ]`, `[ Extra as Actual ]`, `[ Client Scope ]`.
+  - Document mention banner shows commercial freight terms and synchronization to Page 2 terms & conditions clauses (`terms: string[]` via `syncFreightToPiTerms`).
+- **Financial Cards & Detail Display**:
+  - Financial summary card and PI Detail view show badges (`Included in Basic Price` in emerald, `Extra as Actual / To Pay` in amber, `In Client's Scope` in sky) when freight is ₹0.
+- **PDF Vector Rendering**:
+  - `pdf.service.ts` renders commercial badge (`[Included in Price]`, `[Extra as Actual]`, `[Client Scope]`) in the Financial Summary table and automatically injects freight terms under Page 2 commercial terms.
+- **Database Schema Sync**:
+  - Added `freightTerms` (String, default: "Extra as Actual / To pay") and `freightCustomNote` (String?) to `proforma_invoices` in PostgreSQL and Prisma schema (`schema.prisma` in both backend and admin).
+
+#### 61.2 Automatic Deletion of Payments on PI Deletion (`pi.service.ts`)
+- **Complete Cleanup of Orphaned Payments**:
+  - In `pi.service.ts` `delete(id)`:
+    - Finds all `PaymentAllocation` where `proformaInvoiceId: id` or `documentId: id`.
+    - Also locates payments for the customer where notes mention `pi.piNumber` or reference matches `advancePaymentReference`.
+    - If a payment belongs solely to this PI or is `ADVANCE`, permanently deletes its `financial_transactions`, `payment_allocations`, and the `payment` record from the database.
+    - If a payment was split across multiple documents, deletes only this PI's allocation and restores `unallocatedAmount` on the parent payment.
+    - Cleans up `receivableEntry`, followups, scan logs, verification tokens, tax summaries, items, and parties.
+  - Eliminates orphaned payments lingering on Customer 360 KPIs, recent payments list, and account ledger.
+
+#### 61.3 Universal Payment Edit & Delete Subsystem (`finance.service.ts`, `EditPaymentModal.tsx`, Customer 360, Payments Hub, PI Detail)
+- **Backend Endpoints**:
+  - `PATCH /api/v1/finance/payments/:id` (`financeService.updatePayment`):
+    - Updates amount, date, method, type, reference number, and notes.
+    - Recalculates linked PI allocation, PI `advanceReceivedAmount`, and PI status (`FULLY_RECEIVED`, `PARTIAL`, `PENDING`), as well as receivable entry balances.
+  - `DELETE /api/v1/finance/payments/:id` (`financeService.deletePayment`):
+    - Reverts advance allocations on linked PIs, resets advance status (`PENDING`/`PARTIAL`), clears advance reference/date/mode if ₹0, deletes financial transactions, allocations, and payment record.
+- **Frontend Interactivity**:
+  - `EditPaymentModal.tsx`:
+    - Full modal allowing modification of Amount, Payment Date, Payment Mode (NEFT/RTGS, IMPS, UPI, Cheque, Cash, Card), Payment Type (Advance, Customer Payment, Vendor Payment, Refund), Reference / UTR Number, and Internal Notes.
+  - **Customer 360 View (`CustomerDetailPage.tsx`)**:
+    - `Actions` column with Edit (pencil) and Delete (trash) buttons in Chronological Account Ledger (`LEDGER_FOLLOWUP` tab).
+    - Recorded Payments & Advance Receipts table in `TRANSACTIONS` tab with live Edit and Delete action triggers, automatically refreshing Customer 360 KPIs and ledger on update/delete.
+  - **Payments Hub (`PaymentsPage.tsx`)**:
+    - Payments list includes Edit and Delete actions on every payment row with instant data refresh.
+  - **Proforma Invoice Detail (`ProformaInvoiceDetailPage.tsx`)**:
+    - Advance Tracking Hero card displays interactive list of recorded advance receipts and allocations with Date, UTR, Mode, Amount, Notes, and Edit/Delete action triggers.
+
+
 
 
 

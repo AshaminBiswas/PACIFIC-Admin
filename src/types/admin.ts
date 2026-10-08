@@ -594,6 +594,7 @@ export interface ProformaInvoice {
   taxSummary?: ProformaInvoiceTaxSummary[];
   terms?: { clauseNumber: number; text: string }[];
   qrCodes?: QrCode[];
+  paymentAllocations?: PaymentAllocation[];
   statusHistory?: Array<{
     id: string;
     fromStatus: string;
@@ -632,11 +633,17 @@ export type PaymentMethod = 'NEFT_RTGS' | 'IMPS' | 'UPI' | 'CHEQUE' | 'CASH' | '
 
 export interface PaymentAllocation {
   id?: string;
+  paymentId?: string;
+  payment?: Payment;
   documentType: string;
   documentId: string;
   proformaInvoiceId?: string;
   proformaInvoice?: ProformaInvoice;
   allocatedAmount: number;
+  amount?: number;
+  allocatedAt?: string;
+  createdAt?: string;
+  notes?: string;
 }
 
 export interface Payment {

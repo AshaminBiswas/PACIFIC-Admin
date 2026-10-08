@@ -46,6 +46,11 @@ import {
   formatInstallationTermClause,
   syncInstallationToPiTerms,
   detectInstallationOption,
+  FREIGHT_OPTIONS,
+  type FreightTermOption,
+  getFreightMentionText,
+  formatFreightTermClause,
+  syncFreightToPiTerms,
 } from '../utils/quotationInstallation';
 import { DEFAULT_ACCESSORIES_TEXT, type CreateItem, type BillingAddressData, type DeliveryAddressData, type PiScope } from './CreateProformaPage';
 
@@ -77,6 +82,8 @@ export default function EditProformaInvoicePage() {
   const [linkedPoNumber, setLinkedPoNumber] = useState('');
   const [linkedPoDate, setLinkedPoDate] = useState('');
   const [freightAmount, setFreightAmount] = useState<number>(0);
+  const [freightTerms, setFreightTerms] = useState<string>('Extra as Actual / To pay');
+  const [freightCustomNote, setFreightCustomNote] = useState<string>('');
   const [installationMode, setInstallationMode] = useState<InstallationPricingMode>('OPTION');
   const [installationCharge, setInstallationCharge] = useState<number>(0);
   const [installationRatePerCubicle, setInstallationRatePerCubicle] = useState<number>(1000);
@@ -169,6 +176,8 @@ export default function EditProformaInvoicePage() {
       setLinkedPoNumber(data.linkedPoNumber || '');
       setLinkedPoDate(data.linkedPoDate ? new Date(data.linkedPoDate).toISOString().split('T')[0] : '');
       setFreightAmount(Number(data.freightAmount) || 0);
+      setFreightTerms((data as any).freightTerms || (Number(data.freightAmount || 0) > 0 ? 'Fixed' : 'Extra as Actual / To pay'));
+      setFreightCustomNote((data as any).freightCustomNote || '');
       const initInstallCharge = Number(data.installationCharge) || 0;
       setInstallationCharge(initInstallCharge);
       setInstallationRatePerCubicle(data.installationRatePerCubicle || (initInstallCharge > 0 ? Math.round(initInstallCharge / (data.installationCubicleCount || 1)) : 1000));
@@ -967,6 +976,30 @@ export default function EditProformaInvoicePage() {
     }
   };
 
+  const handleFreightOptionChange = (opt: string) => {
+    const isFixed = opt === 'Fixed';
+    const newAmt = isFixed ? (Number(freightAmount) > 0 ? Number(freightAmount) : 0) : 0;
+    const clause = formatFreightTermClause(opt, newAmt, freightCustomNote);
+    setFreightTerms(opt);
+    setFreightAmount(newAmt);
+    setTerms((t) => syncFreightToPiTerms(t, clause));
+  };
+
+  const handleFreightAmountChange = (amt: number) => {
+    const newAmt = Math.max(0, amt);
+    const newTerms = newAmt > 0 ? 'Fixed' : (freightTerms === 'Fixed' ? 'Extra as Actual / To pay' : (freightTerms || 'Extra as Actual / To pay'));
+    const clause = formatFreightTermClause(newTerms, newAmt, freightCustomNote);
+    setFreightAmount(newAmt);
+    setFreightTerms(newTerms);
+    setTerms((t) => syncFreightToPiTerms(t, clause));
+  };
+
+  const handleFreightCustomNoteChange = (note: string) => {
+    const clause = formatFreightTermClause(freightTerms || 'Custom', Number(freightAmount) || 0, note);
+    setFreightCustomNote(note);
+    setTerms((t) => syncFreightToPiTerms(t, clause));
+  };
+
   const totalTaxable = basicPrice + Number(freightAmount || 0) + Number(installationCharge || 0);
 
   const selectedCompany = useMemo(
@@ -1113,6 +1146,8 @@ export default function EditProformaInvoicePage() {
         linkedPoNumber,
         linkedPoDate: linkedPoDate || undefined,
         freightAmount,
+        freightTerms: freightTerms || (Number(freightAmount || 0) > 0 ? 'Fixed' : 'Extra as Actual / To pay'),
+        freightCustomNote: freightCustomNote || undefined,
         installationCharge: Number(installationCharge) || 0,
         installationRatePerCubicle: Number(installationCharge) > 0 ? (installationRatePerCubicle ?? 1000) : undefined,
         installationCubicleCount: Number(installationCharge) > 0 ? (installationCubicleCount || detectedCubicleCount || undefined) : undefined,
@@ -1668,13 +1703,38 @@ export default function EditProformaInvoicePage() {
           </div>
 
           <div>
-            <label className={labelCls}>Freight Amount (₹)</label>
+            <div className="flex items-center justify-between">
+              <label className={labelCls}>Freight Amount (₹)</label>
+              <div className="flex gap-1 text-[10px] pb-1">
+                <button
+                  type="button"
+                  onClick={() => handleFreightOptionChange('Included')}
+                  className={`px-1.5 py-0.5 rounded ${freightTerms === 'Included' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-gray-400 hover:text-white'}`}
+                >
+                  Included
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleFreightOptionChange('Extra as Actual / To pay')}
+                  className={`px-1.5 py-0.5 rounded ${freightTerms === 'Extra as Actual / To pay' ? 'bg-amber-500 text-black font-bold' : 'bg-white/5 text-gray-400 hover:text-white'}`}
+                >
+                  Extra
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleFreightOptionChange('Client Scope')}
+                  className={`px-1.5 py-0.5 rounded ${freightTerms === 'Client Scope' ? 'bg-sky-500 text-black font-bold' : 'bg-white/5 text-gray-400 hover:text-white'}`}
+                >
+                  Client
+                </button>
+              </div>
+            </div>
             <input
               type="number"
               min="0"
               step="0.01"
               value={freightAmount}
-              onChange={(e) => setFreightAmount(Number(e.target.value) || 0)}
+              onChange={(e) => handleFreightAmountChange(Number(e.target.value) || 0)}
               placeholder="0"
               className={inputCls + ' font-mono'}
             />
@@ -3513,29 +3573,137 @@ export default function EditProformaInvoicePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className={labelCls}>Freight &amp; Handling Amount (₹)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={freightAmount}
-              onChange={(e) => setFreightAmount(Number(e.target.value) || 0)}
-              className={inputCls}
-            />
+        {/* Freight & Handling Block */}
+        <div className="p-4 rounded-xl bg-black/20 border border-white/5 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2">
+            <div className="flex items-center gap-2">
+              <Truck className="w-4 h-4 text-amber-400" />
+              <label className="text-xs font-bold text-white uppercase tracking-wider">
+                Freight &amp; Handling Terms &amp; Scope
+              </label>
+            </div>
+            {/* Quick Presets */}
+            <div className="flex flex-wrap gap-1.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => handleFreightOptionChange('Included')}
+                className={`px-2 py-0.5 rounded font-medium transition-colors cursor-pointer ${
+                  freightTerms === 'Included'
+                    ? 'bg-emerald-500 text-black font-bold shadow'
+                    : 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30'
+                }`}
+              >
+                Included in Price
+              </button>
+              <button
+                type="button"
+                onClick={() => handleFreightOptionChange('Extra as Actual / To pay')}
+                className={`px-2 py-0.5 rounded font-medium transition-colors cursor-pointer ${
+                  freightTerms === 'Extra as Actual / To pay'
+                    ? 'bg-amber-500 text-black font-bold shadow'
+                    : 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border border-amber-500/30'
+                }`}
+              >
+                Extra as Actual
+              </button>
+              <button
+                type="button"
+                onClick={() => handleFreightOptionChange('Client Scope')}
+                className={`px-2 py-0.5 rounded font-medium transition-colors cursor-pointer ${
+                  freightTerms === 'Client Scope'
+                    ? 'bg-sky-500 text-black font-bold shadow'
+                    : 'bg-sky-500/15 text-sky-300 hover:bg-sky-500/25 border border-sky-500/30'
+                }`}
+              >
+                Client Scope
+              </button>
+            </div>
           </div>
-          <div>
-            <label className={labelCls}>Advance Required (%)</label>
-            <select
-              value={advancePercentage}
-              onChange={(e) => setAdvancePercentage(Number(e.target.value) || 50)}
-              className={inputCls}
-            >
-              {[10, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100].map((pct) => (
-                <option key={pct} value={pct}>{pct}% Advance Required</option>
-              ))}
-            </select>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div>
+              <label className={labelCls}>Freight Term Preset *</label>
+              <select
+                value={freightTerms || 'Extra as Actual / To pay'}
+                onChange={(e) => handleFreightOptionChange(e.target.value)}
+                className={inputCls}
+              >
+                {FREIGHT_OPTIONS.map((opt) => (
+                  <option key={opt.id} value={opt.id} className="bg-[#0a0a1a]">
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <span className="text-[10px] text-slate-400">
+                {FREIGHT_OPTIONS.find((o) => o.id === freightTerms)?.description || 'Commercial freight term on invoice'}
+              </span>
+            </div>
+
+            <div>
+              <label className={labelCls}>
+                Freight &amp; Handling Amount (₹) {freightTerms === 'Fixed' && <span className="text-amber-400">*</span>}
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={freightAmount}
+                onChange={(e) => handleFreightAmountChange(Number(e.target.value) || 0)}
+                placeholder="0.00"
+                className={inputCls + ' font-mono'}
+              />
+              <span className="text-[10px] text-slate-400">
+                {Number(freightAmount || 0) > 0
+                  ? 'Fixed freight added to taxable proforma total'
+                  : '₹0.00 — Freight not billed in total'}
+              </span>
+            </div>
+
+            <div>
+              <label className={labelCls}>Advance Required (%)</label>
+              <select
+                value={advancePercentage}
+                onChange={(e) => setAdvancePercentage(Number(e.target.value) || 50)}
+                className={inputCls}
+              >
+                {[10, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100].map((pct) => (
+                  <option key={pct} value={pct}>{pct}% Advance Required</option>
+                ))}
+              </select>
+              <span className="text-[10px] text-slate-400">
+                Advance required prior to production dispatch
+              </span>
+            </div>
+          </div>
+
+          {freightTerms === 'Custom' && (
+            <div>
+              <label className={labelCls}>Custom Freight Terms Note</label>
+              <input
+                type="text"
+                value={freightCustomNote || ''}
+                onChange={(e) => handleFreightCustomNoteChange(e.target.value)}
+                placeholder="e.g. Freight payable directly to transporter upon delivery at Delhi site"
+                className={inputCls}
+              />
+            </div>
+          )}
+
+          {/* Dynamic Document Mention Banner */}
+          <div className="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-200">
+            <span className="flex items-center gap-2">
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/20 text-amber-300">
+                PI Document Mention:
+              </span>
+              <span className="font-medium text-white">
+                {getFreightMentionText(freightTerms, freightAmount, freightCustomNote)}
+              </span>
+            </span>
+            <span className="font-mono font-bold text-white text-sm shrink-0">
+              {Number(freightAmount || 0) > 0
+                ? `₹ ${Number(freightAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+                : (freightTerms || 'Extra as Actual / To pay')}
+            </span>
           </div>
         </div>
       </div>
@@ -3576,7 +3744,16 @@ export default function EditProformaInvoicePage() {
             </span>
           </div>
           <div className="p-3 bg-[#0a0a1a] rounded-xl border border-white/5">
-            <span className="text-gray-400 block mb-1">Freight &amp; Handling</span>
+            <span className="text-gray-400 block mb-1">
+              Freight &amp; Handling
+              {freightAmount === 0 && (
+                <span className={`text-[10px] block font-semibold ${
+                  freightTerms === 'Included' ? 'text-emerald-400' : freightTerms === 'Client Scope' ? 'text-sky-400' : 'text-amber-400'
+                }`}>
+                  {freightTerms === 'Included' ? 'Included' : freightTerms === 'Client Scope' ? 'Client Scope' : 'Extra as Actual'}
+                </span>
+              )}
+            </span>
             <span className="text-white font-mono font-bold text-sm">
               ₹ {freightAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </span>
