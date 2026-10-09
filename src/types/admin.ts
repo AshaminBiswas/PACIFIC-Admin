@@ -1253,7 +1253,7 @@ export interface SalesQuotation {
 }
 
 export type QuotationFollowupChannel = 'CALL' | 'WHATSAPP' | 'EMAIL' | 'SMS' | 'IN_PERSON' | 'OTHER';
-export type QuotationFollowupStatus = 'PENDING' | 'SCHEDULED' | 'COMPLETED' | 'NO_ANSWER' | 'INTERESTED' | 'PRICE_NEGOTIATION' | 'ORDER_CONFIRMED' | 'DROPPED' | 'CALLBACK_REQUESTED';
+export type QuotationFollowupStatus = 'PENDING' | 'SCHEDULED' | 'COMPLETED' | 'NO_ANSWER' | 'INTERESTED' | 'PRICE_NEGOTIATION' | 'ORDER_CONFIRMED' | 'DROPPED' | 'CALLBACK_REQUESTED' | 'PAUSED';
 
 export interface QuotationFollowup {
   id: string;

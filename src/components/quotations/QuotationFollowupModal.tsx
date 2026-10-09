@@ -74,6 +74,7 @@ const STATUS_LABELS: Record<QuotationFollowupStatus, { label: string; color: str
   CALLBACK_REQUESTED: { label: 'Callback Requested', color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' },
   NO_ANSWER: { label: 'No Answer / Busy', color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20' },
   ORDER_CONFIRMED: { label: 'Order Confirmed 🎉', color: 'text-emerald-300 font-bold', bg: 'bg-emerald-500/20', border: 'border-emerald-500/40' },
+  PAUSED: { label: 'Timer Paused ⏸', color: 'text-amber-300 font-bold', bg: 'bg-amber-500/15', border: 'border-amber-500/30' },
   DROPPED: { label: 'Dropped / Cancelled', color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
 };
 

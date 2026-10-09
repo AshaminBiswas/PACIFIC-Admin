@@ -113,6 +113,12 @@ const STATUS_LABELS: Record<
     bg: 'bg-emerald-500/20',
     border: 'border-emerald-500/40',
   },
+  PAUSED: {
+    label: 'Timer Paused ⏸',
+    color: 'text-amber-300 font-bold',
+    bg: 'bg-amber-500/15',
+    border: 'border-amber-500/30',
+  },
   DROPPED: {
     label: 'Dropped / Cancelled',
     color: 'text-rose-400',
@@ -323,13 +329,47 @@ export default function QuotationFollowupPage() {
 
   // Follow-up timing calculations
   const timingInfo = useMemo(() => {
+    // 1. Order confirmed or converted: timer stopped
+    if (quotation?.status === 'CONVERTED' || quotation?.status === 'ACCEPTED' || quotation?.followupStatus === 'ORDER_CONFIRMED') {
+      return {
+        status: 'COMPLETED',
+        text: '✓ Order Confirmed (Timer Stopped)',
+        color: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30',
+      };
+    }
+    // 2. Followup completed: timer stopped
+    if (quotation?.followupStatus === 'COMPLETED') {
+      return {
+        status: 'COMPLETED',
+        text: '✓ Follow-Up Completed (Timer Stopped)',
+        color: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30',
+      };
+    }
+    // 3. Followup paused: timer stopped
+    if (quotation?.followupStatus === 'PAUSED' || quotation?.followupStatus === 'STOPPED') {
+      return {
+        status: 'PAUSED',
+        text: '⏸ Timer Paused',
+        color: 'text-amber-300 bg-amber-500/15 border-amber-500/30',
+      };
+    }
+    // 4. Followup dropped / lost: timer stopped
+    if (quotation?.followupStatus === 'DROPPED' || quotation?.followupStatus === 'LOST') {
+      return {
+        status: 'DROPPED',
+        text: '✕ Dropped / Closed (Timer Stopped)',
+        color: 'text-rose-400 bg-rose-500/15 border-rose-500/30',
+      };
+    }
+    // 5. No next followup date: timer stopped
     if (!quotation?.nextFollowupDate) {
       return {
         status: 'NONE',
-        text: 'No follow-up currently scheduled',
+        text: 'No follow-up currently scheduled (Timer Stopped)',
         color: 'text-gray-400 bg-white/5 border-white/10',
       };
     }
+
     const target = new Date(quotation.nextFollowupDate).getTime();
     const now = Date.now();
     const diffMin = Math.round((target - now) / (60 * 1000));
@@ -361,7 +401,7 @@ export default function QuotationFollowupPage() {
       })}`,
       color: 'text-blue-400 bg-blue-500/15 border-blue-500/30',
     };
-  }, [quotation?.nextFollowupDate]);
+  }, [quotation?.nextFollowupDate, quotation?.followupStatus, quotation?.status]);
 
   // Request browser notification permission
   const handleEnableNotifications = async () => {

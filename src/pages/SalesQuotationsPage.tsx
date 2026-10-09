@@ -5,10 +5,12 @@ import {
   CheckCircle2, Send,
   RefreshCw, X, Edit, Trash2, Mail, AlertTriangle,
   Clock, Calendar, Building2, ArrowDown, ArrowUp, ArrowUpDown,
+  Pause, Check, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  ExternalLink, Sparkles, MessageCircle, Phone,
 } from 'lucide-react';
 import { salesQuotationsApi } from '../api/services';
 import { useAdminAuth } from '../context/AdminAuthContext';
-import type { SalesQuotation } from '../types/admin';
+import type { SalesQuotation, QuotationFollowupStatus, QuotationFollowupChannel } from '../types/admin';
 import QuotationFollowupModal from '../components/quotations/QuotationFollowupModal';
 import { isKolkataBranch, filterByBranch } from '../utils/branchHelper';
 
@@ -24,7 +26,9 @@ export default function SalesQuotationsPage() {
   const [branchFilter, setBranchFilter] = useState<'ALL' | 'MAIN' | 'KOLKATA'>('ALL');
   const [dateSortOrder, setDateSortOrder] = useState<'desc' | 'asc'>('desc');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(50);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalQuotations, setTotalQuotations] = useState(0);
 
   // Modals
   const [previewQuotation, setPreviewQuotation] = useState<SalesQuotation | null>(null);
@@ -33,6 +37,16 @@ export default function SalesQuotationsPage() {
   const [revisionTarget, setRevisionTarget] = useState<SalesQuotation | null>(null);
   const [revisionReason, setRevisionReason] = useState('');
   const [followupQuotation, setFollowupQuotation] = useState<SalesQuotation | null>(null);
+
+  // Quick Follow-up / Timer Modal State
+  const [quickFollowupQuote, setQuickFollowupQuote] = useState<SalesQuotation | null>(null);
+  const [quickStatus, setQuickStatus] = useState<QuotationFollowupStatus>('PENDING');
+  const [quickDueDate, setQuickDueDate] = useState<string>('');
+  const [quickNotes, setQuickNotes] = useState<string>('');
+  const [quickChannel, setQuickChannel] = useState<QuotationFollowupChannel>('CALL');
+  const [savingQuickFollowup, setSavingQuickFollowup] = useState<boolean>(false);
+  const [quickFollowupError, setQuickFollowupError] = useState<string | null>(null);
+  const [quickFollowupSuccess, setQuickFollowupSuccess] = useState<string | null>(null);
 
   // Email Modal State
   const [emailQuote, setEmailQuote] = useState<SalesQuotation | null>(null);
@@ -44,23 +58,61 @@ export default function SalesQuotationsPage() {
   const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
 
   const renderFollowupBadge = (q: SalesQuotation) => {
-    if (q.status === 'CONVERTED') {
+    // 1. Order converted or accepted or confirmed: timer stopped
+    if (q.status === 'CONVERTED' || q.status === 'ACCEPTED' || q.followupStatus === 'ORDER_CONFIRMED') {
       return (
-        <span className="text-gray-500 text-xs">—</span>
-      );
-    }
-    if (!q.nextFollowupDate) {
-      return (
-        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white/5 text-gray-400 border border-white/5">
-          Pending Setup
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 shrink-0">
+          <CheckCircle2 className="w-2.5 h-2.5" />
+          {q.status === 'CONVERTED' ? 'Converted' : 'Order Confirmed'}
         </span>
       );
     }
+
+    // 2. Completed: timer stopped
+    if (q.followupStatus === 'COMPLETED') {
+      return (
+        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 shrink-0">
+          <CheckCircle2 className="w-2.5 h-2.5" />
+          Completed (Timer Stopped)
+        </span>
+      );
+    }
+
+    // 3. Paused: timer stopped
+    if (q.followupStatus === 'PAUSED' || q.followupStatus === 'STOPPED') {
+      return (
+        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 flex items-center gap-1 shrink-0">
+          <Pause className="w-2.5 h-2.5" />
+          Paused (Timer Stopped)
+        </span>
+      );
+    }
+
+    // 4. Dropped / Lost: timer stopped
+    if (q.followupStatus === 'DROPPED' || q.followupStatus === 'LOST') {
+      return (
+        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center gap-1 shrink-0">
+          <span>✕</span>
+          Dropped / Closed
+        </span>
+      );
+    }
+
+    // 5. No date set: timer stopped / pending
+    if (!q.nextFollowupDate) {
+      return (
+        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white/5 text-gray-400 border border-white/5 shrink-0">
+          No Timer Set
+        </span>
+      );
+    }
+
+    // 6. Active reminder
     const diffMin = Math.round((new Date(q.nextFollowupDate).getTime() - Date.now()) / (60 * 1000));
     if (diffMin < 0) {
       const hours = Math.abs(Math.round(diffMin / 60));
       return (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center gap-1">
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center gap-1 shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" />
           Overdue {hours > 0 ? `${hours}h` : `${Math.abs(diffMin)}m`}
         </span>
@@ -70,18 +122,105 @@ export default function SalesQuotationsPage() {
       const hours = Math.floor(diffMin / 60);
       const mins = diffMin % 60;
       return (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1 shrink-0">
           <Clock className="w-2.5 h-2.5" />
           Due in {hours > 0 ? `${hours}h ` : ''}{mins}m
         </span>
       );
     }
     return (
-      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center gap-1">
+      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center gap-1 shrink-0">
         <Calendar className="w-2.5 h-2.5" />
         {new Date(q.nextFollowupDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
       </span>
     );
+  };
+
+  const openQuickFollowup = (quote: SalesQuotation) => {
+    setQuickFollowupQuote(quote);
+    setQuickStatus((quote.followupStatus as QuotationFollowupStatus) || 'PENDING');
+    if (quote.nextFollowupDate) {
+      const d = new Date(quote.nextFollowupDate);
+      const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      setQuickDueDate(iso);
+    } else {
+      setQuickDueDate('');
+    }
+    setQuickNotes('');
+    setQuickChannel('CALL');
+    setQuickFollowupError(null);
+    setQuickFollowupSuccess(null);
+  };
+
+  const setQuickPresetTime = (hoursAhead: number) => {
+    const d = new Date(Date.now() + hoursAhead * 60 * 60 * 1000);
+    const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    setQuickDueDate(iso);
+  };
+
+  const setQuickPresetTomorrow = (hour: number, minute: number = 0) => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(hour, minute, 0, 0);
+    const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    setQuickDueDate(iso);
+  };
+
+  const handleStopTimer = () => {
+    setQuickDueDate('');
+    setQuickStatus('COMPLETED');
+    setQuickNotes((prev) => (prev ? `${prev}\nTimer stopped.` : 'Follow-up timer stopped and marked as completed.'));
+  };
+
+  const handlePauseTimer = () => {
+    setQuickDueDate('');
+    setQuickStatus('PAUSED');
+    setQuickNotes((prev) => (prev ? `${prev}\nTimer paused.` : 'Follow-up timer paused.'));
+  };
+
+  const handleSaveQuickFollowup = async () => {
+    if (!quickFollowupQuote) return;
+    setSavingQuickFollowup(true);
+    setQuickFollowupError(null);
+    setQuickFollowupSuccess(null);
+    try {
+      const nextDateIso = quickDueDate ? new Date(quickDueDate).toISOString() : null;
+      const res = await salesQuotationsApi.updateFollowupStatus(quickFollowupQuote.id, {
+        followupStatus: quickStatus,
+        nextFollowupDate: nextDateIso,
+        notes: quickNotes.trim() || undefined,
+        channel: quickChannel,
+      });
+
+      const updatedQ = res.data?.data?.quotation;
+      setQuotations((prev) =>
+        prev.map((item) =>
+          item.id === quickFollowupQuote.id
+            ? {
+                ...item,
+                followupStatus: quickStatus,
+                nextFollowupDate: nextDateIso || undefined,
+                status:
+                  quickStatus === 'ORDER_CONFIRMED' && item.status !== 'CONVERTED'
+                    ? 'ACCEPTED'
+                    : (updatedQ?.status || item.status),
+                followupCount: (item.followupCount || 0) + 1,
+              }
+            : item
+        )
+      );
+
+      setQuickFollowupSuccess('Follow-up status & due time updated successfully!');
+      setTimeout(() => {
+        setQuickFollowupQuote(null);
+        setQuickFollowupSuccess(null);
+      }, 850);
+    } catch (err: any) {
+      console.error('Failed to update follow-up status:', err);
+      setQuickFollowupError(err.response?.data?.message || err.message || 'Failed to update follow-up status');
+    } finally {
+      setSavingQuickFollowup(false);
+    }
   };
 
   const handleOpenPreview = async (quote: SalesQuotation) => {
@@ -108,7 +247,7 @@ export default function SalesQuotationsPage() {
     try {
       const params: any = {
         page,
-        limit: 15,
+        limit: pageSize,
         search,
         sortBy: 'date',
         sortOrder: dateSortOrder,
@@ -117,15 +256,19 @@ export default function SalesQuotationsPage() {
       if (branchFilter !== 'ALL') params.branch = branchFilter;
       const res = await salesQuotationsApi.list(params);
       if (res.data?.data) {
-        setQuotations(res.data.data.items || []);
-        setTotalPages(res.data.data.totalPages || 1);
+        const data = res.data.data;
+        setQuotations(data.items || []);
+        const total = data.total ?? (data as any).pagination?.total ?? (data.items?.length || 0);
+        const tPages = data.totalPages ?? (data as any).pagination?.totalPages ?? Math.max(1, Math.ceil(total / pageSize));
+        setTotalQuotations(total);
+        setTotalPages(tPages);
       }
     } catch (err) {
       console.error('Failed to load quotations:', err);
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter, branchFilter, dateSortOrder]);
+  }, [page, pageSize, search, statusFilter, branchFilter, dateSortOrder]);
 
   useEffect(() => {
     fetchQuotations();
@@ -269,7 +412,7 @@ export default function SalesQuotationsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
         <div className="bg-[#121226] border border-white/5 rounded-xl sm:rounded-2xl p-2.5 sm:p-4">
           <div className="text-[10px] sm:text-xs text-gray-400">Total Quotations</div>
-          <div className="text-lg sm:text-2xl font-bold text-white mt-0.5 sm:mt-1">{quotations.length}</div>
+          <div className="text-lg sm:text-2xl font-bold text-white mt-0.5 sm:mt-1">{totalQuotations || quotations.length}</div>
           <div className="text-[10px] sm:text-[11px] text-[#7FB706] mt-0.5 sm:mt-1 font-mono truncate">PPS/QT/26-27/... Series</div>
         </div>
         <div className="bg-[#121226] border border-white/5 rounded-xl sm:rounded-2xl p-2.5 sm:p-4">
@@ -435,7 +578,7 @@ export default function SalesQuotationsPage() {
                       onClick={() => navigate(`/admin/dashboard/sales-quotations/${q.id}`)}
                     >
                       <td className="py-2.5 sm:py-3 px-3 sm:px-4 text-center font-mono text-gray-400 text-xs">
-                        {(page - 1) * 15 + idx + 1}
+                        {(page - 1) * pageSize + idx + 1}
                       </td>
                       <td className="py-2.5 sm:py-3 px-3 sm:px-4">
                         <div className="font-mono font-semibold text-white flex items-center gap-1.5">
@@ -490,14 +633,27 @@ export default function SalesQuotationsPage() {
                         className="py-2.5 sm:py-3 px-3 sm:px-4"
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/admin/dashboard/sales-quotations/${q.id}/follow-up`);
+                          openQuickFollowup(q);
                         }}
                       >
-                        <div className="flex flex-col gap-1 cursor-pointer">
-                          {renderFollowupBadge(q)}
+                        <div className="flex flex-col gap-1 cursor-pointer group/fu">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {renderFollowupBadge(q)}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openQuickFollowup(q);
+                              }}
+                              className="p-1 rounded bg-white/5 hover:bg-[#7FB706]/20 text-gray-400 hover:text-[#B5F823] transition-colors"
+                              title="Edit due time / change status / stop timer"
+                            >
+                              <Clock className="w-3 h-3" />
+                            </button>
+                          </div>
                           {q.followupStatus && q.followupStatus !== 'PENDING' && q.followupStatus !== 'ORDER_CONFIRMED' && (
                             <span className="text-[10px] text-gray-400 font-mono">
-                              {q.followupStatus.replace('_', ' ')}
+                              {q.followupStatus.replace(/_/g, ' ')}
                             </span>
                           )}
                         </div>
@@ -557,7 +713,7 @@ export default function SalesQuotationsPage() {
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="text-[10px] font-mono text-gray-400 bg-white/5 px-1.5 py-0.5 rounded flex-shrink-0">
-                        #{(page - 1) * 15 + idx + 1}
+                        #{(page - 1) * pageSize + idx + 1}
                       </span>
                       <span className="font-mono font-bold text-xs sm:text-sm text-white truncate">
                         {q.referenceNumber || q.quotationNumber || '—'}
@@ -616,23 +772,28 @@ export default function SalesQuotationsPage() {
                     className="flex items-center justify-between p-1.5 sm:p-2 rounded-lg bg-white/[0.02] border border-white/5 text-xs cursor-pointer hover:bg-white/[0.04] transition-colors"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate(`/admin/dashboard/sales-quotations/${q.id}/follow-up`);
+                      openQuickFollowup(q);
                     }}
                   >
-                    <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                       <span className="text-[10px] text-gray-400 font-medium flex-shrink-0">Follow-Up:</span>
                       {renderFollowupBadge(q)}
                       {q.followupStatus && q.followupStatus !== 'PENDING' && q.followupStatus !== 'ORDER_CONFIRMED' && (
                         <span className="text-[9px] text-gray-400 font-mono truncate">
-                          {q.followupStatus.replace('_', ' ')}
+                          {q.followupStatus.replace(/_/g, ' ')}
                         </span>
                       )}
                     </div>
-                    {q.followupCount !== undefined && q.followupCount > 0 && (
-                      <span className="text-[9px] sm:text-[10px] text-cyan-400 font-medium flex-shrink-0">
-                        {q.followupCount} {q.followupCount === 1 ? 'touchpoint' : 'touchpoints'}
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {q.followupCount !== undefined && q.followupCount > 0 && (
+                        <span className="text-[9px] sm:text-[10px] text-cyan-400 font-medium">
+                          {q.followupCount} {q.followupCount === 1 ? 'touch' : 'touches'}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-[#7FB706] font-semibold bg-[#7FB706]/10 px-1.5 py-0.5 rounded border border-[#7FB706]/20">
+                        Edit
                       </span>
-                    )}
+                    </div>
                   </div>
 
                   {/* Clean Compact Action Buttons */}
@@ -683,28 +844,106 @@ export default function SalesQuotationsPage() {
               ))}
             </div>
 
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="px-3 sm:px-4 py-2.5 sm:py-3 border-t border-white/5 flex items-center justify-between text-xs text-gray-400">
-                <span>Page {page} of {totalPages}</span>
-                <div className="flex gap-1.5">
-                  <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="px-2.5 py-1 bg-white/5 hover:bg-white/10 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            {/* Pagination Controls Bar */}
+            <div className="px-3 sm:px-6 py-3 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-400 bg-[#0a0a1a]/60">
+              <div className="flex items-center gap-3 flex-wrap">
+                <span>
+                  Showing{' '}
+                  <strong className="text-white">
+                    {totalQuotations === 0 ? 0 : (page - 1) * pageSize + 1}
+                  </strong>
+                  –
+                  <strong className="text-white">
+                    {Math.min(page * pageSize, totalQuotations)}
+                  </strong>{' '}
+                  of <strong className="text-white">{totalQuotations}</strong> quotations
+                </span>
+
+                <div className="flex items-center gap-1.5 ml-2">
+                  <span className="text-gray-500">Per page:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-[#7FB706] cursor-pointer"
                   >
-                    Prev
-                  </button>
-                  <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                    className="px-2.5 py-1 bg-white/5 hover:bg-white/10 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                  >
-                    Next
-                  </button>
+                    <option value={15} className="bg-[#0f172a] text-white">15</option>
+                    <option value={30} className="bg-[#0f172a] text-white">30</option>
+                    <option value={50} className="bg-[#0f172a] text-white">50</option>
+                    <option value={100} className="bg-[#0f172a] text-white">100</option>
+                    <option value={250} className="bg-[#0f172a] text-white">250</option>
+                  </select>
                 </div>
               </div>
-            )}
+
+              <div className="flex items-center gap-1 flex-wrap">
+                <button
+                  onClick={() => setPage(1)}
+                  disabled={page === 1}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 disabled:opacity-25 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  title="First Page"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 disabled:opacity-25 disabled:cursor-not-allowed transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" /> Prev
+                </button>
+
+                {/* Numeric Page Buttons */}
+                <div className="flex items-center gap-1 mx-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                    .reduce((acc: (number | string)[], p, idx, arr) => {
+                      if (idx > 0 && p - (arr[idx - 1] as number) > 1) {
+                        acc.push('...');
+                      }
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((item, i) =>
+                      typeof item === 'number' ? (
+                        <button
+                          key={i}
+                          onClick={() => setPage(item)}
+                          className={`min-w-[28px] h-7 px-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                            page === item
+                              ? 'bg-[#7FB706] text-white font-bold shadow-sm'
+                              : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                          }`}
+                        >
+                          {item}
+                        </button>
+                      ) : (
+                        <span key={i} className="px-1 text-gray-500">
+                          {item}
+                        </span>
+                      )
+                    )}
+                </div>
+
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages || totalPages === 0}
+                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 disabled:opacity-25 disabled:cursor-not-allowed transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  Next <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setPage(totalPages)}
+                  disabled={page === totalPages || totalPages === 0}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 disabled:opacity-25 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  title="Last Page"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           </>
         )}
       </div>
@@ -940,6 +1179,338 @@ export default function SalesQuotationsPage() {
             );
           }}
         />
+      )}
+
+      {/* Quick Follow-up & Timer Control Modal */}
+      {quickFollowupQuote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md">
+          <div className="bg-[#121226] border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-[#0a0a1a]">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-sm">
+                    Follow-Up Status & Timer Controls
+                  </h3>
+                  <p className="text-xs text-gray-400 font-mono truncate max-w-xs sm:max-w-sm">
+                    {quickFollowupQuote.referenceNumber || quickFollowupQuote.quotationNumber} • {quickFollowupQuote.customer?.legalName || quickFollowupQuote.recipientName || 'Client'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setQuickFollowupQuote(null)}
+                disabled={savingQuickFollowup}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+              {quickFollowupSuccess && (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                  {quickFollowupSuccess}
+                </div>
+              )}
+
+              {quickFollowupError && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  {quickFollowupError}
+                </div>
+              )}
+
+              {/* Status Outcome Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                  Follow-up Status / Pipeline State *
+                </label>
+                <select
+                  value={quickStatus}
+                  onChange={(e) => {
+                    const nextSt = e.target.value as QuotationFollowupStatus;
+                    setQuickStatus(nextSt);
+                    if (['COMPLETED', 'PAUSED', 'ORDER_CONFIRMED', 'DROPPED'].includes(nextSt)) {
+                      setQuickDueDate('');
+                    }
+                  }}
+                  className="w-full bg-[#0a0a1a] border border-white/10 focus:border-[#7FB706] rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none transition-colors"
+                >
+                  <optgroup label="Timer Stopped / Concluded">
+                    <option value="COMPLETED" className="bg-[#0f172a] text-emerald-400 font-semibold">
+                      ✓ Completed (Stops Timer)
+                    </option>
+                    <option value="ORDER_CONFIRMED" className="bg-[#0f172a] text-emerald-300 font-bold">
+                      🎉 Order Confirmed (Stops Timer & Marks Accepted)
+                    </option>
+                    <option value="PAUSED" className="bg-[#0f172a] text-amber-300 font-semibold">
+                      ⏸ Paused (Stops Timer)
+                    </option>
+                    <option value="DROPPED" className="bg-[#0f172a] text-rose-400">
+                      ✕ Dropped / Closed (Stops Timer)
+                    </option>
+                  </optgroup>
+                  <optgroup label="Active Follow-Up Pipeline">
+                    <option value="INTERESTED" className="bg-[#0f172a] text-[#B5F823]">
+                      ⭐ Client Interested (Warm Offer)
+                    </option>
+                    <option value="CALLBACK_REQUESTED" className="bg-[#0f172a] text-cyan-400">
+                      📞 Callback Requested
+                    </option>
+                    <option value="PRICE_NEGOTIATION" className="bg-[#0f172a] text-orange-400">
+                      💰 Price Negotiation
+                    </option>
+                    <option value="SCHEDULED" className="bg-[#0f172a] text-blue-400">
+                      📅 Scheduled Follow-up
+                    </option>
+                    <option value="PENDING" className="bg-[#0f172a] text-gray-300">
+                      ⏳ Pending Setup
+                    </option>
+                    <option value="NO_ANSWER" className="bg-[#0f172a] text-yellow-400">
+                      📵 No Answer / Busy
+                    </option>
+                  </optgroup>
+                </select>
+              </div>
+
+              {/* Instant Timer Controls Banner */}
+              <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-[#B5F823]" />
+                    Quick Timer Actions
+                  </span>
+                  {quickDueDate ? (
+                    <span className="text-[11px] text-cyan-400 font-mono">
+                      Timer Active
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-gray-400 font-mono">
+                      Timer Stopped
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleStopTimer}
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Stop Timer (Complete)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handlePauseTimer}
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    <Pause className="w-3.5 h-3.5" /> Pause Timer
+                  </button>
+                </div>
+              </div>
+
+              {/* Next Due Date / Reminder Schedule */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-gray-300">
+                    Next Follow-up Due Date & Time
+                  </label>
+                  {quickDueDate && (
+                    <button
+                      type="button"
+                      onClick={() => setQuickDueDate('')}
+                      className="text-[11px] text-rose-400 hover:underline cursor-pointer"
+                    >
+                      Clear Date (Stop Timer)
+                    </button>
+                  )}
+                </div>
+
+                {/* Preset Chips */}
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickPresetTime(2);
+                      if (['COMPLETED', 'PAUSED', 'DROPPED'].includes(quickStatus)) {
+                        setQuickStatus('SCHEDULED');
+                      }
+                    }}
+                    className="text-[11px] px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5 cursor-pointer"
+                  >
+                    +2 Hours
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickPresetTomorrow(10, 0);
+                      if (['COMPLETED', 'PAUSED', 'DROPPED'].includes(quickStatus)) {
+                        setQuickStatus('SCHEDULED');
+                      }
+                    }}
+                    className="text-[11px] px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 text-blue-300 hover:text-white border border-blue-500/20 cursor-pointer"
+                  >
+                    Tomorrow 10 AM
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickPresetTomorrow(15, 0);
+                      if (['COMPLETED', 'PAUSED', 'DROPPED'].includes(quickStatus)) {
+                        setQuickStatus('SCHEDULED');
+                      }
+                    }}
+                    className="text-[11px] px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 text-blue-300 hover:text-white border border-blue-500/20 cursor-pointer"
+                  >
+                    Tomorrow 3 PM
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickPresetTime(48);
+                      if (['COMPLETED', 'PAUSED', 'DROPPED'].includes(quickStatus)) {
+                        setQuickStatus('SCHEDULED');
+                      }
+                    }}
+                    className="text-[11px] px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5 cursor-pointer"
+                  >
+                    In 2 Days
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickPresetTime(168);
+                      if (['COMPLETED', 'PAUSED', 'DROPPED'].includes(quickStatus)) {
+                        setQuickStatus('SCHEDULED');
+                      }
+                    }}
+                    className="text-[11px] px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5 cursor-pointer"
+                  >
+                    Next Week
+                  </button>
+                </div>
+
+                <input
+                  type="datetime-local"
+                  value={quickDueDate}
+                  onChange={(e) => {
+                    setQuickDueDate(e.target.value);
+                    if (e.target.value && ['COMPLETED', 'PAUSED', 'DROPPED'].includes(quickStatus)) {
+                      setQuickStatus('SCHEDULED');
+                    }
+                  }}
+                  className="w-full bg-[#0a0a1a] border border-white/10 focus:border-[#7FB706] rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none transition-colors"
+                />
+              </div>
+
+              {/* Channel Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                  Touchpoint Channel
+                </label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {(['CALL', 'WHATSAPP', 'EMAIL', 'IN_PERSON'] as const).map((ch) => (
+                    <button
+                      key={ch}
+                      type="button"
+                      onClick={() => setQuickChannel(ch)}
+                      className={`py-2 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer text-center truncate ${
+                        quickChannel === ch
+                          ? 'bg-[#7FB706] text-white shadow-md'
+                          : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      {ch.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Discussion / Update Notes */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                  Discussion Notes & Remarks (Optional)
+                </label>
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {[
+                    'Client reviewing proposal with director',
+                    'Awaiting revised drawings',
+                    'Negotiating final payment terms',
+                    'Site visit requested for measurement',
+                  ].map((chip, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setQuickNotes((prev) => (prev ? `${prev}. ${chip}` : chip))}
+                      className="text-[10px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-gray-400 hover:text-gray-200 border border-white/5 cursor-pointer"
+                    >
+                      + {chip}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  rows={2}
+                  value={quickNotes}
+                  onChange={(e) => setQuickNotes(e.target.value)}
+                  placeholder="Record summary of client conversation..."
+                  className="w-full bg-[#0a0a1a] border border-white/10 focus:border-[#7FB706] rounded-xl p-2.5 text-xs text-white placeholder-gray-600 focus:outline-none transition-colors resize-none"
+                />
+              </div>
+
+              {/* Link to Full Hub */}
+              <div className="pt-2 border-t border-white/5 flex items-center justify-between text-xs text-gray-400">
+                <span>Need WhatsApp templates or SMS dispatch?</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const quoteId = quickFollowupQuote.id;
+                    setQuickFollowupQuote(null);
+                    navigate(`/admin/dashboard/sales-quotations/${quoteId}/follow-up`);
+                  }}
+                  className="text-[#B5F823] hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Open Full Hub
+                </button>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setQuickFollowupQuote(null)}
+                  disabled={savingQuickFollowup}
+                  className="px-4 py-2 min-h-[40px] bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveQuickFollowup}
+                  disabled={savingQuickFollowup}
+                  className="inline-flex items-center gap-2 px-5 py-2 min-h-[40px] bg-[#7FB706] hover:bg-[#6fa005] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {savingQuickFollowup ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      Save & Update Timer
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

@@ -3731,6 +3731,98 @@ In Restroom Cubicle quotations, installation charges are typically calculated on
   - **Proforma Invoice Detail (`ProformaInvoiceDetailPage.tsx`)**:
     - Advance Tracking Hero card displays interactive list of recorded advance receipts and allocations with Date, UTR, Mode, Amount, Notes, and Edit/Delete action triggers.
 
+---
+
+### 62. Proforma Invoice List Date-Wise Separation & Chronological Organization
+
+#### 62.1 Date-Wise Separation & Section Headers (`ProformaInvoicesPage.tsx`)
+- **Grouped Date Separator Rows (Desktop View)**:
+  - Enabled by default via `groupByDate = true`.
+  - In the desktop table, each calendar date is separated by a stylized gradient section header spanning all 8 columns:
+    - Calendar icon + Formatted Date (`DD MMM YYYY`, e.g. `08 Oct 2026`)
+    - Day of week indicator (e.g. `(Thursday)`)
+    - `Today` (emerald badge) and `Yesterday` (amber badge) quick indicators
+    - PI count on that date (`X PI(s)`)
+    - Day total revenue subtotal (`Day Total: ₹ X,XX,XXX.XX`)
+  - Subordinate rows for that day are listed underneath with sequential row indices.
+- **Sticky Date Divider Banners (Mobile View)**:
+  - Mobile cards are grouped by date with a sticky backdrop-blurred divider bar:
+    - Calendar icon, formatted date, day of week, `Today` badge, invoice count, and day total value.
+- **View Mode Switcher (`Date Separated` vs `Flat View`)**:
+  - Filter bar includes an interactive toggle button: `Date Separated` (with `Layers` icon) vs `Flat View`.
+  - Allows switching between date-grouped sections and traditional continuous flat table at will.
+- **Date Sort Toggle & Clickable Header**:
+  - Filter bar includes Date Sort button: `📅 Date: Newest / Oldest` with dynamic `ArrowDown` / `ArrowUp` indicators.
+  - Table header for `Date` is clickable to toggle sort order between newest first and oldest first.
+- **KPI Summary Row**:
+  - Header cards display Total Proforma Invoices (count & total value), Today's Invoices (count & today's value), Date Groups count, and Officially Issued PIs.
+
+#### 62.2 Backend Deterministic Query Sorting & Date Filtering (`pi.service.ts`, `pi.controller.ts`)
+- **Query Parameter Extensions**:
+  - `piService.list` and `piController.list` accept `sortBy`, `sortOrder`, `fromDate`, and `toDate`.
+- **Deterministic Multi-Column Ordering**:
+  - Default ordering: `orderBy: [{ piDate: sortOrder }, { createdAt: sortOrder }, { id: 'desc' }]`.
+  - Eliminates non-deterministic row ordering when multiple proforma invoices share the same date.
+- **Date Range Querying**:
+  - Supports ISO fromDate/toDate filtering on `piDate` with end-of-day boundary clamping (`23:59:59.999`).
+
+---
+
+### 63. Sales Quotation Follow-Up Timer Controls, Overdue Alarm Fix & Dynamic Multi-Page Pagination
+
+#### 63.1 Overdue Timer Resolution & Terminal Status Rules
+- **Root Cause of "Overdue 140h" Display**:
+  - `renderFollowupBadge` and `timingInfo` previously only stopped countdown calculation for `status === 'CONVERTED'`.
+  - When a quotation had an older `nextFollowupDate` or when follow-up had been concluded (`COMPLETED`, `PAUSED`, `ORDER_CONFIRMED`, `DROPPED`), the timer kept computing `Date.now() - nextFollowupDate`, showing misleading values like "Overdue 140h".
+- **Enhanced Timer Stop Conditions**:
+  - Overdue timer is stopped immediately whenever:
+    1. Quotation status is `CONVERTED` or `ACCEPTED`.
+    2. Follow-up status is `ORDER_CONFIRMED` (displays green `✓ Order Confirmed` badge).
+    3. Follow-up status is `COMPLETED` (displays green `✓ Completed (Timer Stopped)` badge).
+    4. Follow-up status is `PAUSED` or `STOPPED` (displays amber `⏸ Paused (Timer Stopped)` badge).
+    5. Follow-up status is `DROPPED` or `LOST` (displays rose `✕ Dropped / Closed` badge).
+    6. `nextFollowupDate` is empty or null (displays `No Timer Set` badge).
+  - Active timers only calculate countdowns when a valid active status exists with a scheduled date (`Overdue Xh`, `Due in Xh Ym`, or scheduled calendar date).
+
+#### 63.2 Quick Follow-Up & Timer Control Modal (`SalesQuotationsPage.tsx`)
+- **Direct List Page Access**:
+  - Clicking on the Follow-Up badge/column in desktop table or mobile cards immediately opens the `QuickFollowupModal` without navigating away from the quotations list.
+  - Includes a dedicated edit icon button (`Clock` / `Edit`) next to the badge.
+- **1-Click Stop & Pause Timer Buttons**:
+  - **"⏹ Stop Timer (Complete)"**: Instantly clears `nextFollowupDate` and transitions status to `COMPLETED`.
+  - **"⏸ Pause Timer"**: Clears `nextFollowupDate` and transitions status to `PAUSED`.
+- **Flexible Due Time Rescheduling**:
+  - Datetime-local picker with 1-click **"Clear Date"** trigger.
+  - Instant preset chips: `+2 Hours`, `Tomorrow 10 AM`, `Tomorrow 3 PM`, `In 2 Days`, `Next Week`.
+- **Status Selection & Touchpoint Logging**:
+  - Grouped status selector distinguishing between terminal states (timer stopped) and active pipeline states (`INTERESTED`, `CALLBACK_REQUESTED`, `PRICE_NEGOTIATION`, `SCHEDULED`, `PENDING`, `NO_ANSWER`).
+  - Discussion notes with quick append chips.
+  - Touchpoint channel picker (`CALL`, `WHATSAPP`, `EMAIL`, `IN_PERSON`).
+  - Shortcut link to the full Omnichannel Communication Hub (`/admin/dashboard/sales-quotations/:id/follow-up`).
+
+#### 63.3 Backend Cross-Stack Synchronization (`quotations.service.ts`, `quotations.controller.ts`, `quotations.routes.ts`)
+- **Dedicated Route**: `PATCH /api/v1/sales/quotations/:id/follow-up-status`.
+- **Service Action (`quotationsService.updateFollowupStatus`)**:
+  - Whitelist includes `PAUSED` alongside `PENDING`, `SCHEDULED`, `COMPLETED`, `INTERESTED`, `PRICE_NEGOTIATION`, `CALLBACK_REQUESTED`, `NO_ANSWER`, `ORDER_CONFIRMED`, `DROPPED`.
+  - Logs persistent `QuotationFollowup` touchpoint entry.
+  - Automatically updates quotation's `followupStatus`, `nextFollowupDate`, `lastFollowupDate`, and increments `followupCount`.
+  - Automatically transitions quotation status to `ACCEPTED` if follow-up status is set to `ORDER_CONFIRMED`.
+  - Creates structured audit mutation record for tracking.
+
+#### 63.4 Full Multi-Page Pagination & Custom Page Sizing
+- **Root Cause of "Only 15 Quotations Showing"**:
+  - `limit: 15` was hardcoded in `fetchQuotations`.
+  - Backend previously returned pagination properties nested under `pagination: { total, totalPages }` while frontend looked for top-level `res.data.data.totalPages`, defaulting to `1`.
+- **Backend Response Normalization**:
+  - `quotationsService.list` now returns `total`, `page`, `limit`, and `totalPages` at both the root level and under `pagination` to strictly satisfy `PaginatedResponse<SalesQuotation>`.
+- **Dynamic Page Size Selector**:
+  - Supported options: `15`, `30`, `50`, `100`, `250` per page (defaults to 50 rows).
+  - Total count banner: `Showing X–Y of Total quotations` with live database count.
+  - Comprehensive numeric pagination bar with smart ellipsis windowing (`<<`, `<`, `1`, `2`, `...`, `10`, `>`, `>>`).
+  - Row numbering properly scaled: `(page - 1) * pageSize + idx + 1`.
+
+
+
 
 
 

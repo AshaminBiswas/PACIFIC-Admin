@@ -34,6 +34,13 @@ export const salesQuotationsApi = {
     performedByName?: string;
   }) =>
     apiClient.post<ApiResponse<{ followup: QuotationFollowup; quotation: SalesQuotation }>>(`/sales/quotations/${id}/follow-ups`, data),
+  updateFollowupStatus: (id: string, data: {
+    followupStatus: QuotationFollowupStatus | string;
+    nextFollowupDate?: string | null;
+    notes?: string;
+    channel?: QuotationFollowupChannel | string;
+  }) =>
+    apiClient.patch<ApiResponse<{ followup: QuotationFollowup; quotation: SalesQuotation }>>(`/sales/quotations/${id}/follow-up-status`, data),
   sendFollowupEmail: (id: string, data: {
     recipientEmail?: string;
     subject?: string;
