@@ -56,14 +56,67 @@ function mapDbRowToModel(row: any): ProductCatalogModel {
     }
   }
 
+  const category = (row.category as ProductCategoryType) || 'Cubicle';
+
   // Filter out internal metadata keys from public specifications
   const cleanSpecs = specs.filter((s: any) => !s.label.startsWith('__'));
+
+  // Ensure cleanSpecs includes essential technical specifications if empty or incomplete
+  let finalSpecs = [...cleanSpecs];
+  const hasHeight = finalSpecs.some((s: any) => s.label.toLowerCase().includes('height'));
+  const hasDepth = finalSpecs.some((s: any) => s.label.toLowerCase().includes('depth') || s.label.toLowerCase().includes('size'));
+  const hasDoor = finalSpecs.some((s: any) => s.label.toLowerCase().includes('door'));
+  const hasThickness = finalSpecs.some((s: any) => s.label.toLowerCase().includes('thickness'));
+
+  if (category === 'Kids Toilet') {
+    if (!hasHeight) finalSpecs.push({ label: 'Standard Height', value: '1200 mm – 1500 mm (Child-Friendly Ergonomic Height)' });
+    if (!hasDepth) finalSpecs.push({ label: 'Standard Depth', value: '1200 mm – 1500 mm' });
+    if (!hasDoor) finalSpecs.push({ label: 'Door Width', value: '500 mm – 600 mm (Child Ergonomic Safety Door)' });
+    if (!hasThickness) finalSpecs.push({ label: 'Board Thickness', value: '12mm Solid Compact Phenolic Laminate' });
+    if (!finalSpecs.some((s: any) => s.label.toLowerCase().includes('fire'))) {
+      finalSpecs.push({ label: 'Fire Rating', value: 'Class 1 / BS 476 Part 7' });
+    }
+    if (!finalSpecs.some((s: any) => s.label.toLowerCase().includes('water'))) {
+      finalSpecs.push({ label: 'Water Resistance', value: '100% Moisture, Water & Humidity Proof' });
+    }
+    if (!finalSpecs.some((s: any) => s.label.toLowerCase().includes('safety'))) {
+      finalSpecs.push({ label: 'Safety Feature', value: 'Anti-Pinch Hinge Gap & Outside Emergency Coin Release' });
+    }
+  } else if (category === 'Cubicle') {
+    if (!hasHeight) finalSpecs.push({ label: 'Standard Height', value: '1980 mm / 2000 mm (including 150mm floor gap)' });
+    if (!hasDepth) finalSpecs.push({ label: 'Standard Depth', value: '1500 mm – 1800 mm' });
+    if (!hasDoor) finalSpecs.push({ label: 'Door Width', value: '600 mm (Standard) / 900 mm (Accessible/ADA)' });
+    if (!hasThickness) finalSpecs.push({ label: 'Board Thickness', value: '12mm / 18mm Solid Compact Phenolic Laminate' });
+    if (!finalSpecs.some((s: any) => s.label.toLowerCase().includes('fire'))) {
+      finalSpecs.push({ label: 'Fire Rating', value: 'Class 1 / BS 476 Part 7' });
+    }
+    if (!finalSpecs.some((s: any) => s.label.toLowerCase().includes('water'))) {
+      finalSpecs.push({ label: 'Water Resistance', value: '100% Moisture, Water & Humidity Proof' });
+    }
+  }
+
+  // Ensure default hardware options & list for Kids Toilet if unpopulated
+  if (category === 'Kids Toilet' && (!hardwareOptions || hardwareOptions.length === 0)) {
+    hardwareOptions = [
+      { material: 'SS Hardware', enabled: true, colors: ['golden', 'Black', 'stainless steel'] },
+      { material: 'Nylon Hardware', enabled: true, colors: [] },
+    ];
+  }
+  if (category === 'Kids Toilet' && (!hardwareList || hardwareList.length === 0)) {
+    hardwareList = [
+      { id: '1', name: 'Nylon Safety Spring Hinges (Soft & Self-Closing Pair)', quantity: 2, unit: 'Pair', material: 'Both' },
+      { id: '2', name: 'Emergency Release Coin Latch / Safety Turn Lock', quantity: 1, unit: 'Set', material: 'Both' },
+      { id: '3', name: 'Ergonomic Rounded Child Door Knob', quantity: 1, unit: 'Pc', material: 'Both' },
+      { id: '4', name: 'Safety Coat & Bag Hook with Soft Buffer Stop', quantity: 1, unit: 'Pc', material: 'Both' },
+      { id: '5', name: 'Adjustable Floor Support Legs (100–150mm)', quantity: 2, unit: 'Pcs', material: 'Both' },
+    ];
+  }
 
   return {
     id: row.id,
     slug: row.slug,
     title: row.title,
-    category: (row.category as ProductCategoryType) || 'Cubicle',
+    category,
     subtitle: row.subtitle || '',
     description: row.description || '',
     imageUrl: row.image_url || '',
@@ -72,7 +125,7 @@ function mapDbRowToModel(row: any): ProductCatalogModel {
     videoUrls: Array.isArray(videos) ? videos : [],
     hardwareOptions: hardwareOptions || [],
     hardwareList: hardwareList || [],
-    specifications: cleanSpecs,
+    specifications: finalSpecs,
     features: Array.isArray(row.features) ? row.features : [],
     applications: Array.isArray(row.applications) ? row.applications : [],
     colors: Array.isArray(row.colors)

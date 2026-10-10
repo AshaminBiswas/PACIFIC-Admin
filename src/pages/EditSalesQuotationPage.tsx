@@ -112,6 +112,14 @@ export default function EditSalesQuotationPage() {
   const [catalogModels, setCatalogModels] = useState<ProductCatalogModel[]>([]);
   const [companies, setCompanies] = useState<CompanyProfile[]>([]);
 
+  const standardCubicleModels = useMemo(
+    () => catalogModels.filter((m) => m.category === 'Cubicle'),
+    [catalogModels]
+  );
+  const kidsCubicleModels = useMemo(
+    () => catalogModels.filter((m) => m.category === 'Kids Toilet'),
+    [catalogModels]
+  );
   const cubicleModels = useMemo(
     () => catalogModels.filter((m) => m.category === 'Cubicle' || m.category === 'Kids Toilet'),
     [catalogModels]
@@ -1736,9 +1744,14 @@ export default function EditSalesQuotationPage() {
                             className={inputCls + ' bg-[#161536] border-[#7FB706]/40 font-semibold'}
                           >
                             <option value="">-- Choose Product Model (Optional) --</option>
-                            {cubicleModels.length > 0 && (
-                              <optgroup label={`Restroom Cubicles (${cubicleModels.length} Listed)`}>
-                                {cubicleModels.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
+                            {standardCubicleModels.length > 0 && (
+                              <optgroup label={`Standard Restroom Cubicles (${standardCubicleModels.length} Listed)`}>
+                                {standardCubicleModels.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
+                              </optgroup>
+                            )}
+                            {kidsCubicleModels.length > 0 && (
+                              <optgroup label={`Kids Cubicle Models (${kidsCubicleModels.length} Listed)`}>
+                                {kidsCubicleModels.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
                               </optgroup>
                             )}
                             <option value="CUSTOM">Custom / Manual Specification (Write Model)</option>

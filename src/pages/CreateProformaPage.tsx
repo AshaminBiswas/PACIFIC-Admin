@@ -339,6 +339,10 @@ export default function CreateProformaPage() {
     () => catalogModels.filter((m) => m.category === 'Cubicle'),
     [catalogModels]
   );
+  const kidsModels = useMemo(
+    () => catalogModels.filter((m) => m.category === 'Kids Toilet'),
+    [catalogModels]
+  );
   const lockerModels = useMemo(
     () => catalogModels.filter((m) => m.category === 'Lockers'),
     [catalogModels]
@@ -2624,8 +2628,17 @@ export default function CreateProformaPage() {
                             <option value="">-- Choose Cubicle Model (Optional) --</option>
                             <option value="custom">-- Custom / Manual Specification (No Model) --</option>
                             {cubicleModels.length > 0 && (
-                              <optgroup label={`Restroom Cubicles (${cubicleModels.length} Listed)`}>
+                              <optgroup label={`Standard Restroom Cubicles (${cubicleModels.length} Listed)`}>
                                 {cubicleModels.map((m) => (
+                                  <option key={m.id} value={m.id}>
+                                    {m.title}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {kidsModels.length > 0 && (
+                              <optgroup label={`Kids Cubicle Models (${kidsModels.length} Listed)`}>
+                                {kidsModels.map((m) => (
                                   <option key={m.id} value={m.id}>
                                     {m.title}
                                   </option>
@@ -3221,7 +3234,7 @@ export default function CreateProformaPage() {
                               </div>
                               <input
                                 type="text"
-                                value={item.customModelName ?? (item.modelId && item.modelId !== 'CUSTOM' ? (cubicleModels.find((m) => m.id === item.modelId)?.title || '') : '')}
+                                value={item.customModelName ?? (item.modelId && item.modelId !== 'CUSTOM' ? (catalogModels.find((m) => m.id === item.modelId)?.title || '') : '')}
                                 onChange={(e) => {
                                   handleItemChange(realIdx, 'customModelName', e.target.value);
                                   handleItemChange(realIdx, 'modelName', e.target.value);

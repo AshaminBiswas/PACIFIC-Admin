@@ -3938,6 +3938,36 @@ A dedicated enterprise hardware inventory management system mirroring the Board 
 - **Vendor CRUD & Deletion**: Added `hardwareInventoryApi.deleteVendor(id)` and `hardwareInventoryApi.clearAllVendors()`.
 - **UI Enhancements**: Added single-click trash delete button per vendor card and a "Clear All" action button in `HardwareVendorsModal.tsx`, alongside automated purge on modal open.
 
+---
+
+### 67. Kids Cubicle Model Technical Specifications & Catalog Listing Architecture
+
+#### 67.1 Issue Resolution Overview
+- **Issue Reported**: When listing the Kids Cubicle Model (`Kids Toilet` category), technical specifications (Height, Depth, Door Width, Board Thickness, Fire Rating, Water Resistance, Child Safety) were failing to display in the frontend catalog and transaction builders.
+- **Root Causes**:
+  1. Product model creation and edit wizards (`CreateAdminProductPage.tsx`, `EditProductModelPage.tsx`, and `AdminProducts.tsx` modal) conditioned specifications and hardware options strictly on `category === 'Cubicle'`, omitting `Kids Toilet`. Consequently, Kids Cubicle models were saved with empty or stripped specification arrays.
+  2. In `ProductModelDetailPage.tsx`, models with missing specification records lacked a self-healing fallback layer, and the hardware overview section lacked child ergonomic hardware display.
+  3. In `AdminProducts.tsx` cards and table views, technical specification badges were exclusively rendered for `category === 'Cubicle'`.
+  4. In transaction flows (`CreateSalesOrderPage.tsx`, `EditSalesOrderPage.tsx`, `CreateProformaPage.tsx`, `EditProformaInvoicePage.tsx`), model dropdowns only included `Cubicle` models (`m.category === 'Cubicle'`), preventing selection of Kids Cubicle models.
+  5. In `src/utils/quotationProductPresets.ts`, `extractModelDimensions` lacked width formatting for Kids models when only depth was recorded.
+
+#### 67.2 Key Architectural Enhancements
+- **Self-Healing Deserializer (`src/api/productCatalogApi.ts`)**:
+  - `mapDbRowToModel` self-heals incomplete database/cached models for `Kids Toilet` by injecting official Pacific child-ergonomic specifications (`Standard Height: 1200 mm – 1500 mm`, `Standard Depth: 1200 mm – 1500 mm`, `Door Width: 500 mm – 600 mm`, `Board Thickness: 12mm Solid Compact Phenolic Laminate`, `Fire Rating: Class 1`, `Water Resistance: 100%`, `Safety Feature: Anti-Pinch Hinge Gap & Outside Emergency Coin Release`) and default hardware options (SS and Nylon).
+- **Product Model Creation & Edit Forms**:
+  - `CreateAdminProductPage.tsx` & `EditProductModelPage.tsx`: Full support for `Kids Toilet` in hardware options construction (`formSsEnabled`, `formNylonEnabled`), specification parsing (`getSpec`), and form payload submission.
+- **Admin Catalog Views (`AdminProducts.tsx` & `ProductModelDetailPage.tsx`)**:
+  - Card view displays Child Ergonomic Engineering Specifications (Height, Board, Door Width, Depth) for `Kids Toilet`.
+  - Table view displays specification summary chips (`H: 1200–1500mm`, `Board: 12mm`, `Door: 500–600mm`) under model name and subtitle.
+  - Detail page includes `effectiveSpecifications` fallback and dedicated "Kids Cubicle Child Safety & Ergonomics" hardware suite.
+- **Dimension Extractor (`src/utils/quotationProductPresets.ts`)**:
+  - `extractModelDimensions` automatically formats `cubicleSize` as `900mm W × ${depth}` for Kids Toilet models when width is absent.
+- **Transaction Builders Sync**:
+  - `CreateSalesOrderPage.tsx` & `EditSalesOrderPage.tsx`: Integrated `kidsModels` and distinct `<optgroup>`s for `Standard Restroom Cubicles` and `Kids Cubicle Models`.
+  - `CreateProformaPage.tsx` & `EditProformaInvoicePage.tsx`: Integrated `kidsModels` and distinct `<optgroup>`s for `Standard Restroom Cubicles` and `Kids Cubicle Models`.
+  - `DraftQuotationPage.tsx` & `EditSalesQuotationPage.tsx`: Split cubicle models dropdown into `Standard Restroom Cubicles` and `Kids Cubicle Models` optgroups for clarity.
+
+
 
 
 

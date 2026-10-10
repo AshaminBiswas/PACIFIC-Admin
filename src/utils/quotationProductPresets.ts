@@ -756,14 +756,27 @@ export function extractModelDimensions(model: ProductCatalogModel) {
     return '';
   };
 
-  let cubicleSize = findSpec(['cubicle size', 'standard depth', 'depth', 'compartment']);
+  let cubicleSize = findSpec(['cubicle size', 'compartment', 'standard depth', 'depth']);
   let doorSize = findSpec(['door size', 'door width', 'door', 'configuration']);
   let overallHeight = findSpec(['overall height', 'standard height', 'height']);
   let boardThickness = findSpec(['board thickness', 'thickness']);
 
   // Defaults per category if missing in custom model
-  if (model.category === 'Cubicle') {
-    if (!cubicleSize) cubicleSize = '1000mm W × 1500mm D';
+  if (model.category === 'Kids Toilet') {
+    if (!cubicleSize) {
+      cubicleSize = '900mm W × 1200mm D';
+    } else if (!cubicleSize.toLowerCase().includes('w') && !cubicleSize.includes('×') && !cubicleSize.includes('x')) {
+      cubicleSize = `900mm W × ${cubicleSize}`;
+    }
+    if (!doorSize) doorSize = '500mm × 1050mm (Child Ergonomic Safety Door)';
+    if (!overallHeight) overallHeight = '1200 mm – 1500 mm (Child-Friendly Ergonomic Height)';
+    if (!boardThickness) boardThickness = '12mm Solid Compact Phenolic Laminate';
+  } else if (model.category === 'Cubicle') {
+    if (!cubicleSize) {
+      cubicleSize = '1000mm W × 1500mm D';
+    } else if (!cubicleSize.toLowerCase().includes('w') && !cubicleSize.includes('×') && !cubicleSize.includes('x')) {
+      cubicleSize = `1000mm W × ${cubicleSize}`;
+    }
     if (!doorSize) doorSize = '600mm × 1785mm (Standard)';
     if (!overallHeight) overallHeight = '1980 mm / 2000 mm (incl. 150mm ground clearance)';
     if (!boardThickness) boardThickness = '12mm / 18mm Solid Compact Phenolic Laminate';
@@ -776,11 +789,6 @@ export function extractModelDimensions(model: ProductCatalogModel) {
     if (!cubicleSize) cubicleSize = '450mm W × 900mm H';
     if (!doorSize) doorSize = 'N/A (Divider Screen)';
     if (!overallHeight) overallHeight = model.hasExtraLeg ? '900mm – 1200mm (floor & wall supported)' : '900mm (with 300mm floor clearance)';
-    if (!boardThickness) boardThickness = '12mm Solid Compact Phenolic Laminate';
-  } else if (model.category === 'Kids Toilet') {
-    if (!cubicleSize) cubicleSize = '900mm W × 1200mm D';
-    if (!doorSize) doorSize = '500mm × 1050mm (Child Ergonomic Safety Door)';
-    if (!overallHeight) overallHeight = '1200 mm – 1500 mm (Child-Friendly Ergonomic Height)';
     if (!boardThickness) boardThickness = '12mm Solid Compact Phenolic Laminate';
   }
 

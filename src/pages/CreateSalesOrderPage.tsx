@@ -165,6 +165,10 @@ export default function CreateSalesOrderPage() {
     () => catalogModels.filter((m) => m.category === 'Cubicle'),
     [catalogModels]
   );
+  const kidsModels = useMemo(
+    () => catalogModels.filter((m) => m.category === 'Kids Toilet'),
+    [catalogModels]
+  );
   const lockerModels = useMemo(
     () => catalogModels.filter((m) => m.category === 'Lockers'),
     [catalogModels]
@@ -1291,8 +1295,17 @@ export default function CreateSalesOrderPage() {
                   >
                     <option value="">-- Choose Product Model --</option>
                     {cubicleModels.length > 0 && (
-                      <optgroup label={`Restroom Cubicles (${cubicleModels.length} Listed)`}>
+                      <optgroup label={`Standard Restroom Cubicles (${cubicleModels.length} Listed)`}>
                         {cubicleModels.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.title}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {kidsModels.length > 0 && (
+                      <optgroup label={`Kids Cubicle Models (${kidsModels.length} Listed)`}>
+                        {kidsModels.map((m) => (
                           <option key={m.id} value={m.id}>
                             {m.title}
                           </option>

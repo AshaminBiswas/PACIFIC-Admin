@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -167,6 +167,37 @@ export default function ProductModelDetailPage() {
   ].map((v) => (typeof v === 'string' ? v.trim() : '')).filter(Boolean);
   const uniqueVideos = Array.from(new Set(rawVideos));
 
+  const effectiveSpecifications = useMemo(() => {
+    const specs = model?.specifications || [];
+    const hasHeight = specs.some((s) => s.label.toLowerCase().includes('height'));
+    const hasDepth = specs.some((s) => s.label.toLowerCase().includes('depth') || s.label.toLowerCase().includes('size'));
+    const hasDoor = specs.some((s) => s.label.toLowerCase().includes('door'));
+    const hasThickness = specs.some((s) => s.label.toLowerCase().includes('thickness'));
+
+    if (model?.category === 'Kids Toilet' && (!hasHeight || !hasDepth || !hasDoor)) {
+      const merged = [...specs.filter((s) => !['category'].includes(s.label.toLowerCase()))];
+      if (!hasHeight) merged.push({ label: 'Standard Height', value: '1200 mm – 1500 mm (Child-Friendly Ergonomic Height)' });
+      if (!hasDepth) merged.push({ label: 'Standard Depth', value: '1200 mm – 1500 mm' });
+      if (!hasDoor) merged.push({ label: 'Door Width', value: '500 mm – 600 mm (Child Ergonomic Safety Door)' });
+      if (!hasThickness) merged.push({ label: 'Board Thickness', value: '12mm Solid Compact Phenolic Laminate' });
+      if (!specs.some((s) => s.label.toLowerCase().includes('fire'))) merged.push({ label: 'Fire Rating', value: 'Class 1 / BS 476 Part 7' });
+      if (!specs.some((s) => s.label.toLowerCase().includes('water'))) merged.push({ label: 'Water Resistance', value: '100% Moisture, Water & Humidity Proof' });
+      if (!specs.some((s) => s.label.toLowerCase().includes('safety'))) merged.push({ label: 'Safety Feature', value: 'Anti-Pinch Hinge Gap & Outside Emergency Coin Release' });
+      return merged;
+    }
+    if (model?.category === 'Cubicle' && (!hasHeight || !hasDepth || !hasDoor)) {
+      const merged = [...specs.filter((s) => !['category'].includes(s.label.toLowerCase()))];
+      if (!hasHeight) merged.push({ label: 'Standard Height', value: '1980 mm / 2000 mm (including 150mm floor gap)' });
+      if (!hasDepth) merged.push({ label: 'Standard Depth', value: '1500 mm – 1800 mm' });
+      if (!hasDoor) merged.push({ label: 'Door Width', value: '600 mm (Standard) / 900 mm (Accessible/ADA)' });
+      if (!hasThickness) merged.push({ label: 'Board Thickness', value: '12mm / 18mm Solid Compact Phenolic Laminate' });
+      if (!specs.some((s) => s.label.toLowerCase().includes('fire'))) merged.push({ label: 'Fire Rating', value: 'Class 1 / BS 476 Part 7' });
+      if (!specs.some((s) => s.label.toLowerCase().includes('water'))) merged.push({ label: 'Water Resistance', value: '100% Moisture, Water & Humidity Proof' });
+      return merged;
+    }
+    return specs;
+  }, [model]);
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-24">
       {/* ── Top Bar ─────────────────────────────────────────────── */}
@@ -291,7 +322,7 @@ export default function ProductModelDetailPage() {
             </p>
 
             <div className="pt-3 border-t border-white/5 space-y-2.5">
-              {model.specifications?.map((spec, i) => (
+              {effectiveSpecifications.map((spec, i) => (
                 <div key={i} className="flex items-center justify-between text-xs py-1">
                   <span className="text-gray-400">{spec.label}</span>
                   <span className="text-white font-medium text-right">{spec.value}</span>
@@ -400,6 +431,64 @@ export default function ProductModelDetailPage() {
                 ) : (
                   <div className="p-4 bg-white/5 border border-white/5 rounded-2xl text-xs text-gray-300">
                     Standard floating wall-hung cantilever mounting configuration with heavy stainless steel corner brackets.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 4. Kids Toilet Rules: Child Safety Ergonomics with SS & Nylon Hardware */}
+            {model.category === 'Kids Toilet' && (
+              <div className="space-y-4">
+                <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl space-y-2">
+                  <div className="flex items-center gap-2 text-rose-300 font-bold text-xs">
+                    <Shield className="w-4 h-4 text-rose-400" />
+                    Kids Cubicle Child Safety &amp; Ergonomics
+                  </div>
+                  <p className="text-xs text-gray-300 leading-relaxed">
+                    Specially designed child-safety ergonomics: Anti-finger pinch hinge clearance, low-height doors for supervisory oversight, soft self-closing spring hinges, and exterior emergency release coin turn latch for staff safety access. Supports both Stainless Steel and vibrant Nylon safety fittings.
+                  </p>
+                </div>
+
+                {/* SS Hardware Details */}
+                {ssOption?.enabled && (
+                  <div className="p-4 bg-black/40 border border-white/5 rounded-2xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        SS Hardware (Grade 304/316)
+                      </span>
+                      <span className="text-[11px] text-emerald-400 font-semibold">Available in 3 Finishes</span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {(ssOption.colors || ['golden', 'Black', 'stainless steel']).map((col) => (
+                        <div
+                          key={col}
+                          className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 ${
+                            COLOR_SWATCHES[col]?.bg || 'bg-white/5 border-white/10 text-gray-300'
+                          }`}
+                        >
+                          <span className={`w-2.5 h-2.5 rounded-full ${COLOR_SWATCHES[col]?.dot}`} />
+                          <span>{COLOR_SWATCHES[col]?.label || col}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Nylon Safety Hardware Details */}
+                {nylonOption?.enabled && (
+                  <div className="p-4 bg-black/40 border border-white/5 rounded-2xl flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-cyan-400" />
+                      <div>
+                        <div className="text-xs font-bold text-white">Nylon Safety Hardware (Polyamide Grade)</div>
+                        <div className="text-[11px] text-gray-400">Soft-closing spring hinges &amp; non-pinching rounded profiles</div>
+                      </div>
+                    </div>
+                    <span className="text-[11px] px-2.5 py-1 rounded-xl bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-semibold">
+                      Included
+                    </span>
                   </div>
                 )}
               </div>

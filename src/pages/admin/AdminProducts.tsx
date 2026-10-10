@@ -588,7 +588,7 @@ export default function AdminProducts() {
 
     // Build hardwareOptions according to category rules
     const hardwareOptions: ModelHardwareOption[] = [];
-    if (formCategory === 'Cubicle') {
+    if (formCategory === 'Cubicle' || formCategory === 'Kids Toilet') {
       if (formSsEnabled) {
         hardwareOptions.push({
           material: 'SS Hardware',
@@ -631,10 +631,31 @@ export default function AdminProducts() {
       colors: editingModel?.colors,
       hardwareOptions,
       hardwareList: formHardwareList,
-      specifications: editingModel?.specifications || [
-        { label: 'Board Thickness', value: '12mm / 18mm Compact Laminate' },
-        { label: 'Category', value: formCategory },
-      ],
+      specifications: editingModel?.specifications || (
+        formCategory === 'Kids Toilet'
+          ? [
+              { label: 'Standard Height', value: '1200 mm – 1500 mm (Child-Friendly Ergonomic Height)' },
+              { label: 'Standard Depth', value: '1200 mm – 1500 mm' },
+              { label: 'Door Width', value: '500 mm – 600 mm (Child Ergonomic Safety Door)' },
+              { label: 'Board Thickness', value: '12mm Solid Compact Phenolic Laminate' },
+              { label: 'Fire Rating', value: 'Class 1 / BS 476 Part 7' },
+              { label: 'Water Resistance', value: '100% Moisture, Water & Humidity Proof' },
+              { label: 'Safety Clearance', value: 'Anti-Pinch Hinge Gap & Outside Emergency Coin Release' },
+            ]
+          : formCategory === 'Cubicle'
+          ? [
+              { label: 'Standard Height', value: '1980 mm / 2000 mm (including 150mm floor gap)' },
+              { label: 'Standard Depth', value: '1500 mm – 1800 mm' },
+              { label: 'Door Width', value: '600 mm (Standard) / 900 mm (Accessible/ADA)' },
+              { label: 'Board Thickness', value: '12mm / 18mm Solid Compact Phenolic Laminate' },
+              { label: 'Fire Rating', value: 'Class 1 / BS 476 Part 7' },
+              { label: 'Water Resistance', value: '100% Moisture, Water & Humidity Proof' },
+            ]
+          : [
+              { label: 'Board Thickness', value: '12mm / 18mm Compact Laminate' },
+              { label: 'Category', value: formCategory },
+            ]
+      ),
       features: editingModel?.features || [
         '10-Year Compact Board Warranty',
         '1-Year Hardware Replacement Warranty',
@@ -1146,6 +1167,47 @@ export default function AdminProducts() {
                         </div>
                       )}
                     </div>
+
+                    {/* ── Engineering Specifications Area ── */}
+                    {(model.category === 'Cubicle' || model.category === 'Kids Toilet') && (
+                      <div className="p-3 bg-white/[0.02] border border-white/5 rounded-2xl space-y-2">
+                        <div className="flex items-center justify-between text-[11px] font-semibold text-gray-400">
+                          <span className="flex items-center gap-1 text-[#7FB706]">
+                            <Sparkles className="w-3.5 h-3.5 text-[#7FB706]" />
+                            {model.category === 'Kids Toilet' ? 'Kids Cubicle Specifications:' : 'Cubicle Specifications:'}
+                          </span>
+                          <span className="text-[10px] text-gray-400 font-mono">
+                            {model.category === 'Kids Toilet' ? 'Child Ergonomic' : 'Standard OEM'}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                          <div className="p-1.5 rounded-lg bg-black/40 border border-white/5 flex flex-col justify-center">
+                            <span className="text-gray-400 text-[9px] uppercase tracking-wider">Height</span>
+                            <span className="text-gray-200 font-medium truncate">
+                              {model.specifications?.find((s) => s.label.toLowerCase().includes('height'))?.value || (model.category === 'Kids Toilet' ? '1200–1500 mm' : '1980–2000 mm')}
+                            </span>
+                          </div>
+                          <div className="p-1.5 rounded-lg bg-black/40 border border-white/5 flex flex-col justify-center">
+                            <span className="text-gray-400 text-[9px] uppercase tracking-wider">Board</span>
+                            <span className="text-gray-200 font-medium truncate">
+                              {model.specifications?.find((s) => s.label.toLowerCase().includes('thickness'))?.value?.split(' ')[0] || '12mm'} Solid HPL
+                            </span>
+                          </div>
+                          <div className="p-1.5 rounded-lg bg-black/40 border border-white/5 flex flex-col justify-center">
+                            <span className="text-gray-400 text-[9px] uppercase tracking-wider">Door Width</span>
+                            <span className="text-gray-200 font-medium truncate">
+                              {model.specifications?.find((s) => s.label.toLowerCase().includes('door'))?.value?.split(' ')[0] || (model.category === 'Kids Toilet' ? '500–600 mm' : '600 mm')}
+                            </span>
+                          </div>
+                          <div className="p-1.5 rounded-lg bg-black/40 border border-white/5 flex flex-col justify-center">
+                            <span className="text-gray-400 text-[9px] uppercase tracking-wider">Depth / Size</span>
+                            <span className="text-gray-200 font-medium truncate">
+                              {model.specifications?.find((s) => s.label.toLowerCase().includes('depth'))?.value || (model.category === 'Kids Toilet' ? '1200–1500 mm' : '1500–1800 mm')}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                 {/* Footer Actions */}
@@ -1239,6 +1301,19 @@ export default function AdminProducts() {
                           </div>
                           <div className="text-gray-400 text-xs line-clamp-1">{model.subtitle}</div>
                         </Link>
+                        {(model.category === 'Cubicle' || model.category === 'Kids Toilet') && (
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-white/5 border border-white/5 text-[10px] text-gray-300 font-mono">
+                              H: {model.specifications?.find((s) => s.label.toLowerCase().includes('height'))?.value?.split(' ')[0] || (model.category === 'Kids Toilet' ? '1200–1500mm' : '1980–2000mm')}
+                            </span>
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-white/5 border border-white/5 text-[10px] text-gray-300 font-mono">
+                              Board: {model.specifications?.find((s) => s.label.toLowerCase().includes('thickness'))?.value?.split(' ')[0] || '12mm'}
+                            </span>
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-white/5 border border-white/5 text-[10px] text-gray-300 font-mono">
+                              Door: {model.specifications?.find((s) => s.label.toLowerCase().includes('door'))?.value?.split(' ')[0] || (model.category === 'Kids Toilet' ? '500–600mm' : '600mm')}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <span

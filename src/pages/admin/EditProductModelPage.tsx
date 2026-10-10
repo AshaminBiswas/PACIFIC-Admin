@@ -200,12 +200,18 @@ export default function EditProductModelPage() {
             return spec ? spec.value : fallback;
           };
 
-          if (found.category === 'Cubicle') {
-            setDescription(found.description || DEFAULT_CUBICLE_DESCRIPTION);
-            setStdHeight(getSpec('Standard Height', '1980 mm / 2000 mm (including 150mm floor gap)'));
-            setStdDepth(getSpec('Standard Depth', '1500 mm – 1800 mm'));
-            setDoorWidth(getSpec('Door Width', '600 mm (Standard) / 900 mm (Accessible/ADA)'));
-            setBoardThickness(getSpec('Board Thickness', '12mm / 18mm Solid Compact Phenolic Laminate'));
+          if (found.category === 'Cubicle' || found.category === 'Kids Toilet') {
+            const isKids = found.category === 'Kids Toilet';
+            setDescription(
+              found.description ||
+              (isKids
+                ? 'Child-friendly ergonomic restroom cubicle partitions engineered with rounded safety corners, low-height doors, and anti-finger trap gaps. Ideal for kindergartens, primary schools, and play zones.'
+                : DEFAULT_CUBICLE_DESCRIPTION)
+            );
+            setStdHeight(getSpec('Standard Height', isKids ? '1200 mm – 1500 mm (Child-Friendly Ergonomic Height)' : '1980 mm / 2000 mm (including 150mm floor gap)'));
+            setStdDepth(getSpec('Standard Depth', isKids ? '1200 mm – 1500 mm' : '1500 mm – 1800 mm'));
+            setDoorWidth(getSpec('Door Width', isKids ? '500 mm – 600 mm (Child Ergonomic Safety Door)' : '600 mm (Standard) / 900 mm (Accessible/ADA)'));
+            setBoardThickness(getSpec('Board Thickness', isKids ? '12mm Solid Compact Phenolic Laminate' : '12mm / 18mm Solid Compact Phenolic Laminate'));
             setFireRating(getSpec('Fire Rating', 'Class 1 / BS 476 Part 7'));
             setWaterResistance(getSpec('Water Resistance', '100% Moisture, Water & Humidity Proof'));
           } else {
@@ -366,7 +372,7 @@ export default function EditProductModelPage() {
       {
         id: `hw-${Date.now()}`,
         name: newHwName.trim(),
-        material: category === 'Cubicle' ? 'Both' : 'Standard',
+        material: (category === 'Cubicle' || category === 'Kids Toilet') ? 'Both' : 'Standard',
       },
     ]);
     setNewHwName('');
@@ -479,7 +485,7 @@ export default function EditProductModelPage() {
       const finalSlug = slug.trim() ? toSlug(slug) : `${toSlug(category)}-${toSlug(title)}`;
 
       const hardwareOptions: ModelHardwareOption[] = [];
-      if (category === 'Cubicle') {
+      if (category === 'Cubicle' || category === 'Kids Toilet') {
         if (ssEnabled) {
           hardwareOptions.push({
             material: 'SS Hardware',
@@ -509,7 +515,7 @@ export default function EditProductModelPage() {
       }
 
       const specifications =
-        category === 'Cubicle'
+        category === 'Cubicle' || category === 'Kids Toilet'
           ? [
               { label: 'Standard Height', value: stdHeight },
               { label: 'Standard Depth', value: stdDepth },
@@ -517,6 +523,9 @@ export default function EditProductModelPage() {
               { label: 'Board Thickness', value: boardThickness },
               { label: 'Fire Rating', value: fireRating },
               { label: 'Water Resistance', value: waterResistance },
+              ...(category === 'Kids Toilet'
+                ? [{ label: 'Safety Clearance', value: 'Anti-Finger Pinch Hinge Gap & Outside Emergency Coin Release' }]
+                : []),
             ]
           : model?.specifications || [
               { label: 'Category', value: category },

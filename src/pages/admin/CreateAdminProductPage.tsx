@@ -460,7 +460,7 @@ export default function CreateAdminProductPage() {
       {
         id: `hw-${Date.now()}`,
         name: newHwName.trim(),
-        material: category === 'Cubicle' ? 'Both' : 'Standard',
+        material: (category === 'Cubicle' || category === 'Kids Toilet') ? 'Both' : 'Standard',
       },
     ]);
     setNewHwName('');
@@ -574,7 +574,7 @@ export default function CreateAdminProductPage() {
       const id = `model-${toSlug(category)}-${toSlug(title)}-${Date.now()}`;
 
       const hardwareOptions: ModelHardwareOption[] = [];
-      if (category === 'Cubicle') {
+      if (category === 'Cubicle' || category === 'Kids Toilet') {
         if (ssEnabled) {
           hardwareOptions.push({
             material: 'SS Hardware',
@@ -604,7 +604,7 @@ export default function CreateAdminProductPage() {
       }
 
       const specifications =
-        category === 'Cubicle'
+        category === 'Cubicle' || category === 'Kids Toilet'
           ? [
               { label: 'Standard Height', value: stdHeight },
               { label: 'Standard Depth', value: stdDepth },
@@ -612,6 +612,9 @@ export default function CreateAdminProductPage() {
               { label: 'Board Thickness', value: boardThickness },
               { label: 'Fire Rating', value: fireRating },
               { label: 'Water Resistance', value: waterResistance },
+              ...(category === 'Kids Toilet'
+                ? [{ label: 'Safety Clearance', value: 'Anti-Finger Pinch Hinge Gap & Outside Emergency Coin Release' }]
+                : []),
             ]
           : [
               { label: 'Category', value: category },
