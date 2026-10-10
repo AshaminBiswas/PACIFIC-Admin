@@ -3875,10 +3875,14 @@ In Restroom Cubicle quotations, installation charges are typically calculated on
   - Live overdue / countdown status badges (`Due in 4h`, `Overdue by 1d`, `Due Today`).
   - Interactive status dropdown on table rows: Changing status to `INTERESTED` automatically suggests and opens the Quotation generation flow.
 
-#### 65.4 Navigation & App Routing
+#### 65.4 Navigation, Routing & Full-Page Views
 - **Sales Pipeline Step 00**: Added `{ name: 'Leads & Enquiries', path: '/admin/dashboard/crm-leads', icon: Target, step: '00' }` to `salesPipelineItems` in `AdminSidebar.tsx` as the first stage before Sales Quotations (Step 01).
 - **CRM Finance Group**: Added `{ name: 'Commercial Leads', path: '/admin/dashboard/crm-leads', icon: Target }` to `crmFinanceNavItems`.
-- **Routes in `App.tsx`**: Registered `/admin/dashboard/crm-leads` and `/admin/dashboard/leads` rendering `<LeadManagementPage />` with lazy-loading and suspense fallback.
+- **Full-Page Routing in `App.tsx`**:
+  - `/admin/dashboard/crm-leads` & `/admin/dashboard/leads` -> `<LeadManagementPage />` with responsive desktop table and mobile card transformation (`< md`).
+  - `/admin/dashboard/crm-leads/create` & `/admin/dashboard/leads/create` -> `<CreateLeadPage />` full-page creation wizard with category selector, dynamic specs, commercial sizing, and quick follow-up scheduling.
+  - `/admin/dashboard/crm-leads/:id` & `/admin/dashboard/leads/:id` -> `<LeadDetailPage />` full-page Lead 360 view with technical specs, omnichannel touchpoint timeline, 1-click quotation generator, and direct WhatsApp/Phone actions.
+- **Brand Theme & Mobile UX**: Standardized on Pacific website dark enterprise palette (`#030213` dark base, `#121029` card surface, `#7FB706` brand lime green, `#B5F823` electric accent), with touch targets $\ge 44\text{px}$.
 
 #### 65.5 Cross-Stack API & Types
 - **API Client (`src/api/leadManagementApi.ts`)**: Full CRUD with v2 local storage isolation (`pacific_lead_management_store_v2`), universal multi-attribute dummy lead detector (`isDummyLead` matching ID, leadNumber, demo corporate emails, companies, phones, and contacts), automated legacy storage purge, `purgeDummyLeads()` and `clearAll()` methods, aggregate KPI metrics (`getStats`), follow-up logging (`addFollowup`), and quotation generation (`generateQuotation`).

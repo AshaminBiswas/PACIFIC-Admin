@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Target,
   Search,
@@ -44,6 +45,7 @@ import LeadFollowupModal from '../../components/crm/LeadFollowupModal';
 import LeadDetailDrawer from '../../components/crm/LeadDetailDrawer';
 
 export default function LeadManagementPage() {
+  const navigate = useNavigate();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
@@ -195,7 +197,7 @@ export default function LeadManagementPage() {
     switch (cat) {
       case 'RESTROOM_CUBICLE':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#7FB706]/15 text-[#7FB706] border border-[#7FB706]/30">
             <Layers className="w-3 h-3" /> Cubicle
           </span>
         );
@@ -286,10 +288,10 @@ export default function LeadManagementPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <span className="p-1.5 rounded-lg bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/30">
               <Target className="w-4 h-4" />
             </span>
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#7FB706]">
               Commercial Sales CRM
             </span>
           </div>
@@ -301,11 +303,11 @@ export default function LeadManagementPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {leads.length > 0 && (
             <button
               onClick={handleClearAll}
-              className="px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition flex items-center gap-1.5"
+              className="px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition flex items-center gap-1.5 min-h-[44px]"
               title="Permanently remove all current leads"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -314,21 +316,21 @@ export default function LeadManagementPage() {
           )}
           <button
             onClick={handleExportCSV}
-            className="px-3 py-2 rounded-xl text-xs font-semibold text-gray-300 bg-white/5 hover:bg-white/10 border border-white/10 transition flex items-center gap-1.5"
+            className="px-3 py-2 rounded-xl text-xs font-semibold text-gray-300 bg-white/5 hover:bg-white/10 border border-white/10 transition flex items-center gap-1.5 min-h-[44px]"
           >
             <Download className="w-3.5 h-3.5" />
             Export CSV
           </button>
           <button
             onClick={loadData}
-            className="p-2 rounded-xl text-gray-300 bg-white/5 hover:bg-white/10 border border-white/10 transition"
+            className="p-2.5 rounded-xl text-gray-300 bg-white/5 hover:bg-white/10 border border-white/10 transition min-h-[44px] min-w-[44px] flex items-center justify-center"
             title="Refresh"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-emerald-400' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#7FB706]' : ''}`} />
           </button>
           <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="px-4 py-2 rounded-xl text-xs font-bold text-black bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 transition shadow-lg shadow-emerald-500/20 flex items-center gap-1.5"
+            onClick={() => navigate('/admin/dashboard/crm-leads/create')}
+            className="px-4 py-2.5 rounded-xl text-xs font-bold text-black bg-gradient-to-r from-[#7FB706] to-[#B5F823] hover:from-[#8ecb08] hover:to-[#c4fa3f] transition shadow-lg shadow-[#7FB706]/20 flex items-center gap-1.5 min-h-[44px]"
           >
             <Plus className="w-4 h-4" />
             New Commercial Lead
@@ -401,17 +403,17 @@ export default function LeadManagementPage() {
             <button
               key={tab.id}
               onClick={() => setCategoryFilter(tab.id)}
-              className={`px-3.5 py-2 rounded-xl font-semibold transition whitespace-nowrap flex items-center gap-2 ${
+              className={`px-3.5 py-2 rounded-xl font-semibold transition whitespace-nowrap flex items-center gap-2 min-h-[40px] ${
                 isActive
-                  ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 shadow-md shadow-emerald-950/30'
+                  ? 'bg-[#7FB706]/15 text-[#7FB706] border border-[#7FB706]/40 shadow-md shadow-[#7FB706]/10 font-bold'
                   : 'text-gray-400 hover:text-gray-200 hover:bg-white/5 border border-transparent'
               }`}
             >
               <span>{tab.label}</span>
               {tab.count !== undefined && (
                 <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                    isActive ? 'bg-emerald-500/30 text-white' : 'bg-white/10 text-gray-400'
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                    isActive ? 'bg-[#7FB706] text-black font-extrabold' : 'bg-white/10 text-gray-400'
                   }`}
                 >
                   {tab.count}
@@ -423,7 +425,7 @@ export default function LeadManagementPage() {
       </div>
 
       {/* Filter & Search Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white/5 border border-white/5 rounded-2xl">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-[#121029] border border-white/10 rounded-2xl">
         <div className="relative flex-1 min-w-[240px]">
           <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -431,7 +433,7 @@ export default function LeadManagementPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search prospect name, company, phone, quotation ref, city..."
-            className="w-full pl-9 pr-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
+            className="w-full pl-9 pr-3.5 py-2.5 bg-[#0d0b21] border border-white/10 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706] min-h-[44px]"
           />
         </div>
 
@@ -440,7 +442,7 @@ export default function LeadManagementPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 bg-[#0d0b21] border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+            className="px-3 py-2.5 bg-[#0d0b21] border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[44px]"
           >
             <option value="ALL">All Statuses</option>
             <option value="NEW">New Enquiry</option>
@@ -469,7 +471,7 @@ export default function LeadManagementPage() {
           <select
             value={dueFilter}
             onChange={(e) => setDueFilter(e.target.value as any)}
-            className="px-3 py-2 bg-[#0d0b21] border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+            className="px-3 py-2.5 bg-[#0d0b21] border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[44px]"
           >
             <option value="ALL">All Follow-ups</option>
             <option value="OVERDUE">⚠️ Overdue Only</option>
@@ -479,8 +481,142 @@ export default function LeadManagementPage() {
         </div>
       </div>
 
-      {/* Main Leads Table */}
-      <div className="bg-[#09071a] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+      {/* Mobile-Responsive Card List (Visible on Mobile screens < md) */}
+      <div className="block md:hidden space-y-3">
+        {loading ? (
+          <div className="py-12 text-center text-gray-400 p-6 rounded-2xl bg-[#121029] border border-white/5">
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[#7FB706]" />
+            Loading commercial leads...
+          </div>
+        ) : leads.length === 0 ? (
+          <div className="py-12 px-4 text-center rounded-2xl bg-[#121029] border border-white/10 space-y-3">
+            <Target className="w-8 h-8 text-[#7FB706] mx-auto" />
+            <p className="text-sm font-bold text-white">No Commercial Leads Found</p>
+            <p className="text-xs text-gray-400">All mock dummy leads have been removed.</p>
+            <button
+              onClick={() => navigate('/admin/dashboard/crm-leads/create')}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold text-black bg-gradient-to-r from-[#7FB706] to-[#B5F823] transition inline-flex items-center gap-1.5 shadow-lg shadow-[#7FB706]/20 min-h-[44px]"
+            >
+              <Plus className="w-4 h-4" /> Create First Lead
+            </button>
+          </div>
+        ) : (
+          leads.map((l) => {
+            const cleanPhone = (l.phone || '').replace(/\D/g, '');
+            const whatsAppPhone = cleanPhone.startsWith('91') ? cleanPhone : cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+            const waUrl = `https://wa.me/${whatsAppPhone}?text=${encodeURIComponent(
+              `Hello ${l.firstName}, this is regarding your ${l.productCategory?.replace('_', ' ')} enquiry.`
+            )}`;
+
+            return (
+              <div
+                key={l.id}
+                onClick={() => navigate(`/admin/dashboard/crm-leads/${l.id}`)}
+                className="p-4 rounded-2xl bg-[#121029] border border-white/10 hover:border-[#7FB706]/40 transition space-y-3 cursor-pointer shadow-lg active:scale-[0.99]"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-white text-sm hover:text-[#7FB706]">
+                      {l.leadNumber}
+                    </span>
+                    <span className="text-[10px] text-gray-500">
+                      {new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {getCategoryBadge(l.productCategory)}
+                    {getPriorityBadge(l.priority)}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="font-bold text-white text-base">
+                    {l.firstName} {l.lastName || ''}
+                  </div>
+                  <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5 text-gray-500" />
+                    <span>{l.company || 'Direct Client'}</span>
+                    {l.city && <span>• {l.city}</span>}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#0d0b21] border border-white/5 text-xs">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">Requirement</span>
+                    <span className="font-bold text-white font-mono">{l.estimatedQuantity || 1} Units</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">Est. Sizing</span>
+                    <span className="font-mono font-bold text-[#7FB706]">
+                      ₹{Number(l.estimatedValue || l.quotationAmount || 0).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 text-xs" onClick={(e) => e.stopPropagation()}>
+                  <select
+                    value={l.status}
+                    onChange={(e) => handleQuickStatusChange(l.id, e.target.value as LeadStatus)}
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-[#0d0b21] border border-white/10 text-white focus:outline-none focus:border-[#7FB706] min-h-[38px]"
+                  >
+                    <option value="NEW">🆕 New</option>
+                    <option value="CONTACTED">📞 Contacted</option>
+                    <option value="REQUIREMENT_GATHERED">📐 Requirements</option>
+                    <option value="INTERESTED">⭐ Interested</option>
+                    <option value="QUOTATION_SENT">📄 Quote Sent</option>
+                    <option value="NEGOTIATING">🤝 Negotiating</option>
+                    <option value="WON">🏆 Won</option>
+                    <option value="LOST">❌ Lost</option>
+                  </select>
+
+                  <div>{getFollowupDueBadge(l.nextFollowupDate)}</div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-white/5" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-1.5">
+                    {l.phone && (
+                      <a
+                        href={`tel:${l.phone}`}
+                        className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-semibold flex items-center gap-1 min-h-[36px]"
+                      >
+                        <Phone className="w-3.5 h-3.5 text-gray-400" /> Call
+                      </a>
+                    )}
+                    {cleanPhone && (
+                      <a
+                        href={waUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2.5 py-1.5 rounded-lg bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 text-xs font-semibold flex items-center gap-1 min-h-[36px]"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" /> WA
+                      </a>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => navigate(`/admin/dashboard/crm-leads/${l.id}`)}
+                      className="px-3 py-1.5 rounded-lg bg-[#7FB706]/15 hover:bg-[#7FB706]/25 text-[#7FB706] text-xs font-bold flex items-center gap-1 min-h-[36px]"
+                    >
+                      <Eye className="w-3.5 h-3.5" /> Open
+                    </button>
+                    <button
+                      onClick={() => handleDelete(l.id, l.leadNumber || l.id)}
+                      className="p-2 rounded-lg text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 min-h-[36px] min-w-[36px] flex items-center justify-center"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Main Leads Table (Desktop screens >= md) */}
+      <div className="hidden md:block bg-[#121029] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
@@ -499,7 +635,7 @@ export default function LeadManagementPage() {
               {loading ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-gray-400">
-                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-emerald-400" />
+                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-[#7FB706]" />
                     Loading commercial lead pipeline...
                   </td>
                 </tr>
@@ -508,7 +644,7 @@ export default function LeadManagementPage() {
                   <td colSpan={8} className="py-16 text-center text-gray-400">
                     <div className="max-w-md mx-auto space-y-3">
                       <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-gray-500">
-                        <Target className="w-6 h-6 text-emerald-400" />
+                        <Target className="w-6 h-6 text-[#7FB706]" />
                       </div>
                       <div>
                         <p className="text-sm font-bold text-white">No Commercial Leads Found</p>
@@ -517,8 +653,8 @@ export default function LeadManagementPage() {
                         </p>
                       </div>
                       <button
-                        onClick={() => setIsCreateModalOpen(true)}
-                        className="px-4 py-2 rounded-xl text-xs font-bold text-black bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 transition inline-flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
+                        onClick={() => navigate('/admin/dashboard/crm-leads/create')}
+                        className="px-4 py-2.5 rounded-xl text-xs font-bold text-black bg-gradient-to-r from-[#7FB706] to-[#B5F823] hover:from-[#8ecb08] hover:to-[#c4fa3f] transition inline-flex items-center gap-1.5 shadow-lg shadow-[#7FB706]/20 min-h-[44px]"
                       >
                         <Plus className="w-4 h-4" />
                         Create First Lead
@@ -535,14 +671,11 @@ export default function LeadManagementPage() {
                     <tr
                       key={l.id}
                       className="hover:bg-white/[0.03] transition-colors group cursor-pointer"
-                      onClick={() => {
-                        setActiveLead(l);
-                        setIsDetailDrawerOpen(true);
-                      }}
+                      onClick={() => navigate(`/admin/dashboard/crm-leads/${l.id}`)}
                     >
                       {/* Ref & Date */}
                       <td className="py-3 px-4">
-                        <span className="font-mono font-bold text-white group-hover:text-emerald-400 transition">
+                        <span className="font-mono font-bold text-white group-hover:text-[#7FB706] transition">
                           {l.leadNumber}
                         </span>
                         <span className="text-[10px] text-gray-500 block">
@@ -689,12 +822,9 @@ export default function LeadManagementPage() {
                           </button>
 
                           <button
-                            onClick={() => {
-                              setActiveLead(l);
-                              setIsDetailDrawerOpen(true);
-                            }}
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition"
-                            title="View Lead 360"
+                            onClick={() => navigate(`/admin/dashboard/crm-leads/${l.id}`)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-[#7FB706] hover:bg-[#7FB706]/10 transition"
+                            title="Open Lead Details"
                           >
                             <Eye className="w-4 h-4" />
                           </button>

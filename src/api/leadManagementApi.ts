@@ -318,7 +318,7 @@ export const leadManagementApi = {
    */
   async getById(id: string): Promise<ApiResponse<Lead>> {
     const leads = getStoredLeads();
-    const lead = leads.find((l) => l.id === id);
+    const lead = leads.find((l) => l.id === id || l.leadNumber === id);
     if (!lead) {
       throw new Error('Lead not found');
     }

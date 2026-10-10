@@ -76,6 +76,8 @@ const LockerInventoryPage = lazyWithRetry(() => import('./pages/inventory/Locker
 const UmpInventoryPage = lazyWithRetry(() => import('./pages/inventory/UmpInventoryPage'));
 const StoreInventoryPage = lazyWithRetry(() => import('./pages/inventory/StoreInventoryPage'));
 const LeadManagementPage = lazyWithRetry(() => import('./pages/crm/LeadManagementPage'));
+const CreateLeadPage = lazyWithRetry(() => import('./pages/crm/CreateLeadPage'));
+const LeadDetailPage = lazyWithRetry(() => import('./pages/crm/LeadDetailPage'));
 
 // Export & Global Trade Management Pages
 const ExportDashboardPage = lazyWithRetry(() => import('./pages/export/ExportDashboardPage'));
@@ -810,10 +812,42 @@ export default function App() {
               }
             />
             <Route
+              path="crm-leads/create"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <CreateLeadPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="crm-leads/:id"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <LeadDetailPage />
+                </Suspense>
+              }
+            />
+            <Route
               path="leads"
               element={
                 <Suspense fallback={<PageLoader />}>
                   <LeadManagementPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="leads/create"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <CreateLeadPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="leads/:id"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <LeadDetailPage />
                 </Suspense>
               }
             />
