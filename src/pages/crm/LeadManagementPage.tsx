@@ -92,7 +92,10 @@ export default function LeadManagementPage() {
   }, [categoryFilter, statusFilter, priorityFilter, dueFilter, search]);
 
   useEffect(() => {
-    loadData();
+    // Proactively purge any legacy mock data on mount
+    leadManagementApi.purgeDummyLeads().finally(() => {
+      loadData();
+    });
   }, [loadData]);
 
   // Quick Status change from table
@@ -118,10 +121,24 @@ export default function LeadManagementPage() {
   const handleDelete = async (leadId: string, leadNum: string) => {
     if (!window.confirm(`Permanently delete lead ${leadNum}? This cannot be undone.`)) return;
     try {
+      // Immediately remove from React state so UI updates instantly
+      setLeads((prev) => prev.filter((l) => l.id !== leadId && l.leadNumber !== leadId && l.leadNumber !== leadNum));
       await leadManagementApi.delete(leadId);
       loadData();
     } catch (err) {
       alert('Failed to delete lead');
+    }
+  };
+
+  // Clear all leads from local storage
+  const handleClearAll = async () => {
+    if (!window.confirm('Are you sure you want to permanently clear all leads? This cannot be undone.')) return;
+    try {
+      setLeads([]);
+      await leadManagementApi.clearAll();
+      loadData();
+    } catch (err) {
+      alert('Failed to clear leads');
     }
   };
 
@@ -285,6 +302,16 @@ export default function LeadManagementPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {leads.length > 0 && (
+            <button
+              onClick={handleClearAll}
+              className="px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition flex items-center gap-1.5"
+              title="Permanently remove all current leads"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Clear All
+            </button>
+          )}
           <button
             onClick={handleExportCSV}
             className="px-3 py-2 rounded-xl text-xs font-semibold text-gray-300 bg-white/5 hover:bg-white/10 border border-white/10 transition flex items-center gap-1.5"
@@ -478,9 +505,25 @@ export default function LeadManagementPage() {
                 </tr>
               ) : leads.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-gray-400">
-                    <Target className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-                    No leads found matching current filter criteria.
+                  <td colSpan={8} className="py-16 text-center text-gray-400">
+                    <div className="max-w-md mx-auto space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-gray-500">
+                        <Target className="w-6 h-6 text-emerald-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white">No Commercial Leads Found</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          All mock dummy leads have been removed. Click &quot;New Commercial Lead&quot; to record a new client enquiry for Cubicles, Lockers, or Urinal Partitions.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setIsCreateModalOpen(true)}
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-black bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 transition inline-flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Create First Lead
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ) : (

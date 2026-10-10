@@ -11,9 +11,10 @@ import type {
   LeadFollowupChannel,
 } from '../types/admin';
 
-const STORAGE_KEY = 'pacific_lead_management_store_v1';
+const STORAGE_KEY = 'pacific_lead_management_store_v2';
+const LEGACY_STORAGE_KEYS = ['pacific_lead_management_store_v1'];
 
-// Dummy lead IDs to purge from storage
+// Dummy lead IDs, numbers, emails, companies, and phones to permanently eradicate
 const DUMMY_LEAD_IDS = new Set([
   'lead-001',
   'lead-002',
@@ -23,34 +24,130 @@ const DUMMY_LEAD_IDS = new Set([
   'lead-006',
 ]);
 
+const DUMMY_LEAD_NUMS = new Set([
+  'LEAD-2026-001',
+  'LEAD-2026-002',
+  'LEAD-2026-003',
+  'LEAD-2026-004',
+  'LEAD-2026-005',
+  'LEAD-2026-006',
+]);
+
+/**
+ * Universal detector for legacy demo/seed dummy leads.
+ * Matches any combination of ID, leadNumber, company, email, phone, or contact name.
+ */
+export function isDummyLead(l: Partial<Lead> | null | undefined): boolean {
+  if (!l) return false;
+  const id = String(l.id || '').toLowerCase();
+  if (DUMMY_LEAD_IDS.has(id) || id.startsWith('lead-00')) return true;
+
+  const num = String(l.leadNumber || '').toUpperCase();
+  if (DUMMY_LEAD_NUMS.has(num)) return true;
+
+  const email = String(l.email || '').toLowerCase().trim();
+  if (
+    email.includes('dlf.in') ||
+    email.includes('cultfit.in') ||
+    email.includes('shapoorji.com') ||
+    email.includes('maxhealthcare.com') ||
+    email.includes('studioarch.in') ||
+    email.includes('itcinfotech.com')
+  ) {
+    return true;
+  }
+
+  const company = String(l.company || '').toLowerCase();
+  if (
+    company.includes('dlf cybercity') ||
+    company.includes('curefit') ||
+    company.includes('cult.fit') ||
+    company.includes('shapoorji') ||
+    company.includes('max healthcare') ||
+    company.includes('studio arch') ||
+    company.includes('itc infotech')
+  ) {
+    return true;
+  }
+
+  const name = `${l.firstName || ''} ${l.lastName || ''}`.toLowerCase().trim();
+  if (
+    name.includes('rohit sharma') ||
+    name.includes('tanvi kulkarni') ||
+    name.includes('rajesh nair') ||
+    name.includes('vikram malhotra') ||
+    name.includes('ananya verma') ||
+    name.includes('amitabh roy')
+  ) {
+    return true;
+  }
+
+  const phone = String(l.phone || '').replace(/\D/g, '');
+  if (
+    phone.includes('9811234567') ||
+    phone.includes('9876543210') ||
+    phone.includes('9741288990') ||
+    phone.includes('9810011223') ||
+    phone.includes('9920155443') ||
+    phone.includes('9830077665')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+// Zero default dummy seeds
 const INITIAL_LEADS: Lead[] = [];
 
 // Helper to get local leads from localStorage
-function getStoredLeads(): Lead[] {
+export function getStoredLeads(): Lead[] {
   if (typeof window === 'undefined') return [];
   try {
+    // 1. Check current v2 storage key
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        // Automatically filter out and purge any legacy dummy seed leads
-        const cleaned = parsed.filter((l: Lead) => !DUMMY_LEAD_IDS.has(l.id));
+        const cleaned = parsed.filter((l: Lead) => !isDummyLead(l));
         if (cleaned.length !== parsed.length) {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
         }
         return cleaned;
       }
     }
+
+    // 2. One-time clean migration from legacy keys (v1): purge dummy records completely
+    for (const legacyKey of LEGACY_STORAGE_KEYS) {
+      const legacyRaw = localStorage.getItem(legacyKey);
+      if (legacyRaw) {
+        try {
+          const parsed = JSON.parse(legacyRaw);
+          if (Array.isArray(parsed)) {
+            const genuineLeads = parsed.filter((l: Lead) => !isDummyLead(l));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(genuineLeads));
+            localStorage.removeItem(legacyKey);
+            return genuineLeads;
+          }
+        } catch {}
+        localStorage.removeItem(legacyKey);
+      }
+    }
+
+    // 3. Initialize cleanly with empty list
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
   } catch (err) {
     console.warn('[leadManagementApi] Failed to parse stored leads:', err);
   }
   return [];
 }
 
-function saveStoredLeads(leads: Lead[]): void {
+export function saveStoredLeads(leads: Lead[]): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(leads));
+    // Never allow any dummy seed record to be saved
+    const cleaned = leads.filter((l) => !isDummyLead(l));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
   } catch (err) {
     console.error('[leadManagementApi] Failed to persist leads:', err);
   }
@@ -119,12 +216,14 @@ export const leadManagementApi = {
         params: { page, limit, status: status !== 'ALL' ? status : undefined, search: search || undefined },
       });
       if (backendRes.data?.data?.items?.length) {
-        // Merge with our rich local specs
-        const backendItems = backendRes.data.data.items;
+        // Merge with our rich local specs - strictly exclude any dummy items
+        const backendItems = backendRes.data.data.items.filter((b) => !isDummyLead(b));
         const mergedMap = new Map<string, Lead>();
-        leads.forEach((l) => mergedMap.set(l.id, l));
+        leads.forEach((l) => {
+          if (!isDummyLead(l)) mergedMap.set(l.id, l);
+        });
         backendItems.forEach((b) => {
-          if (!mergedMap.has(b.id)) {
+          if (!mergedMap.has(b.id) && !isDummyLead(b)) {
             mergedMap.set(b.id, {
               ...b,
               productCategory: b.productCategory || 'RESTROOM_CUBICLE',
@@ -302,17 +401,75 @@ export const leadManagementApi = {
   },
 
   /**
-   * Delete lead
+   * Delete lead permanently by ID or leadNumber
    */
   async delete(id: string): Promise<ApiResponse<{ success: boolean }>> {
     let leads = getStoredLeads();
-    leads = leads.filter((l) => l.id !== id);
+    leads = leads.filter((l) => l.id !== id && l.leadNumber !== id);
     saveStoredLeads(leads);
 
     try {
       await apiClient.delete(`/leads/${id}`);
     } catch {}
 
+    return { success: true, data: { success: true } };
+  },
+
+  /**
+   * Purge all legacy dummy/seed leads from storage completely
+   */
+  async purgeDummyLeads(): Promise<ApiResponse<{ purgedCount: number }>> {
+    let purgedCount = 0;
+    if (typeof window !== 'undefined') {
+      // 1. Purge from current storage
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            const cleaned = parsed.filter((l: Lead) => !isDummyLead(l));
+            purgedCount += parsed.length - cleaned.length;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
+          }
+        } catch {}
+      }
+
+      // 2. Wipe any legacy keys completely
+      for (const legacyKey of LEGACY_STORAGE_KEYS) {
+        const legacyRaw = localStorage.getItem(legacyKey);
+        if (legacyRaw) {
+          try {
+            const parsed = JSON.parse(legacyRaw);
+            if (Array.isArray(parsed)) {
+              const genuineLeads = parsed.filter((l: Lead) => !isDummyLead(l));
+              purgedCount += parsed.length - genuineLeads.length;
+              if (genuineLeads.length > 0) {
+                const currentLeads = getStoredLeads();
+                const mergedMap = new Map<string, Lead>();
+                currentLeads.forEach((l) => mergedMap.set(l.id, l));
+                genuineLeads.forEach((g) => mergedMap.set(g.id, g));
+                saveStoredLeads(Array.from(mergedMap.values()));
+              }
+            }
+          } catch {}
+          localStorage.removeItem(legacyKey);
+        }
+      }
+    }
+    return { success: true, data: { purgedCount } };
+  },
+
+  /**
+   * Clear all leads from local storage
+   */
+  async clearAll(): Promise<ApiResponse<{ success: boolean }>> {
+    saveStoredLeads([]);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+      for (const legacyKey of LEGACY_STORAGE_KEYS) {
+        localStorage.removeItem(legacyKey);
+      }
+    }
     return { success: true, data: { success: true } };
   },
 

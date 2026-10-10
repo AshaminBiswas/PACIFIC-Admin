@@ -3881,7 +3881,7 @@ In Restroom Cubicle quotations, installation charges are typically calculated on
 - **Routes in `App.tsx`**: Registered `/admin/dashboard/crm-leads` and `/admin/dashboard/leads` rendering `<LeadManagementPage />` with lazy-loading and suspense fallback.
 
 #### 65.5 Cross-Stack API & Types
-- **API Client (`src/api/leadManagementApi.ts`)**: Full CRUD, clean zero-dummy production initialization (`INITIAL_LEADS = []`) with automated local storage purge for legacy seed keys (`lead-001` through `lead-006`), aggregate KPI metrics (`getStats`), follow-up logging (`addFollowup`), and quotation generation (`generateQuotation`).
+- **API Client (`src/api/leadManagementApi.ts`)**: Full CRUD with v2 local storage isolation (`pacific_lead_management_store_v2`), universal multi-attribute dummy lead detector (`isDummyLead` matching ID, leadNumber, demo corporate emails, companies, phones, and contacts), automated legacy storage purge, `purgeDummyLeads()` and `clearAll()` methods, aggregate KPI metrics (`getStats`), follow-up logging (`addFollowup`), and quotation generation (`generateQuotation`).
 - **Facade Export**: Exported through `src/api/index.ts` and `src/api/services.ts`.
 - **Type Definitions (`src/types/admin.ts`)**: `Lead`, `LeadStatus`, `LeadSource`, `LeadProductCategory`, `LeadPriority`, `LeadClientType`, `LeadFollowup`, `CubicleLeadSpecs`, `LockerLeadSpecs`, `UrinalLeadSpecs`.
 - **Validation**: Zero TypeScript errors (`npx tsc --noEmit` exited 0) and production build exit code 0 (`npm run build`).
