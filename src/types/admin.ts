@@ -32,6 +32,7 @@ export type AdminView =
   | 'locker-inventory'
   | 'ump-inventory'
   | 'store-inventory'
+  | 'hardware-inventory'
   | 'settings';
 
 export type UserRole =
@@ -2644,3 +2645,206 @@ export interface BulkCreateBoardResult {
   count: number;
   items: BoardInventoryItem[];
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hardware Inventory & Dynamic Multi-Branch Management
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type HardwareInventoryMaterial =
+  | 'STAINLESS_STEEL'
+  | 'ALUMINIUM'
+  | 'NYLON'
+  | 'CUSTOM'
+  | (string & {});
+
+export type HardwareStandardUnit = "No's" | 'Meters' | "Set's" | string;
+
+export interface HardwareBranch {
+  id: string;
+  code: string; // e.g. 'DELHI', 'KOLKATA', 'MUMBAI', etc.
+  name: string; // e.g. 'Delhi Main Plant & Central Warehouse'
+  city: string;
+  state: string;
+  address?: string;
+  phone?: string;
+  contactPerson?: string;
+  isDefault?: boolean;
+  isActive: boolean;
+  createdAt?: string;
+}
+
+export interface HardwareVendor {
+  id: string;
+  name: string;
+  legalName?: string;
+  contactPerson?: string;
+  phone: string;
+  email?: string;
+  gstin?: string;
+  city?: string;
+  address?: string;
+  materialCategories: string[]; // e.g. ['STAINLESS_STEEL', 'ALUMINIUM', 'NYLON']
+  totalSkus?: number;
+  isActive: boolean;
+  createdAt?: string;
+}
+
+export interface HardwareInventoryItem {
+  id: string;
+  sku: string; // Manually entered by user
+  name: string; // e.g. 'Gravity Hinge (Pair)', 'Indicator Thumbturn Lock', 'Top Rail / Headrail'
+  material: HardwareInventoryMaterial;
+  color: string; // SS: 'Black' | 'Golden' | 'Stainless Steel'; Aluminium: 'Black' | 'Aluminium colour'; Nylon: 'Black'
+  unit: HardwareStandardUnit; // "No's" | "Meters" | "Set's" | custom
+  hsnCode: string; // e.g. '8302', '7610', '3926'
+  warehouse: string; // 'DELHI' | 'KOLKATA' | dynamic branch code
+  vendorId?: string;
+  vendorName?: string;
+  openingStock: number;
+  currentStock: number;
+  totalInward: number;
+  totalIssued: number;
+  reorderLevel: number;
+  unitCost: number;
+  locationRack?: string;
+  status: 'ACTIVE' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'DISCONTINUED';
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type HardwareMovementType =
+  | 'INWARD'
+  | 'ISSUE'
+  | 'ADJUSTMENT_ADD'
+  | 'ADJUSTMENT_SUB'
+  | 'RETURN_VENDOR';
+
+export interface HardwareStockMovement {
+  id: string;
+  movementNumber: string;
+  hardwareItemId: string;
+  sku: string;
+  hardwareName: string;
+  material: string;
+  warehouse: string;
+  movementType: HardwareMovementType;
+  movementDate: string;
+  quantity: number;
+  stockBefore: number;
+  stockAfter: number;
+  unit: string;
+  supplierInvoiceNo?: string;
+  supplierInvoiceDate?: string;
+  batchLotNo?: string;
+  unitCost?: number;
+  totalValue?: number;
+  issueReference?: string;
+  issuedToPerson?: string;
+  notes?: string;
+  createdById?: string;
+  createdAt: string;
+}
+
+export interface HardwareAnalyticsSummary {
+  totalSkus: number;
+  totalUnits: number;
+  totalValuation: number;
+  lowStockCount: number;
+  outOfStockCount: number;
+  periodInward: number;
+  periodIssued: number;
+  materialDistribution: Record<string, { skus: number; units: number; valuation: number }>;
+  branchDistribution: Record<string, { skus: number; units: number; valuation: number }>;
+  colorDistribution: Record<string, number>;
+  unitDistribution: Record<string, number>;
+}
+
+export interface CreateHardwareItemInput {
+  sku: string;
+  name: string;
+  material: string;
+  color: string;
+  unit: string;
+  hsnCode?: string;
+  warehouse: string;
+  vendorId?: string;
+  vendorName?: string;
+  openingStock?: number;
+  reorderLevel?: number;
+  unitCost?: number;
+  locationRack?: string;
+  notes?: string;
+}
+
+export interface UpdateHardwareItemInput {
+  sku?: string;
+  name?: string;
+  material?: string;
+  color?: string;
+  unit?: string;
+  hsnCode?: string;
+  warehouse?: string;
+  vendorId?: string;
+  vendorName?: string;
+  currentStock?: number;
+  reorderLevel?: number;
+  unitCost?: number;
+  locationRack?: string;
+  status?: 'ACTIVE' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'DISCONTINUED';
+  notes?: string;
+}
+
+export interface HardwareInwardInput {
+  hardwareItemId: string;
+  quantity: number;
+  warehouse: string;
+  vendorId?: string;
+  vendorName?: string;
+  supplierInvoiceNo?: string;
+  supplierInvoiceDate?: string;
+  batchLotNo?: string;
+  unitCost?: number;
+  locationRack?: string;
+  notes?: string;
+}
+
+export interface HardwareIssueInput {
+  hardwareItemId: string;
+  quantity: number;
+  warehouse: string;
+  issueReference?: string;
+  issuedToPerson?: string;
+  notes?: string;
+}
+
+export interface HardwareAdjustInput {
+  hardwareItemId: string;
+  adjustedQuantity: number;
+  type: 'ADD' | 'SUB';
+  reason: string;
+  notes?: string;
+}
+
+export interface CreateHardwareVendorInput {
+  name: string;
+  legalName?: string;
+  contactPerson?: string;
+  phone: string;
+  email?: string;
+  gstin?: string;
+  city?: string;
+  address?: string;
+  materialCategories?: string[];
+}
+
+export interface CreateHardwareBranchInput {
+  code: string;
+  name: string;
+  city: string;
+  state: string;
+  address?: string;
+  phone?: string;
+  contactPerson?: string;
+}
+

@@ -3890,6 +3890,49 @@ In Restroom Cubicle quotations, installation charges are typically calculated on
 - **Type Definitions (`src/types/admin.ts`)**: `Lead`, `LeadStatus`, `LeadSource`, `LeadProductCategory`, `LeadPriority`, `LeadClientType`, `LeadFollowup`, `CubicleLeadSpecs`, `LockerLeadSpecs`, `UrinalLeadSpecs`.
 - **Validation**: Zero TypeScript errors (`npx tsc --noEmit` exited 0) and production build exit code 0 (`npm run build`).
 
+---
+
+### 66. Hardware Inventory & Dynamic Multi-Branch Management Suite
+
+#### 66.1 Architecture Overview
+A dedicated enterprise hardware inventory management system mirroring the Board Inventory architecture with full lifecycle tracking for cubicle, locker, and partition fittings across multiple branches with extensible vendor management and material constraint enforcement.
+
+#### 66.2 Material & Finish (Colour) Rules
+- **Stainless Steel (SS)**: Allowed standard finishes strictly limited to `Black`, `Golden`, and `Stainless Steel` (Natural SS 304 satin brush/mirror).
+- **Aluminium**: Allowed standard finishes strictly limited to `Black` (anodized/powder-coated) and `Aluminium colour` (Natural silver anodized).
+- **Nylon**: Allowed finish strictly limited to `Black` (virgin polyamide antibacterial grade).
+- **Custom / Dynamic**: Option to add custom materials and finishes with extensible tagging.
+- **Manual SKU Entry**: User manually enters desired SKU / Part Number (with optional AI/heuristic suggestion tool based on Material + Item Name + Finish + Branch).
+- **Units of Item**: Standard units: `No's`, `Meters`, `Set's` (plus custom unit support).
+- **HSN Codes**: Built-in support for HSN codes (e.g., `8302` for fittings/hinges/locks, `7610` for aluminium structures/profiles, `3926` for nylon articles).
+
+#### 66.3 Dynamic Multi-Branch Management
+- **Initial Default Branches**:
+  1. `DELHI`: Delhi Main Plant & Central Warehouse
+  2. `KOLKATA`: Kolkata Regional Hub & Warehouse
+- **Dynamic Branch Manager (`BranchManagerModal.tsx`)**: Allows adding any number of regional branches (e.g., Mumbai, Bengaluru, Hyderabad, Chennai) with Branch Code, Name, City, State, Address, and Contact.
+- **Dynamic Filtering**: Inventory, inward receipts, issue vouchers, and analytics automatically update across all registered branches.
+
+#### 66.4 Dedicated Hardware Vendor Management
+- **Supplier Directory (`HardwareVendorsModal.tsx`)**: Complete management of approved suppliers providing SS hardware, aluminium profiles, nylon components, and fasteners.
+- **Vendor Registration**: Business Name, Trade Name, Contact Person, Phone, Email, GSTIN, City, Address, and Materials Supplied categories.
+- **Inline Vendor Creation**: Fast "+ Add Vendor" trigger integrated inside Create SKU and Stock Inward modals.
+
+#### 66.5 Stock Movements & Audit Trail
+- **Stock Inward (`HardwareInwardModal.tsx`)**: Inward quantity, unit cost (₹), supplier invoice/challan number and date, batch/lot number, rack location, and automatic live valuation calculation.
+- **Stock Issue (`HardwareIssueModal.tsx`)**: Deduction for work orders, sales orders, packing lists, or site installations with real-time stock-available validation.
+- **Stock Adjustment (`HardwareAdjustModal.tsx`)**: Audit count reconciliation (+ Add / - Deduct) with audit explanation reasons (Physical audit, Damaged, Scrap, Site return).
+- **Movement Ledger (`HardwareLedgerModal.tsx`)**: Complete chronological audit trail with multi-branch filtering, search, and CSV export.
+- **Analytics & Reports (`HardwareReportsModal.tsx`)**: Real-time KPI summaries, stock valuation, material breakdown, branch distribution, low stock replenishment alerts, and vector PDF print support.
+
+#### 66.6 Routing & Mobile Responsiveness
+- **Master Route**: `/admin/dashboard/inventory/hardware` (`HardwareInventoryPage.tsx`).
+- **Dedicated Full-Page Creation**: `/admin/dashboard/inventory/hardware/new` (`CreateHardwareSkuPage.tsx`).
+- **Backward Alias**: `/admin/dashboard/hardware-inventory` redirecting to the main route.
+- **Navigation Integration**: Added to `procurementNavItems` in `AdminSidebar.tsx` and mapped in `rbacNavigation.ts` (`canRoleAccessPath`).
+- **Mobile First Design**: Desktop table (`hidden md:block`) transforms into touch-optimized cards (`block md:hidden`) on mobile screens with touch targets $\ge 44\text{px}$, direct 1-tap inward/issue/adjust action buttons, and Pacific website dark theme palette (`#030213`, `#121029`, `#7FB706`, `#B5F823`).
+
+
 
 
 

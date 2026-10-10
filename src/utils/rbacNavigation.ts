@@ -32,6 +32,7 @@ export const PATH_PERMISSIONS: Record<string, UserRole[]> = {
   '/admin/dashboard/purchase-orders': ['SUPER_ADMIN', 'ADMIN', 'PROCUREMENT_MANAGER', 'VIEWER'],
   '/admin/dashboard/vendors': ['SUPER_ADMIN', 'ADMIN', 'PROCUREMENT_MANAGER', 'VIEWER'],
   '/admin/dashboard/inventory/boards': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'PROCUREMENT_MANAGER', 'VIEWER'],
+  '/admin/dashboard/inventory/hardware': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'PROCUREMENT_MANAGER', 'VIEWER'],
   '/admin/dashboard/inventory/lockers': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'PROCUREMENT_MANAGER', 'VIEWER'],
   '/admin/dashboard/inventory/ump': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'PROCUREMENT_MANAGER', 'VIEWER'],
   '/admin/dashboard/inventory/store': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'PROCUREMENT_MANAGER', 'VIEWER'],

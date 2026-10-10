@@ -75,6 +75,8 @@ const EditBoardSkuPage = lazyWithRetry(() => import('./pages/inventory/EditBoard
 const LockerInventoryPage = lazyWithRetry(() => import('./pages/inventory/LockerInventoryPage'));
 const UmpInventoryPage = lazyWithRetry(() => import('./pages/inventory/UmpInventoryPage'));
 const StoreInventoryPage = lazyWithRetry(() => import('./pages/inventory/StoreInventoryPage'));
+const HardwareInventoryPage = lazyWithRetry(() => import('./pages/inventory/HardwareInventoryPage'));
+const CreateHardwareSkuPage = lazyWithRetry(() => import('./pages/inventory/CreateHardwareSkuPage'));
 const LeadManagementPage = lazyWithRetry(() => import('./pages/crm/LeadManagementPage'));
 const CreateLeadPage = lazyWithRetry(() => import('./pages/crm/CreateLeadPage'));
 const LeadDetailPage = lazyWithRetry(() => import('./pages/crm/LeadDetailPage'));
@@ -484,6 +486,26 @@ export default function App() {
                   <StoreInventoryPage />
                 </Suspense>
               }
+            />
+            <Route
+              path="inventory/hardware"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <HardwareInventoryPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="inventory/hardware/new"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <CreateHardwareSkuPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="hardware-inventory"
+              element={<Navigate to="/admin/dashboard/inventory/hardware" replace />}
             />
             <Route
               path="board-inventory"

@@ -67,6 +67,7 @@ export const procurementNavItems = [
   { name: 'Purchase Orders', path: '/admin/dashboard/purchase-orders', icon: ClipboardList },
   { name: 'Suppliers & Vendors', path: '/admin/dashboard/vendors', icon: Briefcase },
   { name: 'Restroom Boards', path: '/admin/dashboard/inventory/boards', icon: Layers },
+  { name: 'Hardware Inventory', path: '/admin/dashboard/inventory/hardware', icon: Wrench },
   { name: 'Locker Boards', path: '/admin/dashboard/inventory/lockers', icon: Lock },
   { name: 'UMP Partitions', path: '/admin/dashboard/inventory/ump', icon: Columns },
   { name: 'General Store', path: '/admin/dashboard/inventory/store', icon: Package },

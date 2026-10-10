@@ -18,4 +18,5 @@ export * from './invoicesApi';
 export * from './productCatalogApi';
 export * from './boardInventoryApi';
 export * from './leadManagementApi';
+export * from './hardwareInventoryApi';
 
