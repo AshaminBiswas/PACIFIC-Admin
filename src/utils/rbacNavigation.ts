@@ -20,6 +20,7 @@ export const PATH_PERMISSIONS: Record<string, UserRole[]> = {
   ],
 
   // ─── Commercial Sales Pipeline ────────────────────────────────────────────
+  '/admin/dashboard/crm-leads': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'VIEWER'],
   '/admin/dashboard/sales-quotations': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'VIEWER'],
   '/admin/dashboard/proforma-invoices': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'FINANCE_OFFICER', 'VIEWER'],
   '/admin/dashboard/sales-orders': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'VIEWER'],

@@ -3876,8 +3876,7 @@ In Restroom Cubicle quotations, installation charges are typically calculated on
   - Interactive status dropdown on table rows: Changing status to `INTERESTED` automatically suggests and opens the Quotation generation flow.
 
 #### 65.4 Navigation, Routing & Full-Page Views
-- **Sales Pipeline Step 00**: Added `{ name: 'Leads & Enquiries', path: '/admin/dashboard/crm-leads', icon: Target, step: '00' }` to `salesPipelineItems` in `AdminSidebar.tsx` as the first stage before Sales Quotations (Step 01).
-- **CRM Finance Group**: Added `{ name: 'Commercial Leads', path: '/admin/dashboard/crm-leads', icon: Target }` to `crmFinanceNavItems`.
+- **Sales Pipeline Step 00**: Set `{ name: 'Commercial Leads', path: '/admin/dashboard/crm-leads', icon: Target, step: '00' }` in `salesPipelineItems` in `AdminSidebar.tsx` as the first stage before Sales Quotations (Step 01). Duplicate entry removed from `crmFinanceNavItems` for clean, single-point navigation.
 - **Full-Page Routing in `App.tsx`**:
   - `/admin/dashboard/crm-leads` & `/admin/dashboard/leads` -> `<LeadManagementPage />` with responsive desktop table and mobile card transformation (`< md`).
   - `/admin/dashboard/crm-leads/create` & `/admin/dashboard/leads/create` -> `<CreateLeadPage />` full-page creation wizard with category selector, dynamic specs, commercial sizing, and quick follow-up scheduling.
