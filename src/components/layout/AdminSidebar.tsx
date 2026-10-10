@@ -39,6 +39,7 @@ import {
   Download,
   Lock,
   Columns,
+  Target,
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -50,8 +51,9 @@ interface AdminSidebarProps {
   isInstalled?: boolean;
 }
 
-// 7-stage sales pipeline — ordered to match the commercial lifecycle
+// 8-stage sales pipeline — starting from Lead Inquiries through dispatch & installation
 export const salesPipelineItems = [
+  { name: 'Leads & Enquiries',  path: '/admin/dashboard/crm-leads',          icon: Target,      step: '00' },
   { name: 'Sales Quotations',   path: '/admin/dashboard/sales-quotations',   icon: FileText,    step: '01' },
   { name: 'Proforma Invoices',  path: '/admin/dashboard/proforma-invoices',  icon: Receipt,     step: '02' },
   { name: 'Sales Orders Hub',   path: '/admin/dashboard/sales-orders',       icon: ShoppingBag, step: '03' },
@@ -71,6 +73,7 @@ export const procurementNavItems = [
 ];
 
 export const crmFinanceNavItems = [
+  { name: 'Commercial Leads', path: '/admin/dashboard/crm-leads', icon: Target },
   { name: 'B2B Customers', path: '/admin/dashboard/customers', icon: Users },
   { name: 'Payments & Ledger', path: '/admin/dashboard/payments', icon: CreditCard },
 ];

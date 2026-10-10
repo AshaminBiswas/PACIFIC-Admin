@@ -3846,6 +3846,47 @@ In Restroom Cubicle quotations, installation charges are typically calculated on
   - `npx tsc --noEmit` passed with 0 errors.
   - `npm run build` completed with code 0 (`dist/assets/BoardReportsModal-DMhJITE2.js`).
 
+---
+
+### 65. Commercial Lead Management System for Cubicle, Locker & Urinal Partitions with Quotation & Follow-Up Integration
+
+#### 65.1 Architecture & Multi-Product Scope
+- **Core Product Lines Supported**:
+  1. **Toilet Cubicles (`RESTROOM_CUBICLE`)**: Doors / bays count, elevation model (Classic, Floor-Anchored, Ceiling-Suspended), board core (12mm Compact HPL, 18mm Boilo/HDHMR), hardware package (SS 304 Premium, Nylon Black Matt, Shoe-box profile), color/finish.
+  2. **Locker Systems (`LOCKER_SYSTEM`)**: Tier configurations (1-Tier to 4-Tier, Z-Locker), compartment count, lock mechanisms (Key Cam Lock, Digital Number Code, RFID Smart Card), moisture-proof 12mm Compact HPL.
+  3. **Urinal Partitions (`URINAL_PARTITION`)**: Modesty divider screen count, dimensions (450x900mm, 400x900mm, 500x1200mm), mounting systems (Wall-hung with SS brackets, Floor-mounted with legs), 12mm Compact Laminate.
+  4. **Washroom Combo (`COMBO_WASHROOM`)**: Complete turnkey commercial washroom package combining cubicles, modesty screens, and lockers.
+
+#### 65.2 Direct Quotation System Linkage & 1-Click Generation
+- **Requirement Addressed**: *"link the Quotation system, if customer interested then I send the Quotation to the customer and all the followup records"*.
+- **Integrated Quotation Engine (`GenerateQuotationFromLeadModal.tsx`)**:
+  - **1-Click Generation**: Automatically extracts prospect and company details, auto-generates formal Sales Quotation reference (`PPS/D/26-27/{seq}`), compiles structured line items based on technical specifications, calculates basic price, installation charges, 18% GST, and net total.
+  - **Automatic Lead Progression**: Links `quotationId`, `quotationNumber`, `quotationAmount`, and `quotationDate` back to the lead record and automatically transitions lead status to `QUOTATION_SENT`.
+  - **Audit Follow-up Dispatch**: Automatically logs an email/WhatsApp dispatch touchpoint in the lead's follow-up history upon quotation creation.
+  - **Link Existing Quotation**: Allows picking and attaching any existing quote created in the Sales Quotation Hub.
+  - **Omnichannel Dispatch**: 1-click WhatsApp click-to-chat button with pre-formatted proposal text and mailto email trigger.
+
+#### 65.3 Omnichannel Follow-Up Tracking & Scheduling Subsystem
+- **Touchpoint Logging (`LeadFollowupModal.tsx`)**:
+  - Channels: Phone Call (`PHONE_CALL`), WhatsApp (`WHATSAPP`), Email (`EMAIL`), Site Visit (`SITE_VISIT`).
+  - Discussion outcomes: `INTEREST_CONFIRMED`, `QUOTATION_DISCUSSED`, `PRICE_NEGOTIATION`, `SAMPLE_REQUESTED`, `DRAWINGS_AWAITED`, `CALLBACK_REQUESTED`, `ORDER_CONFIRMED`, `LOST`.
+  - Discussion summary notes and author recording.
+  - Next follow-up date and time scheduler with quick presets (+24h, +48h, +1 Wk).
+  - Live overdue / countdown status badges (`Due in 4h`, `Overdue by 1d`, `Due Today`).
+  - Interactive status dropdown on table rows: Changing status to `INTERESTED` automatically suggests and opens the Quotation generation flow.
+
+#### 65.4 Navigation & App Routing
+- **Sales Pipeline Step 00**: Added `{ name: 'Leads & Enquiries', path: '/admin/dashboard/crm-leads', icon: Target, step: '00' }` to `salesPipelineItems` in `AdminSidebar.tsx` as the first stage before Sales Quotations (Step 01).
+- **CRM Finance Group**: Added `{ name: 'Commercial Leads', path: '/admin/dashboard/crm-leads', icon: Target }` to `crmFinanceNavItems`.
+- **Routes in `App.tsx`**: Registered `/admin/dashboard/crm-leads` and `/admin/dashboard/leads` rendering `<LeadManagementPage />` with lazy-loading and suspense fallback.
+
+#### 65.5 Cross-Stack API & Types
+- **API Client (`src/api/leadManagementApi.ts`)**: Full CRUD, local persistence with rich initial sample leads, aggregate KPI metrics (`getStats`), follow-up logging (`addFollowup`), and quotation generation (`generateQuotation`).
+- **Facade Export**: Exported through `src/api/index.ts` and `src/api/services.ts`.
+- **Type Definitions (`src/types/admin.ts`)**: `Lead`, `LeadStatus`, `LeadSource`, `LeadProductCategory`, `LeadPriority`, `LeadClientType`, `LeadFollowup`, `CubicleLeadSpecs`, `LockerLeadSpecs`, `UrinalLeadSpecs`.
+- **Validation**: Zero TypeScript errors (`npx tsc --noEmit` exited 0) and production build exit code 0 (`npm run build`).
+
+
 
 
 

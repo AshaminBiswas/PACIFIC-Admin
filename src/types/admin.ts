@@ -907,21 +907,133 @@ export interface AuditLog {
 
 // ─── Legacy & CMS Types (Maintained for backward compatibility) ───────────────
 
-export type LeadStatus = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'PROPOSAL_SENT' | 'NEGOTIATING' | 'WON' | 'LOST' | 'INACTIVE';
-export type LeadSource = 'WEBSITE' | 'CONFIGURATOR' | 'REFERRAL' | 'DIRECT' | 'SOCIAL' | 'EMAIL' | 'PHONE' | 'OTHER';
+export type LeadStatus =
+  | 'NEW'
+  | 'CONTACTED'
+  | 'REQUIREMENT_GATHERED'
+  | 'INTERESTED'
+  | 'QUOTATION_SENT'
+  | 'QUALIFIED'
+  | 'PROPOSAL_SENT'
+  | 'NEGOTIATING'
+  | 'WON'
+  | 'LOST'
+  | 'INACTIVE';
+
+export type LeadSource =
+  | 'WEBSITE'
+  | 'CONFIGURATOR'
+  | 'DIRECT_CALL'
+  | 'WHATSAPP'
+  | 'ARCHITECT_SPEC'
+  | 'EXHIBITION'
+  | 'REFERRAL'
+  | 'DIRECT'
+  | 'SOCIAL'
+  | 'EMAIL'
+  | 'PHONE'
+  | 'OTHER';
+
+export type LeadProductCategory =
+  | 'RESTROOM_CUBICLE'
+  | 'LOCKER_SYSTEM'
+  | 'URINAL_PARTITION'
+  | 'COMBO_WASHROOM';
+
+export type LeadPriority = 'HOT' | 'WARM' | 'COLD';
+
+export type LeadClientType =
+  | 'ARCHITECT'
+  | 'CONTRACTOR'
+  | 'CORPORATE_CLIENT'
+  | 'GOVERNMENT'
+  | 'DEALER'
+  | 'INDIVIDUAL'
+  | 'BUILDER';
+
+export type LeadFollowupChannel =
+  | 'PHONE_CALL'
+  | 'WHATSAPP'
+  | 'EMAIL'
+  | 'SITE_VISIT'
+  | 'MEETING';
+
+export interface LeadFollowup {
+  id: string;
+  leadId: string;
+  channel: LeadFollowupChannel;
+  status: 'COMPLETED' | 'SCHEDULED' | 'PENDING';
+  outcome?: string;
+  discussionNotes: string;
+  nextFollowupDate?: string | null;
+  nextFollowupTime?: string | null;
+  contactPerson?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  performedByName?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface CubicleLeadSpecs {
+  doorsCount?: number;
+  cubicleModel?: string; // e.g. "Pacific Classic", "Pacific Designer", "Pacific Floor-Anchored"
+  boardThickness?: string; // e.g. "12mm", "18mm", "13mm"
+  boardType?: string; // e.g. "Compact HPL", "Boilo HDHMR"
+  hardwarePackage?: string; // e.g. "SS 304 Premium", "Nylon Black Matt", "Shoe Box Aluminium"
+  colorPreference?: string; // e.g. "Woodgrain Walnut", "Frost Grey", "Charcoal"
+}
+
+export interface LockerLeadSpecs {
+  lockerTiers?: string; // e.g. "1-Tier", "2-Tier", "3-Tier", "4-Tier", "Z-Locker"
+  compartmentsCount?: number; // e.g. 24, 40, 60
+  lockType?: string; // e.g. "Key Cam Lock", "Digital Number Code", "RFID Smart Card"
+  material?: string; // e.g. "12mm Compact HPL", "Aluminium Profile Frame"
+  ventilationType?: string; // e.g. "Laser Slits", "Perforated Mesh"
+}
+
+export interface UrinalLeadSpecs {
+  screensCount?: number; // e.g. 6, 12, 18
+  screenDimensions?: string; // e.g. "450 x 900 mm", "400 x 900 mm", "500 x 1200 mm"
+  mountingType?: string; // e.g. "Wall-hung with SS Brackets", "Floor Mounted with Legs"
+  boardType?: string; // e.g. "12mm Compact Laminate", "18mm Boilo"
+}
 
 export interface Lead {
   id: string;
+  leadNumber?: string;
   firstName: string;
   lastName?: string;
   email: string;
   phone?: string;
   company?: string;
-  message?: string;
+  city?: string;
+  address?: string;
+  clientType?: LeadClientType;
+  productCategory?: LeadProductCategory;
+  cubicleSpecs?: CubicleLeadSpecs;
+  lockerSpecs?: LockerLeadSpecs;
+  urinalSpecs?: UrinalLeadSpecs;
+  estimatedQuantity?: number;
+  estimatedValue?: number;
   source: LeadSource;
   status: LeadStatus;
-  tags: string[];
+  priority?: LeadPriority;
+  assignedTo?: string;
+  message?: string;
   notes?: string;
+  tags: string[];
+  // Linked Quotation
+  quotationId?: string;
+  quotationNumber?: string; // e.g. "PPS/D/26-27/824"
+  quotationAmount?: number;
+  quotationDate?: string;
+  quotationStatus?: string;
+  // Follow-up Tracking
+  lastFollowupDate?: string;
+  nextFollowupDate?: string;
+  followupCount?: number;
+  followups?: LeadFollowup[];
   createdAt: string;
   updatedAt: string;
 }

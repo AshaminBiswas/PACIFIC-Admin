@@ -75,6 +75,7 @@ const EditBoardSkuPage = lazyWithRetry(() => import('./pages/inventory/EditBoard
 const LockerInventoryPage = lazyWithRetry(() => import('./pages/inventory/LockerInventoryPage'));
 const UmpInventoryPage = lazyWithRetry(() => import('./pages/inventory/UmpInventoryPage'));
 const StoreInventoryPage = lazyWithRetry(() => import('./pages/inventory/StoreInventoryPage'));
+const LeadManagementPage = lazyWithRetry(() => import('./pages/crm/LeadManagementPage'));
 
 // Export & Global Trade Management Pages
 const ExportDashboardPage = lazyWithRetry(() => import('./pages/export/ExportDashboardPage'));
@@ -801,7 +802,23 @@ export default function App() {
               }
             />
             <Route
+              path="crm-leads"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <LeadManagementPage />
+                </Suspense>
+              }
+            />
+            <Route
               path="leads"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <LeadManagementPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="visitor-leads"
               element={
                 <Suspense fallback={<PageLoader />}>
                   <AdminLeads />
