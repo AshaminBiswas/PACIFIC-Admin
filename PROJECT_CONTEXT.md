@@ -3821,6 +3821,32 @@ In Restroom Cubicle quotations, installation charges are typically calculated on
   - Comprehensive numeric pagination bar with smart ellipsis windowing (`<<`, `<`, `1`, `2`, `...`, `10`, `>`, `>>`).
   - Row numbering properly scaled: `(page - 1) * pageSize + idx + 1`.
 
+---
+
+### 64. Fix React Invariant #310 in Board Inventory Stock Issue Modal (`StockIssueModal.tsx`)
+
+#### 64.1 Bug Root Cause
+- **Symptom**: When attempting to issue a board from the Board Inventory page (`BoardInventoryPage.tsx`), clicking "Issue Board" or the row action dropdown caused a full-page view crash with:
+  `installHook.js:1 Error: Minified React error #310; visit https://reactjs.org/docs/error-decoder.html?invariant=310`
+  `at Object.gs [as useMemo]` in the inventory modal chunk (`BoardReportsModal-...js`).
+- **Cause**: React Invariant #310 indicates a mismatch in the hook execution count between subsequent renders ("Rendered more hooks than during the previous render").
+  In `src/components/inventory/StockIssueModal.tsx`:
+  - An early return `if (!isOpen) return null;` was located at line 190, directly before `rowValidationErrors = useMemo(...)` at line 246.
+  - When the page mounted with `isOpen = false`, `StockIssueModal` evaluated up to line 190 and returned `null`, skipping hook #21 (`rowValidationErrors = useMemo(...)`).
+  - When the user clicked "Issue Board", `isOpen` transitioned to `true`, allowing `StockIssueModal` to continue past line 190 and invoke `useMemo`, resulting in 21 hooks instead of the initial 20.
+  - React detected this violation of the Rules of Hooks and threw invariant error #310.
+
+#### 64.2 Resolution & Hardening
+- **Unconditional Top-Level Hook Execution**:
+  - Moved `rowValidationErrors = useMemo(...)` up into the top-level hook declaration section alongside `filteredBoards`.
+  - Added modal close state cleanup `useEffect` to safely reset `error`, `issueReference`, `issuedToPerson`, and notes when `!isOpen`.
+  - Relocated `if (!isOpen) return null;` to the very bottom immediately before returning the modal overlay JSX (`return (<div ...>...</div>)`).
+  - Ensured every single hook (`useState`, `useEffect`, `useMemo`) runs unconditionally on every render in the exact same order regardless of `isOpen`.
+- **Validation**:
+  - `npx tsc --noEmit` passed with 0 errors.
+  - `npm run build` completed with code 0 (`dist/assets/BoardReportsModal-DMhJITE2.js`).
+
+
 
 
 

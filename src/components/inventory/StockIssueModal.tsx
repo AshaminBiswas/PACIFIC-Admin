@@ -187,7 +187,44 @@ export default function StockIssueModal({
     });
   }, [catalogBoards, filterWarehouse, filterSupplierId, filterSize, filterThickness, filterSearch]);
 
-  if (!isOpen) return null;
+  // Stock Validation Check across all rows
+  const rowValidationErrors = useMemo(() => {
+    const errors: { rowId: string; message: string }[] = [];
+    rows.forEach((r, idx) => {
+      if (!r.inventoryItemId) {
+        errors.push({ rowId: r.id, message: `Row ${idx + 1}: Board SKU is required` });
+        return;
+      }
+      const board = catalogBoards.find((b) => b.id === r.inventoryItemId);
+      const qtyNum = Number(r.quantity);
+      if (r.quantity !== '' && (!qtyNum || qtyNum <= 0)) {
+        errors.push({ rowId: r.id, message: `Row ${idx + 1}: Quantity must be greater than 0` });
+      }
+      if (board) {
+        const available = Number(board.currentStock);
+        if (qtyNum > available) {
+          errors.push({
+            rowId: r.id,
+            message: `Row ${idx + 1}: Cannot issue ${qtyNum} sheets of ${board.designNo}. Only ${available} available in stock.`,
+          });
+        }
+      }
+    });
+    return errors;
+  }, [rows, catalogBoards]);
+
+  // Clean form state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setError(null);
+      setIssueReference('');
+      setIssuedToPerson('');
+      setCommonNotes('');
+    }
+  }, [isOpen]);
+
+  const hasStockError = rowValidationErrors.some((e) => e.message.includes('Only'));
+  const totalSheetsToIssue = rows.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0);
 
   // Row Manipulation Handlers
   const handleAddRow = () => {
@@ -242,35 +279,6 @@ export default function StockIssueModal({
     );
   };
 
-  // Stock Validation Check across all rows
-  const rowValidationErrors = useMemo(() => {
-    const errors: { rowId: string; message: string }[] = [];
-    rows.forEach((r, idx) => {
-      if (!r.inventoryItemId) {
-        errors.push({ rowId: r.id, message: `Row ${idx + 1}: Board SKU is required` });
-        return;
-      }
-      const board = catalogBoards.find((b) => b.id === r.inventoryItemId);
-      const qtyNum = Number(r.quantity);
-      if (r.quantity !== '' && (!qtyNum || qtyNum <= 0)) {
-        errors.push({ rowId: r.id, message: `Row ${idx + 1}: Quantity must be greater than 0` });
-      }
-      if (board) {
-        const available = Number(board.currentStock);
-        if (qtyNum > available) {
-          errors.push({
-            rowId: r.id,
-            message: `Row ${idx + 1}: Cannot issue ${qtyNum} sheets of ${board.designNo}. Only ${available} available in stock.`,
-          });
-        }
-      }
-    });
-    return errors;
-  }, [rows, catalogBoards]);
-
-  const hasStockError = rowValidationErrors.some((e) => e.message.includes('Only'));
-  const totalSheetsToIssue = rows.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -309,6 +317,8 @@ export default function StockIssueModal({
       setIsSubmitting(false);
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
