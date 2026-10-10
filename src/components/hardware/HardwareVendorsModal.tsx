@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Package,
+  Trash2,
 } from 'lucide-react';
 import { hardwareInventoryApi } from '../../api/hardwareInventoryApi';
 import type { HardwareVendor, CreateHardwareVendorInput } from '../../types/admin';
@@ -50,6 +51,8 @@ export default function HardwareVendorsModal({
   const loadVendors = async () => {
     setLoading(true);
     try {
+      // Eradicate any legacy or cached demo dummy vendors automatically
+      await hardwareInventoryApi.purgeDummyData();
       const res = await hardwareInventoryApi.listVendors();
       if (res.data?.data) {
         setVendors(res.data.data);
@@ -58,6 +61,38 @@ export default function HardwareVendorsModal({
       setError(err.message || 'Failed to load vendors');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteVendor = async (id: string, vendorName: string) => {
+    if (!window.confirm(`Are you sure you want to delete vendor "${vendorName}"?`)) {
+      return;
+    }
+    try {
+      await hardwareInventoryApi.deleteVendor(id);
+      setSuccessMsg(`Vendor "${vendorName}" deleted successfully.`);
+      await loadVendors();
+      onVendorsUpdated();
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete vendor');
+    }
+  };
+
+  const handleClearAllVendors = async () => {
+    if (
+      !window.confirm(
+        'Are you sure you want to delete ALL hardware vendors? This will leave a completely clean slate.'
+      )
+    ) {
+      return;
+    }
+    try {
+      await hardwareInventoryApi.clearAllVendors();
+      setSuccessMsg('All hardware vendors removed successfully.');
+      await loadVendors();
+      onVendorsUpdated();
+    } catch (err: any) {
+      setError(err.message || 'Failed to clear vendors');
     }
   };
 
@@ -220,14 +255,27 @@ export default function HardwareVendorsModal({
             </div>
 
             {!showAddForm && (
-              <button
-                type="button"
-                onClick={() => setShowAddForm(true)}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs font-semibold rounded-xl shadow-md shadow-[#7FB706]/20 transition-all cursor-pointer whitespace-nowrap"
-              >
-                <Plus className="w-4 h-4" />
-                Add Hardware Vendor
-              </button>
+              <div className="flex items-center gap-2">
+                {vendors.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearAllVendors}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap"
+                    title="Delete all vendors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Clear All
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowAddForm(true)}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs font-semibold rounded-xl shadow-md shadow-[#7FB706]/20 transition-all cursor-pointer whitespace-nowrap"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Hardware Vendor
+                </button>
+              </div>
             )}
           </div>
 
@@ -402,8 +450,12 @@ export default function HardwareVendorsModal({
             {loading ? (
               <div className="p-8 text-center text-gray-400 text-sm">Loading vendors...</div>
             ) : filteredVendors.length === 0 ? (
-              <div className="p-8 text-center text-gray-400 text-sm border border-dashed border-white/10 rounded-xl">
-                No vendors found matching your filter.
+              <div className="p-8 text-center text-gray-400 text-sm border border-dashed border-white/10 rounded-xl space-y-2">
+                <Truck className="w-8 h-8 mx-auto text-gray-500 opacity-60" />
+                <p className="text-gray-300 font-medium">No hardware vendors registered yet.</p>
+                <p className="text-xs text-gray-500">
+                  Click &quot;Add Hardware Vendor&quot; above to register your approved suppliers.
+                </p>
               </div>
             ) : (
               filteredVendors.map((v) => (
@@ -471,10 +523,20 @@ export default function HardwareVendorsModal({
                   </div>
 
                   <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-white/5">
-                    <span className="inline-flex items-center gap-1 text-[11px] text-gray-400 bg-white/5 px-2 py-1 rounded-md">
-                      <Package className="w-3 h-3 text-[#7FB706]" />
-                      {v.totalSkus || 0} SKUs
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1 text-[11px] text-gray-400 bg-white/5 px-2 py-1 rounded-md">
+                        <Package className="w-3 h-3 text-[#7FB706]" />
+                        {v.totalSkus || 0} SKUs
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteVendor(v.id, v.name)}
+                        className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                        title={`Delete ${v.name}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                     <span className="text-[10px] text-emerald-400 font-medium">✓ Active Supplier</span>
                   </div>
                 </div>

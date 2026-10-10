@@ -3932,11 +3932,12 @@ A dedicated enterprise hardware inventory management system mirroring the Board 
 - **Navigation Integration**: Added to `procurementNavItems` in `AdminSidebar.tsx` and mapped in `rbacNavigation.ts` (`canRoleAccessPath`).
 - **Mobile First Design**: Desktop table (`hidden md:block`) transforms into touch-optimized cards (`block md:hidden`) on mobile screens with touch targets $\ge 44\text{px}$, direct 1-tap inward/issue/adjust action buttons, and Pacific website dark theme palette (`#030213`, `#121029`, `#7FB706`, `#B5F823`).
 
-#### 66.7 Permanent Eradication of Dummy Hardware Seed Records
+#### 66.7 Permanent Eradication of Dummy Hardware Seed Records & Vendor Management
 - **Clean Slate Initialization**: `DEFAULT_HARDWARE_ITEMS` and `DEFAULT_HARDWARE_VENDORS` set to `[]`.
 - **v2 Storage Isolation**: Migrated storage keys to `pacific_hardware_inventory_items_v2`, `pacific_hardware_vendors_v2`, and `pacific_hardware_movements_v2`.
-- **Automated Legacy Purge**: Added detectors `isDummyHardwareItem` and `isDummyHardwareVendor` targeting all legacy seed records (`hw-item-*`, `hvend-0*`, and dummy SKUs).
-- **Reactive & Manual Cleanup**: Automatically purges dummy records upon page mount, and provides a "Clear All" action button to wipe any residual records cleanly.
+- **Automated Legacy Purge**: Added multi-attribute detectors `isDummyHardwareItem` and `isDummyHardwareVendor` targeting all legacy seed records (`hw-item-*`, `hvend-0*`, and specific vendor names/GSTINs/domains: Pacific Precision, Hettich India, Hindalco, TechnoPolymers).
+- **Vendor CRUD & Deletion**: Added `hardwareInventoryApi.deleteVendor(id)` and `hardwareInventoryApi.clearAllVendors()`.
+- **UI Enhancements**: Added single-click trash delete button per vendor card and a "Clear All" action button in `HardwareVendorsModal.tsx`, alongside automated purge on modal open.
 
 
 

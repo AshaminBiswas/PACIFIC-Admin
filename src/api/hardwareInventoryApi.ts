@@ -86,9 +86,20 @@ const DUMMY_HARDWARE_SKUS = new Set([
 
 const DUMMY_VENDOR_NAMES = new Set([
   'pacific precision engineering ltd',
+  'pacific precision engineering pvt ltd',
   'hettich india hardware allied',
+  'hettich india pvt ltd',
   'hindalco extrusions & architectural',
+  'hindalco industries ltd',
   'technopolymers nylon components',
+  'technopolymers india llp',
+]);
+
+const DUMMY_VENDOR_GSTINS = new Set([
+  '07AAACP9812K1Z5',
+  '06AABCH4321P1Z9',
+  '19AAACH1234F1Z8',
+  '07AABCT5544N1Z2',
 ]);
 
 /**
@@ -105,13 +116,39 @@ export function isDummyHardwareItem(item: Partial<HardwareInventoryItem> | null 
 
 /**
  * Universal detector for legacy demo dummy hardware vendors.
+ * Matches by ID, Name, Legal Name, Email, or GSTIN.
  */
 export function isDummyHardwareVendor(vendor: Partial<HardwareVendor> | null | undefined): boolean {
   if (!vendor) return false;
   const id = String(vendor.id || '').toLowerCase();
-  if (id.startsWith('hvend-0')) return true;
+  if (/^hvend-0[1-9]/.test(id)) return true;
   const name = String(vendor.name || '').toLowerCase().trim();
-  if (DUMMY_VENDOR_NAMES.has(name)) return true;
+  const legalName = String(vendor.legalName || '').toLowerCase().trim();
+  if (
+    DUMMY_VENDOR_NAMES.has(name) ||
+    DUMMY_VENDOR_NAMES.has(legalName) ||
+    name.includes('pacific precision') ||
+    legalName.includes('pacific precision') ||
+    name.includes('hettich india') ||
+    legalName.includes('hettich india') ||
+    name.includes('hindalco') ||
+    legalName.includes('hindalco') ||
+    name.includes('technopolymers') ||
+    legalName.includes('technopolymers')
+  ) {
+    return true;
+  }
+  const gstin = String(vendor.gstin || '').toUpperCase().trim();
+  if (DUMMY_VENDOR_GSTINS.has(gstin)) return true;
+  const email = String(vendor.email || '').toLowerCase().trim();
+  if (
+    email.includes('pacificprecision.in') ||
+    email.includes('hettich.in') ||
+    email.includes('hindalco') ||
+    email.includes('technopolymers')
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -984,6 +1021,34 @@ export const hardwareInventoryApi = {
       data: {
         success: true,
         data: vendors[idx],
+      },
+    };
+  },
+
+  deleteVendor: async (id: string): Promise<{ data: ApiResponse<{ success: boolean }> }> => {
+    try {
+      const res = await apiClient.delete<ApiResponse<{ success: boolean }>>(`/inventory/hardware/vendors/${id}`);
+      if (res.data?.success) return { data: res.data };
+    } catch {}
+
+    let vendors = store.getVendors();
+    vendors = vendors.filter((v) => v.id !== id);
+    store.saveVendors(vendors);
+
+    return {
+      data: {
+        success: true,
+        data: { success: true },
+      },
+    };
+  },
+
+  clearAllVendors: async (): Promise<{ data: ApiResponse<{ success: boolean }> }> => {
+    store.saveVendors([]);
+    return {
+      data: {
+        success: true,
+        data: { success: true },
       },
     };
   },
