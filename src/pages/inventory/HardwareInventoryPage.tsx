@@ -156,8 +156,27 @@ export default function HardwareInventoryPage() {
   ]);
 
   useEffect(() => {
-    loadData();
+    // Automatically purge any dummy demo items from browser storage on mount
+    hardwareInventoryApi.purgeDummyData().finally(() => {
+      loadData();
+    });
   }, [loadData]);
+
+  const handleClearAllItems = async () => {
+    if (
+      !window.confirm(
+        'Are you sure you want to delete all hardware inventory records? This will leave a completely clean slate.'
+      )
+    ) {
+      return;
+    }
+    try {
+      await hardwareInventoryApi.clearAllItems();
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to clear hardware items');
+    }
+  };
 
   const handleDeleteItem = async (id: string, sku: string, name: string) => {
     if (
@@ -292,6 +311,19 @@ export default function HardwareInventoryPage() {
             <ArrowUpRight className="w-3.5 h-3.5" />
             Issue Stock
           </button>
+
+          {/* Clear All */}
+          {items.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAllItems}
+              title="Delete all hardware items"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold rounded-xl border border-red-500/20 transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Clear All
+            </button>
+          )}
 
           {/* New Hardware SKU */}
           <button

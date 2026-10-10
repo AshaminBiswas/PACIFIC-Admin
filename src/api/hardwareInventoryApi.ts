@@ -17,11 +17,16 @@ import type {
   CreateHardwareBranchInput,
 } from '../types/admin';
 
-// Local storage persistent keys
-const ITEMS_STORAGE_KEY = 'pacific_hardware_inventory_items_v1';
-const MOVEMENTS_STORAGE_KEY = 'pacific_hardware_movements_v1';
+// Local storage persistent keys (isolated v2 storage to eradicate dummy data)
+const ITEMS_STORAGE_KEY = 'pacific_hardware_inventory_items_v2';
+const MOVEMENTS_STORAGE_KEY = 'pacific_hardware_movements_v2';
 const BRANCHES_STORAGE_KEY = 'pacific_hardware_branches_v1';
-const VENDORS_STORAGE_KEY = 'pacific_hardware_vendors_v1';
+const VENDORS_STORAGE_KEY = 'pacific_hardware_vendors_v2';
+const LEGACY_STORAGE_KEYS = [
+  'pacific_hardware_inventory_items_v1',
+  'pacific_hardware_movements_v1',
+  'pacific_hardware_vendors_v1',
+];
 
 // Initial default branches (Two branches, dynamic and expandable)
 export const DEFAULT_HARDWARE_BRANCHES: HardwareBranch[] = [
@@ -53,446 +58,63 @@ export const DEFAULT_HARDWARE_BRANCHES: HardwareBranch[] = [
   },
 ];
 
-// Initial approved Hardware Vendors
-export const DEFAULT_HARDWARE_VENDORS: HardwareVendor[] = [
-  {
-    id: 'hvend-01',
-    name: 'Pacific Precision Engineering Ltd',
-    legalName: 'Pacific Precision Engineering Pvt Ltd',
-    contactPerson: 'Manish Sharma',
-    phone: '+91 98201 12345',
-    email: 'hardware@pacificprecision.in',
-    gstin: '07AAACP9812K1Z5',
-    city: 'Gurugram',
-    address: 'Plot 108, Pace City II, Sector 37, Gurugram, Haryana',
-    materialCategories: ['STAINLESS_STEEL', 'ALUMINIUM'],
-    totalSkus: 8,
-    isActive: true,
-    createdAt: '2026-01-10T00:00:00.000Z',
-  },
-  {
-    id: 'hvend-02',
-    name: 'Hettich India Hardware Allied',
-    legalName: 'Hettich India Pvt Ltd',
-    contactPerson: 'Sanjay Verma',
-    phone: '+91 98110 54321',
-    email: 'sales@hettich.in',
-    gstin: '06AABCH4321P1Z9',
-    city: 'New Delhi',
-    address: 'Okhla Industrial Area, Phase III, New Delhi 110020',
-    materialCategories: ['STAINLESS_STEEL'],
-    totalSkus: 4,
-    isActive: true,
-    createdAt: '2026-01-12T00:00:00.000Z',
-  },
-  {
-    id: 'hvend-03',
-    name: 'Hindalco Extrusions & Architectural',
-    legalName: 'Hindalco Industries Ltd',
-    contactPerson: 'Arun Mukherjee',
-    phone: '+91 98311 67890',
-    email: 'profiles@hindalco.adityabirla.com',
-    gstin: '19AAACH1234F1Z8',
-    city: 'Kolkata',
-    address: 'Birla Building, 9/1 R.N. Mukherjee Road, Kolkata 700001',
-    materialCategories: ['ALUMINIUM'],
-    totalSkus: 4,
-    isActive: true,
-    createdAt: '2026-01-15T00:00:00.000Z',
-  },
-  {
-    id: 'hvend-04',
-    name: 'TechnoPolymers Nylon Components',
-    legalName: 'TechnoPolymers India LLP',
-    contactPerson: 'Rajiv Sen',
-    phone: '+91 97170 99887',
-    email: 'orders@technopolymers.co.in',
-    gstin: '07AABCT5544N1Z2',
-    city: 'Faridabad',
-    address: 'Sector 24, Industrial Area, Faridabad, Haryana 121005',
-    materialCategories: ['NYLON'],
-    totalSkus: 4,
-    isActive: true,
-    createdAt: '2026-01-20T00:00:00.000Z',
-  },
-];
+// Approved Hardware Vendors (starts empty for user's real data)
+export const DEFAULT_HARDWARE_VENDORS: HardwareVendor[] = [];
 
-// Initial realistic Pacific Restroom Cubicle Hardware Catalog Items
-export const DEFAULT_HARDWARE_ITEMS: HardwareInventoryItem[] = [
-  // SS Hardware (Colours: Black, Golden, Stainless Steel)
-  {
-    id: 'hw-item-01',
-    sku: 'SS-HNG-304-SLV',
-    name: 'SS Gravity Hinge (Pair)',
-    material: 'STAINLESS_STEEL',
-    color: 'Stainless Steel',
-    unit: "Set's",
-    hsnCode: '8302',
-    warehouse: 'DELHI',
-    vendorId: 'hvend-01',
-    vendorName: 'Pacific Precision Engineering Ltd',
-    openingStock: 140,
-    currentStock: 140,
-    totalInward: 140,
-    totalIssued: 0,
-    reorderLevel: 25,
-    unitCost: 580,
-    locationRack: 'RACK-SS-A1',
-    status: 'ACTIVE',
-    notes: 'Grade SS 304 satin brush finish, reversible open-in / open-out',
-    createdAt: '2026-02-01T10:00:00.000Z',
-    updatedAt: '2026-02-01T10:00:00.000Z',
-  },
-  {
-    id: 'hw-item-02',
-    sku: 'SS-HNG-304-BLK',
-    name: 'SS Gravity Hinge (Pair) - Matt Black',
-    material: 'STAINLESS_STEEL',
-    color: 'Black',
-    unit: "Set's",
-    hsnCode: '8302',
-    warehouse: 'DELHI',
-    vendorId: 'hvend-01',
-    vendorName: 'Pacific Precision Engineering Ltd',
-    openingStock: 95,
-    currentStock: 95,
-    totalInward: 95,
-    totalIssued: 0,
-    reorderLevel: 20,
-    unitCost: 680,
-    locationRack: 'RACK-SS-A2',
-    status: 'ACTIVE',
-    notes: 'Grade SS 304 with black PVD coating, scratch resistant',
-    createdAt: '2026-02-01T10:30:00.000Z',
-    updatedAt: '2026-02-01T10:30:00.000Z',
-  },
-  {
-    id: 'hw-item-03',
-    sku: 'SS-HNG-304-GLD',
-    name: 'SS Gravity Hinge (Pair) - Royal Gold',
-    material: 'STAINLESS_STEEL',
-    color: 'Golden',
-    unit: "Set's",
-    hsnCode: '8302',
-    warehouse: 'DELHI',
-    vendorId: 'hvend-02',
-    vendorName: 'Hettich India Hardware Allied',
-    openingStock: 42,
-    currentStock: 42,
-    totalInward: 42,
-    totalIssued: 0,
-    reorderLevel: 15,
-    unitCost: 820,
-    locationRack: 'RACK-SS-A3',
-    status: 'ACTIVE',
-    notes: 'PVD Titanium Gold finish, luxury commercial edition',
-    createdAt: '2026-02-01T11:00:00.000Z',
-    updatedAt: '2026-02-01T11:00:00.000Z',
-  },
-  {
-    id: 'hw-item-04',
-    sku: 'SS-LCK-IND-SLV',
-    name: 'SS Indicator Thumbturn Lock',
-    material: 'STAINLESS_STEEL',
-    color: 'Stainless Steel',
-    unit: "No's",
-    hsnCode: '8302',
-    warehouse: 'DELHI',
-    vendorId: 'hvend-01',
-    vendorName: 'Pacific Precision Engineering Ltd',
-    openingStock: 210,
-    currentStock: 210,
-    totalInward: 210,
-    totalIssued: 0,
-    reorderLevel: 30,
-    unitCost: 420,
-    locationRack: 'RACK-SS-B1',
-    status: 'ACTIVE',
-    notes: 'Red/Green occupancy indicator with exterior coin emergency release',
-    createdAt: '2026-02-01T11:30:00.000Z',
-    updatedAt: '2026-02-01T11:30:00.000Z',
-  },
-  {
-    id: 'hw-item-05',
-    sku: 'SS-LCK-IND-BLK',
-    name: 'SS Indicator Thumbturn Lock - Black',
-    material: 'STAINLESS_STEEL',
-    color: 'Black',
-    unit: "No's",
-    hsnCode: '8302',
-    warehouse: 'KOLKATA',
-    vendorId: 'hvend-01',
-    vendorName: 'Pacific Precision Engineering Ltd',
-    openingStock: 88,
-    currentStock: 88,
-    totalInward: 88,
-    totalIssued: 0,
-    reorderLevel: 20,
-    unitCost: 510,
-    locationRack: 'KOL-RACK-01',
-    status: 'ACTIVE',
-    notes: 'Matt black PVD finish with red/green disc indicator',
-    createdAt: '2026-02-02T09:00:00.000Z',
-    updatedAt: '2026-02-02T09:00:00.000Z',
-  },
-  {
-    id: 'hw-item-06',
-    sku: 'SS-LCK-IND-GLD',
-    name: 'SS Indicator Thumbturn Lock - Golden',
-    material: 'STAINLESS_STEEL',
-    color: 'Golden',
-    unit: "No's",
-    hsnCode: '8302',
-    warehouse: 'DELHI',
-    vendorId: 'hvend-02',
-    vendorName: 'Hettich India Hardware Allied',
-    openingStock: 18,
-    currentStock: 18,
-    totalInward: 18,
-    totalIssued: 0,
-    reorderLevel: 15,
-    unitCost: 650,
-    locationRack: 'RACK-SS-B3',
-    status: 'LOW_STOCK',
-    notes: 'PVD Gold thumbturn latch with indicator',
-    createdAt: '2026-02-02T09:30:00.000Z',
-    updatedAt: '2026-02-02T09:30:00.000Z',
-  },
-  {
-    id: 'hw-item-07',
-    sku: 'SS-LEG-150-SLV',
-    name: 'SS Adjustable Support Leg (100-150mm)',
-    material: 'STAINLESS_STEEL',
-    color: 'Stainless Steel',
-    unit: "No's",
-    hsnCode: '8302',
-    warehouse: 'DELHI',
-    vendorId: 'hvend-01',
-    vendorName: 'Pacific Precision Engineering Ltd',
-    openingStock: 180,
-    currentStock: 180,
-    totalInward: 180,
-    totalIssued: 0,
-    reorderLevel: 40,
-    unitCost: 380,
-    locationRack: 'RACK-SS-C1',
-    status: 'ACTIVE',
-    notes: 'Heavy duty SS 304 base with concealed anchor screw',
-    createdAt: '2026-02-02T10:00:00.000Z',
-    updatedAt: '2026-02-02T10:00:00.000Z',
-  },
-  {
-    id: 'hw-item-08',
-    sku: 'SS-CHK-BUF-SLV',
-    name: 'SS Coat Hook with Rubber Buffer',
-    material: 'STAINLESS_STEEL',
-    color: 'Stainless Steel',
-    unit: "No's",
-    hsnCode: '8302',
-    warehouse: 'KOLKATA',
-    vendorId: 'hvend-01',
-    vendorName: 'Pacific Precision Engineering Ltd',
-    openingStock: 320,
-    currentStock: 320,
-    totalInward: 320,
-    totalIssued: 0,
-    reorderLevel: 50,
-    unitCost: 140,
-    locationRack: 'KOL-RACK-02',
-    status: 'ACTIVE',
-    notes: 'Dual purpose coat hook with black rubber door stop buffer',
-    createdAt: '2026-02-02T10:30:00.000Z',
-    updatedAt: '2026-02-02T10:30:00.000Z',
-  },
+// Hardware Catalog Items (starts clean and empty - no dummy records)
+export const DEFAULT_HARDWARE_ITEMS: HardwareInventoryItem[] = [];
 
-  // Aluminium Hardware (Colours: Black, Aluminium colour)
-  {
-    id: 'hw-item-09',
-    sku: 'AL-TR-3650-ALU',
-    name: 'Aluminium Top Headrail Profile (3.65m)',
-    material: 'ALUMINIUM',
-    color: 'Aluminium colour',
-    unit: 'Meters',
-    hsnCode: '7610',
-    warehouse: 'DELHI',
-    vendorId: 'hvend-03',
-    vendorName: 'Hindalco Extrusions & Architectural',
-    openingStock: 480,
-    currentStock: 480,
-    totalInward: 480,
-    totalIssued: 0,
-    reorderLevel: 100,
-    unitCost: 290,
-    locationRack: 'BAY-AL-01',
-    status: 'ACTIVE',
-    notes: 'Grade 6063-T6 natural silver anodized, heavy D-section rail',
-    createdAt: '2026-02-03T10:00:00.000Z',
-    updatedAt: '2026-02-03T10:00:00.000Z',
-  },
-  {
-    id: 'hw-item-10',
-    sku: 'AL-TR-3650-BLK',
-    name: 'Aluminium Top Headrail Profile - Matt Black',
-    material: 'ALUMINIUM',
-    color: 'Black',
-    unit: 'Meters',
-    hsnCode: '7610',
-    warehouse: 'DELHI',
-    vendorId: 'hvend-03',
-    vendorName: 'Hindalco Extrusions & Architectural',
-    openingStock: 310,
-    currentStock: 310,
-    totalInward: 310,
-    totalIssued: 0,
-    reorderLevel: 80,
-    unitCost: 340,
-    locationRack: 'BAY-AL-02',
-    status: 'ACTIVE',
-    notes: 'Black electro-anodized 20 microns finish',
-    createdAt: '2026-02-03T10:30:00.000Z',
-    updatedAt: '2026-02-03T10:30:00.000Z',
-  },
-  {
-    id: 'hw-item-11',
-    sku: 'AL-UCH-12-ALU',
-    name: 'Aluminium U-Channel Wall Profile (12mm)',
-    material: 'ALUMINIUM',
-    color: 'Aluminium colour',
-    unit: 'Meters',
-    hsnCode: '7610',
-    warehouse: 'KOLKATA',
-    vendorId: 'hvend-03',
-    vendorName: 'Hindalco Extrusions & Architectural',
-    openingStock: 520,
-    currentStock: 520,
-    totalInward: 520,
-    totalIssued: 0,
-    reorderLevel: 120,
-    unitCost: 180,
-    locationRack: 'KOL-BAY-01',
-    status: 'ACTIVE',
-    notes: 'Standard 12mm compact laminate channel mounting',
-    createdAt: '2026-02-03T11:00:00.000Z',
-    updatedAt: '2026-02-03T11:00:00.000Z',
-  },
-  {
-    id: 'hw-item-12',
-    sku: 'AL-UCH-12-BLK',
-    name: 'Aluminium U-Channel Wall Profile - Black',
-    material: 'ALUMINIUM',
-    color: 'Black',
-    unit: 'Meters',
-    hsnCode: '7610',
-    warehouse: 'DELHI',
-    vendorId: 'hvend-03',
-    vendorName: 'Hindalco Extrusions & Architectural',
-    openingStock: 75,
-    currentStock: 75,
-    totalInward: 75,
-    totalIssued: 0,
-    reorderLevel: 80,
-    unitCost: 220,
-    locationRack: 'BAY-AL-03',
-    status: 'LOW_STOCK',
-    notes: 'Architectural black powder coated U-channel',
-    createdAt: '2026-02-03T11:30:00.000Z',
-    updatedAt: '2026-02-03T11:30:00.000Z',
-  },
+// Known dummy hardware item SKUs to permanently eradicate
+const DUMMY_HARDWARE_SKUS = new Set([
+  'SS-HNG-304-SLV',
+  'SS-HNG-304-BLK',
+  'SS-HNG-304-GLD',
+  'SS-LCK-IND-SLV',
+  'SS-LCK-IND-BLK',
+  'SS-LCK-IND-GLD',
+  'SS-LEG-150-SLV',
+  'SS-CHK-BUF-SLV',
+  'AL-TR-3650-ALU',
+  'AL-TR-3650-BLK',
+  'AL-UCH-12-ALU',
+  'AL-UCH-12-BLK',
+  'NY-HNG-BLK-01',
+  'NY-LCK-BLK-01',
+  'NY-LEG-BLK-01',
+  'NY-CHK-BLK-01',
+]);
 
-  // Nylon Hardware (Colours: Black ONLY)
-  {
-    id: 'hw-item-13',
-    sku: 'NY-HNG-BLK-01',
-    name: 'Nylon Heavy-Duty Gravity Hinge (Pair)',
-    material: 'NYLON',
-    color: 'Black',
-    unit: "Set's",
-    hsnCode: '3926',
-    warehouse: 'DELHI',
-    vendorId: 'hvend-04',
-    vendorName: 'TechnoPolymers Nylon Components',
-    openingStock: 160,
-    currentStock: 160,
-    totalInward: 160,
-    totalIssued: 0,
-    reorderLevel: 30,
-    unitCost: 280,
-    locationRack: 'RACK-NY-01',
-    status: 'ACTIVE',
-    notes: 'Virgin polyamide 6 engineering nylon, antimicrobial and self-lubricating',
-    createdAt: '2026-02-04T10:00:00.000Z',
-    updatedAt: '2026-02-04T10:00:00.000Z',
-  },
-  {
-    id: 'hw-item-14',
-    sku: 'NY-LCK-BLK-01',
-    name: 'Nylon Indicator Thumbturn Latch',
-    material: 'NYLON',
-    color: 'Black',
-    unit: "No's",
-    hsnCode: '3926',
-    warehouse: 'DELHI',
-    vendorId: 'hvend-04',
-    vendorName: 'TechnoPolymers Nylon Components',
-    openingStock: 190,
-    currentStock: 190,
-    totalInward: 190,
-    totalIssued: 0,
-    reorderLevel: 30,
-    unitCost: 210,
-    locationRack: 'RACK-NY-02',
-    status: 'ACTIVE',
-    notes: 'High-impact nylon privacy latch with red/white occupancy flag',
-    createdAt: '2026-02-04T10:30:00.000Z',
-    updatedAt: '2026-02-04T10:30:00.000Z',
-  },
-  {
-    id: 'hw-item-15',
-    sku: 'NY-LEG-BLK-01',
-    name: 'Nylon Adjustable Support Foot (150mm)',
-    material: 'NYLON',
-    color: 'Black',
-    unit: "No's",
-    hsnCode: '3926',
-    warehouse: 'KOLKATA',
-    vendorId: 'hvend-04',
-    vendorName: 'TechnoPolymers Nylon Components',
-    openingStock: 140,
-    currentStock: 140,
-    totalInward: 140,
-    totalIssued: 0,
-    reorderLevel: 25,
-    unitCost: 190,
-    locationRack: 'KOL-RACK-03',
-    status: 'ACTIVE',
-    notes: 'Non-corrosive nylon pedestal leg for high-moisture washrooms',
-    createdAt: '2026-02-04T11:00:00.000Z',
-    updatedAt: '2026-02-04T11:00:00.000Z',
-  },
-  {
-    id: 'hw-item-16',
-    sku: 'NY-CHK-BLK-01',
-    name: 'Nylon Coat Hook with Integrated Bumper',
-    material: 'NYLON',
-    color: 'Black',
-    unit: "No's",
-    hsnCode: '3926',
-    warehouse: 'DELHI',
-    vendorId: 'hvend-04',
-    vendorName: 'TechnoPolymers Nylon Components',
-    openingStock: 240,
-    currentStock: 240,
-    totalInward: 240,
-    totalIssued: 0,
-    reorderLevel: 40,
-    unitCost: 65,
-    locationRack: 'RACK-NY-04',
-    status: 'ACTIVE',
-    notes: 'Sturdy black nylon hook with door cushion',
-    createdAt: '2026-02-04T11:30:00.000Z',
-    updatedAt: '2026-02-04T11:30:00.000Z',
-  },
-];
+const DUMMY_VENDOR_NAMES = new Set([
+  'pacific precision engineering ltd',
+  'hettich india hardware allied',
+  'hindalco extrusions & architectural',
+  'technopolymers nylon components',
+]);
+
+/**
+ * Universal detector for legacy demo dummy hardware items.
+ */
+export function isDummyHardwareItem(item: Partial<HardwareInventoryItem> | null | undefined): boolean {
+  if (!item) return false;
+  const id = String(item.id || '').toLowerCase();
+  if (id.startsWith('hw-item-')) return true;
+  const sku = String(item.sku || '').toUpperCase();
+  if (DUMMY_HARDWARE_SKUS.has(sku)) return true;
+  return false;
+}
+
+/**
+ * Universal detector for legacy demo dummy hardware vendors.
+ */
+export function isDummyHardwareVendor(vendor: Partial<HardwareVendor> | null | undefined): boolean {
+  if (!vendor) return false;
+  const id = String(vendor.id || '').toLowerCase();
+  if (id.startsWith('hvend-0')) return true;
+  const name = String(vendor.name || '').toLowerCase().trim();
+  if (DUMMY_VENDOR_NAMES.has(name)) return true;
+  return false;
+}
+
 
 // Helper to get allowed standard colors by material
 export function getAllowedColorsForMaterial(material: string): string[] {
@@ -544,7 +166,18 @@ export function suggestHardwareSku(
 
 // In-memory + LocalStorage store manager
 class HardwareStore {
-  private getStorage<T>(key: string, defaultValue: T): T {
+  constructor() {
+    // Purge legacy storage keys containing demo dummy data
+    if (typeof window !== 'undefined') {
+      try {
+        LEGACY_STORAGE_KEYS.forEach((k) => localStorage.removeItem(k));
+      } catch (e) {
+        console.warn('[HardwareStore] Failed to purge legacy keys:', e);
+      }
+    }
+  }
+
+  getStorage<T>(key: string, defaultValue: T): T {
     if (typeof window === 'undefined') return defaultValue;
     try {
       const data = localStorage.getItem(key);
@@ -558,7 +191,7 @@ class HardwareStore {
     return defaultValue;
   }
 
-  private setStorage<T>(key: string, value: T): void {
+  setStorage<T>(key: string, value: T): void {
     if (typeof window === 'undefined') return;
     try {
       localStorage.setItem(key, JSON.stringify(value));
@@ -568,15 +201,30 @@ class HardwareStore {
   }
 
   getItems(): HardwareInventoryItem[] {
-    return this.getStorage<HardwareInventoryItem[]>(ITEMS_STORAGE_KEY, DEFAULT_HARDWARE_ITEMS);
+    const raw = this.getStorage<HardwareInventoryItem[]>(ITEMS_STORAGE_KEY, []);
+    const clean = raw.filter((i) => !isDummyHardwareItem(i));
+    if (clean.length !== raw.length) {
+      this.saveItems(clean);
+    }
+    return clean;
   }
 
   saveItems(items: HardwareInventoryItem[]): void {
-    this.setStorage(ITEMS_STORAGE_KEY, items);
+    const clean = items.filter((i) => !isDummyHardwareItem(i));
+    this.setStorage(ITEMS_STORAGE_KEY, clean);
   }
 
   getMovements(): HardwareStockMovement[] {
-    return this.getStorage<HardwareStockMovement[]>(MOVEMENTS_STORAGE_KEY, []);
+    const raw = this.getStorage<HardwareStockMovement[]>(MOVEMENTS_STORAGE_KEY, []);
+    const clean = raw.filter((m) => {
+      if (m.hardwareItemId && m.hardwareItemId.startsWith('hw-item-')) return false;
+      if (m.sku && DUMMY_HARDWARE_SKUS.has(m.sku.toUpperCase())) return false;
+      return true;
+    });
+    if (clean.length !== raw.length) {
+      this.saveMovements(clean);
+    }
+    return clean;
   }
 
   saveMovements(movements: HardwareStockMovement[]): void {
@@ -592,11 +240,17 @@ class HardwareStore {
   }
 
   getVendors(): HardwareVendor[] {
-    return this.getStorage<HardwareVendor[]>(VENDORS_STORAGE_KEY, DEFAULT_HARDWARE_VENDORS);
+    const raw = this.getStorage<HardwareVendor[]>(VENDORS_STORAGE_KEY, []);
+    const clean = raw.filter((v) => !isDummyHardwareVendor(v));
+    if (clean.length !== raw.length) {
+      this.saveVendors(clean);
+    }
+    return clean;
   }
 
   saveVendors(vendors: HardwareVendor[]): void {
-    this.setStorage(VENDORS_STORAGE_KEY, vendors);
+    const clean = vendors.filter((v) => !isDummyHardwareVendor(v));
+    this.setStorage(VENDORS_STORAGE_KEY, clean);
   }
 }
 
@@ -1330,6 +984,56 @@ export const hardwareInventoryApi = {
       data: {
         success: true,
         data: vendors[idx],
+      },
+    };
+  },
+
+  // ── Maintenance & Clean-Slate Helpers ─────────────────────
+  clearAllItems: async (): Promise<{ data: ApiResponse<{ success: boolean }> }> => {
+    store.saveItems([]);
+    store.saveMovements([]);
+    return {
+      data: {
+        success: true,
+        data: { success: true },
+      },
+    };
+  },
+
+  purgeDummyData: async (): Promise<{
+    data: ApiResponse<{ success: boolean; purgedItems: number; purgedVendors: number }>;
+  }> => {
+    const rawItems = store.getStorage<HardwareInventoryItem[]>(ITEMS_STORAGE_KEY, []);
+    const cleanItems = rawItems.filter((i) => !isDummyHardwareItem(i));
+    store.saveItems(cleanItems);
+
+    const rawMovements = store.getStorage<HardwareStockMovement[]>(MOVEMENTS_STORAGE_KEY, []);
+    const cleanMovements = rawMovements.filter(
+      (m) =>
+        !(m.hardwareItemId && m.hardwareItemId.startsWith('hw-item-')) &&
+        !(m.sku && DUMMY_HARDWARE_SKUS.has(m.sku.toUpperCase()))
+    );
+    store.saveMovements(cleanMovements);
+
+    const rawVendors = store.getStorage<HardwareVendor[]>(VENDORS_STORAGE_KEY, []);
+    const cleanVendors = rawVendors.filter((v) => !isDummyHardwareVendor(v));
+    store.saveVendors(cleanVendors);
+
+    // Also purge legacy v1 keys
+    if (typeof window !== 'undefined') {
+      try {
+        LEGACY_STORAGE_KEYS.forEach((k) => localStorage.removeItem(k));
+      } catch {}
+    }
+
+    return {
+      data: {
+        success: true,
+        data: {
+          success: true,
+          purgedItems: rawItems.length - cleanItems.length,
+          purgedVendors: rawVendors.length - cleanVendors.length,
+        },
       },
     };
   },
