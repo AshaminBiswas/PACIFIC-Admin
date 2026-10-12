@@ -181,6 +181,59 @@ export default function CreateLeadModal({ isOpen, onClose, onSuccess }: CreateLe
         address: address.trim() || undefined,
         clientType,
         productCategory,
+        items: (() => {
+          const mItems: any[] = [];
+          if (productCategory === 'RESTROOM_CUBICLE' || productCategory === 'COMBO_WASHROOM') {
+            const q = Number(cubicleDoors) || 10;
+            mItems.push({
+              id: `item-m-cub-${Date.now()}`,
+              category: 'RESTROOM_CUBICLE',
+              productName: cubicleModel || 'Restroom Cubicles',
+              model: cubicleModel,
+              quantity: q,
+              unit: 'Doors',
+              boardThickness: cubicleThickness,
+              boardType: cubicleBoardType,
+              hardwarePackage: cubicleHardware,
+              colorPreference: cubicleColor,
+              estimatedRate: 9500,
+              estimatedAmount: q * 9500,
+            });
+          }
+          if (productCategory === 'LOCKER_SYSTEM' || productCategory === 'COMBO_WASHROOM') {
+            const q = Number(lockerCompartments) || 24;
+            mItems.push({
+              id: `item-m-lck-${Date.now()}`,
+              category: 'LOCKER_SYSTEM',
+              productName: lockerTiers || 'Modular Lockers',
+              model: lockerTiers,
+              quantity: q,
+              unit: 'Compartments',
+              boardThickness: '12mm',
+              boardType: lockerMaterial,
+              hardwarePackage: lockerLockType,
+              estimatedRate: 6500,
+              estimatedAmount: q * 6500,
+            });
+          }
+          if (productCategory === 'URINAL_PARTITION' || productCategory === 'COMBO_WASHROOM') {
+            const q = Number(urinalScreens) || 6;
+            mItems.push({
+              id: `item-m-urn-${Date.now()}`,
+              category: 'URINAL_PARTITION',
+              productName: 'Urinal Modesty Partitions',
+              model: urinalDimensions,
+              quantity: q,
+              unit: 'Screens',
+              boardThickness: urinalBoardType,
+              boardType: urinalBoardType,
+              hardwarePackage: urinalMounting,
+              estimatedRate: 3500,
+              estimatedAmount: q * 3500,
+            });
+          }
+          return mItems;
+        })(),
         cubicleSpecs:
           productCategory === 'RESTROOM_CUBICLE' || productCategory === 'COMBO_WASHROOM'
             ? {

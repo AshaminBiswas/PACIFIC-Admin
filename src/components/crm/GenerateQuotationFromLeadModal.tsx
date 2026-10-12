@@ -17,7 +17,7 @@ import {
   ExternalLink,
   Percent,
 } from 'lucide-react';
-import { leadManagementApi } from '../../api/leadManagementApi';
+import { leadManagementApi, normalizeLeadItems } from '../../api/leadManagementApi';
 import { salesQuotationsApi } from '../../api/salesQuotationsApi';
 import type { Lead, SalesQuotation } from '../../types/admin';
 
@@ -112,9 +112,18 @@ export default function GenerateQuotationFromLeadModal({
 
   if (!isOpen || !lead) return null;
 
-  // Real-time calculations
-  const qty = Number(lead.estimatedQuantity) || 1;
-  const basicPrice = qty * ratePerUnit;
+  // Real-time calculations with multi-item support
+  const leadItems = lead.items && lead.items.length > 0 ? lead.items : normalizeLeadItems(lead);
+  const isMultiItem = leadItems.length > 1;
+  const totalUnits = leadItems.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
+  const qty = totalUnits || Number(lead.estimatedQuantity) || 1;
+
+  const multiItemBasic = leadItems.reduce((acc, it) => {
+    const itemRate = Number(it.estimatedRate) || ratePerUnit;
+    return acc + ((Number(it.quantity) || 1) * itemRate);
+  }, 0);
+
+  const basicPrice = isMultiItem ? multiItemBasic : (qty * ratePerUnit);
   const installCharge = qty * installationPerUnit;
   const taxableAmount = basicPrice + installCharge;
   const gstAmount = Math.round(taxableAmount * 0.18);
@@ -226,7 +235,9 @@ export default function GenerateQuotationFromLeadModal({
           </div>
           <div className="flex items-center gap-2">
             <span className="px-2 py-0.5 rounded-full bg-white/10 text-[11px] text-gray-300">
-              {lead.productCategory?.replace('_', ' ')}: {lead.estimatedQuantity} Units
+              {isMultiItem
+                ? `${leadItems.length} Products (${totalUnits} Units)`
+                : `${lead.productCategory?.replace('_', ' ')}: ${qty} Units`}
             </span>
             <span
               className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -304,9 +315,39 @@ export default function GenerateQuotationFromLeadModal({
               with pre-filled technical specifications, advances lead status to <strong>QUOTATION_SENT</strong>, and records an audit follow-up touchpoint automatically.
             </div>
 
+            {/* Multi-Item Line Items Summary */}
+            {isMultiItem && (
+              <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-purple-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" /> Customer Products ({leadItems.length} Line Items)
+                  </span>
+                  <span className="font-mono text-purple-300 text-[11px] font-bold">
+                    {totalUnits} Total Units
+                  </span>
+                </div>
+                <div className="divide-y divide-white/5 text-[11px]">
+                  {leadItems.map((it, idx) => (
+                    <div key={it.id || idx} className="py-1.5 flex items-center justify-between text-gray-300">
+                      <div>
+                        <span className="text-white font-medium">{it.productName || it.model}</span>
+                        {it.boardThickness && <span className="text-gray-400 ml-1.5 text-[10px]">({it.boardThickness})</span>}
+                      </div>
+                      <div className="font-mono text-right">
+                        <span>{it.quantity} {it.unit || 'units'}</span>
+                        <span className="text-emerald-400 ml-2">₹{(Number(it.estimatedAmount) || ((Number(it.quantity) || 1) * (Number(it.estimatedRate) || ratePerUnit))).toLocaleString('en-IN')}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-[11px] text-gray-400 mb-1">Rate Per Unit (₹)</label>
+                <label className="block text-[11px] text-gray-400 mb-1">
+                  {isMultiItem ? 'Default Rate / Unit (₹)' : 'Rate Per Unit (₹)'}
+                </label>
                 <div className="relative">
                   <span className="absolute left-3 top-2 text-xs text-gray-400">₹</span>
                   <input
@@ -351,7 +392,7 @@ export default function GenerateQuotationFromLeadModal({
             {/* Live Commercial Calculation Dock */}
             <div className="p-4 bg-black/50 border border-white/10 rounded-xl space-y-2 font-mono text-xs">
               <div className="flex justify-between text-gray-400">
-                <span>Supply Basic ({qty} units × ₹{ratePerUnit.toLocaleString('en-IN')})</span>
+                <span>Supply Basic ({isMultiItem ? `${totalUnits} units across ${leadItems.length} products` : `${qty} units × ₹${ratePerUnit.toLocaleString('en-IN')}`})</span>
                 <span className="text-white">₹{basicPrice.toLocaleString('en-IN')}</span>
               </div>
               <div className="flex justify-between text-gray-400">

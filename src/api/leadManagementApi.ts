@@ -4,12 +4,90 @@ import type {
   ApiResponse,
   PaginatedResponse,
   Lead,
+  LeadItem,
   LeadStatus,
   LeadProductCategory,
   LeadPriority,
   LeadFollowup,
   LeadFollowupChannel,
 } from '../types/admin';
+
+export function normalizeLeadItems(lead: Partial<Lead>): LeadItem[] {
+  if (lead.items && Array.isArray(lead.items) && lead.items.length > 0) {
+    return lead.items;
+  }
+  const items: LeadItem[] = [];
+
+  if (lead.cubicleSpecs) {
+    const qty = Number(lead.cubicleSpecs.doorsCount) || Number(lead.estimatedQuantity) || 10;
+    items.push({
+      id: `item-cubicle-${Date.now()}-1`,
+      category: 'RESTROOM_CUBICLE',
+      productName: `Restroom Cubicles (${lead.cubicleSpecs.cubicleModel || 'Pacific Classic'})`,
+      model: lead.cubicleSpecs.cubicleModel || 'Pacific Classic',
+      quantity: qty,
+      unit: 'Doors',
+      boardThickness: lead.cubicleSpecs.boardThickness || '12mm',
+      boardType: lead.cubicleSpecs.boardType || 'Compact HPL',
+      hardwarePackage: lead.cubicleSpecs.hardwarePackage || 'SS 304 Premium',
+      colorPreference: lead.cubicleSpecs.colorPreference || 'Teak Woodgrain',
+      estimatedRate: 9500,
+      estimatedAmount: qty * 9500,
+    });
+  }
+
+  if (lead.lockerSpecs) {
+    const qty = Number(lead.lockerSpecs.compartmentsCount) || 24;
+    items.push({
+      id: `item-locker-${Date.now()}-2`,
+      category: 'LOCKER_SYSTEM',
+      productName: `Modular Lockers (${lead.lockerSpecs.lockerTiers || '2-Tier'})`,
+      model: lead.lockerSpecs.lockerTiers || '2-Tier Heavy Duty',
+      quantity: qty,
+      unit: 'Compartments',
+      boardThickness: '12mm',
+      boardType: lead.lockerSpecs.material || 'Compact HPL Moisture Proof',
+      hardwarePackage: lead.lockerSpecs.lockType || 'Digital Number Code Lock',
+      estimatedRate: 6500,
+      estimatedAmount: qty * 6500,
+    });
+  }
+
+  if (lead.urinalSpecs) {
+    const qty = Number(lead.urinalSpecs.screensCount) || 6;
+    items.push({
+      id: `item-urinal-${Date.now()}-3`,
+      category: 'URINAL_PARTITION',
+      productName: `Urinal Modesty Partitions (${lead.urinalSpecs.screenDimensions || '450 x 900 mm'})`,
+      model: lead.urinalSpecs.screenDimensions || '450 x 900 mm',
+      quantity: qty,
+      unit: 'Screens',
+      boardThickness: lead.urinalSpecs.boardType || '12mm Compact Laminate',
+      boardType: 'Compact Laminate',
+      hardwarePackage: lead.urinalSpecs.mountingType || 'Wall-hung with SS Brackets',
+      estimatedRate: 3500,
+      estimatedAmount: qty * 3500,
+    });
+  }
+
+  if (items.length === 0) {
+    const cat = lead.productCategory || 'RESTROOM_CUBICLE';
+    const qty = Number(lead.estimatedQuantity) || 1;
+    const rate = cat === 'RESTROOM_CUBICLE' ? 9500 : cat === 'LOCKER_SYSTEM' ? 6500 : cat === 'URINAL_PARTITION' ? 3500 : 12000;
+    const label = cat === 'RESTROOM_CUBICLE' ? 'Restroom Cubicles' : cat === 'LOCKER_SYSTEM' ? 'Modular Lockers' : cat === 'URINAL_PARTITION' ? 'Urinal Partitions' : 'Commercial Washroom Combo';
+    items.push({
+      id: `item-default-${Date.now()}`,
+      category: cat,
+      productName: label,
+      quantity: qty,
+      unit: 'Units',
+      estimatedRate: rate,
+      estimatedAmount: qty * rate,
+    });
+  }
+
+  return items;
+}
 
 const STORAGE_KEY = 'pacific_lead_management_store_v2';
 const LEGACY_STORAGE_KEYS = ['pacific_lead_management_store_v1'];
@@ -240,9 +318,11 @@ export const leadManagementApi = {
       // Backend offline or unreachable — seamlessly use local cache
     }
 
-    // Filter by productCategory
+    // Filter by productCategory (matches primary category OR any requested item category)
     if (category && category !== 'ALL') {
-      leads = leads.filter((l) => l.productCategory === category);
+      leads = leads.filter(
+        (l) => l.productCategory === category || l.items?.some((it) => it.category === category)
+      );
     }
 
     // Filter by status
@@ -260,7 +340,7 @@ export const leadManagementApi = {
       leads = leads.filter((l) => l.source === source);
     }
 
-    // Filter by search
+    // Filter by search (searches prospect, contact, quotation, tags, and all requested product items)
     if (search && search.trim()) {
       const q = search.toLowerCase();
       leads = leads.filter(
@@ -273,7 +353,18 @@ export const leadManagementApi = {
           (l.city && l.city.toLowerCase().includes(q)) ||
           (l.leadNumber && l.leadNumber.toLowerCase().includes(q)) ||
           (l.quotationNumber && l.quotationNumber.toLowerCase().includes(q)) ||
-          (l.tags && l.tags.some((t) => t.toLowerCase().includes(q)))
+          (l.tags && l.tags.some((t) => t.toLowerCase().includes(q))) ||
+          (l.items &&
+            l.items.some(
+              (it) =>
+                it.productName?.toLowerCase().includes(q) ||
+                it.model?.toLowerCase().includes(q) ||
+                it.category?.toLowerCase().includes(q) ||
+                it.colorPreference?.toLowerCase().includes(q) ||
+                it.hardwarePackage?.toLowerCase().includes(q) ||
+                it.boardType?.toLowerCase().includes(q) ||
+                it.specificationsNotes?.toLowerCase().includes(q)
+            ))
       );
     }
 
@@ -333,6 +424,14 @@ export const leadManagementApi = {
     const nextSeq = leads.length + 1;
     const leadNumber = `LEAD-2026-${String(nextSeq).padStart(3, '0')}`;
 
+    const items = data.items && data.items.length > 0 ? data.items : normalizeLeadItems(data);
+    const calculatedQty = items.length > 0
+      ? items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
+      : (Number(data.estimatedQuantity) || 1);
+    const calculatedValue = items.length > 0
+      ? items.reduce((sum, it) => sum + (Number(it.estimatedAmount) || ((Number(it.quantity) || 0) * (Number(it.estimatedRate) || 0))), 0)
+      : (Number(data.estimatedValue) || 0);
+
     const newLead: Lead = {
       id: `lead-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       leadNumber,
@@ -344,12 +443,13 @@ export const leadManagementApi = {
       city: data.city || '',
       address: data.address || '',
       clientType: data.clientType || 'CONTRACTOR',
-      productCategory: data.productCategory || 'RESTROOM_CUBICLE',
+      productCategory: items.length > 1 ? 'COMBO_WASHROOM' : (items[0]?.category || data.productCategory || 'RESTROOM_CUBICLE'),
       cubicleSpecs: data.cubicleSpecs,
       lockerSpecs: data.lockerSpecs,
       urinalSpecs: data.urinalSpecs,
-      estimatedQuantity: Number(data.estimatedQuantity) || 1,
-      estimatedValue: Number(data.estimatedValue) || 0,
+      items,
+      estimatedQuantity: calculatedQty,
+      estimatedValue: calculatedValue,
       source: data.source || 'DIRECT_CALL',
       status: data.status || 'NEW',
       priority: data.priority || 'WARM',
@@ -369,7 +469,18 @@ export const leadManagementApi = {
 
     // Sync to backend if available
     try {
-      await apiClient.post('/leads', newLead);
+      await apiClient.post('/leads', {
+        firstName: newLead.firstName,
+        lastName: newLead.lastName,
+        email: newLead.email,
+        phone: newLead.phone,
+        company: newLead.company,
+        message: newLead.message,
+        source: newLead.source,
+        status: newLead.status,
+        tags: newLead.tags,
+        notes: newLead.notes,
+      });
     } catch {}
 
     return { success: true, data: newLead };
@@ -383,9 +494,21 @@ export const leadManagementApi = {
     const idx = leads.findIndex((l) => l.id === id);
     if (idx === -1) throw new Error('Lead not found');
 
+    const updatedItems = data.items !== undefined ? data.items : leads[idx].items;
+    let updatedQty = data.estimatedQuantity !== undefined ? Number(data.estimatedQuantity) : leads[idx].estimatedQuantity;
+    let updatedValue = data.estimatedValue !== undefined ? Number(data.estimatedValue) : leads[idx].estimatedValue;
+
+    if (data.items !== undefined && data.items.length > 0) {
+      updatedQty = data.items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+      updatedValue = data.items.reduce((sum, it) => sum + (Number(it.estimatedAmount) || ((Number(it.quantity) || 0) * (Number(it.estimatedRate) || 0))), 0);
+    }
+
     const updatedLead: Lead = {
       ...leads[idx],
       ...data,
+      items: updatedItems,
+      estimatedQuantity: updatedQty,
+      estimatedValue: updatedValue,
       updatedAt: new Date().toISOString(),
     };
 
@@ -394,9 +517,116 @@ export const leadManagementApi = {
 
     // Sync to backend if available
     try {
-      await apiClient.patch(`/leads/${id}`, data);
+      await apiClient.patch(`/leads/${id}`, {
+        firstName: updatedLead.firstName,
+        lastName: updatedLead.lastName,
+        email: updatedLead.email,
+        phone: updatedLead.phone,
+        company: updatedLead.company,
+        message: updatedLead.message,
+        status: updatedLead.status,
+        tags: updatedLead.tags,
+        notes: updatedLead.notes,
+      });
     } catch {}
 
+    return { success: true, data: updatedLead };
+  },
+
+  /**
+   * Add a new item / product to a lead's requirements
+   */
+  async addItem(leadId: string, item: Omit<LeadItem, 'id'>): Promise<ApiResponse<Lead>> {
+    const leads = getStoredLeads();
+    const idx = leads.findIndex((l) => l.id === leadId);
+    if (idx === -1) throw new Error('Lead not found');
+
+    const currentItems = leads[idx].items && leads[idx].items.length > 0
+      ? [...leads[idx].items]
+      : normalizeLeadItems(leads[idx]);
+
+    const newItem: LeadItem = {
+      ...item,
+      id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      estimatedAmount: Number(item.estimatedAmount) || ((Number(item.quantity) || 1) * (Number(item.estimatedRate) || 0)),
+    };
+    currentItems.push(newItem);
+
+    const updatedQty = currentItems.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+    const updatedValue = currentItems.reduce((sum, it) => sum + (Number(it.estimatedAmount) || ((Number(it.quantity) || 0) * (Number(it.estimatedRate) || 0))), 0);
+
+    const updatedLead: Lead = {
+      ...leads[idx],
+      items: currentItems,
+      estimatedQuantity: updatedQty,
+      estimatedValue: updatedValue,
+      productCategory: currentItems.length > 1 ? 'COMBO_WASHROOM' : currentItems[0]?.category || leads[idx].productCategory,
+      updatedAt: new Date().toISOString(),
+    };
+
+    leads[idx] = updatedLead;
+    saveStoredLeads(leads);
+    return { success: true, data: updatedLead };
+  },
+
+  /**
+   * Remove an item from a lead
+   */
+  async removeItem(leadId: string, itemId: string): Promise<ApiResponse<Lead>> {
+    const leads = getStoredLeads();
+    const idx = leads.findIndex((l) => l.id === leadId);
+    if (idx === -1) throw new Error('Lead not found');
+
+    const currentItems = (leads[idx].items && leads[idx].items.length > 0 ? [...leads[idx].items] : normalizeLeadItems(leads[idx]))
+      .filter((it) => it.id !== itemId);
+
+    const updatedQty = currentItems.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+    const updatedValue = currentItems.reduce((sum, it) => sum + (Number(it.estimatedAmount) || ((Number(it.quantity) || 0) * (Number(it.estimatedRate) || 0))), 0);
+
+    const updatedLead: Lead = {
+      ...leads[idx],
+      items: currentItems,
+      estimatedQuantity: updatedQty,
+      estimatedValue: updatedValue,
+      productCategory: currentItems.length > 1 ? 'COMBO_WASHROOM' : (currentItems[0]?.category || leads[idx].productCategory),
+      updatedAt: new Date().toISOString(),
+    };
+
+    leads[idx] = updatedLead;
+    saveStoredLeads(leads);
+    return { success: true, data: updatedLead };
+  },
+
+  /**
+   * Update an item in a lead
+   */
+  async updateItem(leadId: string, itemId: string, updates: Partial<LeadItem>): Promise<ApiResponse<Lead>> {
+    const leads = getStoredLeads();
+    const idx = leads.findIndex((l) => l.id === leadId);
+    if (idx === -1) throw new Error('Lead not found');
+
+    const currentItems = (leads[idx].items && leads[idx].items.length > 0 ? [...leads[idx].items] : normalizeLeadItems(leads[idx]))
+      .map((it) => {
+        if (it.id !== itemId) return it;
+        const merged = { ...it, ...updates };
+        merged.estimatedAmount = Number(merged.estimatedAmount) || ((Number(merged.quantity) || 1) * (Number(merged.estimatedRate) || 0));
+        return merged;
+      });
+
+    const updatedQty = currentItems.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+    const updatedValue = currentItems.reduce((sum, it) => sum + (Number(it.estimatedAmount) || ((Number(it.quantity) || 0) * (Number(it.estimatedRate) || 0))), 0);
+
+    const updatedLead: Lead = {
+      ...leads[idx],
+      items: currentItems,
+      estimatedQuantity: updatedQty,
+      estimatedValue: updatedValue,
+      productCategory: currentItems.length > 1 ? 'COMBO_WASHROOM' : (currentItems[0]?.category || leads[idx].productCategory),
+      updatedAt: new Date().toISOString(),
+    };
+
+    leads[idx] = updatedLead;
+    saveStoredLeads(leads);
     return { success: true, data: updatedLead };
   },
 
@@ -543,32 +773,86 @@ export const leadManagementApi = {
     const lead = leads.find((l) => l.id === options.leadId);
     if (!lead) throw new Error('Lead not found');
 
-    const qty = Number(lead.estimatedQuantity) || 1;
-    let rate = Number(options.ratePerUnit);
-    let itemDescription = '';
+    const leadItems = lead.items && lead.items.length > 0 ? lead.items : normalizeLeadItems(lead);
+
+    let quoteItems: Array<{ serialNumber: number; description: string; quantity: number; unit: string; rate: number; amount: number }> = [];
+    let basicPrice = 0;
+    let totalUnitsCount = 0;
     let categoryTitle = '';
 
-    // Calculate default pricing & narrative based on product category
-    if (lead.productCategory === 'RESTROOM_CUBICLE') {
-      rate = rate || 9500;
-      categoryTitle = 'Quotation for Supply & Installation of Pacific Restroom Cubicles';
-      itemDescription = `Supply & Installation of Restroom Cubicles (${lead.cubicleSpecs?.cubicleModel || 'Pacific Classic'}) manufactured using ${lead.cubicleSpecs?.boardThickness || '12mm'} ${lead.cubicleSpecs?.boardType || 'Compact HPL'} with ${lead.cubicleSpecs?.hardwarePackage || 'SS 304 Premium'} Hardware Package. Color/Finish: ${lead.cubicleSpecs?.colorPreference || 'Teak Woodgrain'}.`;
-    } else if (lead.productCategory === 'LOCKER_SYSTEM') {
-      rate = rate || 6500;
-      categoryTitle = 'Quotation for Heavy Duty Pacific HPL Locker Systems';
-      itemDescription = `Supply & Erection of Pacific Modular ${lead.lockerSpecs?.lockerTiers || '2-Tier'} Lockers with ${lead.lockerSpecs?.lockType || 'Digital Combination Lock'}. Built from ${lead.lockerSpecs?.material || '12mm Compact Phenolic'} with integrated ventilation.`;
-    } else if (lead.productCategory === 'URINAL_PARTITION') {
-      rate = rate || 3500;
-      categoryTitle = 'Quotation for Pacific Privacy Urinal Modesty Screens';
-      itemDescription = `Supply & Fixing of Urinal Modesty Screens (${lead.urinalSpecs?.screenDimensions || '450 x 900 mm'}) in ${lead.urinalSpecs?.boardType || '12mm Compact Laminate'} with ${lead.urinalSpecs?.mountingType || 'SS 304 Wall Clamps & Support'}.`;
+    if (leadItems.length > 1 || (lead.items && lead.items.length > 0)) {
+      categoryTitle = leadItems.length > 1
+        ? `Quotation for Pacific Turnkey Restroom Solutions (${leadItems.length} Product Items)`
+        : `Quotation for ${leadItems[0].productName}`;
+
+      quoteItems = leadItems.map((it, idx) => {
+        const itQty = Number(it.quantity) || 1;
+        const itRate = Number(options.ratePerUnit) || Number(it.estimatedRate) || (
+          it.category === 'RESTROOM_CUBICLE' ? 9500 :
+          it.category === 'LOCKER_SYSTEM' ? 6500 :
+          it.category === 'URINAL_PARTITION' ? 3500 : 10000
+        );
+        const itAmt = itQty * itRate;
+        basicPrice += itAmt;
+        totalUnitsCount += itQty;
+
+        const specsParts = [
+          it.model ? `Model: ${it.model}` : '',
+          it.boardThickness ? `${it.boardThickness} ${it.boardType || ''}`.trim() : '',
+          it.hardwarePackage ? `Hardware: ${it.hardwarePackage}` : '',
+          it.colorPreference ? `Finish: ${it.colorPreference}` : '',
+          it.specificationsNotes ? it.specificationsNotes : '',
+        ].filter(Boolean).join(' • ');
+
+        return {
+          serialNumber: idx + 1,
+          description: `Supply & Installation of ${it.productName}${specsParts ? ` (${specsParts})` : ''}`,
+          quantity: itQty,
+          unit: (it.unit || 'NOS').toUpperCase(),
+          rate: itRate,
+          amount: itAmt,
+        };
+      });
     } else {
-      rate = rate || 12000;
-      categoryTitle = 'Quotation for Turnkey Commercial Washroom Package (Cubicles, Lockers & Urinal Dividers)';
-      itemDescription = `Complete Turnkey Package: Restroom Cubicles (${lead.cubicleSpecs?.doorsCount || 10} Nos), Lockers (${lead.lockerSpecs?.compartmentsCount || 12} Nos), and Urinal Screens (${lead.urinalSpecs?.screensCount || 6} Nos) with premium architectural fittings.`;
+      const qty = Number(lead.estimatedQuantity) || 1;
+      totalUnitsCount = qty;
+      let rate = Number(options.ratePerUnit);
+      let itemDescription = '';
+
+      if (lead.productCategory === 'RESTROOM_CUBICLE') {
+        rate = rate || 9500;
+        categoryTitle = 'Quotation for Supply & Installation of Pacific Restroom Cubicles';
+        itemDescription = `Supply & Installation of Restroom Cubicles (${lead.cubicleSpecs?.cubicleModel || 'Pacific Classic'}) manufactured using ${lead.cubicleSpecs?.boardThickness || '12mm'} ${lead.cubicleSpecs?.boardType || 'Compact HPL'} with ${lead.cubicleSpecs?.hardwarePackage || 'SS 304 Premium'} Hardware Package. Color/Finish: ${lead.cubicleSpecs?.colorPreference || 'Teak Woodgrain'}.`;
+      } else if (lead.productCategory === 'LOCKER_SYSTEM') {
+        rate = rate || 6500;
+        categoryTitle = 'Quotation for Heavy Duty Pacific HPL Locker Systems';
+        itemDescription = `Supply & Erection of Pacific Modular ${lead.lockerSpecs?.lockerTiers || '2-Tier'} Lockers with ${lead.lockerSpecs?.lockType || 'Digital Combination Lock'}. Built from ${lead.lockerSpecs?.material || '12mm Compact Phenolic'} with integrated ventilation.`;
+      } else if (lead.productCategory === 'URINAL_PARTITION') {
+        rate = rate || 3500;
+        categoryTitle = 'Quotation for Pacific Privacy Urinal Modesty Screens';
+        itemDescription = `Supply & Fixing of Urinal Modesty Screens (${lead.urinalSpecs?.screenDimensions || '450 x 900 mm'}) in ${lead.urinalSpecs?.boardType || '12mm Compact Laminate'} with ${lead.urinalSpecs?.mountingType || 'SS 304 Wall Clamps & Support'}.`;
+      } else {
+        rate = rate || 12000;
+        categoryTitle = 'Quotation for Turnkey Commercial Washroom Package (Cubicles, Lockers & Urinal Dividers)';
+        itemDescription = `Complete Turnkey Package: Restroom Cubicles (${lead.cubicleSpecs?.doorsCount || 10} Nos), Lockers (${lead.lockerSpecs?.compartmentsCount || 12} Nos), and Urinal Screens (${lead.urinalSpecs?.screensCount || 6} Nos) with premium architectural fittings.`;
+      }
+
+      basicPrice = qty * rate;
+      quoteItems = [
+        {
+          serialNumber: 1,
+          description: itemDescription,
+          quantity: qty,
+          unit: 'NOS',
+          rate,
+          amount: basicPrice,
+        },
+      ];
     }
 
-    const basicPrice = qty * rate;
-    const installationCharge = options.installationPerUnit !== undefined ? qty * options.installationPerUnit : qty * 500;
+    const installationCharge = options.installationPerUnit !== undefined
+      ? totalUnitsCount * options.installationPerUnit
+      : totalUnitsCount * 500;
     const subtotal = basicPrice + installationCharge;
     const gstAmount = Math.round(subtotal * 0.18);
     const grandTotal = subtotal + gstAmount;
@@ -595,16 +879,7 @@ export const leadManagementApi = {
       grandTotal,
       currency: 'INR',
       status: 'SENT',
-      items: [
-        {
-          serialNumber: 1,
-          description: itemDescription,
-          quantity: qty,
-          unit: 'NOS',
-          rate,
-          amount: basicPrice,
-        },
-      ],
+      items: quoteItems,
     };
 
     let quotationId = `quote-${Date.now()}`;
@@ -635,7 +910,7 @@ export const leadManagementApi = {
       channel: 'EMAIL',
       status: 'COMPLETED',
       outcome: 'QUOTATION_GENERATED',
-      discussionNotes: `Formal Quotation ${quotationRef} for ₹${grandTotal.toLocaleString('en-IN')} created and sent for ${categoryLabel} (${qty} units).`,
+      discussionNotes: `Formal Quotation ${quotationRef} for ₹${grandTotal.toLocaleString('en-IN')} created and sent for ${categoryLabel} (${totalUnitsCount} units).`,
       contactPerson: `${lead.firstName} ${lead.lastName || ''}`.trim(),
       contactPhone: lead.phone,
       contactEmail: lead.email,

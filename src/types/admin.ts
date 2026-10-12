@@ -937,9 +937,11 @@ export type LeadSource =
 
 export type LeadProductCategory =
   | 'RESTROOM_CUBICLE'
+  | 'KIDS_CUBICLE'
   | 'LOCKER_SYSTEM'
   | 'URINAL_PARTITION'
-  | 'COMBO_WASHROOM';
+  | 'COMBO_WASHROOM'
+  | 'CUSTOM_SOLUTION';
 
 export type LeadPriority = 'HOT' | 'WARM' | 'COLD';
 
@@ -1000,6 +1002,23 @@ export interface UrinalLeadSpecs {
   boardType?: string; // e.g. "12mm Compact Laminate", "18mm Boilo"
 }
 
+export interface LeadItem {
+  id: string;
+  category: LeadProductCategory;
+  productId?: string;
+  productName: string; // e.g. "Pacific Classic Restroom Cubicle", "2-Tier Modular Locker"
+  model?: string;
+  quantity: number;
+  unit?: string; // "Doors", "Screens", "Compartments", "Units", "Sets"
+  estimatedRate?: number;
+  estimatedAmount?: number;
+  boardThickness?: string;
+  boardType?: string;
+  hardwarePackage?: string;
+  colorPreference?: string;
+  specificationsNotes?: string;
+}
+
 export interface Lead {
   id: string;
   leadNumber?: string;
@@ -1015,6 +1034,7 @@ export interface Lead {
   cubicleSpecs?: CubicleLeadSpecs;
   lockerSpecs?: LockerLeadSpecs;
   urinalSpecs?: UrinalLeadSpecs;
+  items?: LeadItem[]; // Multiple items or products requested by the customer
   estimatedQuantity?: number;
   estimatedValue?: number;
   source: LeadSource;

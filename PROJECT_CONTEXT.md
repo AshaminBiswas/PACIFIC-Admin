@@ -3990,6 +3990,72 @@ A dedicated enterprise hardware inventory management system mirroring the Board 
      - `generatePiHtml()`: Updated totals breakdown row `<td colspan="6" style="text-align: right;">Freight:</td>` and commercial badge row `Freight:`. Updated auto-appended terms clauses to use `Freight: ...`.
      - `generateSalesOrderHtml()`: Updated totals breakdown row from `Freight & Handling:` to `Freight:`.
 
+---
+
+## 69. Multi-Product Inquiry & Customer Item Ordering Architecture in Commercial CRM Lead System
+
+### 69.1 Problem Statement & User Requirement
+- In real-world B2B commercial restroom cubicle projects, a client (architect, developer, contractor, corporate facility head) seldom procures only one isolated product. An inquiry often bundles multiple washroom packages together:
+  - Standard Restroom Toilet Cubicles (e.g. Pacific Classique / SS 304 Series)
+  - Kids Restroom Cubicles (child safety / animal cutout / nylon series)
+  - Heavy Duty Compact Laminate / Phenolic Locker Systems (1-Tier / 2-Tier / 3-Tier)
+  - Urinal Modesty Partitions & Screens
+  - Custom Washroom Solutions & Accessories
+- Previously, a commercial lead in the Pacific Admin Console was constrained to a single `productCategory` enum, locking the customer inquiry to only one product type.
+- Requirement: Allow a single customer lead to order or inquire for multiple items/products simultaneously, with independent quantities, catalog model specifications, pricing rates, and totals, while supporting multi-item search, quotation generation, and backward compatibility.
+
+### 69.2 Architectural Implementation
+1. **Domain Data Models (`src/types/admin.ts`)**:
+   - Created `LeadItem` interface:
+     - `id`: unique item reference (`item-<timestamp>-<rand>`)
+     - `category`: `LeadProductCategory` (`RESTROOM_CUBICLE`, `KIDS_CUBICLE`, `LOCKER_SYSTEM`, `URINAL_PARTITION`, `COMBO_WASHROOM`, `CUSTOM_SOLUTION`)
+     - `productId` & `productName`: commercial item title
+     - `model`: selected catalog model (e.g. Pacific Classique, Kids Giraffe Cutout, Modular Lockers)
+     - `quantity` & `unit`: quantity with unit (`Doors`, `Tiers`, `Screens`, `Units`, `Sets`, `NOS`)
+     - `estimatedRate` & `estimatedAmount`: line item pricing in INR
+     - `boardThickness`, `boardType`, `hardwarePackage`, `colorPreference`, `specificationsNotes`: detailed technical specs
+   - Updated `LeadProductCategory` to include `KIDS_CUBICLE` and `CUSTOM_SOLUTION`.
+   - Updated `Lead` interface to include `items?: LeadItem[]`.
+
+2. **Lead API & Multi-Item Normalizer (`src/api/leadManagementApi.ts`)**:
+   - `normalizeLeadItems(lead)`: Self-heals and backward-adapts legacy single-category leads by synthesizing an initial `LeadItem` from legacy fields (`cubicleSpecs`, `lockerSpecs`, `urinalSpecs`, `estimatedQuantity`, `estimatedValue`), guaranteeing zero runtime exceptions.
+   - Dynamic Item Mutation APIs:
+     - `addItem(leadId, item)`: Appends an item to the lead inquiry, updates aggregate `estimatedQuantity` and `estimatedValue`, and automatically sets category to `'COMBO_WASHROOM'` when multiple items exist.
+     - `removeItem(leadId, itemId)`: Removes a requested item and recalculates aggregates.
+     - `updateItem(leadId, itemId, updates)`: Updates an existing item and recalculates totals.
+   - Multi-Product Search & Filter:
+     - `list()`: Category filter checks primary `l.productCategory` OR any matching item in `l.items`.
+     - `list()`: Search filter checks prospect names, company, city, plus all requested items' `productName`, `model`, `category`, `colorPreference`, `hardwarePackage`, and `specificationsNotes`.
+   - Multi-Line Quotation Generation:
+     - `generateQuotation()`: Iterates through each `LeadItem` in `lead.items` and creates individual line items in the resulting Sales Quotation (`PPS/D/...`) with itemized descriptions, quantities, rates, and amounts.
+
+3. **Lead Creation Flow (`src/pages/crm/CreateLeadPage.tsx` & `src/components/crm/CreateLeadModal.tsx`)**:
+   - `CreateLeadPage.tsx`:
+     - Step 1 features "Quick Add Product Categories" allowing instant addition of Cubicles, Kids Cubicles, Lockers, and Urinal Screens to the inquiry.
+     - Replaced Step 3 with an interactive Multiple Items Builder: live catalog model picker from Pacific catalog, quantity, unit, estimated rate, board core/thickness, hardware suite, color, and technical scope notes with live calculation dock.
+   - `CreateLeadModal.tsx`:
+     - Synthesizes initial `items` array upon creation to ensure immediate multi-item compatibility.
+
+4. **Lead Detail Page (`src/pages/crm/LeadDetailPage.tsx`)**:
+   - Calculates `displayItems = lead.items && lead.items.length > 0 ? lead.items : normalizeLeadItems(lead)`.
+   - Header badge shows `Multi-Product (X Items)` chip and category breakdown tags.
+   - KPI Strip displays aggregate total units across all requested products.
+   - "Customer Requested Products & Inquiry Items" Card: full-featured card displaying all requested items with model name, category badge, specifications breakdown chips, unit rate, and subtotal.
+   - "+ Add Product Item" action opens an inline modal allowing sales executives to append additional washroom items to the customer's inquiry on the fly.
+   - One-click removal of items with automatic aggregate recalculation.
+
+5. **Lead Management Pipeline View (`src/pages/crm/LeadManagementPage.tsx`)**:
+   - Desktop Table & Mobile Cards: Display multi-product indicators (`X Products`, total units, and item name chips).
+   - Category filtering includes `Kids Cubicles` and turnkey combo searches.
+
+6. **Quotation Generation Modal (`src/components/crm/GenerateQuotationFromLeadModal.tsx`)**:
+   - Displays a multi-item breakdown card showing each product line item that will be generated in the formal quotation proposal.
+   - Calculates basic supply and installation across all requested units and products.
+
+7. **Lead Detail Drawer (`src/components/crm/LeadDetailDrawer.tsx`)**:
+   - Displays the list of requested items with quantities, rates, and technical specifications chips in the drawer view.
+
+
 
 
 

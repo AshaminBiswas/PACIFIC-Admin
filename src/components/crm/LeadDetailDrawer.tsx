@@ -163,6 +163,45 @@ export default function LeadDetailDrawer({
             </div>
           )}
 
+          {/* Requested Products & Multi-Item Order (if items exist) */}
+          {lead.items && lead.items.length > 0 && (
+            <div className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                  Requested Products ({lead.items.length} Items)
+                </span>
+                <span className="text-[11px] font-mono text-purple-300 font-bold">
+                  {lead.items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0)} Total Units
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {lead.items.map((it, idx) => (
+                  <div key={it.id || idx} className="p-2.5 rounded-lg bg-black/40 border border-white/5 text-xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white">
+                        {it.productName || it.model}
+                      </span>
+                      <span className="font-mono text-emerald-400 font-bold">
+                        ₹{(Number(it.estimatedAmount) || ((Number(it.quantity) || 1) * (Number(it.estimatedRate) || 0))).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-400">
+                      <span>{it.quantity} {it.unit || 'Units'}</span>
+                      {it.boardThickness && <span>• {it.boardThickness}</span>}
+                      {it.hardwarePackage && <span>• {it.hardwarePackage}</span>}
+                      {it.colorPreference && <span>• {it.colorPreference}</span>}
+                    </div>
+                    {it.specificationsNotes && (
+                      <p className="text-[10px] text-gray-400 italic">Note: {it.specificationsNotes}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Product Requirement Specs */}
           <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-3">
             <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">

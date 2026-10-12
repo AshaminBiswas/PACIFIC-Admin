@@ -27,10 +27,15 @@ import {
   ShieldAlert,
   ChevronRight,
   Edit,
+  Briefcase,
+  Package,
+  X,
+  ShoppingBag,
 } from 'lucide-react';
-import { leadManagementApi } from '../../api/leadManagementApi';
+import { leadManagementApi, normalizeLeadItems } from '../../api/leadManagementApi';
 import type {
   Lead,
+  LeadItem,
   LeadStatus,
   LeadPriority,
   LeadProductCategory,
@@ -62,6 +67,18 @@ export default function LeadDetailPage() {
   // Modals state
   const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
   const [isFollowupModalOpen, setIsFollowupModalOpen] = useState(false);
+
+  // Add Item Inline Modal State
+  const [isAddItemOpen, setIsAddItemOpen] = useState(false);
+  const [newItemCategory, setNewItemCategory] = useState<LeadProductCategory>('RESTROOM_CUBICLE');
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemQty, setNewItemQty] = useState<number>(10);
+  const [newItemUnit, setNewItemUnit] = useState('Doors');
+  const [newItemRate, setNewItemRate] = useState<number>(9500);
+  const [newItemThickness, setNewItemThickness] = useState('12mm Compact HPL');
+  const [newItemHardware, setNewItemHardware] = useState('SS 304 Premium Brush Finish');
+  const [newItemColor, setNewItemColor] = useState('Natural Teak Woodgrain');
+  const [newItemNotes, setNewItemNotes] = useState('');
 
   // Fetch lead record
   const loadLead = useCallback(async () => {
@@ -118,6 +135,47 @@ export default function LeadDetailPage() {
     }
   };
 
+  // Add new item to lead
+  const handleAddNewItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!lead) return;
+    try {
+      const q = Number(newItemQty) || 1;
+      const r = Number(newItemRate) || 0;
+      await leadManagementApi.addItem(lead.id, {
+        category: newItemCategory,
+        productName: newItemName.trim() || (newItemCategory === 'RESTROOM_CUBICLE' ? 'Restroom Cubicles' : newItemCategory === 'LOCKER_SYSTEM' ? 'Modular Lockers' : 'Urinal Modesty Screens'),
+        model: newItemName.trim() || undefined,
+        quantity: q,
+        unit: newItemUnit,
+        estimatedRate: r,
+        estimatedAmount: q * r,
+        boardThickness: newItemThickness,
+        boardType: 'Compact HPL',
+        hardwarePackage: newItemHardware,
+        colorPreference: newItemColor,
+        specificationsNotes: newItemNotes.trim() || undefined,
+      });
+      setIsAddItemOpen(false);
+      setNewItemName('');
+      loadLead();
+    } catch (err) {
+      alert('Failed to add product item');
+    }
+  };
+
+  // Remove item from lead
+  const handleRemoveLeadItem = async (itemId: string) => {
+    if (!lead) return;
+    if (!window.confirm('Remove this product requirement from the customer inquiry?')) return;
+    try {
+      await leadManagementApi.removeItem(lead.id, itemId);
+      loadLead();
+    } catch (err) {
+      alert('Failed to remove item');
+    }
+  };
+
   // Helper for Product Category badge
   const getCategoryBadge = (cat?: LeadProductCategory) => {
     switch (cat) {
@@ -125,6 +183,12 @@ export default function LeadDetailPage() {
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-[#7FB706]/15 text-[#7FB706] border border-[#7FB706]/30">
             <Layers className="w-3.5 h-3.5" /> Toilet Cubicle
+          </span>
+        );
+      case 'KIDS_CUBICLE':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-pink-500/10 text-pink-400 border border-pink-500/20">
+            <Sparkles className="w-3.5 h-3.5" /> Kids Cubicle
           </span>
         );
       case 'LOCKER_SYSTEM':
@@ -143,6 +207,12 @@ export default function LeadDetailPage() {
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">
             <Sparkles className="w-3.5 h-3.5" /> Turnkey Combo
+          </span>
+        );
+      case 'CUSTOM_SOLUTION':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <Package className="w-3.5 h-3.5" /> Custom Solution
           </span>
         );
       default:
@@ -223,6 +293,13 @@ export default function LeadDetailPage() {
     `Hello ${lead.firstName}, thank you for contacting Pacific Restroom Cubicles regarding your ${lead.productCategory?.replace('_', ' ')} requirements. We have prepared details for your review.`
   )}`;
 
+  const displayItems = lead.items && lead.items.length > 0 ? lead.items : normalizeLeadItems(lead);
+  const totalItemUnits = displayItems.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
+  const totalItemValue = displayItems.reduce(
+    (acc, it) => acc + (Number(it.estimatedAmount) || (Number(it.quantity) || 0) * (Number(it.estimatedRate) || 0)),
+    0
+  );
+
   return (
     <div className="space-y-6 pb-24">
       {/* Top Breadcrumb & Header Navigation */}
@@ -244,6 +321,11 @@ export default function LeadDetailPage() {
               {lead.firstName} {lead.lastName || ''}
             </h1>
             {getCategoryBadge(lead.productCategory)}
+            {displayItems.length > 1 && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                <Sparkles className="w-3.5 h-3.5 text-purple-400" /> Multi-Product ({displayItems.length} Items)
+              </span>
+            )}
             {lead.priority === 'HOT' && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-rose-500/20 text-rose-300 border border-rose-500/30">
                 <Flame className="w-3.5 h-3.5 text-rose-400" /> HOT LEAD
@@ -316,19 +398,19 @@ export default function LeadDetailPage() {
       {/* KPI Overview Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="p-3.5 sm:p-4 rounded-xl bg-[#121029] border border-white/10 space-y-1">
-          <span className="text-[11px] font-semibold text-gray-400">Total Units / Doors</span>
+          <span className="text-[11px] font-semibold text-gray-400">Total Units / Items</span>
           <p className="text-xl sm:text-2xl font-mono font-bold text-white">
-            {lead.estimatedQuantity || 1} <span className="text-xs text-gray-500 font-sans font-normal">Units</span>
+            {totalItemUnits || lead.estimatedQuantity || 1} <span className="text-xs text-gray-500 font-sans font-normal">Units</span>
           </p>
           <span className="text-[10px] text-[#7FB706] block font-medium">
-            {lead.productCategory?.replace('_', ' ')}
+            {displayItems.length > 1 ? `${displayItems.length} Products Requested` : lead.productCategory?.replace('_', ' ')}
           </span>
         </div>
 
         <div className="p-3.5 sm:p-4 rounded-xl bg-[#121029] border border-white/10 space-y-1">
           <span className="text-[11px] font-semibold text-gray-400">Estimated Sizing</span>
           <p className="text-xl sm:text-2xl font-mono font-bold text-white">
-            ₹{(lead.estimatedValue || 0).toLocaleString('en-IN')}
+            ₹{(totalItemValue || lead.estimatedValue || 0).toLocaleString('en-IN')}
           </p>
           <span className="text-[10px] text-gray-500 block">Projected Value</span>
         </div>
@@ -387,6 +469,121 @@ export default function LeadDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Prospect & Technical Specs (2 cols wide on desktop) */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Requested Products & Multi-Item Order Card */}
+          <div className="p-5 rounded-2xl bg-[#121029] border border-white/10 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-[#7FB706] flex items-center gap-1.5">
+                  <ShoppingBag className="w-4 h-4" /> Requested Products & Inquiry Items ({displayItems.length})
+                </span>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Commercial products and specifications requested by this client.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddItemOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-[#7FB706] hover:bg-[#8ecb08] text-black font-extrabold text-xs transition flex items-center gap-1.5 self-start sm:self-auto min-h-[38px] shadow-lg shadow-[#7FB706]/10"
+              >
+                <Plus className="w-4 h-4" /> Add Product Item
+              </button>
+            </div>
+
+            {/* List of items */}
+            <div className="space-y-3">
+              {displayItems.map((item, index) => {
+                const itemAmount = Number(item.estimatedAmount) || ((Number(item.quantity) || 1) * (Number(item.estimatedRate) || 0));
+                return (
+                  <div
+                    key={item.id || index}
+                    className="p-4 rounded-xl bg-white/[0.02] border border-white/10 hover:border-white/20 transition space-y-3"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-6 h-6 rounded-lg bg-black/40 border border-white/10 text-[11px] font-mono text-gray-400 flex items-center justify-center font-bold">
+                          #{index + 1}
+                        </span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-white">
+                              {item.productName || item.model || 'Product Item'}
+                            </span>
+                            {getCategoryBadge(item.category)}
+                          </div>
+                          {item.model && item.model !== item.productName && (
+                            <span className="text-[11px] font-mono text-gray-400 block mt-0.5">
+                              Model: {item.model}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <span className="text-xs font-mono font-bold text-[#7FB706] block">
+                            ₹{itemAmount.toLocaleString('en-IN')}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            {item.quantity} {item.unit || 'Units'} × ₹{(item.estimatedRate || 0).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                        {displayItems.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveLeadItem(item.id)}
+                            title="Remove this product item"
+                            className="p-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 transition"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Specifications tags */}
+                    <div className="flex flex-wrap gap-2 text-[11px]">
+                      {item.boardThickness && (
+                        <span className="px-2 py-0.5 rounded bg-black/30 border border-white/5 text-gray-300">
+                          Thickness: <strong className="text-white">{item.boardThickness}</strong>
+                        </span>
+                      )}
+                      {item.boardType && (
+                        <span className="px-2 py-0.5 rounded bg-black/30 border border-white/5 text-gray-300">
+                          Core: <strong className="text-white">{item.boardType}</strong>
+                        </span>
+                      )}
+                      {item.hardwarePackage && (
+                        <span className="px-2 py-0.5 rounded bg-black/30 border border-white/5 text-gray-300">
+                          Hardware: <strong className="text-white">{item.hardwarePackage}</strong>
+                        </span>
+                      )}
+                      {item.colorPreference && (
+                        <span className="px-2 py-0.5 rounded bg-black/30 border border-white/5 text-gray-300">
+                          Color/Finish: <strong className="text-white">{item.colorPreference}</strong>
+                        </span>
+                      )}
+                      {item.specificationsNotes && (
+                        <span className="px-2 py-0.5 rounded bg-[#7FB706]/10 border border-[#7FB706]/20 text-gray-300 italic w-full mt-1">
+                          Note: {item.specificationsNotes}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Total Summary Footer */}
+            <div className="p-3 bg-black/40 border border-white/10 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+              <span className="text-gray-400">
+                Combined Inquiry ({displayItems.length} Products): <strong className="text-white">{totalItemUnits} Units</strong>
+              </span>
+              <span className="text-sm font-bold text-[#7FB706]">
+                ₹{totalItemValue.toLocaleString('en-IN')}
+              </span>
+            </div>
+          </div>
+
           {/* Technical Product Specifications Card */}
           <div className="p-5 rounded-2xl bg-[#121029] border border-white/10 space-y-4">
             <div className="flex items-center justify-between">
@@ -723,6 +920,203 @@ export default function LeadDetailPage() {
         onSuccess={loadLead}
         lead={lead}
       />
+
+      {/* Add Item Modal */}
+      {isAddItemOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+          <div className="relative w-full max-w-xl bg-[#0e0c24] border border-white/10 rounded-2xl shadow-2xl p-4 sm:p-6 my-6">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-[#7FB706]/15 text-[#7FB706]">
+                  <ShoppingBag className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Add Product to Inquiry</h3>
+                  <p className="text-xs text-gray-400">Append another washroom / cubicle product to this lead</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddItemOpen(false)}
+                className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddNewItem} className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">Product Category</label>
+                <select
+                  value={newItemCategory}
+                  onChange={(e) => {
+                    const cat = e.target.value as LeadProductCategory;
+                    setNewItemCategory(cat);
+                    if (cat === 'RESTROOM_CUBICLE') {
+                      setNewItemName('Standard Toilet Cubicle');
+                      setNewItemUnit('Doors');
+                      setNewItemRate(9500);
+                      setNewItemThickness('12mm Compact HPL');
+                      setNewItemHardware('SS 304 Premium');
+                    } else if (cat === 'KIDS_CUBICLE') {
+                      setNewItemName('Kids Theme Cubicle');
+                      setNewItemUnit('Doors');
+                      setNewItemRate(10500);
+                      setNewItemThickness('12mm Compact HPL');
+                      setNewItemHardware('Nylon / SS Rounded Safety');
+                    } else if (cat === 'LOCKER_SYSTEM') {
+                      setNewItemName('Modular Lockers (2-Tier)');
+                      setNewItemUnit('Tiers');
+                      setNewItemRate(6500);
+                      setNewItemThickness('12mm Compact Phenolic');
+                      setNewItemHardware('Keypad Lock + SS Hinges');
+                    } else if (cat === 'URINAL_PARTITION') {
+                      setNewItemName('Urinal Modesty Screen');
+                      setNewItemUnit('Screens');
+                      setNewItemRate(3500);
+                      setNewItemThickness('12mm Compact Laminate');
+                      setNewItemHardware('SS 304 Wall Clamps');
+                    } else {
+                      setNewItemName('Custom Washroom Solution');
+                      setNewItemUnit('Units');
+                      setNewItemRate(12000);
+                      setNewItemThickness('12mm Compact HPL');
+                      setNewItemHardware('Heavy Duty Hardware');
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-[#7FB706]"
+                >
+                  <option value="RESTROOM_CUBICLE">Toilet Cubicles</option>
+                  <option value="KIDS_CUBICLE">Kids Toilet Cubicles</option>
+                  <option value="LOCKER_SYSTEM">Modular Locker Systems</option>
+                  <option value="URINAL_PARTITION">Urinal Modesty Partitions</option>
+                  <option value="CUSTOM_SOLUTION">Custom Washroom Solution</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">Product / Model Description</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Pacific Classique / 2-Tier Modular Locker"
+                  value={newItemName}
+                  onChange={(e) => setNewItemName(e.target.value)}
+                  className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-[#7FB706]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Quantity</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={newItemQty}
+                    onChange={(e) => setNewItemQty(Math.max(1, Number(e.target.value) || 1))}
+                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-[#7FB706] font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Unit</label>
+                  <select
+                    value={newItemUnit}
+                    onChange={(e) => setNewItemUnit(e.target.value)}
+                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-[#7FB706]"
+                  >
+                    <option value="Doors">Doors</option>
+                    <option value="Tiers">Tiers</option>
+                    <option value="Screens">Screens</option>
+                    <option value="Cubicles">Cubicles</option>
+                    <option value="Sets">Sets</option>
+                    <option value="NOS">NOS</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Estimated Rate (₹ / Unit)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={newItemRate}
+                    onChange={(e) => setNewItemRate(Number(e.target.value) || 0)}
+                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-[#7FB706] font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Estimated Subtotal (₹)</label>
+                  <div className="w-full px-3 py-2 bg-black/60 border border-white/5 rounded-xl text-xs text-[#7FB706] font-mono font-bold">
+                    ₹{((Number(newItemQty) || 1) * (Number(newItemRate) || 0)).toLocaleString('en-IN')}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Board Core / Thickness</label>
+                  <input
+                    type="text"
+                    value={newItemThickness}
+                    onChange={(e) => setNewItemThickness(e.target.value)}
+                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-[#7FB706]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Hardware Package</label>
+                  <input
+                    type="text"
+                    value={newItemHardware}
+                    onChange={(e) => setNewItemHardware(e.target.value)}
+                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-[#7FB706]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Color / Finish</label>
+                  <input
+                    type="text"
+                    value={newItemColor}
+                    onChange={(e) => setNewItemColor(e.target.value)}
+                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-[#7FB706]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Notes / Scope</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Ceiling suspended, 300mm clearance"
+                    value={newItemNotes}
+                    onChange={(e) => setNewItemNotes(e.target.value)}
+                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-[#7FB706]"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-white/10 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsAddItemOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-white transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl text-xs font-extrabold text-black bg-[#7FB706] hover:bg-[#8ecb08] transition shadow-lg shadow-[#7FB706]/20 flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" /> Add Item to Inquiry
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

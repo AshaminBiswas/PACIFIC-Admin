@@ -201,6 +201,12 @@ export default function LeadManagementPage() {
             <Layers className="w-3 h-3" /> Cubicle
           </span>
         );
+      case 'KIDS_CUBICLE':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-pink-500/10 text-pink-400 border border-pink-500/20">
+            <Sparkles className="w-3 h-3" /> Kids
+          </span>
+        );
       case 'LOCKER_SYSTEM':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/10 text-sky-400 border border-sky-500/20">
@@ -217,6 +223,12 @@ export default function LeadManagementPage() {
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">
             <Sparkles className="w-3 h-3" /> Combo
+          </span>
+        );
+      case 'CUSTOM_SOLUTION':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <Layers className="w-3 h-3" /> Custom
           </span>
         );
       default:
@@ -394,9 +406,11 @@ export default function LeadManagementPage() {
         {[
           { id: 'ALL', label: 'All Products', count: leads.length },
           { id: 'RESTROOM_CUBICLE', label: 'Toilet Cubicles', count: stats?.byCategory?.cubicle },
+          { id: 'KIDS_CUBICLE', label: 'Kids Cubicles' },
           { id: 'LOCKER_SYSTEM', label: 'Locker Systems', count: stats?.byCategory?.locker },
           { id: 'URINAL_PARTITION', label: 'Urinal Partitions', count: stats?.byCategory?.urinal },
           { id: 'COMBO_WASHROOM', label: 'Washroom Combo', count: stats?.byCategory?.combo },
+          { id: 'CUSTOM_SOLUTION', label: 'Custom' },
         ].map((tab) => {
           const isActive = categoryFilter === tab.id;
           return (
@@ -523,8 +537,13 @@ export default function LeadManagementPage() {
                       {new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {getCategoryBadge(l.productCategory)}
+                    {l.items && l.items.length > 1 && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/20">
+                        <Sparkles className="w-2.5 h-2.5 text-purple-400" /> {l.items.length} Products
+                      </span>
+                    )}
                     {getPriorityBadge(l.priority)}
                   </div>
                 </div>
@@ -543,7 +562,14 @@ export default function LeadManagementPage() {
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#0d0b21] border border-white/5 text-xs">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-gray-400 block">Requirement</span>
-                    <span className="font-bold text-white font-mono">{l.estimatedQuantity || 1} Units</span>
+                    <span className="font-bold text-white font-mono">
+                      {l.estimatedQuantity || 1} Units {l.items && l.items.length > 1 ? `(${l.items.length} Items)` : ''}
+                    </span>
+                    {l.items && l.items.length > 0 && (
+                      <span className="text-[10px] text-gray-400 truncate block max-w-[180px] mt-0.5">
+                        {l.items.map((it) => it.productName || it.model).join(', ')}
+                      </span>
+                    )}
                   </div>
                   <div className="text-right">
                     <span className="text-[10px] uppercase font-bold text-gray-400 block">Est. Sizing</span>
@@ -702,14 +728,21 @@ export default function LeadManagementPage() {
 
                       {/* Product Requirement */}
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5 mb-1">
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1">
                           {getCategoryBadge(l.productCategory)}
+                          {l.items && l.items.length > 1 && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/20">
+                              <Sparkles className="w-2.5 h-2.5 text-purple-400" /> {l.items.length} Products
+                            </span>
+                          )}
                           <span className="text-[11px] font-bold text-white font-mono">
                             {l.estimatedQuantity} Units
                           </span>
                         </div>
-                        <div className="text-[10px] text-gray-400 truncate max-w-[200px]">
-                          {l.cubicleSpecs
+                        <div className="text-[10px] text-gray-400 truncate max-w-[220px]">
+                          {l.items && l.items.length > 0
+                            ? l.items.map((it) => it.productName || it.model || it.category).join(' • ')
+                            : l.cubicleSpecs
                             ? `${l.cubicleSpecs.boardThickness} ${l.cubicleSpecs.boardType} (${l.cubicleSpecs.hardwarePackage})`
                             : l.lockerSpecs
                             ? `${l.lockerSpecs.lockerTiers} (${l.lockerSpecs.lockType})`

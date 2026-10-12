@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -20,13 +20,20 @@ import {
   Tag,
   Briefcase,
   FileText,
+  Plus,
+  Trash2,
+  Search,
+  Sliders,
 } from 'lucide-react';
 import { leadManagementApi } from '../../api/leadManagementApi';
+import { productCatalogApi } from '../../api/productCatalogApi';
 import type {
   LeadProductCategory,
   LeadClientType,
   LeadPriority,
   LeadSource,
+  LeadItem,
+  ProductCatalogModel,
 } from '../../types/admin';
 
 const PRODUCT_CATEGORIES: {
@@ -66,11 +73,77 @@ const PRODUCT_CATEGORIES: {
   },
 ];
 
+export function createDefaultLeadItem(category: LeadProductCategory = 'RESTROOM_CUBICLE', customTitle?: string): LeadItem {
+  if (category === 'RESTROOM_CUBICLE') {
+    return {
+      id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      category: 'RESTROOM_CUBICLE',
+      productName: customTitle || 'Restroom Cubicles',
+      model: 'Pacific Classic Floor-Mounted',
+      quantity: 10,
+      unit: 'Doors',
+      boardThickness: '12mm',
+      boardType: 'Compact HPL (Phenolic)',
+      hardwarePackage: 'SS 304 Premium Brush Finish',
+      colorPreference: 'Natural Teak Woodgrain',
+      estimatedRate: 9500,
+      estimatedAmount: 95000,
+      specificationsNotes: 'Standard 12mm HPL with SS 304 hardware',
+    };
+  }
+  if (category === 'LOCKER_SYSTEM') {
+    return {
+      id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      category: 'LOCKER_SYSTEM',
+      productName: customTitle || 'Modular Locker System',
+      model: '2-Tier Heavy Duty',
+      quantity: 24,
+      unit: 'Compartments',
+      boardThickness: '12mm',
+      boardType: 'Compact HPL Moisture Proof',
+      hardwarePackage: 'Digital Number Code Lock',
+      colorPreference: 'Frost Grey & Charcoal',
+      estimatedRate: 6500,
+      estimatedAmount: 156000,
+      specificationsNotes: '12mm phenolic lockers with ventilation',
+    };
+  }
+  if (category === 'URINAL_PARTITION') {
+    return {
+      id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      category: 'URINAL_PARTITION',
+      productName: customTitle || 'Urinal Modesty Partitions',
+      model: '450 x 900 mm Standard',
+      quantity: 6,
+      unit: 'Screens',
+      boardThickness: '12mm',
+      boardType: '12mm Compact Laminate',
+      hardwarePackage: 'Wall-hung with SS Brackets & Support Leg',
+      colorPreference: 'Frost Grey',
+      estimatedRate: 3500,
+      estimatedAmount: 21000,
+      specificationsNotes: '450 x 900 mm modesty divider',
+    };
+  }
+  return {
+    id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    category: 'COMBO_WASHROOM',
+    productName: customTitle || 'Kids Restroom Cubicles',
+    model: 'Kids Child-Ergonomic 1200mm',
+    quantity: 6,
+    unit: 'Units',
+    boardThickness: '12mm',
+    boardType: 'Compact HPL (Phenolic)',
+    hardwarePackage: 'Nylon Black Matt Safety Coin Release',
+    colorPreference: 'Yellow & Blue Dual Tone',
+    estimatedRate: 10500,
+    estimatedAmount: 63000,
+    specificationsNotes: 'Ergonomic height 1200-1500mm with anti-pinch gap',
+  };
+}
+
 export default function CreateLeadPage() {
   const navigate = useNavigate();
-
-  // Category Selection
-  const [productCategory, setProductCategory] = useState<LeadProductCategory>('RESTROOM_CUBICLE');
 
   // Prospect & Company Info
   const [firstName, setFirstName] = useState('');
@@ -82,25 +155,21 @@ export default function CreateLeadPage() {
   const [address, setAddress] = useState('');
   const [clientType, setClientType] = useState<LeadClientType>('CONTRACTOR');
 
-  // Cubicle Specs
-  const [cubicleDoors, setCubicleDoors] = useState<number>(10);
-  const [cubicleModel, setCubicleModel] = useState('Pacific Classic Floor-Mounted');
-  const [cubicleThickness, setCubicleThickness] = useState('12mm');
-  const [cubicleBoardType, setCubicleBoardType] = useState('Compact HPL (Phenolic)');
-  const [cubicleHardware, setCubicleHardware] = useState('SS 304 Premium Brush Finish');
-  const [cubicleColor, setCubicleColor] = useState('Natural Teak Woodgrain');
+  // Multiple Items State (One customer can order/inquire multiple products)
+  const [items, setItems] = useState<LeadItem[]>([createDefaultLeadItem('RESTROOM_CUBICLE')]);
+  const [catalogModels, setCatalogModels] = useState<ProductCatalogModel[]>([]);
 
-  // Locker Specs
-  const [lockerTiers, setLockerTiers] = useState('2-Tier Heavy Duty');
-  const [lockerCompartments, setLockerCompartments] = useState<number>(24);
-  const [lockerLockType, setLockerLockType] = useState('Digital Number Code Lock');
-  const [lockerMaterial, setLockerMaterial] = useState('12mm Compact HPL Moisture Proof');
-
-  // Urinal Specs
-  const [urinalScreens, setUrinalScreens] = useState<number>(6);
-  const [urinalDimensions, setUrinalDimensions] = useState('450 x 900 mm');
-  const [urinalMounting, setUrinalMounting] = useState('Wall-hung with SS Brackets & Support Leg');
-  const [urinalBoardType, setUrinalBoardType] = useState('12mm Compact Laminate');
+  // Load catalog models on mount for search & quick pick
+  useEffect(() => {
+    productCatalogApi
+      .listModels()
+      .then((models) => {
+        if (models && models.length > 0) {
+          setCatalogModels(models);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Commercial & Pipeline
   const [estimatedValue, setEstimatedValue] = useState<string | number>('');
@@ -120,6 +189,41 @@ export default function CreateLeadPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Computed Totals across all requested items
+  const totalUnits = items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+  const totalCalculatedAmount = items.reduce(
+    (sum, it) => sum + (Number(it.estimatedAmount) || ((Number(it.quantity) || 0) * (Number(it.estimatedRate) || 0))),
+    0
+  );
+
+  // Quick item manipulation helpers
+  const handleAddItem = (category: LeadProductCategory, title?: string) => {
+    setItems((prev) => [...prev, createDefaultLeadItem(category, title)]);
+  };
+
+  const handleRemoveItem = (id: string) => {
+    if (items.length <= 1) {
+      alert('A lead must have at least one product requirement.');
+      return;
+    }
+    setItems((prev) => prev.filter((it) => it.id !== id));
+  };
+
+  const handleUpdateItem = (id: string, updates: Partial<LeadItem>) => {
+    setItems((prev) =>
+      prev.map((it) => {
+        if (it.id !== id) return it;
+        const merged = { ...it, ...updates };
+        const q = Number(merged.quantity) || 0;
+        const r = Number(merged.estimatedRate) || 0;
+        if (updates.quantity !== undefined || updates.estimatedRate !== undefined) {
+          merged.estimatedAmount = q * r;
+        }
+        return merged;
+      })
+    );
+  };
 
   // Quick follow-up presets
   const handleSetPresetFollowup = (hours: number) => {
@@ -141,26 +245,16 @@ export default function CreateLeadPage() {
       setError('Phone number is required for follow-up coordination.');
       return;
     }
+    if (items.length === 0) {
+      setError('Please add at least one product item to the customer inquiry.');
+      return;
+    }
 
     try {
       setIsSubmitting(true);
       setError(null);
 
-      // Calculate quantity
-      let estimatedQuantity = 1;
-      if (productCategory === 'RESTROOM_CUBICLE') estimatedQuantity = Number(cubicleDoors) || 1;
-      else if (productCategory === 'LOCKER_SYSTEM') estimatedQuantity = Number(lockerCompartments) || 1;
-      else if (productCategory === 'URINAL_PARTITION') estimatedQuantity = Number(urinalScreens) || 1;
-      else if (productCategory === 'COMBO_WASHROOM') estimatedQuantity = Number(cubicleDoors) + Number(urinalScreens);
-
-      // Auto-calculate estimate if empty
-      let finalEstValue = Number(estimatedValue);
-      if (!finalEstValue || isNaN(finalEstValue)) {
-        if (productCategory === 'RESTROOM_CUBICLE') finalEstValue = estimatedQuantity * 9500;
-        else if (productCategory === 'LOCKER_SYSTEM') finalEstValue = estimatedQuantity * 6500;
-        else if (productCategory === 'URINAL_PARTITION') finalEstValue = estimatedQuantity * 3500;
-        else finalEstValue = estimatedQuantity * 8500;
-      }
+      const finalEstValue = Number(estimatedValue) || totalCalculatedAmount;
 
       const tags = tagsInput
         .split(',')
@@ -171,6 +265,13 @@ export default function CreateLeadPage() {
         ? new Date(`${nextFollowupDate}T${nextFollowupTime || '11:00'}:00`).toISOString()
         : new Date(Date.now() + 24 * 3600 * 1000).toISOString();
 
+      // Extract legacy specs from first matching items
+      const firstCubicle = items.find((it) => it.category === 'RESTROOM_CUBICLE');
+      const firstLocker = items.find((it) => it.category === 'LOCKER_SYSTEM');
+      const firstUrinal = items.find((it) => it.category === 'URINAL_PARTITION');
+
+      const primaryCategory = items.length > 1 ? 'COMBO_WASHROOM' : (items[0]?.category || 'RESTROOM_CUBICLE');
+
       const newLeadData = {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
@@ -180,37 +281,35 @@ export default function CreateLeadPage() {
         city: city.trim(),
         address: address.trim(),
         clientType,
-        productCategory,
-        cubicleSpecs:
-          productCategory === 'RESTROOM_CUBICLE' || productCategory === 'COMBO_WASHROOM'
-            ? {
-                doorsCount: Number(cubicleDoors) || 1,
-                cubicleModel,
-                boardThickness: cubicleThickness,
-                boardType: cubicleBoardType,
-                hardwarePackage: cubicleHardware,
-                colorPreference: cubicleColor,
-              }
-            : undefined,
-        lockerSpecs:
-          productCategory === 'LOCKER_SYSTEM' || productCategory === 'COMBO_WASHROOM'
-            ? {
-                lockerTiers,
-                compartmentsCount: Number(lockerCompartments) || 1,
-                lockType: lockerLockType,
-                material: lockerMaterial,
-              }
-            : undefined,
-        urinalSpecs:
-          productCategory === 'URINAL_PARTITION' || productCategory === 'COMBO_WASHROOM'
-            ? {
-                screensCount: Number(urinalScreens) || 1,
-                screenDimensions: urinalDimensions,
-                mountingType: urinalMounting,
-                boardType: urinalBoardType,
-              }
-            : undefined,
-        estimatedQuantity,
+        productCategory: primaryCategory,
+        items,
+        cubicleSpecs: firstCubicle
+          ? {
+              doorsCount: firstCubicle.quantity,
+              cubicleModel: firstCubicle.model,
+              boardThickness: firstCubicle.boardThickness,
+              boardType: firstCubicle.boardType,
+              hardwarePackage: firstCubicle.hardwarePackage,
+              colorPreference: firstCubicle.colorPreference,
+            }
+          : undefined,
+        lockerSpecs: firstLocker
+          ? {
+              lockerTiers: firstLocker.model,
+              compartmentsCount: firstLocker.quantity,
+              lockType: firstLocker.hardwarePackage,
+              material: firstLocker.boardType,
+            }
+          : undefined,
+        urinalSpecs: firstUrinal
+          ? {
+              screensCount: firstUrinal.quantity,
+              screenDimensions: firstUrinal.model,
+              mountingType: firstUrinal.hardwarePackage,
+              boardType: firstUrinal.boardType,
+            }
+          : undefined,
+        estimatedQuantity: totalUnits,
         estimatedValue: finalEstValue,
         source,
         status: 'NEW' as const,
@@ -292,29 +391,29 @@ export default function CreateLeadPage() {
       )}
 
       <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
-        {/* Step 1: Select Product Category */}
+        {/* Step 1: Quick Add Product Categories */}
         <div className="p-4 sm:p-5 rounded-2xl bg-[#121029] border border-[#7FB706]/30 shadow-xl space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-[#7FB706] flex items-center gap-1.5">
-              <Layers className="w-4 h-4" /> 1. Select Product System
+              <Layers className="w-4 h-4" /> 1. Quick Add Product Categories
             </span>
             <span className="text-[11px] text-gray-400 hidden sm:inline">
-              Choose the primary commercial washroom component
+              Click any category below to add that product to this customer inquiry
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {PRODUCT_CATEGORIES.map((cat) => {
               const Icon = cat.icon;
-              const isSelected = productCategory === cat.id;
+              const countForCat = items.filter((it) => it.category === cat.id).length;
 
               return (
                 <button
                   key={cat.id}
                   type="button"
-                  onClick={() => setProductCategory(cat.id)}
+                  onClick={() => handleAddItem(cat.id)}
                   className={`p-4 rounded-xl border text-left transition relative flex flex-col justify-between min-h-[96px] ${
-                    isSelected
+                    countForCat > 0
                       ? 'bg-[#7FB706]/15 border-[#7FB706] shadow-lg shadow-[#7FB706]/10'
                       : 'bg-white/[0.02] border-white/10 hover:border-white/20 hover:bg-white/[0.04]'
                   }`}
@@ -323,7 +422,7 @@ export default function CreateLeadPage() {
                     <div className="flex items-center justify-between mb-2">
                       <div
                         className={`p-2 rounded-lg ${
-                          isSelected
+                          countForCat > 0
                             ? 'bg-[#7FB706] text-black font-bold'
                             : 'bg-white/5 text-gray-400'
                         }`}
@@ -332,12 +431,12 @@ export default function CreateLeadPage() {
                       </div>
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                          isSelected
+                          countForCat > 0
                             ? 'bg-[#7FB706]/20 text-[#7FB706] border-[#7FB706]/40'
                             : 'bg-white/5 text-gray-400 border-white/10'
                         }`}
                       >
-                        {cat.badge}
+                        {countForCat > 0 ? `${countForCat} Added` : cat.badge}
                       </span>
                     </div>
                     <div className="font-bold text-white text-sm">{cat.name}</div>
@@ -345,9 +444,9 @@ export default function CreateLeadPage() {
                       {cat.desc}
                     </p>
                   </div>
-                  {isSelected && (
-                    <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#7FB706] shadow-sm shadow-[#7FB706]" />
-                  )}
+                  <div className="text-[10px] font-semibold text-[#7FB706] mt-2 flex items-center gap-1">
+                    <Plus className="w-3 h-3" /> Add to Inquiry
+                  </div>
                 </button>
               );
             })}
@@ -483,227 +582,338 @@ export default function CreateLeadPage() {
           </div>
         </div>
 
-        {/* Step 3: Technical Product Specifications (Dynamic) */}
+        {/* Step 3: Customer Product Requirements (Multiple Items) */}
         <div className="p-4 sm:p-5 rounded-2xl bg-[#121029] border border-white/10 space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#7FB706] flex items-center gap-1.5">
-              <Briefcase className="w-4 h-4" /> 3. Technical Requirements ({productCategory.replace('_', ' ')})
-            </span>
-            <span className="text-[11px] text-gray-400 hidden sm:inline">
-              Configure models, boards, hardware and units
-            </span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-[#7FB706] flex items-center gap-1.5">
+                <Briefcase className="w-4 h-4" /> 3. Customer Product Requirements &amp; Multiple Items ({items.length} Product{items.length > 1 ? 's' : ''})
+              </span>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                One customer can order or search for multiple products (Cubicles, Lockers, Urinal Partitions, Kids Models) under a single enquiry.
+              </p>
+            </div>
+
+            {/* Quick Summary Pill */}
+            <div className="flex items-center gap-2 self-start sm:self-auto text-xs font-mono">
+              <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-gray-300">
+                <strong className="text-white">{totalUnits}</strong> Units Total
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-[#7FB706]/15 border border-[#7FB706]/30 text-[#7FB706] font-bold">
+                ₹{totalCalculatedAmount.toLocaleString('en-IN')}
+              </span>
+            </div>
           </div>
 
-          {/* Cubicle Specific Fields */}
-          {(productCategory === 'RESTROOM_CUBICLE' || productCategory === 'COMBO_WASHROOM') && (
-            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/10 space-y-3">
-              <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-[#7FB706]" /> Restroom Cubicle Details
-              </span>
+          {/* List of Multiple Product Items */}
+          <div className="space-y-4">
+            {items.map((item, index) => {
+              const itemTotal = Number(item.estimatedAmount) || ((Number(item.quantity) || 0) * (Number(item.estimatedRate) || 0));
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                    Number of Doors / Cubicle Units
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={cubicleDoors}
-                    onChange={(e) => setCubicleDoors(Number(e.target.value) || 1)}
-                    className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[40px]"
-                  />
-                </div>
+              return (
+                <div
+                  key={item.id}
+                  className="p-4 rounded-xl bg-white/[0.02] border border-white/10 hover:border-white/20 transition space-y-3 relative group"
+                >
+                  {/* Item Header */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded bg-[#7FB706] text-black font-extrabold text-[10px] font-mono">
+                        ITEM #{index + 1}
+                      </span>
+                      <select
+                        value={item.category}
+                        onChange={(e) => {
+                          const cat = e.target.value as LeadProductCategory;
+                          const def = createDefaultLeadItem(cat);
+                          handleUpdateItem(item.id, {
+                            category: cat,
+                            productName: def.productName,
+                            model: def.model,
+                            unit: def.unit,
+                            boardThickness: def.boardThickness,
+                            boardType: def.boardType,
+                            hardwarePackage: def.hardwarePackage,
+                            estimatedRate: def.estimatedRate,
+                          });
+                        }}
+                        className="bg-[#0d0b21] border border-white/10 rounded-lg px-2.5 py-1 text-xs font-semibold text-white focus:outline-none focus:border-[#7FB706]"
+                      >
+                        <option value="RESTROOM_CUBICLE">Toilet Cubicles</option>
+                        <option value="LOCKER_SYSTEM">Locker Systems</option>
+                        <option value="URINAL_PARTITION">Urinal Partitions</option>
+                        <option value="COMBO_WASHROOM">Kids Cubicle / Washroom Combo</option>
+                      </select>
+                    </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                    Cubicle Mounting Model
-                  </label>
-                  <select
-                    value={cubicleModel}
-                    onChange={(e) => setCubicleModel(e.target.value)}
-                    className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[40px]"
-                  >
-                    <option value="Pacific Classic Floor-Mounted">Pacific Classic Floor-Mounted</option>
-                    <option value="Pacific Ceiling-Hung Floating">Pacific Ceiling-Hung Floating</option>
-                    <option value="Pacific Shoe-Box Aluminium Anchored">Pacific Shoe-Box Aluminium Anchored</option>
-                    <option value="Pacific Designer Stainless Deluxe">Pacific Designer Stainless Deluxe</option>
-                  </select>
-                </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-mono font-bold text-emerald-400">
+                        ₹{itemTotal.toLocaleString('en-IN')}
+                      </span>
+                      {items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(item.id)}
+                          className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
+                          title="Remove this item"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                    Board Thickness
-                  </label>
-                  <select
-                    value={cubicleThickness}
-                    onChange={(e) => setCubicleThickness(e.target.value)}
-                    className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[40px]"
-                  >
-                    <option value="12mm">12mm (Standard Heavy Duty)</option>
-                    <option value="18mm">18mm (Premium Solid Grade)</option>
-                    <option value="13mm">13mm (Imported Specification)</option>
-                  </select>
-                </div>
+                  {/* Catalog Model Dropdown Picker */}
+                  {catalogModels.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="text-[11px] text-gray-400 flex items-center gap-1">
+                        <Search className="w-3 h-3 text-[#7FB706]" /> Quick Pick Catalog Model:
+                      </span>
+                      <select
+                        onChange={(e) => {
+                          const slug = e.target.value;
+                          const found = catalogModels.find((m) => m.slug === slug);
+                          if (found) {
+                            handleUpdateItem(item.id, {
+                              productName: found.title,
+                              model: found.title,
+                              specificationsNotes: found.subtitle || found.description,
+                              category:
+                                found.category === 'Lockers'
+                                  ? 'LOCKER_SYSTEM'
+                                  : found.category === 'Urinal Partitions'
+                                  ? 'URINAL_PARTITION'
+                                  : found.category === 'Kids Toilet' || found.title.toLowerCase().includes('kids')
+                                  ? 'KIDS_CUBICLE'
+                                  : 'RESTROOM_CUBICLE',
+                            });
+                          }
+                        }}
+                        className="bg-[#0d0b21] border border-white/10 rounded-lg px-2.5 py-1 text-xs text-gray-300 focus:outline-none focus:border-[#7FB706]"
+                        defaultValue=""
+                      >
+                        <option value="" disabled>
+                          Select from Pacific catalog...
+                        </option>
+                        <optgroup label="Standard Restroom Cubicles">
+                          {catalogModels
+                            .filter((m) => m.category === 'Cubicle' && !m.title.toLowerCase().includes('kids'))
+                            .map((m) => (
+                              <option key={m.slug} value={m.slug}>
+                                {m.title}
+                              </option>
+                            ))}
+                        </optgroup>
+                        <optgroup label="Kids Cubicle Models">
+                          {catalogModels
+                            .filter((m) => m.category === 'Kids Toilet' || m.title.toLowerCase().includes('kids'))
+                            .map((m) => (
+                              <option key={m.slug} value={m.slug}>
+                                {m.title}
+                              </option>
+                            ))}
+                        </optgroup>
+                        <optgroup label="Locker Systems">
+                          {catalogModels
+                            .filter((m) => m.category === 'Lockers')
+                            .map((m) => (
+                              <option key={m.slug} value={m.slug}>
+                                {m.title}
+                              </option>
+                            ))}
+                        </optgroup>
+                        <optgroup label="Urinal Partitions">
+                          {catalogModels
+                            .filter((m) => m.category === 'Urinal Partitions')
+                            .map((m) => (
+                              <option key={m.slug} value={m.slug}>
+                                {m.title}
+                              </option>
+                            ))}
+                        </optgroup>
+                      </select>
+                    </div>
+                  )}
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                    Board Core / Material
-                  </label>
-                  <select
-                    value={cubicleBoardType}
-                    onChange={(e) => setCubicleBoardType(e.target.value)}
-                    className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[40px]"
-                  >
-                    <option value="Compact HPL (Phenolic)">Compact HPL (Phenolic Solid Core)</option>
-                    <option value="Boilo / HDHMR High Moisture Resistant">Boilo / HDHMR High Moisture Resistant</option>
-                    <option value="Merino Compact Phenolic">Merino Compact Phenolic</option>
-                    <option value="Action TESA HDHMR Moisture Proof">Action TESA HDHMR Moisture Proof</option>
-                  </select>
-                </div>
+                  {/* Item Details Form Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                        Product / Model Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={item.productName}
+                        onChange={(e) => handleUpdateItem(item.id, { productName: e.target.value })}
+                        placeholder="e.g. Pacific Classic Floor-Mounted"
+                        className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#7FB706] min-h-[38px]"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                    Hardware Fitting Package
-                  </label>
-                  <select
-                    value={cubicleHardware}
-                    onChange={(e) => setCubicleHardware(e.target.value)}
-                    className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[40px]"
-                  >
-                    <option value="SS 304 Premium Brush Finish">SS 304 Premium Brush Finish</option>
-                    <option value="SS 316 Coastal Grade Heavy Duty">SS 316 Coastal Grade Heavy Duty</option>
-                    <option value="Nylon Black Matt Antibacterial">Nylon Black Matt Antibacterial</option>
-                    <option value="Shoe Box Aluminium Anodized">Shoe Box Aluminium Anodized</option>
-                  </select>
-                </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                        Quantity &amp; Unit *
+                      </label>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="number"
+                          min={1}
+                          required
+                          value={item.quantity}
+                          onChange={(e) => handleUpdateItem(item.id, { quantity: Number(e.target.value) || 1 })}
+                          className="w-20 bg-[#0d0b21] border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#7FB706] font-mono min-h-[38px]"
+                        />
+                        <select
+                          value={item.unit || 'Doors'}
+                          onChange={(e) => handleUpdateItem(item.id, { unit: e.target.value })}
+                          className="flex-1 bg-[#0d0b21] border border-white/10 rounded-xl px-2 py-2 text-white focus:outline-none focus:border-[#7FB706] min-h-[38px]"
+                        >
+                          <option value="Doors">Doors</option>
+                          <option value="Screens">Screens</option>
+                          <option value="Compartments">Compartments</option>
+                          <option value="Units">Units</option>
+                          <option value="Sets">Sets</option>
+                          <option value="NOS">NOS</option>
+                        </select>
+                      </div>
+                    </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                    Color / Finish Preference
-                  </label>
-                  <input
-                    type="text"
-                    value={cubicleColor}
-                    onChange={(e) => setCubicleColor(e.target.value)}
-                    placeholder="e.g. Natural Teak, Slate Grey, Walnut"
-                    className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[40px]"
-                  />
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                        Estimated Rate / Unit (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={item.estimatedRate || ''}
+                        onChange={(e) => handleUpdateItem(item.id, { estimatedRate: Number(e.target.value) || 0 })}
+                        placeholder="9500"
+                        className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#7FB706] font-mono min-h-[38px]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                        Board Core &amp; Thickness
+                      </label>
+                      <select
+                        value={`${item.boardThickness || '12mm'} ${item.boardType || 'Compact HPL'}`}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val.includes('12mm Compact HPL')) {
+                            handleUpdateItem(item.id, { boardThickness: '12mm', boardType: 'Compact HPL (Phenolic)' });
+                          } else if (val.includes('18mm Compact HPL')) {
+                            handleUpdateItem(item.id, { boardThickness: '18mm', boardType: 'Compact HPL (Phenolic)' });
+                          } else if (val.includes('12mm Boilo')) {
+                            handleUpdateItem(item.id, { boardThickness: '12mm', boardType: 'Boilo / HDHMR Moisture Proof' });
+                          } else {
+                            handleUpdateItem(item.id, { boardThickness: '12mm', boardType: 'Compact Laminate' });
+                          }
+                        }}
+                        className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-2 py-2 text-white focus:outline-none focus:border-[#7FB706] min-h-[38px]"
+                      >
+                        <option value="12mm Compact HPL">12mm Compact HPL (Solid Phenolic)</option>
+                        <option value="18mm Compact HPL">18mm Compact HPL (Heavy Duty)</option>
+                        <option value="12mm Boilo">12mm Boilo HDHMR Water Resistant</option>
+                        <option value="12mm Compact Laminate">12mm Compact Laminate Standard</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                        Hardware Package
+                      </label>
+                      <select
+                        value={item.hardwarePackage || 'SS 304 Premium Brush Finish'}
+                        onChange={(e) => handleUpdateItem(item.id, { hardwarePackage: e.target.value })}
+                        className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-2 py-2 text-white focus:outline-none focus:border-[#7FB706] min-h-[38px]"
+                      >
+                        <option value="SS 304 Premium Brush Finish">SS 304 Premium Brush Finish</option>
+                        <option value="SS 316 Coastal Grade Heavy Duty">SS 316 Coastal Grade Heavy Duty</option>
+                        <option value="Nylon Black Matt Antibacterial">Nylon Black Matt Antibacterial</option>
+                        <option value="Shoe Box Aluminium Anodized">Shoe Box Aluminium Anodized</option>
+                        <option value="Digital Number Code Lock">Digital Number Code Lock</option>
+                        <option value="Wall-hung with SS Brackets & Support Leg">Wall-hung with SS Brackets & Support Leg</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                        Color / Finish Preference
+                      </label>
+                      <input
+                        type="text"
+                        value={item.colorPreference || ''}
+                        onChange={(e) => handleUpdateItem(item.id, { colorPreference: e.target.value })}
+                        placeholder="e.g. Natural Teak, Slate Grey, Walnut"
+                        className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#7FB706] min-h-[38px]"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                        Technical Specs Notes / Special Dimensions
+                      </label>
+                      <input
+                        type="text"
+                        value={item.specificationsNotes || ''}
+                        onChange={(e) => handleUpdateItem(item.id, { specificationsNotes: e.target.value })}
+                        placeholder="e.g. Size 900x1200mm, Anti-pinch gap, master key override"
+                        className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#7FB706] min-h-[38px]"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
+              );
+            })}
+          </div>
+
+          {/* Quick Add Product Buttons Toolbar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-gray-400 font-semibold mr-1">Add Another Product:</span>
+              <button
+                type="button"
+                onClick={() => handleAddItem('RESTROOM_CUBICLE', 'Toilet Cubicles (Standard)')}
+                className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-white font-medium flex items-center gap-1 transition"
+              >
+                <Plus className="w-3.5 h-3.5 text-[#7FB706]" /> + Toilet Cubicle
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddItem('URINAL_PARTITION', 'Urinal Privacy Partitions')}
+                className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-white font-medium flex items-center gap-1 transition"
+              >
+                <Plus className="w-3.5 h-3.5 text-amber-400" /> + Urinal Partition
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddItem('LOCKER_SYSTEM', 'Modular Locker System')}
+                className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-white font-medium flex items-center gap-1 transition"
+              >
+                <Plus className="w-3.5 h-3.5 text-sky-400" /> + Locker System
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddItem('COMBO_WASHROOM', 'Kids Restroom Cubicles')}
+                className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-white font-medium flex items-center gap-1 transition"
+              >
+                <Plus className="w-3.5 h-3.5 text-purple-400" /> + Kids Cubicle
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddItem('RESTROOM_CUBICLE', 'Custom Architectural Solution')}
+                className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-gray-300 font-medium flex items-center gap-1 transition"
+              >
+                <Plus className="w-3.5 h-3.5" /> + Custom Item
+              </button>
             </div>
-          )}
 
-          {/* Locker Specific Fields */}
-          {(productCategory === 'LOCKER_SYSTEM' || productCategory === 'COMBO_WASHROOM') && (
-            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/10 space-y-3">
-              <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5 text-[#7FB706]" /> Locker System Details
-              </span>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                    Locker Tier Structure
-                  </label>
-                  <select
-                    value={lockerTiers}
-                    onChange={(e) => setLockerTiers(e.target.value)}
-                    className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[40px]"
-                  >
-                    <option value="1-Tier Single Door Full Height">1-Tier Single Door Full Height</option>
-                    <option value="2-Tier Heavy Duty">2-Tier Heavy Duty</option>
-                    <option value="3-Tier Multi-User">3-Tier Multi-User</option>
-                    <option value="4-Tier Compact">4-Tier Compact</option>
-                    <option value="Z-Type Executive Locker">Z-Type Executive Locker</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                    Total Compartments / Lockers
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={lockerCompartments}
-                    onChange={(e) => setLockerCompartments(Number(e.target.value) || 1)}
-                    className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[40px]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                    Locking Mechanism
-                  </label>
-                  <select
-                    value={lockerLockType}
-                    onChange={(e) => setLockerLockType(e.target.value)}
-                    className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[40px]"
-                  >
-                    <option value="Digital Number Code Lock">Digital Combination Code Lock</option>
-                    <option value="Cam Lock with Master Key">Cam Lock with Master Key System</option>
-                    <option value="Padlock Hasp Lock">Padlock Hasp Lock</option>
-                    <option value="RFID Electronic Smart Card">RFID Electronic Smart Card</option>
-                  </select>
-                </div>
-              </div>
+            <div className="text-right text-xs font-mono font-bold text-[#7FB706]">
+              Subtotal: ₹{totalCalculatedAmount.toLocaleString('en-IN')}
             </div>
-          )}
-
-          {/* Urinal Specific Fields */}
-          {(productCategory === 'URINAL_PARTITION' || productCategory === 'COMBO_WASHROOM') && (
-            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/10 space-y-3">
-              <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                <Columns className="w-3.5 h-3.5 text-[#7FB706]" /> Urinal Partition Details
-              </span>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                    Number of Modesty Screens
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={urinalScreens}
-                    onChange={(e) => setUrinalScreens(Number(e.target.value) || 1)}
-                    className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[40px]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                    Screen Dimensions
-                  </label>
-                  <select
-                    value={urinalDimensions}
-                    onChange={(e) => setUrinalDimensions(e.target.value)}
-                    className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[40px]"
-                  >
-                    <option value="450 x 900 mm">450 x 900 mm (Standard Commercial)</option>
-                    <option value="450 x 1000 mm">450 x 1000 mm (Extended Privacy)</option>
-                    <option value="600 x 1200 mm">600 x 1200 mm (Executive Full Height)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                    Mounting Hardware
-                  </label>
-                  <select
-                    value={urinalMounting}
-                    onChange={(e) => setUrinalMounting(e.target.value)}
-                    className="w-full bg-[#0d0b21] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[40px]"
-                  >
-                    <option value="Wall-hung with SS Brackets & Support Leg">Wall-hung with SS Brackets & Support Leg</option>
-                    <option value="Wall-hung with Heavy Duty SS Brackets Only">Wall-hung with Heavy Duty SS Brackets Only</option>
-                    <option value="Full Floor Anchored SS Box Frame">Full Floor Anchored SS Box Frame</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
 
         {/* Step 4: Commercial & Pipeline Sizing */}
