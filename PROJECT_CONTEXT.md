@@ -4213,6 +4213,70 @@ Eliminate all visible user-facing and backend references to "Exterior Cladding" 
   - `npx tsc --noEmit`: Exited `0` (Zero TypeScript errors).
   - `npm run build`: Exited `0` (built cleanly in 57.83s).
 
+---
+
+## 74. Frontend Streamlining: AI & 3D Model Removal, Platina-Wave Slug Rectification, Single-Time Cookie Consent & "Pacific" Keyword SEO
+
+### 74.1 Chatbot & AI Features Removal (`D:\Pacific Products And Solutions`)
+1. **Chatbot Component**:
+   - Removed `import { Chatbot }` and `<Chatbot />` floating launcher from `src/app/routes.tsx` layout wrapper.
+2. **AI Search & Recommendations (`src/app/pages/Home.tsx`)**:
+   - Removed AI recommendation state (`isAISearching`, `aiRecommendations`, `aiDebounceRef`, `fetchAIRecommendations`).
+   - Removed the AI badge (`Sparkles` icon, `Thinking...`, `AI` indicators) from the search bar.
+   - Removed the AI Picks section and thinking animations from the search dropdown portal.
+   - Preserved instant, local, zero-latency product and solution search filtering based on typed queries.
+
+### 74.2 3D Model Page & 3D Configurator Links Removal
+1. **Route Decommissioning (`src/app/routes.tsx`)**:
+   - Removed lazy imports for `ConfigureCubicle` and `ProductDesigner` (which pulled heavy Three.js / WebGL vendor libraries).
+   - Added permanent client redirects (`<Navigate to="/products" replace />`) for `/configure-cubicle` and `/design-studio` to preserve incoming bookmarks and backlink equity.
+2. **Navigation & Card References**:
+   - `src/app/components/Footer.tsx`: Removed "3D Design Studio" link from `companyLinks`.
+   - `src/app/pages/Home.tsx`: Replaced Card 3 ("Interactive 3D Configurator") with a high-conversion B2B "Turnkey BOQ & Project Specification" feature card pointing to `/contact`.
+   - `public/sitemap.xml`: Removed the `/configure-cubicle` URL entry.
+3. **Performance & Core Web Vitals Impact**:
+   - Slashed initial vendor bundle size from **2.1 MB** down to **344 kB** (**84% reduction**), dramatically reducing First Contentful Paint (FCP) and Largest Contentful Paint (LCP) for Google indexing.
+
+### 74.3 Slug Rectification: `plarina-wave` to `platina-wave`
+1. **Supabase Live Database Patch**:
+   - Identified product record `id: "3d96e0cf-a81a-4a33-a182-a77814d329dd"` in the live `products` table containing typographical slug `"plarina-wave"`.
+   - Updated database row via REST API to canonical `slug: "platina-wave"`.
+2. **Static & Fallback Data Sync**:
+   - Updated `src/lib/demo-data.ts` to `platina-wave`.
+3. **Canonical Routing & 301 Redirects**:
+   - `vercel.json`: Added edge 301 redirects routing `/products/restroom-cubicles/plarina-wave`, `/products/restroom-cubicles/cubicle-platina-wave`, `/products/plarina-wave`, and `/products/platina-wave` directly to `/products/restroom-cubicles/platina-wave`.
+   - `src/app/pages/ProductDetail.tsx`: Implemented runtime normalization redirect for legacy aliases (`plarina-wave` / `cubicle-platina-wave`) directly to the canonical route.
+   - `public/sitemap.xml`: Updated sitemap URL entry to `https://www.pacificproduct.in/products/restroom-cubicles/platina-wave`.
+
+### 74.4 Cookie Consent Single-Appearance Enforcement (`src/app/components/CookieConsent.tsx`)
+1. **Permanent Persistence**:
+   - Removed the 30-minute re-prompt timeout (`THIRTY_MINUTES_MS`) that previously caused the banner to reappear if dismissed or declined.
+   - Handlers for both Accept and Decline now immediately write permanent keys to browser `localStorage`:
+     - `pacific_cookie_v2: "accepted"` or `"declined"`
+     - `pacific_cookie_dismissed_until: "permanent"`
+2. **Zero Re-Prompting**:
+   - On initial component mount, if either key exists, the prompt returns `null` immediately, guaranteeing the modal renders only once in the visitor's browsing lifecycle.
+
+### 74.5 Strategic SEO Optimization for "Pacific" Keyword
+1. **Document Level (`index.html`)**:
+   - `<title>`: Updated to `Pacific® Restroom Cubicles & Toilet Partitions Manufacturer in India | Pacific Products`.
+   - `<meta name="keywords">`: Front-loaded with primary brand terms: `pacific, pacific cubicles, pacific restroom cubicles, pacific toilet partitions, pacific products, pacific partitions, pacific solutions...`
+   - Structured Data (`Schema.org` Organization): Set `"name": "Pacific"` with `"alternateName": ["Pacific Products & Solutions", "Pacific Cubicles", "Pacific Restroom Cubicles", "Pacific Toilet Partitions"]`.
+2. **Global SEO Configuration (`src/seo/config.ts`)**:
+   - Updated `DEFAULT_KEYWORDS` to front-load `pacific`, `pacific cubicles`, `pacific restroom cubicles`, and `pacific toilet partitions`.
+3. **Hero & Page Headings (`src/app/pages/Home.tsx` & `src/app/pages/Products.tsx`)**:
+   - Primary `h1`: `<motion.h1>Pacific Restroom Cubicles & Toilet Partitions Manufacturer in India</motion.h1>`.
+   - Page meta title and keywords dynamically aligned with `Pacific®` branding.
+   - Products page category titles updated to front-load `Pacific®`.
+
+### 74.6 Quality Gate & Build Verification
+- **Frontend (`D:\Pacific Products And Solutions`)**:
+  - `npm run build`: Exited `0` (built cleanly in 43.05s, vendor chunk 344 kB).
+- **Admin Console (`D:\PACIFIC-Admin`)**:
+  - `npx tsc --noEmit`: Exited `0` (Zero TypeScript errors).
+  - `npm run build`: Exited `0` (built cleanly in 51.26s).
+
+
 
 
 
