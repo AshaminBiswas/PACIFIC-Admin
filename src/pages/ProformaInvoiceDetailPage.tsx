@@ -958,12 +958,12 @@ export default function ProformaInvoiceDetailPage() {
             )}
             {Number(pi.freightAmount) > 0 ? (
               <div className="flex items-center justify-between text-gray-300">
-                <span>Freight &amp; Handling:</span>
+                <span>Freight:</span>
                 <span className="font-mono">₹{Number(pi.freightAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
             ) : (
               <div className="flex items-center justify-between text-gray-300">
-                <span>Freight &amp; Handling:</span>
+                <span>Freight:</span>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
                   ((pi as any).freightTerms === 'Included' || ((pi as any).freightTerms && (pi as any).freightTerms.toLowerCase().includes('included')))
                     ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'

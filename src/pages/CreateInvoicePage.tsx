@@ -189,12 +189,12 @@ export default function CreateInvoicePage() {
       });
     }
 
-    // Auto-append Freight & Transportation if present on order
+    // Auto-append Freight if present on order
     if (ord.freightAmount && Number(ord.freightAmount) > 0) {
       const freightAmt = Number(ord.freightAmount);
       orderItems.push({
         serialNumber: orderItems.length + 1,
-        description: `Freight & Handling / Transportation Charges to Site`,
+        description: `Freight Charges to Site`,
         hsnSac: '996511',
         quantity: 1,
         rate: freightAmt,

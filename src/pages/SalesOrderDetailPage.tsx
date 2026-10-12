@@ -1105,7 +1105,7 @@ export default function SalesOrderDetailPage() {
                 )}
                 {Number(order.freightAmount) > 0 && (
                   <div className="flex items-center justify-between text-gray-300">
-                    <span>Freight &amp; Handling:</span>
+                    <span>Freight:</span>
                     <span className="font-mono">₹{Number(order.freightAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                   </div>
                 )}

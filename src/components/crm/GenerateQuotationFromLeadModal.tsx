@@ -335,7 +335,7 @@ export default function GenerateQuotationFromLeadModal({
               </div>
 
               <div>
-                <label className="block text-[11px] text-gray-400 mb-1">Freight & Handling Terms</label>
+                <label className="block text-[11px] text-gray-400 mb-1">Freight Terms</label>
                 <select
                   value={freightTerms}
                   onChange={(e) => setFreightTerms(e.target.value)}

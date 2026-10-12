@@ -3967,6 +3967,30 @@ A dedicated enterprise hardware inventory management system mirroring the Board 
   - `CreateProformaPage.tsx` & `EditProformaInvoicePage.tsx`: Integrated `kidsModels` and distinct `<optgroup>`s for `Standard Restroom Cubicles` and `Kids Cubicle Models`.
   - `DraftQuotationPage.tsx` & `EditSalesQuotationPage.tsx`: Split cubicle models dropdown into `Standard Restroom Cubicles` and `Kids Cubicle Models` optgroups for clarity.
 
+---
+
+## 68. Proforma Invoice & Sales Order Terminology Harmonization: "Freight" Standardization
+
+### 68.1 Problem Statement & User Requirement
+- In the Proforma Invoice (PI) and Sales Order flows, commercial line items, financial cards, and legal terms clauses displayed `"Freight & Handling:"` or `"Freight & Handling Terms & Scope"`.
+- Requirement: Standardize all UI cards, headers, breakdown rows, terms clauses, and generated vector PDF documents to display strictly `"Freight"` (and `"Freight:"`) rather than `"Freight & Handling"`.
+
+### 68.2 Scope of Updates
+1. **Frontend Proforma Views & Builders**:
+   - `src/pages/ProformaInvoiceDetailPage.tsx`: Updated breakdown table label and terms badge from `Freight & Handling:` to `Freight:`.
+   - `src/pages/CreateProformaPage.tsx`: Updated section header to `Freight Terms & Scope`, amount input label to `Freight Amount (₹)`, and financial summary card to `Freight`.
+   - `src/pages/EditProformaInvoicePage.tsx`: Updated section header to `Freight Terms & Scope`, amount input label to `Freight Amount (₹)`, and financial summary card to `Freight`.
+   - `src/pages/SalesOrderDetailPage.tsx`: Updated breakdown row from `Freight & Handling:` to `Freight:`.
+   - `src/pages/CreateInvoicePage.tsx`: Updated invoice line item description from `Freight & Handling / Transportation Charges to Site` to `Freight Charges to Site`.
+   - `src/components/crm/GenerateQuotationFromLeadModal.tsx`: Updated select input label to `Freight Terms`.
+2. **Utilities & Shared Terminology**:
+   - `src/utils/quotationInstallation.ts`: Updated `FREIGHT_OPTIONS` descriptions, `getFreightMentionText`, `formatFreightTermClause`, and `syncFreightToPiTerms` to use clean `"Freight"` prefixes and clauses (`Freight: Freight charges are...`).
+3. **Backend Vector PDF Generator**:
+   - `D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`:
+     - `generatePiHtml()`: Updated totals breakdown row `<td colspan="6" style="text-align: right;">Freight:</td>` and commercial badge row `Freight:`. Updated auto-appended terms clauses to use `Freight: ...`.
+     - `generateSalesOrderHtml()`: Updated totals breakdown row from `Freight & Handling:` to `Freight:`.
+
+
 
 
 

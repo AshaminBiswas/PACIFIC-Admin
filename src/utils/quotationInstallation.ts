@@ -269,14 +269,14 @@ export const FREIGHT_OPTIONS: readonly FreightOptionDef[] = [
     id: 'Fixed',
     label: 'Fixed Freight Charge',
     badgeLabel: 'Fixed',
-    description: 'Fixed freight & handling amount added to the commercial invoice total',
+    description: 'Fixed freight amount added to the commercial invoice total',
     shortDesc: 'Fixed Freight',
   },
   {
     id: 'Custom',
     label: 'Custom Freight Terms / Scope...',
     badgeLabel: 'Custom',
-    description: 'Custom freight & handling term / note specified by user',
+    description: 'Custom freight term / note specified by user',
     shortDesc: 'Custom Terms',
   },
 ] as const;
@@ -287,19 +287,19 @@ export function getFreightMentionText(
   customNote?: string
 ): string {
   if (amount > 0) {
-    return `Freight & Handling — ₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} (Fixed Charge Included in Total)`;
+    return `Freight — ₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} (Fixed Charge Included in Total)`;
   }
   const cleanTerms = (terms || 'Extra as Actual / To pay').trim();
   if (cleanTerms === 'Included' || cleanTerms.toLowerCase().includes('included')) {
-    return 'Freight & Handling — Included in Basic Price (FOR Site Delivery)';
+    return 'Freight — Included in Basic Price (FOR Site Delivery)';
   }
   if (cleanTerms === 'Client Scope' || cleanTerms.toLowerCase().includes('client')) {
-    return "Freight & Handling — In Client's / Buyer's Scope (Self Pickup)";
+    return "Freight — In Client's / Buyer's Scope (Self Pickup)";
   }
   if (cleanTerms === 'Custom' && customNote?.trim()) {
-    return `Freight & Handling — ${customNote.trim()}`;
+    return `Freight — ${customNote.trim()}`;
   }
-  return 'Freight & Handling — Extra as Actual / To Pay (By Consignee at Site)';
+  return 'Freight — Extra as Actual / To Pay (By Consignee at Site)';
 }
 
 export function formatFreightTermClause(
@@ -308,19 +308,19 @@ export function formatFreightTermClause(
   customNote?: string
 ): string {
   if (amount > 0) {
-    return `Freight & Transportation: Freight and handling charges are fixed at ₹ ${amount.toLocaleString('en-IN')}, included in the total invoice value.`;
+    return `Freight: Freight charges are fixed at ₹ ${amount.toLocaleString('en-IN')}, included in the total invoice value.`;
   }
   const cleanTerms = (terms || 'Extra as Actual / To pay').trim();
   if (cleanTerms === 'Included' || cleanTerms.toLowerCase().includes('included')) {
-    return 'Freight & Transportation: Freight & transportation charges are INCLUDED in the basic product price (FOR site delivery).';
+    return 'Freight: Freight charges are INCLUDED in the basic product price (FOR site delivery).';
   }
   if (cleanTerms === 'Client Scope' || cleanTerms.toLowerCase().includes('client')) {
-    return "Freight & Transportation: Transportation & logistics is in Buyer's / Client's scope. Material to be picked up from our factory/warehouse.";
+    return "Freight: Transportation & logistics is in Buyer's / Client's scope. Material to be picked up from our factory/warehouse.";
   }
   if (cleanTerms === 'Custom' && customNote?.trim()) {
-    return `Freight & Transportation: ${customNote.trim()}`;
+    return `Freight: ${customNote.trim()}`;
   }
-  return 'Freight & Transportation: Freight and handling charges are EXTRA AS ACTUAL / TO PAY by client/buyer at the time of site delivery.';
+  return 'Freight: Freight charges are EXTRA AS ACTUAL / TO PAY by client/buyer at the time of site delivery.';
 }
 
 export function syncFreightToPiTerms(
@@ -328,7 +328,7 @@ export function syncFreightToPiTerms(
   newClause: string
 ): string[] {
   const cleanClause = newClause.replace(/^(Freight & Transportation:\s*|Freight:\s*)/i, '').trim();
-  const freightClauseText = `Freight & Transportation: ${cleanClause}`;
+  const freightClauseText = `Freight: ${cleanClause}`;
   const freightIdx = terms.findIndex((t) => /(freight|transportation|dispatch transit)/i.test(t));
   if (freightIdx >= 0) {
     const updated = [...terms];

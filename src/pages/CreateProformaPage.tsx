@@ -3909,13 +3909,13 @@ export default function CreateProformaPage() {
           </div>
         </div>
 
-        {/* Freight & Handling Block */}
+        {/* Freight Block */}
         <div className="p-4 rounded-xl bg-black/20 border border-white/5 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2">
             <div className="flex items-center gap-2">
               <Truck className="w-4 h-4 text-amber-400" />
               <label className="text-xs font-bold text-white uppercase tracking-wider">
-                Freight &amp; Handling Terms &amp; Scope
+                Freight Terms &amp; Scope
               </label>
             </div>
             {/* Quick Presets */}
@@ -3977,7 +3977,7 @@ export default function CreateProformaPage() {
 
             <div>
               <label className={labelCls}>
-                Freight &amp; Handling Amount (₹) {formData.freightTerms === 'Fixed' && <span className="text-amber-400">*</span>}
+                Freight Amount (₹) {formData.freightTerms === 'Fixed' && <span className="text-amber-400">*</span>}
               </label>
               <input
                 type="number"
@@ -4081,7 +4081,7 @@ export default function CreateProformaPage() {
           </div>
           <div className="p-3 bg-[#0a0a1a] rounded-xl border border-white/5">
             <span className="text-gray-400 block mb-1">
-              Freight &amp; Handling
+              Freight
               {freightAmount === 0 && (
                 <span className={`text-[10px] block font-semibold ${
                   formData.freightTerms === 'Included' ? 'text-emerald-400' : formData.freightTerms === 'Client Scope' ? 'text-sky-400' : 'text-amber-400'
