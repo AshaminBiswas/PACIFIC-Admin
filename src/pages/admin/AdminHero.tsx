@@ -23,6 +23,7 @@ export default function AdminHero() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [descriptions, setDescriptions] = useState<Record<string, string>>({});
+  const [altTexts, setAltTexts] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,6 +36,11 @@ export default function AdminHero() {
   // Get working description for an image (local edit or saved value)
   function getDesc(img: HeroImage) {
     return descriptions[img.id] !== undefined ? descriptions[img.id] : img.description;
+  }
+
+  // Get working alt text for an image (local edit or saved value)
+  function getAlt(img: HeroImage) {
+    return altTexts[img.id] !== undefined ? altTexts[img.id] : (img.alt_text || "");
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -75,9 +81,10 @@ export default function AdminHero() {
       }
 
       const nextOrder = (images[images.length - 1]?.sort_order ?? -1) + 1 + i;
+      const defaultAlt = `Pacific Restroom Cubicles Commercial Partitions Slide ${nextOrder + 1}`;
       const { error } = await supabase
         .from("hero_images")
-        .insert({ url, description: "", sort_order: nextOrder });
+        .insert({ url, description: "", sort_order: nextOrder, alt_text: defaultAlt });
 
       if (error) {
         showToast("error", `DB error: ${error.message}`);
@@ -97,20 +104,26 @@ export default function AdminHero() {
 
   async function handleSaveDescription(img: HeroImage) {
     const newDesc = getDesc(img);
+    const newAlt = getAlt(img);
     setSavingId(img.id);
 
     const { error } = await supabase
       .from("hero_images")
-      .update({ description: newDesc })
+      .update({ description: newDesc, alt_text: newAlt })
       .eq("id", img.id);
 
     if (error) {
       showToast("error", `Save failed: ${error.message}`);
     } else {
-      showToast("success", "Description saved!");
+      showToast("success", "Slide description & Alt text saved!");
       setEditingId(null);
-      // Clear local override so refetch takes over
+      // Clear local overrides so refetch takes over
       setDescriptions((prev) => {
+        const next = { ...prev };
+        delete next[img.id];
+        return next;
+      });
+      setAltTexts((prev) => {
         const next = { ...prev };
         delete next[img.id];
         return next;
@@ -251,7 +264,7 @@ export default function AdminHero() {
                 <div className="relative w-48 shrink-0 aspect-video">
                   <img
                     src={img.url}
-                    alt={`Hero background ${idx + 1}`}
+                    alt={img.alt_text || `Pacific Restroom Cubicles Hero background ${idx + 1}`}
                     className="w-full h-full object-cover"
                   />
                   {/* Order badge */}
@@ -262,32 +275,64 @@ export default function AdminHero() {
 
                 {/* Description + controls */}
                 <div className="flex-1 flex flex-col justify-between py-3 pr-4 gap-3">
-                  {/* Description field */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                      Slide Description
-                    </label>
-                    {isEditing ? (
-                      <textarea
-                        autoFocus
-                        rows={3}
-                        value={desc}
-                        onChange={(e) =>
-                          setDescriptions((prev) => ({ ...prev, [img.id]: e.target.value }))
-                        }
-                        placeholder="Enter a short description for this slide…"
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#7FB706]/50 resize-none transition-colors"
-                      />
-                    ) : (
-                      <p
-                        className="text-sm text-gray-300 leading-relaxed min-h-[3rem] cursor-pointer hover:text-white transition-colors"
-                        onClick={() => setEditingId(img.id)}
-                      >
-                        {desc || (
-                          <span className="text-gray-600 italic">No description yet — click to add one</span>
-                        )}
-                      </p>
-                    )}
+                  {/* Description & Alt text fields */}
+                  <div className="flex flex-col gap-2.5">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        Slide Description
+                      </label>
+                      {isEditing ? (
+                        <textarea
+                          autoFocus
+                          rows={2}
+                          value={desc}
+                          onChange={(e) =>
+                            setDescriptions((prev) => ({ ...prev, [img.id]: e.target.value }))
+                          }
+                          placeholder="Enter a short description for this slide…"
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#7FB706]/50 resize-none transition-colors"
+                        />
+                      ) : (
+                        <p
+                          className="text-sm text-gray-300 leading-relaxed cursor-pointer hover:text-white transition-colors"
+                          onClick={() => setEditingId(img.id)}
+                        >
+                          {desc || (
+                            <span className="text-gray-600 italic">No description yet — click to add one</span>
+                          )}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Image Alt Text (SEO) */}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                          Image Alt Text (SEO)
+                        </label>
+                        <span className="text-[10px] text-[#7FB706]">Keyword: "Pacific"</span>
+                      </div>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={getAlt(img)}
+                          onChange={(e) =>
+                            setAltTexts((prev) => ({ ...prev, [img.id]: e.target.value }))
+                          }
+                          placeholder={`e.g. Pacific Commercial Restroom Cubicles & Toilet Partitions`}
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#7FB706]/50 transition-colors"
+                        />
+                      ) : (
+                        <p className="text-xs text-gray-400">
+                          <span className="font-semibold text-gray-500">Alt: </span>
+                          {img.alt_text ? (
+                            <span className="text-[#B5F823] font-mono text-[11px]">{img.alt_text}</span>
+                          ) : (
+                            <span className="text-amber-400/80 italic text-[11px]">No alt text set (click Edit to add)</span>
+                          )}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   {/* Action row */}

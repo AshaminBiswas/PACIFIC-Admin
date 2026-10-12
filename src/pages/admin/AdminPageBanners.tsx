@@ -32,7 +32,7 @@ export default function AdminPageBanners() {
   const [uploadingSlug, setUploadingSlug] = useState<string | null>(null);
   const [savingSlug, setSavingSlug] = useState<string | null>(null);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
-  const [edits, setEdits] = useState<Record<string, { title: string; subtitle: string }>>({});
+  const [edits, setEdits] = useState<Record<string, { title?: string; subtitle?: string; alt_text?: string }>>({});
   const [toast, setToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -45,11 +45,11 @@ export default function AdminPageBanners() {
     return banners.find((b) => b.page_slug === slug);
   }
 
-  function getEdit(slug: string, field: "title" | "subtitle", fallback: string) {
-    return edits[slug]?.[field] !== undefined ? edits[slug][field] : fallback;
+  function getEdit(slug: string, field: "title" | "subtitle" | "alt_text", fallback: string) {
+    return edits[slug]?.[field] !== undefined ? (edits[slug][field] ?? "") : fallback;
   }
 
-  function setEdit(slug: string, field: "title" | "subtitle", value: string) {
+  function setEdit(slug: string, field: "title" | "subtitle" | "alt_text", value: string) {
     setEdits((prev) => ({
       ...prev,
       [slug]: { ...prev[slug], [field]: value },
@@ -68,10 +68,17 @@ export default function AdminPageBanners() {
 
     const banner = getBanner(slug);
     let err;
+    const defaultAlt = `${PAGE_SPECS[slug]?.label || slug} - Pacific Restroom Cubicles`;
     if (banner) {
       ({ error: err } = await supabase.from("page_banners").update({ image_url: url } as any).eq("id", banner.id));
     } else {
-      ({ error: err } = await supabase.from("page_banners").insert({ page_slug: slug, image_url: url, title: "", subtitle: "" } as any));
+      ({ error: err } = await supabase.from("page_banners").insert({
+        page_slug: slug,
+        image_url: url,
+        title: "",
+        subtitle: "",
+        alt_text: defaultAlt,
+      } as any));
     }
 
     if (err) { showToast("error", "Failed to save to database."); }
@@ -85,11 +92,12 @@ export default function AdminPageBanners() {
     if (!banner) return;
     setSavingSlug(slug);
     const { error: err } = await supabase.from("page_banners").update({
-      title: getEdit(slug, "title", banner.title),
-      subtitle: getEdit(slug, "subtitle", banner.subtitle),
+      title: getEdit(slug, "title", banner.title || ""),
+      subtitle: getEdit(slug, "subtitle", banner.subtitle || ""),
+      alt_text: getEdit(slug, "alt_text", banner.alt_text || ""),
     } as any).eq("id", banner.id);
-    if (err) showToast("error", "Failed to save text.");
-    else { showToast("success", "Text updated!"); refetch(); setEditingSlug(null); }
+    if (err) showToast("error", "Failed to save banner details: " + err.message);
+    else { showToast("success", "Banner text & Alt text updated!"); refetch(); setEditingSlug(null); }
     setSavingSlug(null);
   }
 
@@ -142,7 +150,7 @@ export default function AdminPageBanners() {
                 {/* Image Preview */}
                 <div className={`relative w-full ${spec.aspect} bg-[#030213] overflow-hidden`}>
                   {banner?.image_url ? (
-                    <img src={banner.image_url} alt={spec.label} className="w-full h-full object-cover" />
+                    <img src={banner.image_url} alt={banner.alt_text || spec.label} className="w-full h-full object-cover" />
                   ) : (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
                       <ImageIcon className="w-10 h-10 mb-2" />
@@ -170,7 +178,7 @@ export default function AdminPageBanners() {
                       className="flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-[#7FB706] transition-colors"
                     >
                       <Pencil className="w-3.5 h-3.5" />
-                      {isEditing ? "Cancel" : "Edit text"}
+                      {isEditing ? "Cancel" : "Edit text & Alt"}
                     </button>
                   </div>
 
@@ -196,19 +204,43 @@ export default function AdminPageBanners() {
                           className="w-full px-3 py-2 text-sm rounded-xl border border-white/10 bg-[#0a0a1a] text-white focus:outline-none focus:ring-2 focus:ring-[#7FB706]"
                         />
                       </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-medium text-gray-400 block">Banner Alt Text (Image SEO)</label>
+                          <span className="text-[10px] text-[#7FB706] font-semibold">SEO Keyword Ranking</span>
+                        </div>
+                        <input
+                          type="text"
+                          value={getEdit(slug, "alt_text", banner?.alt_text ?? "")}
+                          onChange={(e) => setEdit(slug, "alt_text", e.target.value)}
+                          placeholder={`e.g. "Pacific Restroom Cubicles Commercial Partitions"`}
+                          className="w-full px-3 py-2 text-sm rounded-xl border border-white/10 bg-[#0a0a1a] text-white focus:outline-none focus:ring-2 focus:ring-[#7FB706]"
+                        />
+                        <p className="text-[11px] text-gray-400 mt-1">
+                          Recommended keyword for Google ranking: <span className="text-[#B5F823]">"Pacific"</span>
+                        </p>
+                      </div>
                       <button
                         onClick={() => handleSave(slug)}
                         disabled={isSaving}
                         className="flex items-center gap-2 px-4 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-60"
                       >
                         {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                        Save Text
+                        Save Banner &amp; Alt Text
                       </button>
                     </div>
                   ) : (
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       <p className="text-sm font-medium text-white">{banner?.title || <span className="text-gray-500 italic">No title set</span>}</p>
                       <p className="text-xs text-gray-400">{banner?.subtitle || <span className="text-gray-500 italic">No subtitle set</span>}</p>
+                      <div className="pt-1 border-t border-white/5 flex items-start gap-1.5 text-xs">
+                        <span className="font-semibold text-gray-400 shrink-0">Alt Text:</span>
+                        {banner?.alt_text ? (
+                          <span className="text-[#B5F823] font-medium break-words">{banner.alt_text}</span>
+                        ) : (
+                          <span className="text-amber-400/80 italic text-[11px]">No custom alt text (click "Edit text &amp; Alt")</span>
+                        )}
+                      </div>
                     </div>
                   )}
 

@@ -4360,11 +4360,58 @@ Eliminate all visible user-facing and backend references to "Exterior Cladding" 
 4. **Sitemap & SEO (`public/sitemap.xml` & `vercel.json`)**:
    - Removed `/locations/bangalore` from `sitemap.xml`.
    - Added permanent 301 redirects in `vercel.json` for `/locations/bangalore`, `/locations/mumbai`, `/locations/ahmedabad` to `/contact`.
-5. **Quality Verification**:
+### 76.3 Category & Product Model Detail Hero Background Synchronization
+1. **Category Products Listing (`src/app/pages/Products.tsx`)**:
+   - Integrated dynamic page banners (`usePageBanner`) for all product category pages:
+     - `https://www.pacificproduct.in/products/restroom-cubicles` -> `home-cubicles` banner
+     - `https://www.pacificproduct.in/products/lockers` -> `home-lockers` banner
+     - `https://www.pacificproduct.in/products/urinal-partitions` -> `home-urinal-partitions` banner
+     - `https://www.pacificproduct.in/products/kids-cubicles` -> `home-kids-cubicles` banner
+   - Connected `activeHeroBackground` to `<PageHero backgroundImage={activeHeroBackground} />` with curated fallbacks.
+2. **Product Model Detail Hero Background (`src/app/pages/ProductDetail.tsx`)**:
+   - Integrated `usePageBanner` for the 4 category banner slugs (`home-cubicles`, `home-lockers`, `home-urinal-partitions`, `home-kids-cubicles`).
+   - Dynamically resolves `modelHeroBg` from the product's category (`toCategorySlug(product?.category)`).
+   - Renders `modelHeroBg` as the Hero section background with a rich dark gradient overlay (`bg-gradient-to-b from-[#030213]/90 via-[#030213]/85 to-[#030213]`), ensuring all models under a category display the matching category hero background.
+3. **Build & Type Safety Verification**:
    - Frontend TypeScript check (`npx tsc --noEmit`): Exited `0`.
    - Frontend production build (`npm run build`): Exited `0`.
    - Admin Console TypeScript check (`npx tsc --noEmit`): Exited `0`.
    - Admin Console production build (`npm run build`): Exited `0`.
+
+---
+
+## 77. Image Alt Text Management & SEO Optimization for All Banners
+
+### 77.1 Banner Alt Text Management in Admin Panel
+1. **Admin Page Banners (`AdminPageBanners.tsx`)**:
+   - Added `alt_text` field in editing state, syncing to Supabase `page_banners`.
+   - Displays configured Alt Text on each banner card preview with keyword ranking guidance emphasizing `"Pacific"`.
+   - Auto-generates default descriptive alt text on new banner uploads (`${PAGE_SPECS[slug].label} - Pacific Restroom Cubicles`).
+2. **Admin Hero Carousel Slides (`AdminHero.tsx`)**:
+   - Added `alt_text` management in state and database operations, persisting to Supabase `hero_images`.
+   - Displays Alt Text status alongside slide description with editable inputs.
+   - Generates default SEO Alt text on upload (`Pacific Restroom Cubicles Commercial Partitions Slide N`).
+
+### 77.2 Frontend SEO Alt Text Integration
+1. **`PageHero.tsx`**:
+   - Added `backgroundAlt?: string` prop.
+   - Renders `alt={backgroundAlt || `${title} - Pacific Restroom Cubicles`}` on the hero background `<img>` tag.
+2. **Catalog & Detail Pages**:
+   - `Products.tsx`: Dynamically passes `activeHeroAlt` (retrieved from `usePageBanner` `alt_text` with category fallback) to `<PageHero backgroundAlt={activeHeroAlt} />`.
+   - `ProductDetail.tsx`: Resolves `modelHeroAlt` from category banner `alt_text` and sets `alt={modelHeroAlt}` on the hero background image.
+   - `About.tsx`, `Contact.tsx`, `Gallery.tsx`, `Solutions.tsx`: Passes `banner?.alt_text` to `PageHero`.
+   - `FAQ.tsx`: Passes `banner?.alt_text` to `ImageWithFallback`.
+   - `Home.tsx`:
+     - `HeroSlideshow`: Maps `img.alt_text` for carousel hero slides.
+     - `CategoryBentoGrid`: Maps `cubiclesBanner?.alt_text`, `lockersBanner?.alt_text`, `urinalBanner?.alt_text`, and `kidsBanner?.alt_text` for the 4 architectural product systems.
+
+### 77.3 Quality & Build Verification
+- Frontend TypeScript check (`npx tsc --noEmit`): Exited `0`.
+- Frontend production build (`npm run build`): Exited `0`.
+- Admin Console TypeScript check (`npx tsc --noEmit`): Exited `0`.
+- Admin Console production build (`npm run build`): Exited `0`.
+
+
 
 
 
