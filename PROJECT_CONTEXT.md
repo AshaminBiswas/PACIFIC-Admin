@@ -4121,6 +4121,98 @@ A dedicated enterprise hardware inventory management system mirroring the Board 
   - `npx tsc --noEmit`: Exited `0` (Zero TypeScript errors).
   - `npm run build`: Exited `0` in 25.07s.
 
+---
+
+## 72. Google Search Console Indexation Audit & Crawl Optimization
+
+### 72.1 Comprehensive GSC Coverage Analysis
+Analysis of the Google Search Console Page Indexation Coverage export (`pacificproduct.in-Coverage-2026-10-12`):
+- **Current Indexation State**: 1,275 indexed pages vs 287,968 non-indexed URLs (99.56% non-indexed).
+- **Metric Breakdown & Root Causes**:
+  1. **Crawled - currently not indexed (162,307 URLs)**:
+     - Googlebot repeatedly crawling parameter permutations (`?q=`, `?page=`, `?cat=`, `?sort=`), internal search URLs, and legacy URL structures without canonical guidance. Google crawls them but excludes them due to low content value / duplication.
+  2. **Not found (404) (94,637 URLs)**:
+     - Legacy pages and old CMS paths from previous platform versions / scrapers.
+     - *Key Note*: 404 is NOT a Google penalty. When old URLs return 404, Google is supposed to drop them. Over time, Google purges them as validation progresses.
+  3. **Alternate page with proper canonical tag (25,378 URLs)**:
+     - Caused by the canonical domain migration on Oct 1, 2026 from non-www (`https://pacificproduct.in`) to www (`https://www.pacificproduct.in`), plus `/products/:slug` vs `/products/:category/:slug`. Google properly recognized the canonical tags.
+  4. **Page with redirect (3,547 URLs)**:
+     - 301 redirects from non-www to www, legacy category paths, and inactive location URLs redirecting to `/contact`.
+  5. **Excluded by 'noindex' tag (1,340 URLs)**:
+     - Utility routes, `/admin/*`, and the `<NotFound />` component correctly serving `<meta name="robots" content="noindex" />`.
+  6. **Soft 404 (201 URLs)**:
+     - Caused by SPA catch-all rewrites returning HTTP 200 with an empty/not-found body before JavaScript rendered.
+  7. **Server error 5xx (65 URLs)**:
+     - Transient crawler bursts or database connection limits.
+
+### 72.2 Code & Configuration Fixes Implemented (`D:\Pacific Products And Solutions`)
+1. **Robots.txt Crawl Loop Protection (`public/robots.txt`)**:
+   - Added explicit Disallow rules for parameter URLs (`/*?*`, `/*?`), verification tokens (`/verify/`), and legacy scraper targets (`/wp-admin/`, `/wp-content/`, `/wp-includes/`, `/*.php$`) for all user agents including `Googlebot` and `Bingbot`.
+   - Prevents Googlebot from exhausting crawl budget on infinite query permutations.
+2. **Sitemap Rebuild & Canonical Audit (`public/sitemap.xml`)**:
+   - Removed typo URLs (e.g. `plarina-wave` -> `cubicle-platina-wave`, `sky-light` -> `cubicle-skylight`, `saffron` -> `cubicle-saffron`).
+   - Removed inactive location URLs that redirected (`mumbai`, `ahmedabad`, `uae`).
+   - Replaced with 100% active, 200-OK canonical URLs for all categories, active cubicle models, kids cubicles, lockers, urinal partitions, solutions, active locations (Delhi, Bangalore, Kolkata), and editorial pages.
+3. **Vercel 301 Redirect Consolidation (`vercel.json`)**:
+   - Added permanent HTTP 301 redirects for legacy typo paths (`plarina-wave`, `saffron`, `sky-light`) and inactive city hubs (`/locations/mumbai`, `/locations/ahmedabad`, `/locations/uae` -> `/contact`).
+
+### 72.3 Verification & Quality Gate
+- `npm run build` in `D:\Pacific Products And Solutions`: Exited `0`.
+- `npx tsc --noEmit` in `D:\PACIFIC-Admin`: Exited `0`.
+- `npm run build` in `D:\PACIFIC-Admin`: Exited `0`.
+
+---
+
+## 73. Complete Removal of Exterior Cladding from Website & Admin Sync
+
+### 73.1 Scope & Objective
+Eliminate all visible user-facing and backend references to "Exterior Cladding" across the marketing frontend (`D:\Pacific Products And Solutions`) and admin console (`D:\PACIFIC-Admin`), replacing them with relevant restroom cubicle offerings (Urinal Partitions, Shower Cubicles, Locker Systems, and Commercial Interiors).
+
+### 73.2 Modifications Implemented (`D:\Pacific Products And Solutions`)
+1. **Hero & Search (`src/app/pages/Home.tsx`)**:
+   - Replaced `"Exterior Cladding"` in search suggestion tags with `"Urinal Partitions"`.
+   - Removed `cladding` from NVIDIA assistant prompts, SEO keywords, and FAQ structured data schema.
+2. **Contact & Lead Forms (`src/app/components/ContactForm.tsx`)**:
+   - Replaced `<option value="exterior-cladding">` with `<option value="locker-systems">` and `<option value="urinal-partitions">`.
+3. **Footer & Global Branding (`src/app/components/Footer.tsx`)**:
+   - Replaced cladding in company description with `urinal screens, locker solutions`.
+4. **AI Chatbot Persona (`src/app/components/Chatbot.tsx`)**:
+   - Removed cladding from intent classification, retail quick replies, and system prompt specification list; substituted with Urinal Partition Screens.
+5. **Marketing & Information Pages**:
+   - `src/app/pages/About.tsx`: Substituted Exterior Cladding service card with Urinal Partition Screens.
+   - `src/app/pages/Brochure.tsx`: Substituted `02 Exterior Wall Cladding` brochure card with `02 Urinal Partition Screens`.
+   - `src/app/pages/Solutions.tsx`: Updated keywords (`mall cladding solutions` -> `mall restroom partitions`).
+   - `src/app/pages/TermsOfService.tsx`: Removed `exterior cladding,` from Section 3 product manufacturing description.
+   - `src/app/pages/Blog.tsx`, `Contact.tsx`, `Downloads.tsx`, `FAQ.tsx`, `Gallery.tsx`: Purged cladding keywords and meta descriptions.
+6. **Location SEO Pages & Data**:
+   - `src/app/pages/LocationDetail.tsx`: Cleaned hero slider image alt text (`commercial projects`), service copy, showcase copy, FAQ section heading, and mobile sticky CTA subtitle.
+   - `src/app/pages/locations/locationData.ts`: Replaced Exterior Cladding in `COMMON_SERVICES` with Urinal Partitions. Cleaned Delhi, Bangalore, Kolkata, Mumbai, and Ahmedabad descriptions, meta titles, descriptions, and keyword arrays.
+7. **Interactive 3D Product Designer (`src/app/components/designer/AutoCADRibbon.tsx` & `src/lib/designStore.ts`)**:
+   - Renamed category from `"Cladding & Wall Panels"` to `"Wall Paneling & Liners"`.
+   - Replaced `cladding_hpl_wood` with `panel_hpl_wood` ("Interior Wood Paneling").
+   - Renamed `cladding_accent_navy` -> `panel_accent_navy` and `cladding_fluted` -> `panel_fluted`.
+8. **SEO Config, Schemas, HTML & LLM Profiles**:
+   - `src/seo/config.ts`: Cleaned `DEFAULT_DESCRIPTION` and `DEFAULT_KEYWORDS`.
+   - `src/seo/schemas/index.ts`: Replaced `"Exterior Cladding"` offer catalog entry with `"Urinal Partition Screens"`.
+   - `index.html`: Cleaned default `<meta name="keywords">` and Schema.org Organization description.
+   - `public/llms.txt`: Cleaned introductory description, specialization line, product services list (#4 Urinal Partitions), and FAQ.
+
+### 73.3 Modifications Implemented (`D:\PACIFIC-Admin`)
+1. **Knowledge Base Sync (`src/lib/faq-data.ts`)**:
+   - Synced FAQ #4 and #8 to reference partitioning systems instead of cladding.
+   - Replaced FAQ #9 with comprehensive B2B FAQ on Urinal Partition Screens & Modesty Panels.
+2. **Admin Gallery Category Sync (`src/pages/admin/AdminGallery.tsx`)**:
+   - Replaced `"cladding"` in `CATS` category filter dropdown with `"urinal-partitions"`.
+
+### 73.4 Verification & Quality Gate
+- **Frontend (`D:\Pacific Products And Solutions`)**:
+  - Codebase search: 0 occurrences of `cladding` across `src/`, `public/`, and `index.html`.
+  - `npm run build`: Exited `0` (built cleanly in 55.24s).
+- **Admin Console (`D:\PACIFIC-Admin`)**:
+  - Codebase search: 0 occurrences of `cladding` across `src/`.
+  - `npx tsc --noEmit`: Exited `0` (Zero TypeScript errors).
+  - `npm run build`: Exited `0` (built cleanly in 57.83s).
+
 
 
 

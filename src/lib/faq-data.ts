@@ -41,7 +41,7 @@ const DEFAULT_FAQS: FAQ[] = [
     id: "faq-4",
     question: "What warranty do you offer on your products?",
     answer:
-      "Pacific Products offers a standard 5-year warranty on all our cubicle systems and cladding products, covering manufacturing defects and hardware failures. Certain premium product lines come with an extended 7-year warranty. Our warranty includes replacement of defective components and, if necessary, re-installation at no additional cost.",
+      "Pacific Products offers a standard 5-year warranty on all our cubicle systems and partitioning products, covering manufacturing defects and hardware failures. Certain premium product lines come with an extended 7-year warranty. Our warranty includes replacement of defective components and, if necessary, re-installation at no additional cost.",
     category: "Warranty & Support",
     sort_order: 4,
   },
@@ -73,15 +73,15 @@ const DEFAULT_FAQS: FAQ[] = [
     id: "faq-8",
     question: "Are your products compliant with safety and building codes?",
     answer:
-      "Yes. All Pacific Products cubicle systems and cladding solutions comply with relevant Indian Standards (BIS) and, for export projects, with international building codes (ASTM, EN standards). Our products are manufactured in an ISO 9001:2015 certified facility, ensuring consistent quality control at every stage of production.",
+      "Yes. All Pacific Products cubicle systems and partitioning solutions comply with relevant Indian Standards (BIS) and, for export projects, with international building codes (ASTM, EN standards). Our products are manufactured in an ISO 9001:2015 certified facility, ensuring consistent quality control at every stage of production.",
     category: "Warranty & Support",
     sort_order: 8,
   },
   {
     id: "faq-9",
-    question: "Do you offer exterior cladding solutions as well?",
+    question: "Do you offer urinal partition screens and modesty panels?",
     answer:
-      "Yes. In addition to interior partitions and paneling, we provide a comprehensive range of exterior cladding systems using materials such as Aluminium Composite Panels (ACP), HPL, stone veneer, and fiber cement boards. These solutions are engineered for weather resistance, UV stability, and long-term durability in India's varied climatic conditions.",
+      "Yes. We design and manufacture heavy-duty urinal partition screens and modesty panels matching our cubicle systems. Engineered with 12mm solid compact laminate (HPL) and Grade 304/316 stainless steel corner clamps, they deliver 100% moisture resistance, hygiene, and durability for high-traffic commercial washrooms.",
     category: "Products & Services",
     sort_order: 9,
   },

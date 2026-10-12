@@ -4,7 +4,7 @@ import { useAdminGallery } from "@/lib/hooks";
 import type { GalleryImage } from "@/lib/database.types";
 import { Plus, Trash2, X, Upload, Eye, EyeOff, MapPin } from "lucide-react";
 
-const CATS = ["airports", "malls", "offices", "restroom-cubicles", "locker-solutions", "cladding", "other"];
+const CATS = ["airports", "malls", "offices", "restroom-cubicles", "locker-solutions", "urinal-partitions", "other"];
 const LOCATIONS = [
   { slug: "", label: "General website gallery" },
   { slug: "delhi", label: "Delhi NCR" },
