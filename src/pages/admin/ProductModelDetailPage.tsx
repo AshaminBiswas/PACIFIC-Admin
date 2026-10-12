@@ -112,6 +112,38 @@ export default function ProductModelDetailPage() {
     fetchModel();
   }, [id]);
 
+  const effectiveSpecifications = useMemo(() => {
+    if (!model) return [];
+    const specs = model.specifications || [];
+    const hasHeight = specs.some((s) => s.label.toLowerCase().includes('height'));
+    const hasDepth = specs.some((s) => s.label.toLowerCase().includes('depth') || s.label.toLowerCase().includes('size'));
+    const hasDoor = specs.some((s) => s.label.toLowerCase().includes('door'));
+    const hasThickness = specs.some((s) => s.label.toLowerCase().includes('thickness'));
+
+    if (model.category === 'Kids Toilet' && (!hasHeight || !hasDepth || !hasDoor)) {
+      const merged = [...specs.filter((s) => !['category'].includes(s.label.toLowerCase()))];
+      if (!hasHeight) merged.push({ label: 'Standard Height', value: '1200 mm – 1500 mm (Child-Friendly Ergonomic Height)' });
+      if (!hasDepth) merged.push({ label: 'Standard Depth', value: '1200 mm – 1500 mm' });
+      if (!hasDoor) merged.push({ label: 'Door Width', value: '500 mm – 600 mm (Child Ergonomic Safety Door)' });
+      if (!hasThickness) merged.push({ label: 'Board Thickness', value: '12mm Solid Compact Phenolic Laminate' });
+      if (!specs.some((s) => s.label.toLowerCase().includes('fire'))) merged.push({ label: 'Fire Rating', value: 'Class 1 / BS 476 Part 7' });
+      if (!specs.some((s) => s.label.toLowerCase().includes('water'))) merged.push({ label: 'Water Resistance', value: '100% Moisture, Water & Humidity Proof' });
+      if (!specs.some((s) => s.label.toLowerCase().includes('safety'))) merged.push({ label: 'Safety Feature', value: 'Anti-Pinch Hinge Gap & Outside Emergency Coin Release' });
+      return merged;
+    }
+    if (model.category === 'Cubicle' && (!hasHeight || !hasDepth || !hasDoor)) {
+      const merged = [...specs.filter((s) => !['category'].includes(s.label.toLowerCase()))];
+      if (!hasHeight) merged.push({ label: 'Standard Height', value: '1980 mm / 2000 mm (including 150mm floor gap)' });
+      if (!hasDepth) merged.push({ label: 'Standard Depth', value: '1500 mm – 1800 mm' });
+      if (!hasDoor) merged.push({ label: 'Door Width', value: '600 mm (Standard) / 900 mm (Accessible/ADA)' });
+      if (!hasThickness) merged.push({ label: 'Board Thickness', value: '12mm / 18mm Solid Compact Phenolic Laminate' });
+      if (!specs.some((s) => s.label.toLowerCase().includes('fire'))) merged.push({ label: 'Fire Rating', value: 'Class 1 / BS 476 Part 7' });
+      if (!specs.some((s) => s.label.toLowerCase().includes('water'))) merged.push({ label: 'Water Resistance', value: '100% Moisture, Water & Humidity Proof' });
+      return merged;
+    }
+    return specs;
+  }, [model]);
+
   const handleDelete = async () => {
     if (!model) return;
     setDeleting(true);
@@ -166,37 +198,6 @@ export default function ProductModelDetailPage() {
     ...(model.videoUrls || []),
   ].map((v) => (typeof v === 'string' ? v.trim() : '')).filter(Boolean);
   const uniqueVideos = Array.from(new Set(rawVideos));
-
-  const effectiveSpecifications = useMemo(() => {
-    const specs = model?.specifications || [];
-    const hasHeight = specs.some((s) => s.label.toLowerCase().includes('height'));
-    const hasDepth = specs.some((s) => s.label.toLowerCase().includes('depth') || s.label.toLowerCase().includes('size'));
-    const hasDoor = specs.some((s) => s.label.toLowerCase().includes('door'));
-    const hasThickness = specs.some((s) => s.label.toLowerCase().includes('thickness'));
-
-    if (model?.category === 'Kids Toilet' && (!hasHeight || !hasDepth || !hasDoor)) {
-      const merged = [...specs.filter((s) => !['category'].includes(s.label.toLowerCase()))];
-      if (!hasHeight) merged.push({ label: 'Standard Height', value: '1200 mm – 1500 mm (Child-Friendly Ergonomic Height)' });
-      if (!hasDepth) merged.push({ label: 'Standard Depth', value: '1200 mm – 1500 mm' });
-      if (!hasDoor) merged.push({ label: 'Door Width', value: '500 mm – 600 mm (Child Ergonomic Safety Door)' });
-      if (!hasThickness) merged.push({ label: 'Board Thickness', value: '12mm Solid Compact Phenolic Laminate' });
-      if (!specs.some((s) => s.label.toLowerCase().includes('fire'))) merged.push({ label: 'Fire Rating', value: 'Class 1 / BS 476 Part 7' });
-      if (!specs.some((s) => s.label.toLowerCase().includes('water'))) merged.push({ label: 'Water Resistance', value: '100% Moisture, Water & Humidity Proof' });
-      if (!specs.some((s) => s.label.toLowerCase().includes('safety'))) merged.push({ label: 'Safety Feature', value: 'Anti-Pinch Hinge Gap & Outside Emergency Coin Release' });
-      return merged;
-    }
-    if (model?.category === 'Cubicle' && (!hasHeight || !hasDepth || !hasDoor)) {
-      const merged = [...specs.filter((s) => !['category'].includes(s.label.toLowerCase()))];
-      if (!hasHeight) merged.push({ label: 'Standard Height', value: '1980 mm / 2000 mm (including 150mm floor gap)' });
-      if (!hasDepth) merged.push({ label: 'Standard Depth', value: '1500 mm – 1800 mm' });
-      if (!hasDoor) merged.push({ label: 'Door Width', value: '600 mm (Standard) / 900 mm (Accessible/ADA)' });
-      if (!hasThickness) merged.push({ label: 'Board Thickness', value: '12mm / 18mm Solid Compact Phenolic Laminate' });
-      if (!specs.some((s) => s.label.toLowerCase().includes('fire'))) merged.push({ label: 'Fire Rating', value: 'Class 1 / BS 476 Part 7' });
-      if (!specs.some((s) => s.label.toLowerCase().includes('water'))) merged.push({ label: 'Water Resistance', value: '100% Moisture, Water & Humidity Proof' });
-      return merged;
-    }
-    return specs;
-  }, [model]);
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-24">

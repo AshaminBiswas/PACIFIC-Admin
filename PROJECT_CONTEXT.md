@@ -4055,6 +4055,72 @@ A dedicated enterprise hardware inventory management system mirroring the Board 
 7. **Lead Detail Drawer (`src/components/crm/LeadDetailDrawer.tsx`)**:
    - Displays the list of requested items with quantities, rates, and technical specifications chips in the drawer view.
 
+---
+
+## 70. Cubicle Model Detail Page Hook Order Fix (React Error #310) & Image Optimizer Log Silencing
+
+### 70.1 Problem Statement & Root Cause
+1. **React Invariant #310 Crash on Product Model Detail View**:
+   - Error: `Error: Minified React error #310; visit https://reactjs.org/docs/error-decoder.html?invariant=310` ("Rendered more hooks than during the previous render") inside `ProductModelDetailPage.tsx`.
+   - **Root Cause**: `effectiveSpecifications = useMemo(...)` was declared after the early returns for `if (loading)` and `if (!model)`. In the initial render, `loading` was true so the component rendered 6 hooks (`useState` and `useEffect`) and returned early. When `loading` became false on the next render, execution passed the early returns and called `useMemo`, incrementing the hook count to 7 and triggering React invariant #310.
+2. **Excessive Console Log Noise**:
+   - `[ImageOptimizer]` logged redundant `console.info` entries for every single image fetched and compressed in the browser (e.g., `1.51 MB → 61.9 KB (96% reduced)`), polluting the console with dozens of log lines during normal browsing.
+
+### 70.2 Fix Implementation
+1. **`src/pages/admin/ProductModelDetailPage.tsx`**:
+   - Moved `const effectiveSpecifications = useMemo(...)` to the top level of the component immediately following the initial `useState` and `useEffect` hooks, prior to any conditional returns (`if (loading)` and `if (!model)`).
+   - Added `if (!model) return [];` guard inside the `useMemo` callback.
+   - Guaranteed identical hook invocation count and sequence across all render cycles, fully satisfying the React Rules of Hooks.
+2. **`src/utils/imageOptimizer.ts`**:
+   - Removed the repetitive `console.info` call that logged compression size stats for every single image processed.
+
+### 70.3 Verification & Quality Gate
+- `npx tsc --noEmit`: Exited with code `0` (Zero TypeScript errors).
+- `npm run build`: Exited with code `0` (Clean production bundle build).
+
+---
+
+## 71. Frontend Home Page Hero Tagline Styling & Hero CTA Button Cleanup
+
+### 71.1 Problem Statement & Requirements
+1. **Hero Tagline Styling**:
+   - The primary keyword heading `"Restroom Cubicles & Toilet Partitions Manufacturer in India"` in the frontend home page hero (`src/app/pages/Home.tsx`) was rendered as an oversized `text-3xl` to `text-6xl` white title with heavy text shadow, dominating the viewport and competing with slideshow architectural photography and slide descriptions.
+   - User requirement: If necessary, keep the tagline, reduce the font size, and change the color to brand green (`#7FB706`) matching the website. If not necessary, remove it.
+   - Architecture Decision: Retaining the tagline preserves critical SEO ranking equity as the homepage's primary target keyword `<h1>`, but restyling it into a compact, elegant glassmorphic brand badge (`text-[#7FB706]`, `text-xs sm:text-sm font-bold tracking-wider uppercase`, `bg-[#7FB706]/15 border border-[#7FB706]/35 backdrop-blur-md`) achieves both perfect SEO authority and sleek visual balance.
+2. **Hero Section CTA Buttons Removal**:
+   - User requirement: Remove the `"Get Quote"` and `"View Services"` buttons from the hero section.
+3. **Hero Layout & Legacy Negative Margin Cleanup**:
+   - The hero container previously used `items-end` with `pb-[18vh]` and a negative margin hack `style={{ marginTop: "-400px" }}` on the search bar container, plus `style={{ marginTop: "100px" }}` on the buttons.
+   - With the buttons removed and the tagline made compact, the negative margin caused layout overlap. The section was refactored to natural vertical centering (`items-center justify-center pt-16 sm:pt-20 pb-16`) and all margin hacks were removed.
+
+### 71.2 Changes Made (`D:\Pacific Products And Solutions\src\app\pages\Home.tsx`)
+1. **Tagline Refactoring**:
+   - Converted the tagline from a massive text heading into a compact, brand green pill badge:
+     ```tsx
+     <motion.h1
+       className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#7FB706]/15 border border-[#7FB706]/35 text-[#7FB706] text-xs sm:text-sm font-bold tracking-wider uppercase mb-4 backdrop-blur-md"
+       initial={{ opacity: 0, y: 12 }}
+       animate={{ opacity: 1, y: 0 }}
+       transition={{ duration: 0.5 }}
+     >
+       Restroom Cubicles &amp; Toilet Partitions Manufacturer in India
+     </motion.h1>
+     ```
+2. **Conditional Description**:
+   - Wrapped `activeDescription` in `{activeDescription && (...)}` so that slides without descriptions do not render empty paragraph margins.
+3. **Removed Legacy Margin Hacks & CTA Buttons**:
+   - Removed `style={{ marginTop: "-400px" }}` from the search bar container.
+   - Deleted the entire CTA buttons block containing `"Get Quote"` and `"View Services"`.
+   - Removed unused state hooks `const [quoteHovered, setQuoteHovered] = useState(false);` and `const [productHovered, setProductHovered] = useState(false);`.
+   - Adjusted `<section>` to `className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16 sm:pt-20 pb-16"` for centered presentation.
+
+### 71.3 Verification & Quality Gate
+- **Frontend (`D:\Pacific Products And Solutions`)**:
+  - `npm run build`: Exited `0` in 49.09s (all 2,976 modules compiled cleanly).
+- **Admin Console (`D:\PACIFIC-Admin`)**:
+  - `npx tsc --noEmit`: Exited `0` (Zero TypeScript errors).
+  - `npm run build`: Exited `0` in 25.07s.
+
 
 
 

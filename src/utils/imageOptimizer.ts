@@ -197,10 +197,6 @@ export async function optimizeImageBeforeUpload(
       ? Math.max(0, Math.round(((originalSize - optimizedSize) / originalSize) * 100))
       : 0;
 
-  console.info(
-    `[ImageOptimizer] "${file.name}": ${formatBytes(originalSize)} → ${formatBytes(optimizedSize)} (${reductionPercentage}% reduced) [${resultFile.type}]`
-  );
-
   return {
     file: resultFile,
     originalSize,
