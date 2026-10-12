@@ -198,8 +198,8 @@ export const AdminLayout: React.FC = () => {
                 return [
                   { name: 'Overview', path: '/admin/dashboard', icon: LayoutDashboard },
                   { name: 'Quotes', path: '/admin/dashboard/sales-quotations', icon: Receipt },
-                  { name: 'Orders', path: '/admin/dashboard/sales-orders', icon: Layers, elevated: true },
-                  { name: 'Invoices', path: '/admin/dashboard/proforma-invoices', icon: Receipt },
+                  { name: 'Invoices', path: '/admin/dashboard/proforma-invoices', icon: Receipt, elevated: true },
+                  { name: 'Bills', path: '/admin/dashboard/invoices', icon: Layers },
                   { name: 'CRM', path: '/admin/dashboard/customers', icon: Users },
                 ];
               case 'WAREHOUSE_MANAGER':

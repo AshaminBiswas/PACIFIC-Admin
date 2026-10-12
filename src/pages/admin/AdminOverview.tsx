@@ -165,18 +165,18 @@ export default function AdminOverview() {
           </Link>
 
           <Link
-            to="/admin/dashboard/sales-orders"
-            className="group bg-gradient-to-br from-white/[0.07] to-white/[0.02] border border-white/10 rounded-2xl p-5 hover:border-amber-500/40 hover:bg-white/[0.09] transition-all"
+            to="/admin/dashboard/proforma-invoices"
+            className="group bg-gradient-to-br from-white/[0.07] to-white/[0.02] border border-white/10 rounded-2xl p-5 hover:border-emerald-500/40 hover:bg-white/[0.09] transition-all"
           >
             <div className="flex items-center justify-between mb-3">
-              <div className="w-11 h-11 rounded-xl bg-amber-500/20 flex items-center justify-center">
-                <ShoppingBag className="w-5 h-5 text-amber-400" />
+              <div className="w-11 h-11 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                <Receipt className="w-5 h-5 text-emerald-400" />
               </div>
-              <span className="text-3xl font-black text-white">{loading ? "—" : erpStats.orders}</span>
+              <span className="text-3xl font-black text-white">{loading ? "—" : erpStats.quotations}</span>
             </div>
             <div className="flex items-center justify-between">
-              <p className="text-gray-300 text-sm font-medium">Sales Orders Hub</p>
-              <ArrowRight className="w-4 h-4 text-gray-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
+              <p className="text-gray-300 text-sm font-medium">Proforma Invoices</p>
+              <ArrowRight className="w-4 h-4 text-gray-500 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all" />
             </div>
           </Link>
 

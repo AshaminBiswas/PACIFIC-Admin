@@ -377,24 +377,7 @@ export default function ProformaInvoiceDetailPage() {
             <CreditCard className="w-4 h-4" /> + Advance Payment
           </button>
 
-          {/* Convert to Sales Order */}
-          {pi.convertedOrderId ? (
-            <Link
-              to={`/admin/dashboard/sales-orders/${pi.convertedOrderId}`}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 border border-blue-500/30 rounded-xl text-xs font-bold transition-all"
-            >
-              <ArrowRight className="w-4 h-4" /> View Sales Order
-            </Link>
-          ) : (
-            <button
-              onClick={handleConvertToOrder}
-              disabled={converting}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-[#030213] rounded-xl text-xs font-bold transition-all shadow-lg shadow-[#7FB706]/20 cursor-pointer disabled:opacity-50"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              {converting ? 'Converting...' : 'Convert to Order (Stage 3)'}
-            </button>
-          )}
+
 
           {/* PDF Preview */}
           <button

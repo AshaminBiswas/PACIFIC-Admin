@@ -4276,6 +4276,62 @@ Eliminate all visible user-facing and backend references to "Exterior Cladding" 
   - `npx tsc --noEmit`: Exited `0` (Zero TypeScript errors).
   - `npm run build`: Exited `0` (built cleanly in 51.26s).
 
+---
+
+## 75. Custom PI (Board & Hardware) Creation/Edit Overhaul & Sales Orders Hub Deprecation
+
+### 75.1 Custom PI Creation (`src/pages/CreateProformaPage.tsx`)
+1. **Extended `PiScope`**:
+   - Extended type definition to `'CUBICLE' | 'CUSTOM' | 'BOARD' | 'HARDWARE'`.
+   - Added `'CUSTOM'` preset option ("Custom (Board & Hardware)") in the presets toolbar and inside Card 4 mode toggle.
+   - Presets pre-populate a sample HPL Board sheet item and SS 304 hardware package.
+2. **Universal Add Item Toolbar**:
+   - Independent toolbar buttons added to the header of Card 4: `+ Board Sheet`, `+ Hardware Item`, and `+ Cubicle Model`.
+   - Users can now add any combination of items regardless of initial preset or mode.
+3. **Dedicated Custom Scope Renderer**:
+   - Clean, side-by-side or stacked display of board sheet cards and hardware fitting cards with full editing capabilities (HSN, unit, quantity, rate, specifications).
+   - Removed model forcing: items are treated exactly as entered without coercing into cubicle models.
+4. **Cubicle Scope Fallback**:
+   - If board items exist while in cubicle mode, a dedicated Board Sheets subsection renders them cleanly, ensuring no items are dropped or hidden.
+
+### 75.2 Edit PI Fidelity & Model Auto-Insertion Fix (`src/pages/EditProformaInvoicePage.tsx`)
+1. **Load Data Classification Bugfix**:
+   - Fixed the logic in `loadData()` which previously forced non-hardware items to match against catalog cubicle models (e.g. fuzzy matching `Pacific Delight`) and auto-inserting 7 cubicle hardware items.
+   - Now checks item characteristics:
+     - Hardware items (`8302`, `7610`, `3925` HSN or `SET`/`PAIR` units) are categorized as hardware without parent model dependencies.
+     - Board items (`4823`, `4411`, `SQFT`, `SHEET` or descriptions without door/height specifications) are categorized as `board` items.
+     - Preserves the user's exact database description, HSN, unit, quantity, rate, and specifications.
+   - `detectedScope` accurately identifies `'CUSTOM'` when both board and hardware items are present without cubicle models.
+2. **Extended `PiScope` & Dual Item Section**:
+   - Added `'CUSTOM'` mode button to the top scope selector and Card 4 scope selector.
+   - Added quick-add buttons for `+ Board Sheet`, `+ Hardware Item`, and `+ Cubicle Model`.
+   - Rendered dedicated Custom (Board & Hardware) UI and board items in cubicle view if present.
+
+### 75.3 Sales Orders Hub UI Deprecation
+1. **Sidebar Navigation (`src/components/layout/AdminSidebar.tsx`)**:
+   - Removed `Sales Orders Hub` entry from the Sales Pipeline navigation list.
+   - Re-indexed pipeline stages cleanly:
+     - `00` Commercial Leads
+     - `01` Sales Quotations
+     - `02` Proforma Invoices
+     - `03` Bill & Tax Invoices
+     - `04` Packing Lists
+     - `05` Dispatch & Gate Pass
+     - `06` Issue Lists (HIL)
+2. **Dashboard Overview (`src/pages/admin/AdminOverview.tsx`)**:
+   - Replaced `Sales Orders Hub` quick-card linking to `/admin/dashboard/sales-orders` with a direct card for `Proforma Invoices` (`/admin/dashboard/proforma-invoices`).
+3. **Mobile Bottom Dock (`src/components/layout/AdminLayout.tsx`)**:
+   - Replaced mobile nav shortcut `Orders` with `Invoices` & `Bills`.
+4. **Proforma Invoice Detail View (`src/pages/ProformaInvoiceDetailPage.tsx`)**:
+   - Removed `Convert to Order (Stage 3)` action button and `View Sales Order` link.
+   - Clean transition directly from Proforma Invoice to subsequent stages (Tax Invoice / Delivery).
+
+### 75.4 Quality Gate & Build Verification
+- **Admin Console (`D:\PACIFIC-Admin`)**:
+  - `npx tsc --noEmit`: Exited `0` (Zero TypeScript errors).
+  - `npm run build`: Exited `0`.
+
+
 
 
 

@@ -56,11 +56,10 @@ export const salesPipelineItems = [
   { name: 'Commercial Leads',   path: '/admin/dashboard/crm-leads',          icon: Target,      step: '00' },
   { name: 'Sales Quotations',   path: '/admin/dashboard/sales-quotations',   icon: FileText,    step: '01' },
   { name: 'Proforma Invoices',  path: '/admin/dashboard/proforma-invoices',  icon: Receipt,     step: '02' },
-  { name: 'Sales Orders Hub',   path: '/admin/dashboard/sales-orders',       icon: ShoppingBag, step: '03' },
-  { name: 'Bill & Tax Invoices',path: '/admin/dashboard/invoices',            icon: Layers,      step: '04' },
-  { name: 'Packing Lists',      path: '/admin/dashboard/packing-lists',      icon: Package,     step: '05' },
-  { name: 'Dispatch & Gate Pass', path: '/admin/dashboard/dispatches',       icon: Truck,       step: '06' },
-  { name: 'Issue Lists (HIL)',  path: '/admin/dashboard/issue-lists',        icon: Wrench,      step: '07' },
+  { name: 'Bill & Tax Invoices',path: '/admin/dashboard/invoices',            icon: Layers,      step: '03' },
+  { name: 'Packing Lists',      path: '/admin/dashboard/packing-lists',      icon: Package,     step: '04' },
+  { name: 'Dispatch & Gate Pass', path: '/admin/dashboard/dispatches',       icon: Truck,       step: '05' },
+  { name: 'Issue Lists (HIL)',  path: '/admin/dashboard/issue-lists',        icon: Wrench,      step: '06' },
 ];
 
 export const procurementNavItems = [
