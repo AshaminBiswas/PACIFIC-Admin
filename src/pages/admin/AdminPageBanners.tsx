@@ -16,11 +16,15 @@ import {
 
 // Predefined specs per page slug
 const PAGE_SPECS: Record<string, { label: string; size: string; ratio: string; bucket: string; aspect: string }> = {
-  about:     { label: "About Us",   size: "1920×600 px", ratio: "16:5",  bucket: "page-banners", aspect: "aspect-[16/5]" },
-  services:  { label: "Services",   size: "1920×600 px", ratio: "16:5",  bucket: "page-banners", aspect: "aspect-[16/5]" },
-  solutions: { label: "Solutions",  size: "1920×600 px", ratio: "16:5",  bucket: "page-banners", aspect: "aspect-[16/5]" },
-  gallery:   { label: "Gallery",    size: "1920×480 px", ratio: "4:1",   bucket: "page-banners", aspect: "aspect-[4/1]"  },
-  contact:   { label: "Contact Us", size: "1920×600 px", ratio: "16:5",  bucket: "page-banners", aspect: "aspect-[16/5]" },
+  about:                    { label: "About Us Page",                  size: "1920×600 px", ratio: "16:5",  bucket: "page-banners", aspect: "aspect-[16/5]" },
+  services:                 { label: "Services Page",                  size: "1920×600 px", ratio: "16:5",  bucket: "page-banners", aspect: "aspect-[16/5]" },
+  solutions:                { label: "Solutions Page",                 size: "1920×600 px", ratio: "16:5",  bucket: "page-banners", aspect: "aspect-[16/5]" },
+  gallery:                  { label: "Gallery Page",                   size: "1920×480 px", ratio: "4:1",   bucket: "page-banners", aspect: "aspect-[4/1]"  },
+  contact:                  { label: "Contact Us Page",                size: "1920×600 px", ratio: "16:5",  bucket: "page-banners", aspect: "aspect-[16/5]" },
+  "home-cubicles":          { label: "Home: Restroom Cubicles Banner", size: "1600×500 px", ratio: "16:5",  bucket: "page-banners", aspect: "aspect-[16/5]" },
+  "home-lockers":           { label: "Home: Modular Lockers Banner",   size: "1600×500 px", ratio: "16:5",  bucket: "page-banners", aspect: "aspect-[16/5]" },
+  "home-urinal-partitions": { label: "Home: Urinal Partitions Banner", size: "1600×500 px", ratio: "16:5",  bucket: "page-banners", aspect: "aspect-[16/5]" },
+  "home-kids-cubicles":     { label: "Home: Kids Cubicles Banner",     size: "1600×500 px", ratio: "16:5",  bucket: "page-banners", aspect: "aspect-[16/5]" },
 };
 
 export default function AdminPageBanners() {

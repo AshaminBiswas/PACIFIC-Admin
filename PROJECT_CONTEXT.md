@@ -4330,6 +4330,41 @@ Eliminate all visible user-facing and backend references to "Exterior Cladding" 
 - **Admin Console (`D:\PACIFIC-Admin`)**:
   - `npx tsc --noEmit`: Exited `0` (Zero TypeScript errors).
   - `npm run build`: Exited `0`.
+- **Frontend (`D:\Pacific Products And Solutions`)**:
+  - Fixed `FileText` icon import from `lucide-react` in `src/app/pages/Home.tsx`.
+  - `npx tsc --noEmit`: Exited `0`.
+  - `npm run build`: Exited `0`.
+
+---
+
+## 76. Architectural Product System Banners & Locations Decommissioning
+
+### 76.1 Architectural Product System Banners Support
+1. **Admin Panel Page Banners (`AdminPageBanners.tsx`)**:
+   - Added 4 new banner slugs in `PAGE_SPECS` across both Admin and Frontend consoles:
+     - `home-cubicles`: "Home: Restroom Cubicles Banner" (1600×500 px / 16:5 ratio)
+     - `home-lockers`: "Home: Modular Lockers Banner" (1600×500 px / 16:5 ratio)
+     - `home-urinal-partitions`: "Home: Urinal Partitions Banner" (1600×500 px / 16:5 ratio)
+     - `home-kids-cubicles`: "Home: Kids Cubicles Banner" (1600×500 px / 16:5 ratio)
+2. **Frontend Dynamic Bento Grid Integration (`Home.tsx`)**:
+   - Updated `CategoryBentoGrid` in `src/app/pages/Home.tsx` to read dynamic banners from `usePageBanner` with fallback to default high-res curated photography.
+
+### 76.2 Decommissioning of Mumbai, Bangalore, and Ahmedabad Locations
+1. **Location Data (`src/app/pages/locations/locationData.ts`)**:
+   - Removed `bangalore`, `mumbai`, and `ahmedabad` from `IMAGES` and `locations` export.
+2. **Location Detail Routing & Auto-Redirect (`src/app/pages/LocationDetail.tsx`)**:
+   - Immediate redirect with `<Navigate to="/contact" replace />` whenever visiting `/locations/mumbai`, `/locations/bangalore`, or `/locations/ahmedabad`.
+   - Updated `adjacentLocations` and `geoRegionMap` to only active regions (`delhi`, `kolkata`, `uae`).
+3. **Contact & Footer Links (`Contact.tsx` & `Footer.tsx`)**:
+   - Removed Bangalore, Mumbai, and Ahmedabad from contact office listings and footer navigation links.
+4. **Sitemap & SEO (`public/sitemap.xml` & `vercel.json`)**:
+   - Removed `/locations/bangalore` from `sitemap.xml`.
+   - Added permanent 301 redirects in `vercel.json` for `/locations/bangalore`, `/locations/mumbai`, `/locations/ahmedabad` to `/contact`.
+5. **Quality Verification**:
+   - Frontend TypeScript check (`npx tsc --noEmit`): Exited `0`.
+   - Frontend production build (`npm run build`): Exited `0`.
+   - Admin Console TypeScript check (`npx tsc --noEmit`): Exited `0`.
+   - Admin Console production build (`npm run build`): Exited `0`.
 
 
 
