@@ -4676,6 +4676,42 @@ Based on Google Lighthouse mobile and desktop audit reports, key performance bot
 - **PACIFIC-Admin TypeScript (`npx tsc --noEmit`)**: Exited `0` (zero errors).
 - **PACIFIC-Admin Production Build (`npm run build`)**: Exited `0` (built in 36.09s).
 
+---
+
+## 84. Storefront "Options / Colors & Finishes" Section Redesign (4:3 Aspect Ratio)
+
+### 84.1 Overview & Requirements
+- **Goal**:
+  1. Redesign the storefront "Options / Colors & Finishes" section across model detail and industry solution pages (`ProductDetail.tsx` and `SolutionDetail.tsx`).
+  2. Implement an exact **4:3 aspect ratio** (`aspect-[4/3]`) for the primary showcase image container, aligning with architectural panel photography and laminate texture standards.
+  3. Elevate user experience with modern interactive controls, ambient backdrop lighting, prev/next arrows, active swatch indicators, and an architectural lightbox modal for high-resolution texture inspection.
+
+### 84.2 Architectural Implementation
+1. **Dedicated Reusable Component (`ColorsAndFinishesSection.tsx`)**:
+   - Built in `D:\Pacific Products And Solutions\src\app\components\ColorsAndFinishesSection.tsx`.
+   - **Aspect Ratio 4:3**: Enforces `aspect-[4/3]` on the showcase container (`max-w-3xl lg:max-w-4xl mx-auto`), preventing vertical overflow while providing a proportioned canvas for HPL decors and solid colors.
+   - **Interactive Showcase Features**:
+     - Ambient decorative glow behind the 4:3 frame (`from-[#7FB706]/20 via-[#B5F823]/10 to-transparent`).
+     - Animated crossfade and micro-scale transition (`AnimatePresence` with `motion.div`) on finish change.
+     - Top floating badges: Finish Decor sequence number, counter (`01 / 06`), and full-resolution lightbox trigger button.
+     - In-box Previous / Next navigation buttons (`ChevronLeft` / `ChevronRight`) with keyboard arrow key shortcuts (`←` / `→`).
+     - Bottom glassmorphic showcase banner: Displays active decor name, sub-specifications, and direct "Request Sample Swatch" action button.
+2. **Redesigned Swatch Selector**:
+   - Replaced basic circular radio buttons with architectural swatch cards.
+   - Each swatch card includes a mini 4:3 texture preview, `#7FB706` active ring border, checkmark pill, and high-contrast typography.
+   - Added architectural assistance strip connecting consultants and contractors to physical swatch sample boxes and custom RAL shade matching (`/contact`).
+3. **High-Resolution Lightbox Modal**:
+   - Enables full-screen zoom and texture inspection for architects and interior designers, with keyboard navigation (`Esc` to close, arrows to cycle).
+4. **Integration**:
+   - Synchronized across both `ProductDetail.tsx` and `SolutionDetail.tsx`.
+
+### 84.3 Quality Assurance
+- **Frontend TypeScript (`npx tsc --noEmit`)**: Exited `0` (zero errors).
+- **Frontend Production Build (`npm run build`)**: Exited `0` (built in 11.58s).
+- **PACIFIC-Admin TypeScript (`npx tsc --noEmit`)**: Exited `0` (zero errors).
+- **PACIFIC-Admin Production Build (`npm run build`)**: Exited `0` (built in 24.20s).
+
+
 
 
 
