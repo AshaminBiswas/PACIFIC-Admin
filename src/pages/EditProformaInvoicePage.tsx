@@ -18,6 +18,7 @@ import {
   MapPin,
   Wrench,
   Copy,
+  RotateCcw,
   AlertTriangle,
   Package,
   Boxes,
@@ -513,6 +514,19 @@ export default function EditProformaInvoicePage() {
       state: billingAddress.state,
       stateCode: billingAddress.stateCode,
       phone: billingAddress.phone,
+    });
+  };
+
+  // Clear Delivery Address for custom site entry
+  const handleClearDeliveryAddress = () => {
+    setDeliveryAddress({
+      partyName: '',
+      addressLine: '',
+      city: '',
+      pincode: '',
+      state: '',
+      stateCode: '',
+      phone: '',
     });
   };
 
@@ -1149,10 +1163,10 @@ export default function EditProformaInvoicePage() {
         },
         shipTo: {
           partyName: deliveryAddress.partyName || billingAddress.partyName,
-          gstin: billingAddress.gstin ? billingAddress.gstin.toUpperCase().trim() : undefined,
+          gstin: undefined,
           addressLine: shipToAddressFormatted || billToAddressFormatted,
           state: deliveryAddress.state || billingAddress.state,
-          stateCode: deliveryAddress.stateCode || billingAddress.stateCode,
+          stateCode: undefined,
           phone: deliveryAddress.phone || billingAddress.phone || undefined,
         },
         items: enrichedItems,
@@ -1465,14 +1479,22 @@ export default function EditProformaInvoicePage() {
               </div>
 
               <div>
-                <label className={labelCls}>State &amp; Code</label>
+                <div className="flex items-center justify-between">
+                  <label className={labelCls}>State</label>
+                  {billingAddress.stateCode && (
+                    <span className="text-[10px] font-mono text-gray-400">
+                      Code: {billingAddress.stateCode}
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
-                  value={`${billingAddress.state} (${billingAddress.stateCode})`}
+                  value={billingAddress.state}
                   onChange={(e) => {
                     const val = e.target.value;
                     setBillingAddress((prev) => ({ ...prev, state: val }));
                   }}
+                  placeholder="e.g. Delhi, Haryana, Maharashtra"
                   className={inputCls}
                 />
               </div>
@@ -1514,17 +1536,67 @@ export default function EditProformaInvoicePage() {
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <MapPin className="w-4 h-4 text-cyan-400" /> Delivery Address (Ship To / Site)
             </h3>
-            <button
-              type="button"
-              onClick={handleCopyBillingToDelivery}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 transition cursor-pointer"
-              title="Copy from Billing Address"
-            >
-              <Copy className="w-3 h-3" /> Same as Billing
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleClearDeliveryAddress}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 transition cursor-pointer"
+                title="Clear for Custom Site Address"
+              >
+                <RotateCcw className="w-3 h-3" /> Custom Site Address
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyBillingToDelivery}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 transition cursor-pointer"
+                title="Copy from Billing Address"
+              >
+                <Copy className="w-3 h-3" /> Same as Billing
+              </button>
+            </div>
           </div>
 
           <div className="space-y-3">
+            {(() => {
+              const selectedCustomer = customers.find((c) => c.id === customerId);
+              if (selectedCustomer?.addresses && selectedCustomer.addresses.length > 1) {
+                return (
+                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                    <span className="text-xs text-gray-400">Choose Saved Site:</span>
+                    <select
+                      aria-label="Choose Saved Site"
+                      onChange={(e) => {
+                        const idx = Number(e.target.value);
+                        if (!isNaN(idx) && selectedCustomer.addresses?.[idx]) {
+                          const addr = selectedCustomer.addresses[idx];
+                          const sState = addr.state || 'Delhi';
+                          const sCode = addr.stateCode || (sState.toLowerCase().includes('delhi') ? '07' : '07');
+                          setDeliveryAddress({
+                            partyName: selectedCustomer.legalName || selectedCustomer.tradeName || deliveryAddress.partyName,
+                            addressLine: [addr.addressLine1, addr.addressLine2].filter(Boolean).join(', '),
+                            city: addr.city || '',
+                            pincode: addr.postalCode || (addr as any)?.pincode || '',
+                            state: sState,
+                            stateCode: sCode,
+                            phone: selectedCustomer.phone || (selectedCustomer as any).contactPhone || deliveryAddress.phone,
+                          });
+                        }
+                      }}
+                      className="bg-[#0a0a1a] border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-cyan-400"
+                    >
+                      <option value="">-- Alternate Saved Addresses ({selectedCustomer.addresses.length}) --</option>
+                      {selectedCustomer.addresses.map((a: any, i: number) => (
+                        <option key={a.id || i} value={i}>
+                          {a.addressType || `Site ${i + 1}`}: {a.addressLine1 ? `${a.addressLine1.slice(0, 35)}...` : a.city || 'Address'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             <div>
               <label className={labelCls}>Consignee / Site Name</label>
               <input
@@ -1580,13 +1652,14 @@ export default function EditProformaInvoicePage() {
               </div>
 
               <div>
-                <label className={labelCls}>State &amp; Code</label>
+                <label className={labelCls}>State</label>
                 <input
                   type="text"
-                  value={`${deliveryAddress.state} (${deliveryAddress.stateCode})`}
+                  value={deliveryAddress.state}
                   onChange={(e) =>
                     setDeliveryAddress((prev) => ({ ...prev, state: e.target.value }))
                   }
+                  placeholder="e.g. Delhi, Haryana, Uttar Pradesh"
                   className={inputCls}
                 />
               </div>

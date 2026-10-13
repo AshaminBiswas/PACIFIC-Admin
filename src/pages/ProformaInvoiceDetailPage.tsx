@@ -765,11 +765,12 @@ export default function ProformaInvoiceDetailPage() {
           </div>
           <div className="space-y-1 text-xs">
             <div className="text-base font-bold text-white">{shipTo.partyName}</div>
-            {shipTo.gstin && (
-              <div className="text-gray-400">GSTIN: <span className="font-mono font-bold text-amber-300">{shipTo.gstin}</span></div>
-            )}
             <div className="text-gray-300 leading-relaxed pt-1">{shipTo.addressLine}</div>
-            <div className="text-gray-400">State: <span className="text-white">{shipTo.state} ({shipTo.stateCode})</span></div>
+            {shipTo.state && (
+              <div className="text-gray-400">
+                State: <span className="text-white">{shipTo.state}</span>
+              </div>
+            )}
             {shipTo.phone && <div className="text-gray-400">Site Contact Phone: <span className="text-white">{shipTo.phone}</span></div>}
             {pi.modeOfTransport && <div className="text-gray-400">Mode of Transport: <span className="text-white font-medium">{pi.modeOfTransport}</span></div>}
             {pi.vehicleNumber && <div className="text-gray-400">Vehicle No: <span className="text-white font-mono">{pi.vehicleNumber}</span></div>}

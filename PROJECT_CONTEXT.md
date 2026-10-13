@@ -4711,6 +4711,76 @@ Based on Google Lighthouse mobile and desktop audit reports, key performance bot
 - **PACIFIC-Admin TypeScript (`npx tsc --noEmit`)**: Exited `0` (zero errors).
 - **PACIFIC-Admin Production Build (`npm run build`)**: Exited `0` (built in 24.20s).
 
+---
+
+## 85. Agentic Browsing & AI Discoverability Optimization (Lighthouse WebMCP & ARD Audit)
+
+### 85.1 Overview & Failing Audits Addressed
+Addressed three critical failures flagged under Google Lighthouse's **Agentic Browsing** and **Agent Discoverability** audits:
+1. **Accessibility Tree / Links Must Have Discernible Text**:
+   - `Footer.tsx`: Social media links (`Facebook`, `YouTube`, `LinkedIn`, `Instagram`) contained SVG icons without accessible text or `aria-label`, failing aXe and accessibility tree requirements for autonomous web agents.
+2. **`llms.txt` Does Not Follow Recommendations ("File does not appear to contain any links")**:
+   - `public/llms.txt`: Previously contained plain URL text instead of Markdown link syntax (`[Title](URL)`), failing the official [llmstxt.org](https://llmstxt.org/) specification parser.
+3. **`ai-catalog.json` Schema Is Invalid (`SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON`)**:
+   - The Agentic Resource Discovery (ARD) catalog manifest was missing from the server, causing agent crawlers requesting `/.well-known/ai-catalog.json` to receive the single-page application's fallback `index.html` (`<!DOCTYPE html>`).
+
+### 85.2 Implementation Details
+1. **Discernible Link Text & Accessibility Tree (`Footer.tsx`)**:
+   - Attached explicit `aria-label` tags and hidden assistive `<span className="sr-only">...</span>` text elements to all footer social links.
+   - Added `aria-hidden="true"` to pure decorative Lucide icons.
+2. **Standard-Compliant `llms.txt`**:
+   - Fully restructured `public/llms.txt` per the [llmstxt.org](https://llmstxt.org/) standard.
+   - Formatted with an H1 heading, blockquote summary, and 23 structured Markdown hyperlinks categorized into *Core Product Systems*, *Commercial Typologies & Industry Solutions*, *Technical Resources & Specifications*, and *Regional Operational Hubs*.
+3. **Agentic Resource Discovery (ARD v1.0) Manifests**:
+   - Created valid, schema-compliant `ai-catalog.json` and `ard.json` manifests in both `public/` and `public/.well-known/`.
+   - Populated with typed `entries` (`urn:ai:pacificproduct.in:...`) documenting cubicle catalogs, locker systems, urinal partitions, kids partitions, and technical BOQ estimation desks with representative queries.
+   - Declared link relation in `index.html`: `<link rel="ai-catalog" href="/.well-known/ai-catalog.json" type="application/json" />`.
+   - Updated `public/robots.txt` with `Allow` permissions and standard `Agentmap: https://www.pacificproduct.in/.well-known/ai-catalog.json` directives.
+
+### 85.3 Quality Assurance
+- **Frontend TypeScript (`npx tsc --noEmit`)**: Exited `0` (zero errors).
+- **Frontend Production Build (`npm run build`)**: Exited `0` (built in 12.92s).
+- **Manifest File Verification**: `dist/ai-catalog.json`, `dist/.well-known/ai-catalog.json`, `dist/ard.json`, `dist/.well-known/ard.json`, and `dist/llms.txt` verified present in production artifact directory.
+- **PACIFIC-Admin TypeScript (`npx tsc --noEmit`)**: Exited `0` (zero errors).
+- **PACIFIC-Admin Production Build (`npm run build`)**: Exited `0` (built in 24.23s).
+
+---
+
+## 86. Proforma Invoice (PI) Shipping Address Usability & GST / State Code Decoupling
+
+### 86.1 Background & Problem Solved
+1. **Shipping State Locked / Trapped Input**:
+   - In both `CreateProformaPage.tsx` and `EditProformaInvoicePage.tsx`, the State field input was bound to a computed string `${state} (${stateCode})`. Typing into this input appended additional state codes or trapped user edits.
+2. **Unwanted GSTIN & State Code Propagation in Consignee / Delivery Site**:
+   - In Indian B2B trade, the **Billing Party (Buyer)** is the statutory entity providing GSTIN and determining the Place of Supply (tax breakdown CGST/SGST vs IGST).
+   - The **Shipping Address (Ship To / Delivery Site)** is frequently a physical project site (e.g. IT park, airport terminal, institutional complex) managed by a site supervisor or contractor, without independent GST registration.
+   - The submission handlers automatically injected `formData.billingAddress.gstin` into `shipTo.gstin` and displayed `GSTIN` and `({stateCode})` on the delivery site card in `ProformaInvoiceDetailPage.tsx` and the generated PDF.
+
+### 86.2 Implementation Details
+1. **Frontend Creation & Edit Workflows (`CreateProformaPage.tsx` & `EditProformaInvoicePage.tsx`)**:
+   - **Independent Clean State Input**:
+     - Separated State and State Code fields.
+     - Billing Address State binds directly to `state` with a subtle badge for `Code: {stateCode}`.
+     - Delivery Address State binds directly to `deliveryAddress.state` as a clean, unrestricted text input without appending state codes.
+   - **Delivery Address Clearing & Custom Site Entry**:
+     - Added `Custom Site Address` button (`RotateCcw` icon) next to `Same as Billing` (`Copy` icon) allowing users to clear the delivery site fields with one click to enter bespoke contractor/site details.
+   - **Alternate Saved Site Address Selector**:
+     - When a customer has multiple saved locations in CRM (`customer.addresses.length > 1`), an inline dropdown allows one-click population of alternate delivery sites while keeping all individual inputs fully editable.
+   - **Payload Decoupling in Submissions**:
+     - Explicitly set `shipTo.gstin: undefined` and `shipTo.stateCode: undefined` in `piApi.create` and `piApi.update` payloads, preventing buyer GSTIN leakage into the project site.
+2. **Proforma Invoice Detail View (`ProformaInvoiceDetailPage.tsx`)**:
+   - Removed `shipTo.gstin` display from the Delivery Site card.
+   - Removed `({shipTo.stateCode})` suffix, presenting clean `State: <state>` alongside site consignee name, address line, and site contact phone.
+3. **Backend PI PDF Generation (`PACIFIC-Backend/src/modules/pdf/pdf.service.ts`)**:
+   - Updated `cleanShipAddress` and `shipTaxAndContact` in `generatePiHtml` to omit GSTIN and state code from the SHIP TO party box in the vector PDF layout.
+
+### 86.3 Quality Assurance
+- **PACIFIC-Admin TypeScript (`npx tsc --noEmit`)**: Exited `0` (zero errors).
+- **PACIFIC-Admin Production Build (`npm run build`)**: Exited `0` (built in 26.73s).
+- **PACIFIC-Backend TypeScript (`npx tsc --noEmit`)**: Exited `0` (zero errors).
+
+
+
 
 
 
