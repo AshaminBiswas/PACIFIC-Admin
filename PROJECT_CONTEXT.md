@@ -4411,6 +4411,64 @@ Eliminate all visible user-facing and backend references to "Exterior Cladding" 
 - Admin Console TypeScript check (`npx tsc --noEmit`): Exited `0`.
 - Admin Console production build (`npm run build`): Exited `0`.
 
+---
+
+## 78. Model Brochure Upload, Dedicated WhatsApp Routing, and Live Testimonials System
+
+### 78.1 Admin Panel Model Brochure Upload (`EditProductModelPage.tsx`)
+1. **Section 11 — Model Brochure & Technical Catalog (PDF)**:
+   - Added dedicated PDF/document upload management inside `EditProductModelPage.tsx`.
+   - Admin can upload official architectural specification sheets, BOQ documentation, or hardware catalogs for any product model.
+   - Files are uploaded via `uploadFile(file, 'catalogs')` directly to ImageKit / Supabase Storage.
+   - Synchronizes with Supabase `catalogs` table with `product_id` linking, `document_type = 'Brochure'`, `category`, file metadata (URL, file size, format), and thumbnail.
+   - Allows previewing, downloading, replacing, or deleting existing brochures with immediate status updates.
+
+### 78.2 Frontend Model Brochure Download & Downloads Hub Synchronization
+1. **Product Detail Page (`ProductDetail.tsx`)**:
+   - Hero section and technical resources automatically reflect the uploaded model brochure through the `useCatalogs(product?.id)` hook.
+   - Added branded "Download Brochure" CTA button with direct trigger and proper naming (`${model.title}-Brochure.pdf`).
+2. **Central Downloads Page (`Downloads.tsx`)**:
+   - Automatically synchronizes all uploaded model brochures under the default "Brochure" filter and mapped architectural category.
+   - Integrated live real-time search input filtering across brochure title, description, category, and associated model name.
+   - Displays a dedicated `Model: [Model Title]` badge on each brochure card for clear architectural categorization.
+
+### 78.3 Dedicated WhatsApp Hotline Routing (`+91 92170 16908`)
+1. **Separation of Calling Hotline vs. WhatsApp Hotline**:
+   - Dedicated WhatsApp hotline set to `+91 92170 16908` (`https://wa.me/919217016908`).
+   - Voice calling hotlines remain unchanged at office phone number `+91 98185 92113` (`tel:+919818592113`).
+2. **Centralized Constants (`src/lib/constants.ts`)**:
+   - Created centralized contact configuration (`OFFICE_PHONE`, `OFFICE_PHONE_TEL`, `WHATSAPP_NUMBER`, `WHATSAPP_DISPLAY`, `WHATSAPP_URL`).
+   - Updated WhatsApp CTA buttons and links across:
+     - `Footer.tsx`: Split into separate Phone (`tel:`) and WhatsApp (`wa.me`) rows.
+     - `Chatbot.tsx`: Updated enquire button to WhatsApp hotline.
+     - `Contact.tsx`: Updated phone details and Quick Assistance WhatsApp button.
+     - `FAQ.tsx`: Updated "WhatsApp Us" button.
+     - `Home.tsx`: Updated "WhatsApp Architectural Desk" CTA.
+     - `ProductDetail.tsx`: Updated "WhatsApp Us" consultation button.
+     - `Products.tsx`: Updated "WhatsApp Desk" inquiry button.
+     - `SolutionDetail.tsx`: Updated "WhatsApp Us" quote button.
+     - `locationData.ts`: Updated `whatsapp` field for Delhi NCR, Kolkata, and UAE.
+
+### 78.4 Dedicated Live Testimonials Page (`/testimonials`, `Testimonials.tsx`)
+1. **Strict Zero Dummy Data Directive**:
+   - Pure live data querying Supabase `testimonials` and `feedback` tables.
+   - No hardcoded fake reviews or simulated testimonials.
+   - When no reviews exist in the database, renders a clean, professional empty state inviting architects and project owners to submit the first review.
+2. **Interactive Client Review Submission Form**:
+   - Fields: Full Name, Company / Organization, Role / Title, Project / Model Installed, Star Rating (interactive 1–5 stars with descriptive rating feedback), Review & Feedback Message.
+   - Submits directly to Supabase `testimonials` table (with dual fallback to `feedback` table).
+   - Instant optimistic feedback rendering and success confirmation.
+3. **Route & Navigation**:
+   - Registered `/testimonials` route in `routes.tsx` pointing to `<Testimonials />`.
+   - Added direct links in `Navbar.tsx` and `Footer.tsx`.
+
+### 78.5 Quality & Build Verification
+- Frontend TypeScript check (`npx tsc --noEmit`): Exited `0`.
+- Frontend production build (`npm run build`): Exited `0`.
+- Admin Console TypeScript check (`npx tsc --noEmit`): Exited `0`.
+- Admin Console production build (`npm run build`): Exited `0`.
+
+
 
 
 

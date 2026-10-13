@@ -22,8 +22,11 @@ import {
   Eye,
   Star,
   Link as LinkIcon,
+  FileText,
+  Download,
+  ExternalLink,
 } from 'lucide-react';
-import { uploadImage, uploadMultipleImages, uploadVideo } from '@/lib/supabase';
+import { uploadImage, uploadMultipleImages, uploadVideo, uploadFile, supabase } from '@/lib/supabase';
 import { productCatalogApi } from '@/api/productCatalogApi';
 import { DEFAULT_CUBICLE_DESCRIPTION } from '@/data/productCatalogData';
 import OpenAIGalleryModal from '@/components/common/OpenAIGalleryModal';
@@ -43,6 +46,11 @@ function toSlug(text: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
+}
+
+function isValidUuid(id?: string): boolean {
+  if (!id) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }
 
 function parseVideoSource(url: string): { type: 'youtube' | 'vimeo' | 'native'; src: string } | null {
@@ -132,6 +140,23 @@ export default function EditProductModelPage() {
   // ── "Ideal Applications" State ──
   const [applications, setApplications] = useState<string[]>([]);
   const [newApplicationText, setNewApplicationText] = useState('');
+
+  // ── Model Brochure State ──
+  const [brochure, setBrochure] = useState<{
+    id?: string;
+    title: string;
+    description?: string;
+    fileUrl: string;
+    fileType: string;
+    fileSize: number;
+    documentType: string;
+    category: string;
+    published: boolean;
+    productId?: string | null;
+  } | null>(null);
+  const [uploadingBrochure, setUploadingBrochure] = useState(false);
+  const [brochureError, setBrochureError] = useState('');
+  const brochureFileInputRef = useRef<HTMLInputElement>(null);
 
   // Load Model
   useEffect(() => {
@@ -228,6 +253,45 @@ export default function EditProductModelPage() {
           setTierCount(found.tierCount || 1);
           setHasExtraLeg(Boolean(found.hasExtraLeg));
           setIsFeatured(Boolean(found.isFeatured));
+
+          // Load existing brochure from catalogs table
+          try {
+            let pId = isValidUuid(found.id) ? found.id : null;
+            if (!pId) {
+              const { data: pRow } = await supabase
+                .from('products')
+                .select('id')
+                .eq('slug', found.slug)
+                .maybeSingle();
+              if (pRow?.id) pId = pRow.id;
+            }
+
+            if (pId) {
+              const { data: catRows } = await supabase
+                .from('catalogs')
+                .select('*')
+                .eq('product_id', pId)
+                .order('created_at', { ascending: false });
+
+              if (catRows && catRows.length > 0) {
+                const b = catRows[0];
+                setBrochure({
+                  id: b.id,
+                  title: b.title,
+                  description: b.description,
+                  fileUrl: b.file_url,
+                  fileType: b.file_type || 'pdf',
+                  fileSize: Number(b.file_size || 0),
+                  documentType: b.document_type || 'Brochure',
+                  category: b.category || found.category,
+                  published: b.published !== false,
+                  productId: b.product_id,
+                });
+              }
+            }
+          } catch (catErr) {
+            console.warn('Error loading existing brochure for model:', catErr);
+          }
         }
       } catch (err) {
         console.error('Failed to load model for editing:', err);
@@ -237,6 +301,130 @@ export default function EditProductModelPage() {
     }
     fetchModel();
   }, [id]);
+
+  const handleBrochureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isDoc = file.name.toLowerCase().endsWith('.doc') || file.name.toLowerCase().endsWith('.docx');
+    if (!isPdf && !isDoc) {
+      setBrochureError('Please upload a PDF document (.pdf) for the model brochure.');
+      return;
+    }
+
+    setUploadingBrochure(true);
+    setBrochureError('');
+
+    try {
+      const uploadRes = await uploadFile(file, 'catalogs');
+      if (!uploadRes) {
+        throw new Error('Failed to upload file to storage');
+      }
+
+      // Map model category to catalog category
+      const catalogCategory = category === 'Cubicle'
+        ? 'Restroom Cubicles'
+        : category === 'Lockers'
+        ? 'Locker Solution'
+        : category === 'Urinal Partitions'
+        ? 'Toilet Partition'
+        : 'Restroom Cubicles';
+
+      // Resolve product UUID
+      let targetProductId: string | null = null;
+      if (model && isValidUuid(model.id)) {
+        targetProductId = model.id;
+      } else {
+        const finalSlug = slug.trim() ? toSlug(slug) : `${toSlug(category)}-${toSlug(title)}`;
+        const { data: dbProd } = await supabase
+          .from('products')
+          .select('id')
+          .eq('slug', finalSlug)
+          .maybeSingle();
+        if (dbProd?.id) targetProductId = dbProd.id;
+      }
+
+      const brochurePayload = {
+        title: `${title.trim() || 'Model'} Brochure & Specifications`,
+        description: `Official technical specifications, architectural drawings, and hardware catalog for ${title.trim() || 'this model'}.`,
+        document_type: 'Brochure',
+        category: catalogCategory,
+        file_url: uploadRes.url,
+        file_type: isPdf ? 'pdf' : 'document',
+        file_size: uploadRes.size,
+        thumbnail_url: imageUrl || '',
+        product_id: targetProductId || null,
+        published: true,
+        sort_order: 1,
+      };
+
+      if (brochure?.id) {
+        const { error: updErr } = await supabase
+          .from('catalogs')
+          .update(brochurePayload as any)
+          .eq('id', brochure.id);
+        if (updErr) throw updErr;
+
+        setBrochure({
+          id: brochure.id,
+          title: brochurePayload.title,
+          description: brochurePayload.description,
+          fileUrl: uploadRes.url,
+          fileType: isPdf ? 'pdf' : 'document',
+          fileSize: uploadRes.size,
+          documentType: 'Brochure',
+          category: catalogCategory,
+          published: true,
+          productId: targetProductId,
+        });
+      } else {
+        const { data: insData, error: insErr } = await supabase
+          .from('catalogs')
+          .insert([brochurePayload] as any)
+          .select();
+        if (insErr) throw insErr;
+
+        setBrochure({
+          id: insData?.[0]?.id,
+          title: brochurePayload.title,
+          description: brochurePayload.description,
+          fileUrl: uploadRes.url,
+          fileType: isPdf ? 'pdf' : 'document',
+          fileSize: uploadRes.size,
+          documentType: 'Brochure',
+          category: catalogCategory,
+          published: true,
+          productId: targetProductId,
+        });
+      }
+
+      alert('Model brochure uploaded successfully! It is now live on the Product page and Downloads hub.');
+    } catch (err: any) {
+      console.error('Error uploading brochure:', err);
+      setBrochureError(err.message || 'Failed to upload brochure');
+    } finally {
+      setUploadingBrochure(false);
+      if (brochureFileInputRef.current) brochureFileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveBrochure = async () => {
+    if (!brochure?.id) {
+      setBrochure(null);
+      return;
+    }
+    if (!confirm('Are you sure you want to delete this brochure from the catalog?')) return;
+
+    try {
+      const { error: delErr } = await supabase.from('catalogs').delete().eq('id', brochure.id);
+      if (delErr) throw delErr;
+      setBrochure(null);
+      alert('Brochure deleted successfully.');
+    } catch (err: any) {
+      alert('Failed to delete brochure: ' + err.message);
+    }
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -573,9 +761,17 @@ export default function EditProductModelPage() {
         isFeatured: isFeatured,
       };
 
-      await productCatalogApi.saveModel(updatedModel);
+      const saved = await productCatalogApi.saveModel(updatedModel);
+      if (brochure?.id) {
+        const prodId = isValidUuid(saved.id) ? saved.id : (isValidUuid(updatedModel.id) ? updatedModel.id : null);
+        if (prodId) {
+          try {
+            await supabase.from('catalogs').update({ product_id: prodId } as any).eq('id', brochure.id);
+          } catch {}
+        }
+      }
       alert(`Model "${title}" updated successfully!`);
-      navigate(`/admin/dashboard/products/${updatedModel.id}`);
+      navigate(`/admin/dashboard/products/${saved.id || updatedModel.id}`);
     } catch (err: any) {
       alert(err.message || 'Failed to update model');
     } finally {
@@ -1730,6 +1926,115 @@ export default function EditProductModelPage() {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* 11. Model Brochure & Technical Catalog (PDF) */}
+        <div className="p-5 sm:p-6 bg-[#121226] border border-white/5 rounded-3xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+            <div>
+              <label className="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+                <FileText className="w-4 h-4 text-[#7FB706]" />
+                11. Model Brochure &amp; Technical Catalog (PDF)
+              </label>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Upload the official architectural catalog, BOQ, or CAD spec PDF for this model. Visitors can download it directly from the product page and downloads directory.
+              </p>
+            </div>
+            {brochure && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full text-xs font-semibold self-start sm:self-auto">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Published
+              </span>
+            )}
+          </div>
+
+          <input
+            ref={brochureFileInputRef}
+            type="file"
+            accept=".pdf,.doc,.docx"
+            onChange={handleBrochureUpload}
+            className="hidden"
+          />
+
+          {brochureError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl">
+              {brochureError}
+            </div>
+          )}
+
+          {brochure ? (
+            <div className="bg-[#0a0a1a] border border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                  <FileText className="w-6 h-6 text-red-400" />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="text-white font-semibold text-sm truncate">{brochure.title}</h4>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {brochure.fileType.toUpperCase()} Document • {brochure.fileSize ? `${(brochure.fileSize / (1024 * 1024)).toFixed(2)} MB` : 'PDF'} • Categorized under "{brochure.category}"
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={brochure.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white rounded-xl text-xs font-medium border border-white/10 transition"
+                  title="Preview document"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Preview
+                </a>
+                <a
+                  href={brochure.fileUrl}
+                  download
+                  className="flex items-center gap-1.5 px-3 py-2 bg-[#7FB706]/15 hover:bg-[#7FB706]/25 text-[#7FB706] rounded-xl text-xs font-semibold border border-[#7FB706]/30 transition"
+                  title="Download document"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download
+                </a>
+                <button
+                  type="button"
+                  onClick={() => brochureFileInputRef.current?.click()}
+                  disabled={uploadingBrochure}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl text-xs font-medium border border-white/10 transition disabled:opacity-50"
+                  title="Replace document"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  {uploadingBrochure ? 'Uploading...' : 'Replace'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRemoveBrochure}
+                  className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl transition"
+                  title="Delete brochure"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="border-2 border-dashed border-white/10 rounded-2xl p-6 sm:p-8 text-center hover:border-[#7FB706]/40 transition group bg-white/[0.01]">
+              <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-3 group-hover:scale-105 transition">
+                <FileText className="w-6 h-6 text-gray-400 group-hover:text-[#7FB706] transition" />
+              </div>
+              <h4 className="text-white text-sm font-semibold mb-1">No Brochure Uploaded For This Model</h4>
+              <p className="text-xs text-gray-400 mb-4 max-w-md mx-auto">
+                Upload the specification catalog or technical BOQ in PDF format. It will be immediately available for customers on the product page and central downloads portal.
+              </p>
+              <button
+                type="button"
+                onClick={() => brochureFileInputRef.current?.click()}
+                disabled={uploadingBrochure}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-black font-bold rounded-xl text-xs shadow-lg shadow-[#7FB706]/20 transition active:scale-95 disabled:opacity-50"
+              >
+                <Upload className="w-4 h-4" />
+                {uploadingBrochure ? 'Uploading Brochure...' : 'Upload Model Brochure (PDF)'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Action Buttons */}
