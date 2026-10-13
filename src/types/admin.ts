@@ -2868,3 +2868,58 @@ export interface CreateHardwareBranchInput {
   contactPerson?: string;
 }
 
+// ─── Local SEO & Regional Landing Page System ────────────────────────────────
+
+export interface LocationPageFaq {
+  question: string;
+  answer: string;
+}
+
+export interface LocationLogisticsInfo {
+  deliveryTime: string;
+  dispatchMode: string;
+  coverageHubs: string[];
+}
+
+export interface LocationSeoMetadata {
+  title: string;
+  description: string;
+  keywords?: string;
+}
+
+export interface LocationPageRecord {
+  id: string;
+  slug: string;
+  canonicalSlug: string;
+  city: string;
+  stateName: string;
+  region: string;
+  targetKeyword: string;
+  h1: string;
+  tagline: string;
+  description: string;
+  address: string;
+  phone: string;
+  email: string;
+  hours: string;
+  whatsapp: string;
+  mapSrc?: string;
+  geoRegion: string;
+  geoPlacename: string;
+  logisticsInfo: LocationLogisticsInfo;
+  meta: LocationSeoMetadata;
+  services?: Array<{ title: string; desc: string }>;
+  industries?: Array<{ name: string; icon: string }>;
+  projects?: string[];
+  whyChoose?: Array<{ title: string; desc: string }>;
+  faqs: LocationPageFaq[];
+  heroImage: string;
+  heroImages?: string[];
+  galleryImages: string[];
+  published: boolean;
+  indexable: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+

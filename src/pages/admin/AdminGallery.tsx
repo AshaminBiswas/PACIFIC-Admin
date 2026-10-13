@@ -8,7 +8,22 @@ const CATS = ["airports", "malls", "offices", "restroom-cubicles", "locker-solut
 const LOCATIONS = [
   { slug: "", label: "General website gallery" },
   { slug: "delhi", label: "Delhi NCR" },
+  { slug: "gurugram", label: "Gurugram" },
+  { slug: "noida", label: "Noida" },
+  { slug: "greater-noida", label: "Greater Noida" },
+  { slug: "ghaziabad", label: "Ghaziabad" },
+  { slug: "faridabad", label: "Faridabad" },
+  { slug: "mumbai", label: "Mumbai" },
   { slug: "kolkata", label: "Kolkata" },
+  { slug: "bengaluru", label: "Bengaluru" },
+  { slug: "hyderabad", label: "Hyderabad" },
+  { slug: "chennai", label: "Chennai" },
+  { slug: "pune", label: "Pune" },
+  { slug: "ahmedabad", label: "Ahmedabad" },
+  { slug: "guwahati", label: "Guwahati" },
+  { slug: "bhubaneswar", label: "Bhubaneswar" },
+  { slug: "kochi", label: "Kochi" },
+  { slug: "uae", label: "Dubai UAE (Export)" },
 ];
 const PLACEMENTS = [
   { value: "general", label: "General gallery" },
