@@ -46,7 +46,11 @@ const BlogsPage: React.FC = () => {
                   <td className="px-4 py-3 font-medium text-gray-900">{b.title}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${b.status === 'PUBLISHED' ? 'bg-green-50 text-green-700' : b.status === 'DRAFT' ? 'bg-gray-100 text-gray-600' : 'bg-red-50 text-red-600'}`}>{b.status}</span></td>
                   <td className="px-4 py-3 text-gray-500">{b.viewCount}</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">{new Date(b.createdAt).toLocaleDateString('en-IN')}</td>
+                  <td className="px-4 py-3 text-xs text-gray-400">
+                    {b.createdAt || b.created_at
+                      ? new Date(b.createdAt || b.created_at || '').toLocaleDateString('en-IN')
+                      : '—'}
+                  </td>
                   <td className="px-4 py-3"><div className="flex gap-2 justify-end">
                     <button className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-pacific-600"><Edit size={14} /></button>
                     <button onClick={() => handleDelete(b.id)} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>

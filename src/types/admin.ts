@@ -1151,7 +1151,21 @@ export interface Invoice {
   updatedAt: string;
 }
 
-export type BlogStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+export type BlogStatus = 'DRAFT' | 'PUBLISHED' | 'SCHEDULED' | 'ARCHIVED';
+export type BlogPublicationStatus = BlogStatus;
+
+export interface BlogMetadata {
+  seoTitle?: string;
+  metaDescription?: string;
+  canonicalUrl?: string;
+  ogTitle?: string;
+  ogDescription?: string;
+  ogImage?: string;
+  readingTime?: string;
+  isFeatured?: boolean;
+  scheduledAt?: string | null;
+  status?: BlogPublicationStatus;
+}
 
 export interface Blog {
   id: string;
@@ -1159,13 +1173,34 @@ export interface Blog {
   slug: string;
   excerpt?: string;
   content?: string;
+  cover_image_url?: string;
   coverImageUrl?: string;
-  status: BlogStatus;
-  publishedAt?: string;
+  alt_text?: string | null;
+  altText?: string | null;
+  author?: string;
+  category?: string;
   tags: string[];
-  viewCount: number;
-  createdAt: string;
-  updatedAt: string;
+  published?: boolean;
+  status?: BlogStatus;
+  published_at?: string | null;
+  publishedAt?: string;
+  scheduled_at?: string | null;
+  scheduledAt?: string | null;
+  reading_time?: string;
+  readingTime?: string;
+  is_featured?: boolean;
+  isFeatured?: boolean;
+  seo_title?: string;
+  meta_description?: string;
+  canonical_url?: string;
+  og_title?: string;
+  og_description?: string;
+  og_image?: string;
+  viewCount?: number;
+  created_at?: string;
+  createdAt?: string;
+  updated_at?: string;
+  updatedAt?: string;
 }
 
 export interface GalleryImage {

@@ -25,6 +25,8 @@ const CreateAdminProductPage = lazyWithRetry(() => import('./pages/admin/CreateA
 const ProductModelDetailPage = lazyWithRetry(() => import('./pages/admin/ProductModelDetailPage'));
 const EditProductModelPage = lazyWithRetry(() => import('./pages/admin/EditProductModelPage'));
 const CreateBlogPage = lazyWithRetry(() => import('./pages/admin/CreateBlogPage'));
+const BlogEditorPage = lazyWithRetry(() => import('./pages/admin/BlogEditorPage'));
+const BlogPreviewPage = lazyWithRetry(() => import('./pages/admin/BlogPreviewPage'));
 const CreateSolutionPage = lazyWithRetry(() => import('./pages/admin/CreateSolutionPage'));
 const CreateGalleryPage = lazyWithRetry(() => import('./pages/admin/CreateGalleryPage'));
 const CreateCatalogPage = lazyWithRetry(() => import('./pages/admin/CreateCatalogPage'));
@@ -717,7 +719,23 @@ export default function App() {
               path="blogs/new"
               element={
                 <Suspense fallback={<PageLoader />}>
-                  <CreateBlogPage />
+                  <BlogEditorPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="blogs/edit/:id"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <BlogEditorPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="blogs/preview/:id"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <BlogPreviewPage />
                 </Suspense>
               }
             />

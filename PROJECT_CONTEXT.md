@@ -4938,6 +4938,51 @@ Implemented in `src/app/pages/LocationDetail.tsx` backed by data store `src/app/
 4. **Hero Image Preload Optimization (`index.html`)**:
    - Removed global desktop/mobile `<link rel="preload">` image tags from `index.html` that triggered browser console warnings on subpages where the image is never used, preserving only high-performance CDN preconnects.
 
+---
+
+## 90. Full-Fledged Blog Management System (CMS & Live Storefront Sync)
+
+### 90.1 Architectural Overview
+A production-grade Content Management System enabling authorized administrators to create, write, edit, preview, schedule, publish, duplicate, and delete blog posts directly from `D:\PACIFIC-Admin`, synchronized in real-time with the public storefront (`D:\Pacific Products And Solutions` at `/blog` and `/blog/:slug`).
+
+| Module | Location | Primary Purpose |
+|---|---|---|
+| **Blog Dashboard** | `src/pages/admin/AdminBlogs.tsx` | Full-fledged management dashboard with real-time database metrics cards, filters, search, sorting, and responsive table/cards. |
+| **Word Processor & Editor** | `src/pages/admin/BlogEditorPage.tsx` | Dedicated full-page writing route (`/admin/dashboard/blogs/new` and `/admin/dashboard/blogs/edit/:id`) with 70% writing canvas and 30% metadata sidebar. |
+| **Tiptap Custom Editor** | `src/components/blog/TiptapEditor.tsx` | Rich-text WYSIWYG editor with headings (H2–H4), tables, YouTube/Vimeo embeds, ImageKit/Supabase image uploads, blockquotes, pro-tip/warning/CTA callouts, and fullscreen mode. |
+| **Live Storefront Preview** | `src/pages/admin/BlogPreviewPage.tsx` | Dedicated full preview route (`/admin/dashboard/blogs/preview/:id`) with Desktop (100%), Tablet (768px), and Mobile (375px) viewport toggles, live publish/unpublish toggle, and SEO inspector. |
+| **Blog Management Service** | `src/lib/blogService.ts` | Centralized data service handling metadata packing/unpacking, Supabase queries, slug uniqueness validation, auto-reading time calculation, duplicate post cloning, and publishing toggles. |
+| **Storefront Knowledge Hub** | `D:\Pacific Products And Solutions\src\app\pages\Blog.tsx` | Public article listing with live Supabase hydration, real-time keyword search, category pills filter, featured article hero banner, and reading time badges. Future-scheduled posts are automatically hidden. |
+| **Storefront Article Page** | `D:\Pacific Products And Solutions\src\app\pages\BlogDetail.tsx` | Dynamic article page (`/blog/:slug`) with unpacked SEO metadata, sanitized rich text rendering (tables, 16:9 video embeds, callout banners), social share triggers, and B2B project BOQ consultation CTA. |
+| **Storefront Metadata Utility**| `D:\Pacific Products And Solutions\src\lib\blogMeta.ts` | Unpacks extended metadata comment `<!--PRC_BLOG_META:...-->` on the public frontend. |
+
+### 90.2 Metadata Packing & Preservation Strategy
+- **Context**: The existing Supabase `blogs` table hosts baseline columns: `id`, `slug`, `title`, `excerpt`, `content`, `cover_image_url`, `alt_text`, `author`, `category`, `tags`, `published`, `published_at`, `created_at`, `updated_at`.
+- **Solution**: Extended SEO and editorial attributes (`seo_title`, `meta_description`, `canonical_url`, `og_title`, `og_description`, `og_image`, `reading_time`, `is_featured`, `scheduled_at`, `status`) are serialized into an invisible HTML comment: `<!--PRC_BLOG_META:{"seoTitle":...}-->` appended to `content`.
+- **Security & Rendering**: `DOMPurify.sanitize()` removes HTML comments automatically from output HTML, so visitors never see raw comment metadata, while `blogService.ts` and `blogMeta.ts` unpack the JSON payloads safely to drive SEO, reading times, and scheduling.
+
+### 90.3 Full-Page Editor Features
+1. **70% Writing Canvas**:
+   - Title H1 input with auto-slug generation.
+   - Slug editor with debounced real-time uniqueness validation against existing database records.
+   - Excerpt textarea with character count recommendation (160 chars).
+   - Tiptap editor with headings, tables, links, images, YouTube embeds, callout presets (`pro-tip`, `warning-notice`, `cta-quote`), and fullscreen writing mode.
+2. **30% Settings Sidebar**:
+   - Status selector: Draft, Live (Published), Schedule with datetime picker.
+   - Featured Post toggle for home/blog banner elevation.
+   - Category selector with instant custom category creation.
+   - Author selector with custom author support.
+   - Interactive topic tag pills with add/remove chips.
+   - Reading time calculator with optional manual override.
+   - Cover image uploader (ImageKit CDN / Supabase Storage) with alt text.
+   - SEO & SERP preview card with live Google desktop/mobile snippet simulation and character limits.
+   - LocalStorage draft auto-save and recovery.
+
+### 90.4 Verification & Compliance
+- **Zero TypeScript Errors**: Both `D:\PACIFIC-Admin` and `D:\Pacific Products And Solutions` pass `npx tsc --noEmit` with 0 errors.
+- **Production Build**: Both repositories execute `npm run build` and exit with 0.
+
+
 
 
 

@@ -1,208 +1,745 @@
-import { Link } from "react-router-dom";
-import { useState, useRef } from "react";
-import { supabase, uploadImage } from "@/lib/supabase";
-import { useAdminBlogs } from "@/lib/hooks";
-import type { Blog } from "@/lib/database.types";
-import { Plus, Pencil, Trash2, X, Upload, Eye, EyeOff, Maximize, Minimize } from "lucide-react";
-import Editor, {
-  EditorProvider,
-  Toolbar,
-  BtnBold,
-  BtnItalic,
-  BtnUnderline,
-  BtnStrikeThrough,
-  BtnNumberedList,
-  BtnBulletList,
-  BtnLink,
-  BtnClearFormatting,
-  BtnStyles,
-  Separator
-} from 'react-simple-wysiwyg';
+import React, { useState, useEffect, useMemo } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  fetchAllBlogs,
+  deleteBlogPost,
+  duplicateBlogPost,
+  toggleBlogPublication,
+  BLOG_CATEGORIES,
+  type BlogPost,
+  type BlogPublicationStatus,
+} from "../../lib/blogService";
+import {
+  Plus,
+  Search,
+  Filter,
+  Eye,
+  EyeOff,
+  Pencil,
+  Copy,
+  Trash2,
+  ExternalLink,
+  Calendar,
+  Clock,
+  Sparkles,
+  FileText,
+  CheckCircle2,
+  AlertCircle,
+  MoreVertical,
+  Check,
+  RefreshCw,
+  SlidersHorizontal,
+  ChevronRight,
+  TrendingUp,
+} from "lucide-react";
 
-function toSlug(t: string) {
-  return t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-}
-
-const empty = { slug: "", title: "", excerpt: "", content: "", cover_image_url: "", author: "Pacific Team", category: "", tags: [] as string[], published: false, published_at: null as string | null };
+type SortOption = "newest" | "oldest" | "title" | "updated";
+type StatusFilter = "ALL" | "PUBLISHED" | "DRAFT" | "SCHEDULED";
 
 export default function AdminBlogs() {
-  const { data: blogs, loading, refetch } = useAdminBlogs();
-  const [editing, setEditing] = useState<Blog | null>(null);
-  const [form, setForm] = useState({ ...empty });
-  const [show, setShow] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
-  const [newTag, setNewTag] = useState("");
-  const fileRef = useRef<HTMLInputElement>(null);
-  const contentImgRef = useRef<HTMLInputElement>(null);
-  const [uploadingContentImg, setUploadingContentImg] = useState(false);
+  const navigate = useNavigate();
 
-  const openCreate = () => { setEditing(null); setForm({ ...empty }); setShow(true); setErr(""); };
-  const openEdit = (b: Blog) => { setEditing(b); setForm({ slug: b.slug, title: b.title, excerpt: b.excerpt, content: b.content, cover_image_url: b.cover_image_url, author: b.author, category: b.category, tags: [...b.tags], published: b.published, published_at: b.published_at }); setShow(true); setErr(""); };
+  const [blogs, setBlogs] = useState<BlogPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleImg = async (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; const url = await uploadImage(f, "blogs"); if (url) setForm(p => ({ ...p, cover_image_url: url })); };
-  
-  const handleContentImg = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setUploadingContentImg(true);
-    const url = await uploadImage(f, "blogs");
-    if (url) {
-      const imgHtml = `<img src="${url}" alt="Blog Image" style="max-width: 100%; border-radius: 0.5rem; margin: 1rem 0;" />`;
-      setForm(p => ({ ...p, content: p.content + imgHtml }));
-    }
-    setUploadingContentImg(false);
-    if (contentImgRef.current) contentImgRef.current.value = "";
-  };
+  // Filters & Search
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
+  const [sortBy, setSortBy] = useState<SortOption>("newest");
 
-  const addTag = () => { if (!newTag.trim()) return; setForm(f => ({ ...f, tags: [...f.tags, newTag.trim()] })); setNewTag(""); };
+  // Interaction State
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+  const [deleteModalBlog, setDeleteModalBlog] = useState<BlogPost | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const save = async () => {
-    setSaving(true); setErr("");
-    const slug = form.slug || toSlug(form.title);
-    const payload = { ...form, slug, published_at: form.published && !form.published_at ? new Date().toISOString() : form.published_at };
+  // Fetch blogs
+  const loadBlogs = async () => {
     try {
-      if (editing) { const { error } = await supabase.from("blogs").update(payload).eq("id", editing.id); if (error) throw error; }
-      else { const { error } = await supabase.from("blogs").insert(payload); if (error) throw error; }
-      setShow(false); refetch();
-    } catch (e: any) { setErr(e.message); } finally { setSaving(false); }
-  };
-
-  const del = async (id: string) => {
-    if (!confirm("Delete this blog post?")) return;
-    try {
-      const { error } = await supabase.from("blogs").delete().eq("id", id);
-      if (error) throw error;
-      refetch();
-    } catch (e: any) {
-      alert("Delete failed: " + (e?.message || "Unknown error"));
+      setLoading(true);
+      setError(null);
+      const data = await fetchAllBlogs();
+      setBlogs(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load blog posts.");
+    } finally {
+      setLoading(false);
     }
   };
-  const toggle = async (b: Blog) => { const u: Partial<Blog> = { published: !b.published }; if (!b.published) u.published_at = new Date().toISOString(); await supabase.from("blogs").update(u).eq("id", b.id); refetch(); };
+
+  useEffect(() => {
+    loadBlogs();
+  }, []);
+
+  // Summary Metrics
+  const metrics = useMemo(() => {
+    const total = blogs.length;
+    const published = blogs.filter((b) => b.published && b.status === "PUBLISHED").length;
+    const drafts = blogs.filter((b) => !b.published && b.status === "DRAFT").length;
+    const scheduled = blogs.filter((b) => b.status === "SCHEDULED").length;
+
+    // Updated in the last 7 days
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const recentlyUpdated = blogs.filter((b) => {
+      const date = b.updated_at ? new Date(b.updated_at) : new Date(b.created_at);
+      return date >= sevenDaysAgo;
+    }).length;
+
+    return { total, published, drafts, scheduled, recentlyUpdated };
+  }, [blogs]);
+
+  // Unique categories in dataset
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    blogs.forEach((b) => {
+      if (b.category) set.add(b.category);
+    });
+    BLOG_CATEGORIES.forEach((c) => set.add(c));
+    return Array.from(set);
+  }, [blogs]);
+
+  // Filtered and Sorted blogs
+  const filteredBlogs = useMemo(() => {
+    let result = [...blogs];
+
+    // Status filter
+    if (statusFilter !== "ALL") {
+      result = result.filter((b) => b.status === statusFilter);
+    }
+
+    // Category filter
+    if (categoryFilter !== "ALL") {
+      result = result.filter((b) => b.category === categoryFilter);
+    }
+
+    // Search query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(
+        (b) =>
+          b.title.toLowerCase().includes(q) ||
+          b.slug.toLowerCase().includes(q) ||
+          b.author.toLowerCase().includes(q) ||
+          (b.excerpt && b.excerpt.toLowerCase().includes(q))
+      );
+    }
+
+    // Sorting
+    result.sort((a, b) => {
+      if (sortBy === "newest") {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+      if (sortBy === "oldest") {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      }
+      if (sortBy === "title") {
+        return a.title.localeCompare(b.title);
+      }
+      if (sortBy === "updated") {
+        const timeA = new Date(a.updated_at || a.created_at).getTime();
+        const timeB = new Date(b.updated_at || b.created_at).getTime();
+        return timeB - timeA;
+      }
+      return 0;
+    });
+
+    return result;
+  }, [blogs, statusFilter, categoryFilter, searchQuery, sortBy]);
+
+  // Actions
+  const handleTogglePublication = async (blog: BlogPost) => {
+    try {
+      setActionLoadingId(blog.id);
+      const nextPublished = !blog.published;
+      await toggleBlogPublication(blog.id, nextPublished);
+      setBlogs((prev) =>
+        prev.map((b) =>
+          b.id === blog.id
+            ? {
+                ...b,
+                published: nextPublished,
+                status: nextPublished ? "PUBLISHED" : "DRAFT",
+                published_at: nextPublished ? new Date().toISOString() : b.published_at,
+              }
+            : b
+        )
+      );
+    } catch (err: any) {
+      alert("Failed to toggle publication: " + err.message);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleDuplicate = async (blog: BlogPost) => {
+    try {
+      setActionLoadingId(blog.id);
+      const duplicated = await duplicateBlogPost(blog.id);
+      setBlogs((prev) => [duplicated, ...prev]);
+      alert(`Created duplicate: "${duplicated.title}"`);
+    } catch (err: any) {
+      alert("Failed to duplicate blog: " + err.message);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteModalBlog) return;
+    try {
+      setIsDeleting(true);
+      await deleteBlogPost(deleteModalBlog.id);
+      setBlogs((prev) => prev.filter((b) => b.id !== deleteModalBlog.id));
+      setDeleteModalBlog(null);
+    } catch (err: any) {
+      alert("Failed to delete blog: " + err.message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleCopySlug = (slug: string) => {
+    navigator.clipboard.writeText(`/blog/${slug}`);
+    setCopiedSlug(slug);
+    setTimeout(() => setCopiedSlug(null), 2000);
+  };
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-white">Blog Posts</h1>
-        <Link to="/admin/dashboard/blogs/new" className="flex items-center gap-2 px-4 py-2 bg-[#7FB706] text-white rounded-xl hover:bg-[#6fa005] text-sm font-medium"><Plus className="w-4 h-4" />New Post</Link>
+    <div className="space-y-6 pb-24">
+      {/* ── HEADER ──────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-[#121226] border border-white/5 p-4 sm:p-6 rounded-2xl">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-white">Blog Management</h1>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#7FB706]/15 text-[#7FB706] border border-[#7FB706]/20">
+              CMS Suite
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-gray-400 mt-1">
+            Author, curate, preview, and publish architectural washroom articles with live storefront sync.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={loadBlogs}
+            disabled={loading}
+            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition disabled:opacity-50"
+            title="Refresh blogs"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
+
+          <Link
+            to="/admin/dashboard/blogs/new"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-white font-bold rounded-xl shadow-lg shadow-[#7FB706]/20 text-sm transition"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Write New Blog</span>
+          </Link>
+        </div>
       </div>
-      {loading ? <div className="text-gray-400 text-center py-20">Loading…</div> : blogs.length === 0 ? (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-12 text-center"><p className="text-gray-400 mb-4">No posts yet</p><Link to="/admin/dashboard/blogs/new" className="text-[#7FB706] hover:underline text-sm">Write your first post →</Link></div>
+
+      {/* ── METRICS SUMMARY CARDS ────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="bg-[#121226] border border-white/5 p-4 rounded-xl">
+          <div className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
+            <span>Total Blogs</span>
+            <FileText className="w-4 h-4 text-gray-500" />
+          </div>
+          <div className="text-2xl font-black text-white">{metrics.total}</div>
+          <div className="text-[10px] text-gray-500 mt-0.5">All database articles</div>
+        </div>
+
+        <div className="bg-[#121226] border border-white/5 p-4 rounded-xl">
+          <div className="text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
+            <span>Published</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div className="text-2xl font-black text-emerald-400">{metrics.published}</div>
+          <div className="text-[10px] text-gray-500 mt-0.5">Live on storefront</div>
+        </div>
+
+        <div className="bg-[#121226] border border-white/5 p-4 rounded-xl">
+          <div className="text-amber-400 text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
+            <span>Drafts</span>
+            <Clock className="w-4 h-4 text-amber-400" />
+          </div>
+          <div className="text-2xl font-black text-amber-400">{metrics.drafts}</div>
+          <div className="text-[10px] text-gray-500 mt-0.5">Unpublished work</div>
+        </div>
+
+        <div className="bg-[#121226] border border-white/5 p-4 rounded-xl">
+          <div className="text-blue-400 text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
+            <span>Scheduled</span>
+            <Calendar className="w-4 h-4 text-blue-400" />
+          </div>
+          <div className="text-2xl font-black text-blue-400">{metrics.scheduled}</div>
+          <div className="text-[10px] text-gray-500 mt-0.5">Queued publication</div>
+        </div>
+
+        <div className="bg-[#121226] border border-white/5 p-4 rounded-xl col-span-2 sm:col-span-1">
+          <div className="text-[#B5F823] text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
+            <span>Recent (7d)</span>
+            <TrendingUp className="w-4 h-4 text-[#B5F823]" />
+          </div>
+          <div className="text-2xl font-black text-[#B5F823]">{metrics.recentlyUpdated}</div>
+          <div className="text-[10px] text-gray-500 mt-0.5">Updated this week</div>
+        </div>
+      </div>
+
+      {/* ── SEARCH & FILTER CONTROLS ────────────────────────────── */}
+      <div className="bg-[#121226] border border-white/5 p-4 rounded-2xl space-y-3">
+        <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+          {/* Search bar */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by blog title, slug, author, or excerpt..."
+              className="w-full pl-10 pr-4 py-2.5 bg-[#0a0a1a] border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706] transition"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs font-semibold"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* Quick Filter Controls */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Status Filter */}
+            <div className="flex items-center bg-[#0a0a1a] border border-white/10 rounded-xl p-1 text-xs">
+              {(["ALL", "PUBLISHED", "DRAFT", "SCHEDULED"] as StatusFilter[]).map((st) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => setStatusFilter(st)}
+                  className={`px-3 py-1.5 rounded-lg font-semibold transition ${
+                    statusFilter === st
+                      ? "bg-[#7FB706] text-white shadow-sm"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  {st === "ALL" ? "All" : st.charAt(0) + st.slice(1).toLowerCase()}
+                </button>
+              ))}
+            </div>
+
+            {/* Category Filter */}
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706]"
+            >
+              <option value="ALL">All Categories</option>
+              {availableCategories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+
+            {/* Sort Order */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              className="bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706]"
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="title">Title (A-Z)</option>
+              <option value="updated">Recently Updated</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* ── BLOGS LISTING ────────────────────────────────────────── */}
+      {loading ? (
+        <div className="bg-[#121226] border border-white/5 rounded-2xl p-12 text-center">
+          <div className="w-8 h-8 border-4 border-[#7FB706] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-gray-400 text-sm">Loading blog catalog...</p>
+        </div>
+      ) : error ? (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center">
+          <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+          <h3 className="text-white font-bold text-sm mb-1">Failed to load blogs</h3>
+          <p className="text-red-300 text-xs mb-4">{error}</p>
+          <button
+            onClick={loadBlogs}
+            className="px-4 py-2 bg-red-500 text-white text-xs font-bold rounded-xl"
+          >
+            Retry
+          </button>
+        </div>
+      ) : filteredBlogs.length === 0 ? (
+        <div className="bg-[#121226] border border-white/5 rounded-2xl p-16 text-center">
+          <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-4 text-gray-500">
+            <FileText className="w-6 h-6" />
+          </div>
+          <h3 className="text-white font-bold text-base mb-1">No blog posts found</h3>
+          <p className="text-gray-400 text-xs max-w-md mx-auto mb-6">
+            {searchQuery || statusFilter !== "ALL" || categoryFilter !== "ALL"
+              ? "No blogs match your active filters or search terms. Try clearing your filters."
+              : "Get started by creating your first technical or architectural washroom article."}
+          </p>
+          {searchQuery || statusFilter !== "ALL" || categoryFilter !== "ALL" ? (
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                setStatusFilter("ALL");
+                setCategoryFilter("ALL");
+              }}
+              className="px-4 py-2 bg-white/10 hover:bg-white/15 text-white text-xs font-semibold rounded-xl"
+            >
+              Reset Filters
+            </button>
+          ) : (
+            <Link
+              to="/admin/dashboard/blogs/new"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs font-bold rounded-xl"
+            >
+              <Plus className="w-4 h-4" />
+              Write First Blog
+            </Link>
+          )}
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {blogs.map(b => (
-            <div key={b.id} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:border-white/20 transition-colors">
-              {b.cover_image_url && <img src={b.cover_image_url} alt="" className="w-full h-36 object-cover" />}
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-[#7FB706] font-medium">{b.category || "Uncategorized"}</span>
-                  <button onClick={() => toggle(b)}>{b.published ? <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-green-500/15 text-green-400 rounded-full"><Eye className="w-3 h-3" />Live</span> : <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-gray-500/15 text-gray-400 rounded-full"><EyeOff className="w-3 h-3" />Draft</span>}</button>
-                </div>
-                <h3 className="text-white font-semibold mb-1 line-clamp-2">{b.title}</h3>
-                <p className="text-gray-500 text-xs mb-3 line-clamp-2">{b.excerpt}</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500 text-xs">{b.author}</span>
-                  <div className="flex gap-1">
-                    <button onClick={() => openEdit(b)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white"><Pencil className="w-3.5 h-3.5" /></button>
-                    <button onClick={() => del(b.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-400 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
+        <div className="bg-[#121226] border border-white/5 rounded-2xl overflow-hidden">
+          {/* Desktop Table View */}
+          <div className="hidden lg:block overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#0a0a1a] border-b border-white/10 text-gray-400 uppercase tracking-wider font-semibold">
+                <tr>
+                  <th className="py-3.5 px-4 w-16">Cover</th>
+                  <th className="py-3.5 px-4">Title &amp; URL Slug</th>
+                  <th className="py-3.5 px-4">Category</th>
+                  <th className="py-3.5 px-4">Author</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-4">Published Date</th>
+                  <th className="py-3.5 px-4">Last Updated</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filteredBlogs.map((b) => (
+                  <tr key={b.id} className="hover:bg-white/[0.02] transition">
+                    {/* Cover Thumbnail */}
+                    <td className="py-3 px-4">
+                      <div className="w-14 h-10 rounded-lg overflow-hidden bg-black/40 border border-white/10 flex items-center justify-center shrink-0">
+                        {b.cover_image_url ? (
+                          <img
+                            src={b.cover_image_url}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <FileText className="w-4 h-4 text-gray-600" />
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Title & Slug */}
+                    <td className="py-3 px-4 max-w-sm">
+                      <div className="font-bold text-white truncate text-sm hover:text-[#7FB706] transition">
+                        <Link to={`/admin/dashboard/blogs/edit/${b.id}`}>{b.title}</Link>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[11px] text-gray-400 font-mono truncate max-w-[220px]">
+                          /blog/{b.slug}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopySlug(b.slug)}
+                          className="text-gray-500 hover:text-white transition p-0.5"
+                          title="Copy relative slug path"
+                        >
+                          {copiedSlug === b.slug ? (
+                            <Check className="w-3 h-3 text-emerald-400" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                        </button>
+                      </div>
+                    </td>
+
+                    {/* Category */}
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-white/5 text-gray-300 border border-white/10">
+                        {b.category || "General"}
+                      </span>
+                    </td>
+
+                    {/* Author */}
+                    <td className="py-3 px-4 whitespace-nowrap text-gray-300">
+                      {b.author || "Pacific Team"}
+                    </td>
+
+                    {/* Status Badge */}
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          b.published && b.status === "PUBLISHED"
+                            ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                            : b.status === "SCHEDULED"
+                            ? "bg-blue-500/15 text-blue-400 border border-blue-500/30"
+                            : "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                        }`}
+                      >
+                        {b.published && b.status === "PUBLISHED" ? (
+                          <>
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>Live</span>
+                          </>
+                        ) : b.status === "SCHEDULED" ? (
+                          <>
+                            <Calendar className="w-3 h-3" />
+                            <span>Scheduled</span>
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="w-3 h-3" />
+                            <span>Draft</span>
+                          </>
+                        )}
+                      </span>
+                    </td>
+
+                    {/* Published Date */}
+                    <td className="py-3 px-4 whitespace-nowrap text-gray-400 text-[11px]">
+                      {b.published_at ? (
+                        new Date(b.published_at).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      ) : b.scheduled_at ? (
+                        <span className="text-blue-400">
+                          {new Date(b.scheduled_at).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                          })}
+                        </span>
+                      ) : (
+                        <span className="text-gray-600">—</span>
+                      )}
+                    </td>
+
+                    {/* Last Updated */}
+                    <td className="py-3 px-4 whitespace-nowrap text-gray-400 text-[11px]">
+                      {b.updated_at
+                        ? new Date(b.updated_at).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                          })
+                        : new Date(b.created_at).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                          })}
+                    </td>
+
+                    {/* Actions */}
+                    <td className="py-3 px-4 whitespace-nowrap text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {/* View Preview */}
+                        <Link
+                          to={`/admin/dashboard/blogs/preview/${b.id}`}
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition"
+                          title="Preview Post"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </Link>
+
+                        {/* Edit in Word Processor */}
+                        <Link
+                          to={`/admin/dashboard/blogs/edit/${b.id}`}
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#7FB706] hover:bg-[#7FB706]/10 transition"
+                          title="Edit Post"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Link>
+
+                        {/* Quick Publish / Unpublish Toggle */}
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePublication(b)}
+                          disabled={actionLoadingId === b.id}
+                          className={`p-1.5 rounded-lg transition disabled:opacity-50 ${
+                            b.published
+                              ? "bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+                              : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                          }`}
+                          title={b.published ? "Unpublish to Draft" : "Publish Live"}
+                        >
+                          {b.published ? (
+                            <EyeOff className="w-3.5 h-3.5" />
+                          ) : (
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+
+                        {/* Duplicate */}
+                        <button
+                          type="button"
+                          onClick={() => handleDuplicate(b)}
+                          disabled={actionLoadingId === b.id}
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition disabled:opacity-50"
+                          title="Duplicate Post"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Delete */}
+                        <button
+                          type="button"
+                          onClick={() => setDeleteModalBlog(b)}
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition"
+                          title="Delete Post"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* View Public Link (if live) */}
+                        {b.published && (
+                          <a
+                            href={`/blog/${b.slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition"
+                            title="Open public URL"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile & Tablet Card Layout */}
+          <div className="block lg:hidden divide-y divide-white/5">
+            {filteredBlogs.map((b) => (
+              <div key={b.id} className="p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-16 h-12 rounded-xl overflow-hidden bg-black/40 border border-white/10 shrink-0">
+                    {b.cover_image_url ? (
+                      <img
+                        src={b.cover_image_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-600">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-[10px] font-semibold text-[#7FB706]">
+                        {b.category || "General"}
+                      </span>
+                      <span
+                        className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${
+                          b.published
+                            ? "bg-emerald-500/15 text-emerald-400"
+                            : "bg-amber-500/15 text-amber-400"
+                        }`}
+                      >
+                        {b.published ? "Live" : "Draft"}
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-bold text-white truncate">{b.title}</h4>
+                    <p className="text-[11px] text-gray-400 font-mono truncate">
+                      /blog/{b.slug}
+                    </p>
                   </div>
                 </div>
+
+                <div className="flex items-center justify-between text-[11px] text-gray-400 pt-1">
+                  <span>Author: {b.author}</span>
+                  <span>{b.reading_time || "4 min read"}</span>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/5">
+                  <Link
+                    to={`/admin/dashboard/blogs/preview/${b.id}`}
+                    className="px-3 py-1.5 rounded-lg bg-white/5 text-gray-300 text-xs font-semibold"
+                  >
+                    Preview
+                  </Link>
+                  <Link
+                    to={`/admin/dashboard/blogs/edit/${b.id}`}
+                    className="px-3 py-1.5 rounded-lg bg-[#7FB706]/15 text-[#7FB706] text-xs font-semibold"
+                  >
+                    Edit
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => handleTogglePublication(b)}
+                    className="px-3 py-1.5 rounded-lg bg-white/5 text-gray-300 text-xs font-semibold"
+                  >
+                    {b.published ? "Unpublish" : "Publish"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteModalBlog(b)}
+                    className="p-1.5 rounded-lg bg-white/5 text-red-400"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
-      {show && (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center bg-black/70 overflow-y-auto p-4 pt-12">
-          <div className={`w-full bg-[#0a0a1a] border border-white/10 ${isFullscreen ? 'max-w-full min-h-screen rounded-none m-0 p-0 -mt-12 -mx-4' : 'max-w-4xl rounded-2xl'}`}>
-            <div className="flex items-center justify-between p-6 border-b border-white/10">
-              <h3 className="text-lg font-bold text-white">{editing ? "Edit Post" : "New Post"}</h3>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-2 rounded-lg hover:bg-white/10 text-gray-400">
-                  {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-                </button>
-                <button onClick={() => setShow(false)} className="p-2 rounded-lg hover:bg-white/10 text-gray-400">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+      {/* ── DELETE MODAL CONFIRMATION ────────────────────────────── */}
+      {deleteModalBlog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-[#121226] border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl flex items-center justify-center mb-4">
+              <Trash2 className="w-6 h-6" />
             </div>
-            <div className={`p-6 space-y-4 ${isFullscreen ? 'h-[calc(100vh-160px)]' : 'max-h-[70vh]'} overflow-y-auto`}>
-              {err && <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl p-3 text-sm">{err}</div>}
-              <div><label className="block text-sm text-gray-300 mb-1">Title *</label><input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value, slug: editing ? f.slug : toSlug(e.target.value) }))} className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-[#7FB706]" /></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm text-gray-300 mb-1">Author</label><input value={form.author} onChange={e => setForm(f => ({ ...f, author: e.target.value }))} className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-[#7FB706]" /></div>
-                <div><label className="block text-sm text-gray-300 mb-1">Category</label><input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-[#7FB706]" placeholder="Guides, Industry" /></div>
-              </div>
-              <div><label className="block text-sm text-gray-300 mb-1">Excerpt</label><textarea value={form.excerpt} onChange={e => setForm(f => ({ ...f, excerpt: e.target.value }))} rows={2} className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-[#7FB706] resize-none" /></div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm text-gray-300">Content</label>
-                  <button 
-                    type="button"
-                    onClick={() => contentImgRef.current?.click()}
-                    disabled={uploadingContentImg}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#7FB706]/20 text-[#7FB706] hover:bg-[#7FB706]/30 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    {uploadingContentImg ? "Uploading..." : "Insert Image from Device"}
-                  </button>
-                  <input type="file" ref={contentImgRef} onChange={handleContentImg} accept="image/*" className="hidden" />
-                </div>
-                <div className="bg-white rounded-xl overflow-hidden text-black">
-                  <EditorProvider>
-                    <Editor 
-                      value={form.content} 
-                      onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
-                      containerProps={{ style: { minHeight: '300px' } }}
-                    >
-                      <Toolbar>
-                        <BtnBold />
-                        <BtnItalic />
-                        <BtnUnderline />
-                        <BtnStrikeThrough />
-                        <Separator />
-                        <BtnNumberedList />
-                        <BtnBulletList />
-                        <Separator />
-                        <BtnLink />
-                        <BtnClearFormatting />
-                        <BtnStyles />
-                      </Toolbar>
-                    </Editor>
-                  </EditorProvider>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">Cover Image</label>
-                <div className="flex items-center gap-3">
-                  <input ref={fileRef} type="file" accept="image/*" onChange={handleImg} className="hidden" />
-                  <button type="button" onClick={() => fileRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-gray-300 hover:bg-white/10 text-sm">
-                    <Upload className="w-4 h-4" />Upload
-                  </button>
-                  <input value={form.cover_image_url} onChange={e => setForm(f => ({ ...f, cover_image_url: e.target.value }))} placeholder="or paste URL" className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-[#7FB706]" />
-                </div>
-                {form.cover_image_url && (
-                  <div className="relative mt-2 inline-block">
-                    <img src={form.cover_image_url} alt="Cover" className="h-32 rounded-lg object-cover border border-white/10" />
-                    <button 
-                      type="button" 
-                      onClick={() => setForm(f => ({ ...f, cover_image_url: "" }))} 
-                      className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-red-500 text-white rounded-lg transition-colors backdrop-blur-sm"
-                      title="Remove Cover Image"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div><label className="block text-sm text-gray-300 mb-1">Tags</label><div className="flex gap-2 mb-2"><input value={newTag} onChange={e => setNewTag(e.target.value)} onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addTag())} placeholder="Add tag" className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-[#7FB706]" /><button onClick={addTag} className="px-3 py-2 bg-[#7FB706]/20 text-[#7FB706] rounded-xl text-sm">Add</button></div><div className="flex flex-wrap gap-2">{form.tags.map((t, i) => <span key={i} className="inline-flex items-center gap-1 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-xs text-gray-300">{t}<button onClick={() => setForm(f => ({ ...f, tags: f.tags.filter((_, j) => j !== i) }))} className="hover:text-red-400"><X className="w-3 h-3" /></button></span>)}</div></div>
-              <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer"><input type="checkbox" checked={form.published} onChange={e => setForm(f => ({ ...f, published: e.target.checked }))} className="accent-[#7FB706] w-4 h-4" />Published</label>
-            </div>
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-white/10">
-              <button onClick={() => setShow(false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Cancel</button>
-              <button onClick={save} disabled={saving || !form.title} className="px-6 py-2 bg-[#7FB706] text-white rounded-xl hover:bg-[#6fa005] disabled:opacity-50 text-sm font-medium">{saving ? "Saving…" : editing ? "Update" : "Create"}</button>
+            <h3 className="text-lg font-bold text-white mb-2">Delete Blog Post?</h3>
+            <p className="text-xs text-gray-400 leading-relaxed mb-6">
+              Are you sure you want to delete{" "}
+              <span className="text-white font-semibold">"{deleteModalBlog.title}"</span>?
+              This action cannot be undone and will immediately remove the post from the public
+              storefront.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteModalBlog(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-semibold rounded-xl transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition disabled:opacity-50"
+              >
+                {isDeleting ? "Deleting..." : "Confirm Delete"}
+              </button>
             </div>
           </div>
         </div>

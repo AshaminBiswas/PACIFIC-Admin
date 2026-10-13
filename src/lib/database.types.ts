@@ -167,6 +167,17 @@ export interface Blog {
   published_at: string | null;
   created_at: string;
   updated_at: string;
+  // Extended metadata
+  seo_title?: string;
+  meta_description?: string;
+  canonical_url?: string;
+  og_title?: string;
+  og_description?: string;
+  og_image?: string;
+  reading_time?: string;
+  is_featured?: boolean;
+  scheduled_at?: string | null;
+  status?: string;
 }
 
 export interface Solution {
