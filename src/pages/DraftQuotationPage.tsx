@@ -444,30 +444,38 @@ export default function DraftQuotationPage() {
   };
 
   function buildQuotationAccessoriesText(
-    primaryModel?: ProductCatalogModel,
+    cubicleModelsList?: ProductCatalogModel[] | ProductCatalogModel,
     umpModel?: ProductCatalogModel,
     lockerModel?: ProductCatalogModel
   ): string {
-    const parts: string[] = [];
+    const cubicleModels: ProductCatalogModel[] = Array.isArray(cubicleModelsList)
+      ? cubicleModelsList
+      : cubicleModelsList
+      ? [cubicleModelsList]
+      : [];
 
-    if (umpModel || lockerModel) {
-      if (primaryModel) {
-        parts.push(`--- RESTROOM CUBICLE HARDWARE (${primaryModel.title.toUpperCase()}) ---\n${formatModelHardwareInclusions(primaryModel)}`);
-      } else {
+    const parts: string[] = [];
+    const hasMultipleOrAddons = cubicleModels.length > 1 || !!umpModel || !!lockerModel;
+
+    if (cubicleModels.length === 0) {
+      if (hasMultipleOrAddons) {
         parts.push(`--- RESTROOM CUBICLE HARDWARE ---\n${DEFAULT_ACCESSORIES_TEXT}`);
-      }
-      if (umpModel) {
-        parts.push(`--- URINAL MODESTY PARTITION HARDWARE (${umpModel.title.toUpperCase()}) ---\n${formatModelHardwareInclusions(umpModel)}`);
-      }
-      if (lockerModel) {
-        parts.push(`--- MODULAR LOCKER HARDWARE (${lockerModel.title.toUpperCase()}) ---\n${formatModelHardwareInclusions(lockerModel)}`);
-      }
-    } else {
-      if (primaryModel) {
-        parts.push(formatModelHardwareInclusions(primaryModel));
       } else {
         parts.push(DEFAULT_ACCESSORIES_TEXT);
       }
+    } else if (cubicleModels.length === 1 && !hasMultipleOrAddons) {
+      parts.push(formatModelHardwareInclusions(cubicleModels[0]));
+    } else {
+      cubicleModels.forEach((cm) => {
+        parts.push(`--- RESTROOM CUBICLE HARDWARE (${cm.title.toUpperCase()}) ---\n${formatModelHardwareInclusions(cm)}`);
+      });
+    }
+
+    if (umpModel) {
+      parts.push(`--- URINAL MODESTY PARTITION HARDWARE (${umpModel.title.toUpperCase()}) ---\n${formatModelHardwareInclusions(umpModel)}`);
+    }
+    if (lockerModel) {
+      parts.push(`--- MODULAR LOCKER HARDWARE (${lockerModel.title.toUpperCase()}) ---\n${formatModelHardwareInclusions(lockerModel)}`);
     }
 
     return parts.join('\n\n');
@@ -476,7 +484,15 @@ export default function DraftQuotationPage() {
   // Handle Model Selection for line item (Auto-fetches dimensions & hardware list)
   const handleSelectModel = (idx: number, modelId: string) => {
     if (!modelId) {
-      handleItemChange(idx, 'modelId', '');
+      setForm((f) => {
+        const next = [...f.items];
+        next[idx] = {
+          ...next[idx],
+          modelId: '',
+          customModelName: '',
+        };
+        return { ...f, items: next };
+      });
       return;
     }
     if (modelId === 'CUSTOM') {
@@ -502,6 +518,7 @@ export default function DraftQuotationPage() {
       nextItems[idx] = {
         ...nextItems[idx],
         modelId: selected.id,
+        customModelName: selected.title,
         systemCategory: 'cubicle',
         description: `Pacific ${selected.title} (${selected.category})`,
         cubicleSize: dims.cubicleSize,
@@ -514,6 +531,17 @@ export default function DraftQuotationPage() {
         modelImageUrl: selected.imageUrl || '',
       };
 
+      const cubicleItems = nextItems.filter(
+        (it) => it.systemCategory !== 'ump' && it.systemCategory !== 'locker'
+      );
+      const selectedCubicleModels: ProductCatalogModel[] = [];
+      cubicleItems.forEach((it) => {
+        const mod = catalogModels.find((m) => m.id === it.modelId || m.slug === it.modelId);
+        if (mod && !selectedCubicleModels.some((m) => m.id === mod.id)) {
+          selectedCubicleModels.push(mod);
+        }
+      });
+
       const umpItem = nextItems.find((it) => it.systemCategory === 'ump' || (it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump'))));
       const umpModel = catalogModels.find((m) => m.id === umpItem?.modelId);
       const lockerItem = nextItems.find((it) => it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker')));
@@ -521,7 +549,7 @@ export default function DraftQuotationPage() {
 
       return {
         ...f,
-        accessoriesText: buildQuotationAccessoriesText(selected, umpModel, lockerModel),
+        accessoriesText: buildQuotationAccessoriesText(selectedCubicleModels, umpModel, lockerModel),
         items: nextItems,
       };
     });
@@ -536,15 +564,21 @@ export default function DraftQuotationPage() {
         const nextItems = f.items.filter(
           (it) => it.systemCategory !== 'ump' && !(it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump')))
         );
-        const primaryItem = nextItems.find((it) => it.systemCategory !== 'locker') || nextItems[0];
-        const primaryModel = catalogModels.find((m) => m.id === primaryItem?.modelId);
+        const cubicleItems = nextItems.filter((it) => it.systemCategory !== 'locker');
+        const selectedCubicleModels: ProductCatalogModel[] = [];
+        cubicleItems.forEach((it) => {
+          const mod = catalogModels.find((m) => m.id === it.modelId || m.slug === it.modelId);
+          if (mod && !selectedCubicleModels.some((m) => m.id === mod.id)) {
+            selectedCubicleModels.push(mod);
+          }
+        });
         const lockerItem = nextItems.find((it) => it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker')));
         const lockerModel = catalogModels.find((m) => m.id === lockerItem?.modelId);
 
         return {
           ...f,
           items: nextItems,
-          accessoriesText: buildQuotationAccessoriesText(primaryModel, undefined, lockerModel),
+          accessoriesText: buildQuotationAccessoriesText(selectedCubicleModels, undefined, lockerModel),
         };
       });
       return;
@@ -619,15 +653,23 @@ export default function DraftQuotationPage() {
 
       const nextItems = [...remainingItems, updatedUmpItem];
 
-      const primaryItem = nextItems.find((it) => it.systemCategory !== 'ump' && it.systemCategory !== 'locker') || nextItems[0];
-      const primaryModel = catalogModels.find((m) => m.id === primaryItem?.modelId);
+      const cubicleItems = nextItems.filter(
+        (it) => it.systemCategory !== 'ump' && it.systemCategory !== 'locker'
+      );
+      const selectedCubicleModels: ProductCatalogModel[] = [];
+      cubicleItems.forEach((it) => {
+        const mod = catalogModels.find((m) => m.id === it.modelId || m.slug === it.modelId);
+        if (mod && !selectedCubicleModels.some((m) => m.id === mod.id)) {
+          selectedCubicleModels.push(mod);
+        }
+      });
       const lockerItem = nextItems.find((it) => it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker')));
       const lockerModel = catalogModels.find((m) => m.id === lockerItem?.modelId);
 
       return {
         ...f,
         items: nextItems,
-        accessoriesText: buildQuotationAccessoriesText(primaryModel, selected, lockerModel),
+        accessoriesText: buildQuotationAccessoriesText(selectedCubicleModels, selected, lockerModel),
       };
     });
   };
@@ -651,15 +693,21 @@ export default function DraftQuotationPage() {
         const nextItems = f.items.filter(
           (it) => it.systemCategory !== 'locker' && !(it.description && it.description.toLowerCase().includes('locker'))
         );
-        const primaryItem = nextItems.find((it) => it.systemCategory !== 'ump') || nextItems[0];
-        const primaryModel = catalogModels.find((m) => m.id === primaryItem?.modelId);
+        const cubicleItems = nextItems.filter((it) => it.systemCategory !== 'ump');
+        const selectedCubicleModels: ProductCatalogModel[] = [];
+        cubicleItems.forEach((it) => {
+          const mod = catalogModels.find((m) => m.id === it.modelId || m.slug === it.modelId);
+          if (mod && !selectedCubicleModels.some((m) => m.id === mod.id)) {
+            selectedCubicleModels.push(mod);
+          }
+        });
         const umpItem = nextItems.find((it) => it.systemCategory === 'ump' || (it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump'))));
         const umpModel = catalogModels.find((m) => m.id === umpItem?.modelId);
 
         return {
           ...f,
           items: nextItems,
-          accessoriesText: buildQuotationAccessoriesText(primaryModel, umpModel, undefined),
+          accessoriesText: buildQuotationAccessoriesText(selectedCubicleModels, umpModel, undefined),
         };
       });
       return;
@@ -733,15 +781,23 @@ export default function DraftQuotationPage() {
 
       const nextItems = [...remainingItems, updatedLockerItem];
 
-      const primaryItem = nextItems.find((it) => it.systemCategory !== 'ump' && it.systemCategory !== 'locker') || nextItems[0];
-      const primaryModel = catalogModels.find((m) => m.id === primaryItem?.modelId);
+      const cubicleItems = nextItems.filter(
+        (it) => it.systemCategory !== 'ump' && it.systemCategory !== 'locker'
+      );
+      const selectedCubicleModels: ProductCatalogModel[] = [];
+      cubicleItems.forEach((it) => {
+        const mod = catalogModels.find((m) => m.id === it.modelId || m.slug === it.modelId);
+        if (mod && !selectedCubicleModels.some((m) => m.id === mod.id)) {
+          selectedCubicleModels.push(mod);
+        }
+      });
       const umpItem = nextItems.find((it) => it.systemCategory === 'ump' || (it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump'))));
       const umpModel = catalogModels.find((m) => m.id === umpItem?.modelId);
 
       return {
         ...f,
         items: nextItems,
-        accessoriesText: buildQuotationAccessoriesText(primaryModel, umpModel, selected),
+        accessoriesText: buildQuotationAccessoriesText(selectedCubicleModels, umpModel, selected),
       };
     });
   };
@@ -810,6 +866,9 @@ export default function DraftQuotationPage() {
       items: [
         ...f.items,
         {
+          systemCategory: 'cubicle',
+          modelId: '',
+          customModelName: '',
           description: '',
           unit: 'NOS',
           quantity: 1,
@@ -821,6 +880,7 @@ export default function DraftQuotationPage() {
           doorSize: '600mm × 1785mm',
           overallHeight: '1980mm (incl. 100mm ground clearance)',
           hardwarePackage: defaultHardware,
+          make: 'Pacific',
         },
       ],
     }));
@@ -1138,35 +1198,38 @@ export default function DraftQuotationPage() {
         drawingUrl: form.drawingUrl || undefined,
         drawingFileName: form.drawingFileName || undefined,
         drawingFileId: form.drawingFileId || undefined,
-        items: form.items.map((it, idx) => ({
-          serialNumber: idx + 1,
-          description: it.description,
-          unit: it.unit || 'NOS',
-          quantity: Number(it.quantity),
-          rate: Number(it.rate),
-          amount: Number(it.quantity) * Number(it.rate),
-          boardType: it.boardType || (form.quotationScope === 'HARDWARE' ? undefined : 'HPL'),
-          cubicleSize: it.cubicleSize || undefined,
-          boardColor: it.boardColor || undefined,
-          boardThickness: it.boardThickness || undefined,
-          doorSize: it.doorSize || undefined,
-          overallHeight: it.overallHeight || undefined,
-          hardwarePackage: it.hardwarePackage || undefined,
-          make: it.make || undefined,
-          customModelName: it.customModelName || undefined,
-          modelName: it.customModelName || undefined,
-          modelImageUrl: it.modelImageUrl || undefined,
-          customSpecsJson: {
-            hardwarePackage: it.hardwarePackage || undefined,
+        items: form.items.map((it, idx) => {
+          const resolvedModelName = it.customModelName || (it.modelId && it.modelId !== 'CUSTOM' ? catalogModels.find((m) => m.id === it.modelId)?.title : undefined) || undefined;
+          return {
+            serialNumber: idx + 1,
+            description: it.description,
+            unit: it.unit || 'NOS',
+            quantity: Number(it.quantity),
+            rate: Number(it.rate),
+            amount: Number(it.quantity) * Number(it.rate),
             boardType: it.boardType || (form.quotationScope === 'HARDWARE' ? undefined : 'HPL'),
-            systemCategory: it.systemCategory || undefined,
-            quotationScope: form.quotationScope || 'CUBICLE',
+            cubicleSize: it.cubicleSize || undefined,
+            boardColor: it.boardColor || undefined,
+            boardThickness: it.boardThickness || undefined,
+            doorSize: it.doorSize || undefined,
+            overallHeight: it.overallHeight || undefined,
+            hardwarePackage: it.hardwarePackage || undefined,
             make: it.make || undefined,
-            customModelName: it.customModelName || undefined,
-            modelName: it.customModelName || undefined,
+            customModelName: resolvedModelName,
+            modelName: resolvedModelName,
             modelImageUrl: it.modelImageUrl || undefined,
-          },
-        })),
+            customSpecsJson: {
+              hardwarePackage: it.hardwarePackage || undefined,
+              boardType: it.boardType || (form.quotationScope === 'HARDWARE' ? undefined : 'HPL'),
+              systemCategory: it.systemCategory || undefined,
+              quotationScope: form.quotationScope || 'CUBICLE',
+              make: it.make || undefined,
+              customModelName: resolvedModelName,
+              modelName: resolvedModelName,
+              modelImageUrl: it.modelImageUrl || undefined,
+            },
+          };
+        }),
       });
 
       localStorage.removeItem(LOCAL_STORAGE_KEY);
@@ -1938,30 +2001,57 @@ export default function DraftQuotationPage() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {(!form.quotationScope || form.quotationScope === 'CUBICLE') && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    addItem();
+                    clearFieldError('items');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] border border-[#7FB706]/30 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                  title="Add another catalog cubicle model system"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  ＋ Add Cubicle System
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    addCustomModelItem();
+                    clearFieldError('items');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                  title="Write custom model name and technical specifications"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  ＋ Add Custom Item &amp; Model
+                </button>
+              </>
+            )}
+            {form.quotationScope === 'BOARD' && (
               <button
                 type="button"
                 onClick={() => {
-                  addCustomModelItem();
+                  addBoardItem();
                   clearFieldError('items');
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors"
-                title="Write custom model name and technical specifications"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] rounded-lg text-xs font-bold cursor-pointer transition-colors"
               >
-                <Plus className="w-3.5 h-3.5" />
-                ＋ Add Custom Item &amp; Model
+                <Plus className="w-3.5 h-3.5" /> Add Board Sheet
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                addItem();
-                clearFieldError('items');
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] rounded-lg text-xs font-bold cursor-pointer transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              {form.quotationScope === 'BOARD' ? 'Add Board Sheet' : form.quotationScope === 'HARDWARE' ? 'Add Hardware Item' : 'Add Standard Item'}
-            </button>
+            {form.quotationScope === 'HARDWARE' && (
+              <button
+                type="button"
+                onClick={() => {
+                  addHardwareItem();
+                  clearFieldError('items');
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] rounded-lg text-xs font-bold cursor-pointer transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Hardware Item
+              </button>
+            )}
           </div>
         </div>
 
@@ -3135,31 +3225,44 @@ export default function DraftQuotationPage() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-3 space-y-1.5">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                            <label className={labelCls}>Cubicle Model Selection &amp; Description (Optional)</label>
+                            <span className="text-[11px] text-[#7FB706] font-medium flex items-center gap-1">
+                              <Sparkles className="w-3 h-3" /> Auto-fetches hardware list, sizes &amp; height
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             <div>
-                              <div className="flex items-center justify-between mb-1">
-                                <label className={labelCls}>
-                                  Product Model Name <span className="text-[11px] text-amber-300 font-medium">(Write Manually)</span>
-                                </label>
-                                <span className="text-[10px] text-amber-300/80">Printed on PDF</span>
-                              </div>
-                              <input
-                                type="text"
-                                value={item.customModelName ?? (item.modelId && item.modelId !== 'CUSTOM' ? (cubicleModels.find((m) => m.id === item.modelId)?.title || '') : '')}
-                                onChange={(e) => {
-                                  handleItemChange(realIdx, 'customModelName', e.target.value);
-                                  handleItemChange(realIdx, 'modelName', e.target.value);
-                                  handleItemChange(realIdx, 'modelId', 'CUSTOM');
-                                }}
-                                placeholder="e.g. Pacific Classique / Custom Model Name"
-                                className={inputCls + ' font-semibold text-white bg-[#0a0a1a] border-amber-500/40 focus:border-amber-400'}
-                              />
+                              <select
+                                value={item.modelId || ''}
+                                onChange={(e) => handleSelectModel(realIdx, e.target.value)}
+                                className={inputCls + ' bg-[#161536] border-[#7FB706]/40 text-white font-semibold'}
+                              >
+                                <option value="">-- Choose Cubicle Model (Optional) --</option>
+                                {standardCubicleModels.length > 0 && (
+                                  <optgroup label={`Standard Restroom Cubicles (${standardCubicleModels.length} Listed)`}>
+                                    {standardCubicleModels.map((m) => (
+                                      <option key={m.id} value={m.id}>
+                                        {m.title}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                                {kidsCubicleModels.length > 0 && (
+                                  <optgroup label={`Kids Cubicle Models (${kidsCubicleModels.length} Listed)`}>
+                                    {kidsCubicleModels.map((m) => (
+                                      <option key={m.id} value={m.id}>
+                                        {m.title}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                                <option value="CUSTOM">Custom / Manual Specification (Write Model)</option>
+                              </select>
                             </div>
 
                             <div>
-                              <div className="flex items-center justify-between mb-1">
-                                <label className={labelCls}>Description *</label>
-                              </div>
                               <input
                                 type="text"
                                 value={item.description}
@@ -3167,22 +3270,46 @@ export default function DraftQuotationPage() {
                                   handleItemChange(realIdx, 'description', e.target.value);
                                   clearFieldError(`item_${realIdx}_desc`);
                                 }}
-                                placeholder="Item description / specification"
+                                placeholder="Description (auto-filled on model select)"
                                 className={getInputCls(`item_${realIdx}_desc`)}
                                 required
                               />
-                              {fieldErrors[`item_${realIdx}_desc`] && (
-                                <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${realIdx}_desc`]}</p>
-                              )}
                             </div>
                           </div>
+
+                          {item.modelId === 'CUSTOM' && (
+                            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row gap-2.5 items-start sm:items-center">
+                              <span className="text-xs font-bold text-amber-300 whitespace-nowrap flex items-center gap-1.5">
+                                <span>✍️</span> Custom Model Name:
+                              </span>
+                              <input
+                                type="text"
+                                value={item.customModelName || ''}
+                                onChange={(e) => {
+                                  handleItemChange(realIdx, 'customModelName', e.target.value);
+                                  handleItemChange(realIdx, 'modelName', e.target.value);
+                                }}
+                                placeholder="e.g. Pacific Luxe Floor-to-Ceiling / Custom Restroom Model"
+                                className="flex-1 w-full bg-[#0a0a1a] border border-amber-500/40 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-amber-400 font-semibold"
+                              />
+                            </div>
+                          )}
+
+                          {fieldErrors[`item_${realIdx}_desc`] && (
+                            <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${realIdx}_desc`]}</p>
+                          )}
                         </div>
 
                         <div className="sm:col-span-2 lg:col-span-4">
                           <ModelImageField
                             imageUrl={item.modelImageUrl}
-                            modelName={item.customModelName || item.description || `Item #${realIdx + 1}`}
-                            categoryLabel="Line Item Model Visual"
+                            modelName={
+                              item.customModelName ||
+                              (cubicleModels.find((m) => m.id === item.modelId)?.title) ||
+                              item.description ||
+                              `Additional System #${addIdx + 2}`
+                            }
+                            categoryLabel={`System #${addIdx + 2} Model Visual`}
                             onImageChange={(newUrl) => handleItemChange(realIdx, 'modelImageUrl', newUrl)}
                           />
                         </div>
@@ -3207,10 +3334,16 @@ export default function DraftQuotationPage() {
                             min="0.01"
                             step="0.01"
                             value={item.quantity}
-                            onChange={(e) => handleItemChange(realIdx, 'quantity', Number(e.target.value) || 0)}
-                            className={inputCls}
+                            onChange={(e) => {
+                              handleItemChange(realIdx, 'quantity', Number(e.target.value) || 0);
+                              clearFieldError(`item_${realIdx}_qty`);
+                            }}
+                            className={getInputCls(`item_${realIdx}_qty`)}
                             required
                           />
+                          {fieldErrors[`item_${realIdx}_qty`] && (
+                            <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${realIdx}_qty`]}</p>
+                          )}
                         </div>
 
                         <div>
@@ -3220,10 +3353,16 @@ export default function DraftQuotationPage() {
                             min="0"
                             step="0.01"
                             value={item.rate}
-                            onChange={(e) => handleItemChange(realIdx, 'rate', Number(e.target.value) || 0)}
-                            className={inputCls}
+                            onChange={(e) => {
+                              handleItemChange(realIdx, 'rate', Number(e.target.value) || 0);
+                              clearFieldError(`item_${realIdx}_rate`);
+                            }}
+                            className={getInputCls(`item_${realIdx}_rate`)}
                             required
                           />
+                          {fieldErrors[`item_${realIdx}_rate`] && (
+                            <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${realIdx}_rate`]}</p>
+                          )}
                         </div>
                       </div>
 
@@ -3237,7 +3376,7 @@ export default function DraftQuotationPage() {
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                           <div>
-                            <label className={labelCls}>Board Type</label>
+                            <label className={labelCls}>Board Type *</label>
                             <select
                               value={item.boardType || 'HPL'}
                               onChange={(e) => handleItemChange(realIdx, 'boardType', e.target.value)}
@@ -3268,7 +3407,7 @@ export default function DraftQuotationPage() {
                             />
                           </div>
                           <div>
-                            <label className={labelCls}>Size / Dimension</label>
+                            <label className={labelCls}>Cubicle Size</label>
                             <input
                               type="text"
                               value={item.cubicleSize || ''}
@@ -3293,9 +3432,38 @@ export default function DraftQuotationPage() {
                               type="text"
                               value={item.overallHeight || ''}
                               onChange={(e) => handleItemChange(realIdx, 'overallHeight', e.target.value)}
-                              placeholder="e.g. 1980mm (incl. 100mm clearance)"
+                              placeholder="e.g. 1980mm (incl. 100mm ground clearance)"
                               className={inputCls}
                             />
+                          </div>
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className={labelCls}>Make</label>
+                              <span className="text-[10px] text-gray-400 font-normal">Type or pick preset</span>
+                            </div>
+                            <input
+                              type="text"
+                              value={item.make ?? 'Pacific'}
+                              onChange={(e) => handleItemChange(realIdx, 'make', e.target.value)}
+                              placeholder="e.g. Pacific / Greenlam / Merino"
+                              className={inputCls}
+                            />
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {['Pacific', 'Greenlam', 'Merino', 'Stylam', 'Formica'].map((preset) => (
+                                <button
+                                  key={preset}
+                                  type="button"
+                                  onClick={() => handleItemChange(realIdx, 'make', preset)}
+                                  className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                                    (item.make ?? 'Pacific') === preset
+                                      ? 'bg-[#7FB706]/20 border-[#7FB706] text-[#7FB706] font-medium'
+                                      : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                                  }`}
+                                >
+                                  {preset}
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -3308,6 +3476,18 @@ export default function DraftQuotationPage() {
                     </div>
                   );
                 })}
+
+                {/* Add Another Cubicle System Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    addItem();
+                    clearFieldError('items');
+                  }}
+                  className="w-full py-2.5 bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] border border-dashed border-[#7FB706]/40 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Add Another Cubicle System
+                </button>
               </>
             );
           })())}
