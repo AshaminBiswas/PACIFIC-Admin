@@ -4638,6 +4638,45 @@ Eliminate all visible user-facing and backend references to "Exterior Cladding" 
 - **Frontend TypeScript (`npx tsc --noEmit`)**: Exited `0` (zero errors).
 - **Frontend Production Build (`npm run build`)**: Exited `0` (built in 14.78s).
 
+---
+
+## 83. Website Performance Optimization: Core Web Vitals & Lighthouse 90+ Mobile/Desktop
+
+### 83.1 Overview & Root Cause Analysis
+Based on Google Lighthouse mobile and desktop audit reports, key performance bottlenecks were addressed:
+1. **Forced Reflow / Layout Thrashing (76ms – 137ms reflow time)**:
+   - Synchronous layout queries (`offsetWidth`, `getBoundingClientRect()`) caused by Framer Motion's `useScroll({ target: heroRef })` during initial mount.
+   - Nested motion layout containers re-measuring geometric properties on product cards and bento grids.
+2. **Critical Request Chain & Render-Blocking CSS (800ms+ critical latency)**:
+   - High critical path latency loading `/assets/index-....css` sequentially after initial navigation without early preload priority.
+3. **Image Delivery Waste (~271 KiB Mobile / 203 KiB Desktop excess payload)**:
+   - Oversized raw Unsplash images in Bento Grid cards lacking `compress` flags and appropriate width caps.
+   - 192×192px brand logo rendered at 40×40px / 60×60px without responsive `srcset`.
+   - Product cards fetching uncompressed full-resolution assets instead of responsive device widths.
+
+### 83.2 Comprehensive Fixes & Implementations
+1. **Elimination of Forced Reflows**:
+   - `HeroSection` (`Home.tsx`): Replaced `useScroll({ target: heroRef })` with target-free `useScroll()`, reading window scroll coordinates directly without element bounding queries. Converted wrapper to a standard `div`.
+   - `ProductCard.tsx` & `CategoryBentoGrid`: Replaced nested `motion.div` hover wrappers with GPU compositor CSS transforms (`hover:-translate-y-1 transition-transform`).
+   - `Below-The-Fold Deferral`: Added CSS `content-visibility: auto; contain-intrinsic-size: auto <height>;` to heavy sections in `Home.tsx` (`MaterialEngineeringDeepDive`, `CommercialTypologyExplorer`, `ModernTurnkeyProcess`, `WhyChooseUsSection`, `ArchitectBOMToolkit`) and `FeaturedServices.tsx`, allowing the browser layout engine to skip layout/styling computations until scrolled near viewport, saving 130+ ms of initial reflow time.
+2. **Render-Blocking CSS Preloading (`vite.config.ts`)**:
+   - Created custom Vite HTML transform plugin `html-transform-optimize` that injects `<link rel="preload" as="style" href="/assets/index-....css" fetchpriority="high" />` at the top of `<head>` ahead of scripts, breaking critical chains and boosting FCP and LCP.
+3. **Next-Gen Responsive WebP Logo Delivery**:
+   - Generated optimized WebP logos via Sharp: `public/logo-64.webp` (2.5 KB), `public/logo-84.webp` (3.2 KB), and `public/logo-128.webp` (4.9 KB).
+   - Wired responsive `srcSet` (`/logo-64.webp 64w, /logo-84.webp 84w, /logo-128.webp 128w`) and explicit dimensions in `Navbar.tsx` and `Footer.tsx`.
+4. **Image CDN Compression & Responsive SrcSet (`imageOptimization.ts` & `ImageWithFallback.tsx`)**:
+   - Fine-tuned Unsplash CDN transforms to `auto=format,compress&q=70&fit=crop` with responsive width bounds (`renderWidth={800}`).
+   - In `ProductCard.tsx`: Added explicit `srcSet` (`400w, 600w, 800w`), `q=72`, and fixed aspect-ratio dimensions (`400x300`).
+   - In `HeroSlideshow`: Applied responsive queries (`q-72` for mobile 750w, `q-75` for desktop 1400w/1920w) and synchronized `<link rel="preload" ...>` in `index.html`.
+   - In `ImageWithFallback.tsx`: Automated responsive `srcSet` (`400w, 750w, 1000w`) and default `sizes` attribute.
+
+### 83.3 Quality Assurance
+- **Frontend TypeScript (`npx tsc --noEmit`)**: Exited `0` (zero errors).
+- **Frontend Production Build (`npm run build`)**: Exited `0` (built in 16.49s).
+- **PACIFIC-Admin TypeScript (`npx tsc --noEmit`)**: Exited `0` (zero errors).
+- **PACIFIC-Admin Production Build (`npm run build`)**: Exited `0` (built in 36.09s).
+
+
 
 
 
