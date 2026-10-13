@@ -4611,6 +4611,34 @@ Eliminate all visible user-facing and backend references to "Exterior Cladding" 
 - **TypeScript**: `npx tsc --noEmit` exited `0` (zero errors).
 - **Vite Build**: `npm run build` exited `0` (clean production build).
 
+---
+
+## 82. Navbar Cleanup and Downloads/Testimonials Page Banners Management
+
+### 82.1 Overview & Requirements
+- **Goal**:
+  1. Remove "Downloads" and "Testimonials" from the main website navigation bar to keep the primary header navigation focused on core product categories and models.
+  2. Enable centralized Page Banner management for both the **Downloads & Catalogs Page** (`downloads`) and **Testimonials & Reviews Page** (`testimonials`) from the Admin Console (`AdminPageBanners.tsx`).
+  3. Ensure both public frontend pages render dynamic hero background images, custom titles, subtitles, and SEO-optimized Alt text managed from the admin panel using the standardized `PageHero` component.
+
+### 82.2 Modifications
+1. **Website Navigation Bar (`Navbar.tsx`)**:
+   - Removed `Downloads` (`/download`) and `Testimonials` (`/testimonials`) navigation items from `navItems`.
+2. **Admin Console Page Banners (`AdminPageBanners.tsx`)**:
+   - Added `downloads` (`1920×600 px`, `16:5` ratio) and `testimonials` (`1920×600 px`, `16:5` ratio) specifications to `PAGE_SPECS`.
+   - Enabled banner image upload, replacement, deletion, and Alt text editing for both pages.
+   - Synchronized across both `PACIFIC-Admin` and `Pacific Products And Solutions`.
+3. **Downloads & Testimonials Frontend Pages**:
+   - `Downloads.tsx`: Integrated `usePageBanner('downloads')` and `PageHero`, rendering dynamic admin-uploaded hero background images with image SEO fallback.
+   - `Testimonials.tsx`: Integrated `usePageBanner('testimonials')` and `PageHero` with standalone animated rating stats strip.
+
+### 82.3 Quality Assurance
+- **PACIFIC-Admin TypeScript (`npx tsc --noEmit`)**: Exited `0` (zero errors).
+- **PACIFIC-Admin Production Build (`npm run build`)**: Exited `0` (built in 29.30s).
+- **Frontend TypeScript (`npx tsc --noEmit`)**: Exited `0` (zero errors).
+- **Frontend Production Build (`npm run build`)**: Exited `0` (built in 14.78s).
+
+
 
 
 
