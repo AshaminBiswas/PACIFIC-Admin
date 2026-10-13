@@ -4917,6 +4917,27 @@ Implemented in `src/app/pages/LocationDetail.tsx` backed by data store `src/app/
    - Added `LocationPageRecord`, `LocationPageFaq`, `LocationLogisticsInfo`, and `LocationSeoMetadata` interfaces in `src/types/admin.ts`.
    - Expanded `LOCATIONS` array in `AdminGallery.tsx` to include all 16 target cities for regional photo tagging.
 
+### 89.5 Location Routing, Dynamic Customer-Location Footer & Hero Search Integration
+1. **Location Page 404 Fix (`LocationDetail.tsx` & `routes.tsx`)**:
+   - **Root Cause**: React Router v6 does not match partial segment parameter tokens (e.g. `path: "restroom-cubicle-manufacturer-:city"`), causing URLs to either fall through to 404 or return `{}` for `useParams()`, resulting in `resolveLocationKey(undefined)` returning `null` ("Service Location Not Found").
+   - **Resolution**: Explicitly registered all 16 target slugs (`restroom-cubicle-manufacturer-delhi`, etc.) as first-class routes in `routes.tsx`.
+   - Enhanced `LocationDetail.tsx` to parse route candidates from `useLocation().pathname` (`cleanPath = pathname.replace(/^\/+|\/+$/g, '')`), resolving both full canonical slugs and short city keys reliably.
+   - Added `locations` index redirect to `/restroom-cubicle-manufacturer-delhi` and added UAE canonical route.
+2. **Dynamic Footer Service Area by Customer Location & Search Location (`Footer.tsx`)**:
+   - Clustered all 16 cities into geographic hubs: **Delhi NCR Hub** (Delhi NCR, Gurugram, Noida, Greater Noida, Ghaziabad, Faridabad), **Western Region** (Mumbai, Pune, Ahmedabad), **Southern Region** (Bengaluru, Hyderabad, Chennai, Kochi), **Eastern & Northeast** (Kolkata, Bhubaneswar, Guwahati), and **Middle East / UAE** (Dubai UAE).
+   - Replaced the un-clustered static 11-link list with a dynamic customer-location service area component that:
+     - Detects the visitor's location from active URL or `localStorage.getItem("pacific_customer_location")` (defaulting to Delhi NCR HQ).
+     - Displays only the relevant regional cluster instead of cluttering the footer with all cities.
+     - Provides an interactive search input directly inside the footer allowing instant city search and autocomplete filtering.
+     - Provides quick region switcher pills (`[NCR] [WEST] [SOUTH] [EAST] [ALL]`) for multi-city project buyers.
+     - Displays cluster logistics dispatch times and lead-time guarantees.
+3. **Site-Wide Hero Search Integration (`Home.tsx`)**:
+   - Enhanced the homepage hero AI search dropdown to surface matching locations (`locationResults`) alongside products and solutions.
+   - Rendered location results with dedicated `MapPin` icons, local transit badges, and logistics delivery notes.
+   - Clicking a location search result automatically sets `pacific_customer_location` in `localStorage`, broadcasts `pacific_location_changed`, and navigates to the location landing page without 404.
+4. **Hero Image Preload Optimization (`index.html`)**:
+   - Removed global desktop/mobile `<link rel="preload">` image tags from `index.html` that triggered browser console warnings on subpages where the image is never used, preserving only high-performance CDN preconnects.
+
 
 
 
