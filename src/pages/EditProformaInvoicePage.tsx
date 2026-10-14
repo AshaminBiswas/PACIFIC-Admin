@@ -143,7 +143,12 @@ export default function EditProformaInvoicePage() {
     [catalogModels]
   );
   const urinalModels = useMemo(
-    () => catalogModels.filter((m) => m.category === 'Urinal Partitions'),
+    () => catalogModels.filter((m) =>
+      m.category === 'Urinal Partitions' ||
+      (m.category as string) === 'Urinal Partition' ||
+      m.title?.toLowerCase().includes('urinal') ||
+      m.slug?.toLowerCase().includes('ump')
+    ),
     [catalogModels]
   );
 
@@ -427,7 +432,7 @@ export default function EditProformaInvoicePage() {
             gstRate: Number(it.gstRate ?? 18),
             boardType: boardType || (hasExplicitModel ? defaultDims?.boardType : '') || 'HPL',
             boardThickness: boardThickness || (hasExplicitModel ? defaultDims?.boardThickness : '') || '12mm',
-            boardColor: boardColor || 'D.No. 123 – Oyster White',
+            boardColor: boardColor || '',
             cubicleSize: cubicleSize || (hasExplicitModel ? defaultDims?.cubicleSize : '') || '1000mm W × 1500mm D',
             doorSize: doorSize || (hasExplicitModel ? defaultDims?.doorSize : '') || '',
             overallHeight: overallHeight || (hasExplicitModel ? defaultDims?.overallHeight : '') || '',
@@ -638,6 +643,7 @@ export default function EditProformaInvoicePage() {
       const prevModelId = existingUmp?.modelId;
       const currentQty = existingUmp ? Number(existingUmp.quantity) || 1 : 1;
       const currentRate = existingUmp && existingUmp.rate > 0 ? existingUmp.rate : 4500;
+      const currentHsn = existingUmp?.hsnSac || '9403';
 
       const updatedUmpItem: CreateItem = {
         id: existingUmp?.id,
@@ -645,14 +651,14 @@ export default function EditProformaInvoicePage() {
         systemCategory: 'ump',
         itemType: 'cubicle',
         description: `Pacific ${selected.title} (Urinal Partitions)`,
-        hsnSac: '9403',
+        hsnSac: currentHsn,
         quantity: currentQty,
         unit: existingUmp?.unit || 'NOS',
         rate: currentRate,
         gstRate: 18,
         boardType: dims.boardType || 'HPL',
         boardThickness: dims.boardThickness || '12mm',
-        boardColor: existingUmp?.boardColor || 'D.No. 123 – Oyster White',
+        boardColor: existingUmp?.boardColor || '',
         cubicleSize: dims.cubicleSize || '450mm W × 900mm H',
         doorSize: 'N/A',
         overallHeight: dims.overallHeight || '1200mm (affixed 300mm above finished floor)',
@@ -755,7 +761,7 @@ export default function EditProformaInvoicePage() {
         gstRate: 18,
         boardType: dims.boardType || 'HPL',
         boardThickness: dims.boardThickness || '12mm',
-        boardColor: existingLocker?.boardColor || 'D.No. 123 – Oyster White',
+        boardColor: existingLocker?.boardColor || '',
         cubicleSize: dims.cubicleSize || '300mm W × 450mm D × 1800mm H',
         doorSize: dims.doorSize || 'Tier Modular Doors as per drawing',
         overallHeight: dims.overallHeight || '1900mm (including 100mm plinth base)',
@@ -844,7 +850,7 @@ export default function EditProformaInvoicePage() {
         gstRate: 18,
         boardType: 'HPL',
         boardThickness: '12mm',
-        boardColor: 'D.No. 123 – Oyster White',
+        boardColor: '',
         cubicleSize: '1000mm W × 1500mm D',
         doorSize: '600mm × 1785mm',
         overallHeight: '1980mm (incl. 100mm ground clearance)',
@@ -2186,7 +2192,7 @@ export default function EditProformaInvoicePage() {
                           type="text"
                           value={item.boardColor || ''}
                           onChange={(e) => handleItemChange(idx, 'boardColor', e.target.value)}
-                          placeholder="e.g. D.No. 123 – Oyster White"
+                          placeholder="e.g. As approved / Shade code (Optional)"
                           className={inputCls}
                         />
                       </div>
@@ -2389,7 +2395,7 @@ export default function EditProformaInvoicePage() {
                           type="text"
                           value={item.boardColor || ''}
                           onChange={(e) => handleItemChange(idx, 'boardColor', e.target.value)}
-                          placeholder="e.g. D.No. 123 – Oyster White"
+                          placeholder="e.g. As approved / Shade code (Optional)"
                           className={inputCls}
                         />
                       </div>
@@ -2935,7 +2941,7 @@ export default function EditProformaInvoicePage() {
                             type="text"
                             value={primaryCubicleItem.boardColor || ''}
                             onChange={(e) => handleItemChange(primaryCubicleIdx, 'boardColor', e.target.value)}
-                            placeholder="e.g. D.No. 123 – Oyster White"
+                            placeholder="e.g. As approved / Shade code (Optional)"
                             className={inputCls}
                           />
                         </div>
@@ -3041,7 +3047,17 @@ export default function EditProformaInvoicePage() {
 
                   {umpItem && (
                     <div className="space-y-3 pt-2 border-t border-cyan-500/20">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                        <div>
+                          <label className={labelCls}>HSN / SAC</label>
+                          <HsnSelectInput
+                            value={umpItem.hsnSac || '9403'}
+                            onChange={(val) => handleUmpFieldChange('hsnSac', val)}
+                            options={['9403', '48239019', '44119229', '8302']}
+                            placeholder="Enter custom HSN / SAC"
+                          />
+                        </div>
+
                         <div>
                           <label className={labelCls}>Unit</label>
                           <select
@@ -3121,7 +3137,7 @@ export default function EditProformaInvoicePage() {
                               type="text"
                               value={umpItem.boardColor || ''}
                               onChange={(e) => handleUmpFieldChange('boardColor', e.target.value)}
-                              placeholder="e.g. D.No. 123 – Oyster White"
+                              placeholder="e.g. As approved / Shade code (Optional)"
                               className={inputCls}
                             />
                           </div>
@@ -3163,7 +3179,7 @@ export default function EditProformaInvoicePage() {
 
                       <div className="flex items-center justify-between text-xs pt-1">
                         <span className="text-[11px] text-gray-400 italic">
-                          HSN: 9403 · Urinal Modesty Partition System (Auto-generates individual hardware below)
+                          HSN: {umpItem.hsnSac || '9403'} · Urinal Modesty Partition System (Auto-generates individual hardware below)
                         </span>
                         <div className="font-mono text-xs text-gray-400">
                           Line Total: <span className="font-bold text-cyan-300 text-sm">
@@ -3302,7 +3318,7 @@ export default function EditProformaInvoicePage() {
                               type="text"
                               value={lockerItem.boardColor || ''}
                               onChange={(e) => handleLockerFieldChange('boardColor', e.target.value)}
-                              placeholder="e.g. D.No. 123 – Oyster White"
+                              placeholder="e.g. As approved / Shade code (Optional)"
                               className={inputCls}
                             />
                           </div>
@@ -3521,7 +3537,7 @@ export default function EditProformaInvoicePage() {
                               type="text"
                               value={item.boardColor || ''}
                               onChange={(e) => handleItemChange(realIdx, 'boardColor', e.target.value)}
-                              placeholder="e.g. D.No. 123 – Oyster White"
+                              placeholder="e.g. As approved / Shade code (Optional)"
                               className={inputCls}
                             />
                           </div>
