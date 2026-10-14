@@ -5316,6 +5316,49 @@ Direct PostgreSQL DDL migrations were executed on the production Supabase databa
 - **TypeScript**: `npx tsc --noEmit` exited with 0 errors.
 - **Production Build**: `npm run build` completed with exit code 0.
 
+---
+
+## 97. Proforma Invoice Billing & Shipping Address Deduplication & Custom Site Entry
+
+### 97.1 Problem Statement & Root Cause Analysis
+1. **Repeated "New Delhi" / "Delhi" in PDF & Form State**:
+   - In both [`CreateProformaPage.tsx`](file:///d:/PACIFIC-Admin/src/pages/CreateProformaPage.tsx) and [`EditProformaInvoicePage.tsx`](file:///d:/PACIFIC-Admin/src/pages/EditProformaInvoicePage.tsx), initial states and fallback loaders had hardcoded `city: 'New Delhi'` and `state: 'Delhi'`.
+   - When a customer record was loaded whose address line already included `"..., Okhla, New Delhi"`, joining `[addressLine, city, pincode]` appended `"New Delhi"` a second time (`"..., New Delhi, New Delhi, PIN: 110020"`).
+   - In the backend PDF generator ([`D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`](file:///D:/PACIFIC-Backend/src/modules/pdf/pdf.service.ts)), the template code appended `State: Delhi (07)` if state matching was loose, printing `"New Delhi"` three times in the generated PDF.
+   - For out-of-Delhi clients (e.g. Noida, Gurugram, Mumbai), defaulting `city` to `'New Delhi'` polluted non-Delhi addresses.
+2. **Shipping Address Customization**:
+   - Shipping addresses should auto-populate from the customer database by default, but users needed an explicit, friction-free option to type complete custom site delivery details (consignee, site plot address, city, 6-digit PIN, state code, site contact phone) when dispatching directly to a project site.
+
+### 97.2 Engineering Solutions & Implementation
+1. **Universal Address Deduplication Helper (`formatStructuredAddress` in `tax.ts`)**:
+   - Implemented and exported [`formatStructuredAddress`](file:///d:/PACIFIC-Admin/src/utils/tax.ts) in [`src/utils/tax.ts`](file:///d:/PACIFIC-Admin/src/utils/tax.ts):
+     - Cleans leading and trailing commas.
+     - Detects if city is already present in `addressLine` before appending.
+     - Validates and standardizes 6-digit PIN numbers without duplicating existing PIN occurrences.
+     - Splits into comma tokens and case-insensitively deduplicates identical or overlapping tokens (specifically `"Delhi"` and `"New Delhi"`).
+2. **Backend PDF Address Engine (`formatPdfAddress` in `pdf.service.ts`)**:
+   - In [`D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`](file:///D:/PACIFIC-Backend/src/modules/pdf/pdf.service.ts), implemented `formatPdfAddress(addressLine, partyState, stateCode)`:
+     - Deduplicates identical address tokens and avoids repeating `"New Delhi"` / `"Delhi"`.
+     - Checks if the state name or code is already present in the address string before appending `State: <StateName> (<Code>)`.
+     - Applied to both `billTo` (Billing Address) and `shipTo` (Consignee / Site Delivery Address) in `generatePiHtml`.
+3. **Form State Sanitation (`CreateProformaPage.tsx` & `EditProformaInvoicePage.tsx`)**:
+   - Removed hardcoded `'New Delhi'` and `'Delhi'` from `INITIAL_FORM` and default component state (`city: ''`, `state: ''`, `stateCode: ''`, `pincode: ''`).
+   - In `loadData` (`EditProformaInvoicePage.tsx`), party city and state are dynamically extracted from existing database records and `GST_STATE_CODE_MAP` without forcing `'New Delhi'`.
+   - Updated placeholder text from `"New Delhi"` to neutral `"e.g. Gurugram, Noida, Mumbai"`.
+4. **Interactive Custom Delivery Address UI**:
+   - Added `isCustomDelivery` state with a visual status pill in the card header:
+     - `📦 Fetched from Customer Data` (cyan badge) when auto-populated from customer CRM records or saved site addresses.
+     - `✍ Custom Site Entry` (amber badge) whenever a user edits any site field or clicks custom entry.
+   - Added **[✍ Write Custom Site Address]** button which clears delivery fields for blank site entry and sets `isCustomDelivery = true`.
+   - Added **[📋 Same as Billing]** button which copies billing details directly and sets `isCustomDelivery = false`.
+   - Added **Destination State Selector**: Replaced free-form text input with a `<select>` dropdown populated from all 36 Indian states and Union Territories in `GST_STATE_CODE_MAP`, automatically keeping state name and statutory 2-digit GST state code perfectly synchronized.
+   - Any typing in consignee name, delivery address, city, PIN code, state, or phone instantly flags the delivery address as a custom site entry.
+
+### 97.3 Quality & Verification
+- **TypeScript**: `npx tsc --noEmit` exited with 0 errors across the entire codebase.
+- **Production Build (Admin)**: `npm run build` completed with exit code 0 (`dist/` packaged in 45.81s).
+- **Production Build (Backend)**: `npm run build` completed with exit code 0 (Prisma client regenerated and `tsc` compiled).
+
 
 
 

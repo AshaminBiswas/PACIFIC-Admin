@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   Package,
   Boxes,
+  Edit3,
 } from 'lucide-react';
 import { piApi } from '../api/proformaApi';
 import { crmApi } from '../api/crmApi';
@@ -41,7 +42,7 @@ import CustomerSearchSelect from '../components/common/CustomerSearchSelect';
 import BranchSelector from '../components/common/BranchSelector';
 import HsnSelectInput from '../components/common/HsnSelectInput';
 import type { BusinessParty, CompanyProfile, ProductCatalogModel, SalesQuotation } from '../types/admin';
-import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP, isRestroomCubicleItem } from '../utils/tax';
+import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP, isRestroomCubicleItem, formatStructuredAddress } from '../utils/tax';
 import {
   type InstallationPricingMode,
   INSTALLATION_OPTIONS,
@@ -180,20 +181,20 @@ const INITIAL_FORM: CreateFormData = {
     gstin: '',
     pan: '',
     addressLine: '',
-    city: 'New Delhi',
+    city: '',
     pincode: '',
-    state: 'Delhi',
-    stateCode: '07',
+    state: '',
+    stateCode: '',
     phone: '',
     email: '',
   },
   deliveryAddress: {
     partyName: '',
     addressLine: '',
-    city: 'New Delhi',
+    city: '',
     pincode: '',
-    state: 'Delhi',
-    stateCode: '07',
+    state: '',
+    stateCode: '',
     phone: '',
   },
   items: [
@@ -327,6 +328,7 @@ export default function CreateProformaPage() {
   const [submitting, setSubmitting] = useState(false);
   const [newTermText, setNewTermText] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [isCustomDelivery, setIsCustomDelivery] = useState(false);
 
   // Lookups
   const [customers, setCustomers] = useState<BusinessParty[]>([]);
@@ -431,8 +433,25 @@ export default function CreateProformaPage() {
     const billing = selected.addresses?.find((a: any) => a.addressType === 'BILLING' || a.isDefaultBilling) || selected.addresses?.[0];
     const shipping = selected.addresses?.find((a: any) => a.addressType === 'SHIPPING' || a.isDefaultShipping) || billing;
 
-    const bState = billing?.state || 'Delhi';
-    const bStateCode = billing?.stateCode || (bState.toLowerCase().includes('delhi') ? '07' : '07');
+    let bState = billing?.state || (selected as any)?.state || '';
+    let bStateCode = billing?.stateCode || (selected as any)?.stateCode || '';
+    if (!bStateCode && selected.gstin && selected.gstin.length >= 2) {
+      bStateCode = selected.gstin.slice(0, 2);
+    }
+    if (!bState && bStateCode && GST_STATE_CODE_MAP[bStateCode]) {
+      bState = GST_STATE_CODE_MAP[bStateCode];
+    }
+    if (!bState) {
+      bState = 'Delhi';
+      bStateCode = '07';
+    }
+
+    let sState = shipping?.state || bState;
+    let sStateCode = shipping?.stateCode || bStateCode;
+    if (!sStateCode && sState) {
+      const match = Object.entries(GST_STATE_CODE_MAP).find(([, name]) => name.toLowerCase() === sState.toLowerCase());
+      if (match) sStateCode = match[0];
+    }
 
     setFormData((prev) => ({
       ...prev,
@@ -444,8 +463,8 @@ export default function CreateProformaPage() {
         gstin: selected.gstin || prev.billingAddress.gstin,
         pan: selected.pan || prev.billingAddress.pan,
         addressLine: [billing?.addressLine1, billing?.addressLine2].filter(Boolean).join(', ') || prev.billingAddress.addressLine,
-        city: billing?.city || prev.billingAddress.city,
-        pincode: billing?.postalCode || (billing as any)?.pincode || prev.billingAddress.pincode,
+        city: billing?.city || '',
+        pincode: billing?.postalCode || (billing as any)?.pincode || '',
         state: bState,
         stateCode: bStateCode,
         phone: selected.phone || (selected as any).contactPhone || prev.billingAddress.phone,
@@ -453,15 +472,16 @@ export default function CreateProformaPage() {
       },
       deliveryAddress: {
         partyName: selected.legalName || selected.tradeName || prev.deliveryAddress.partyName,
-        addressLine: [shipping?.addressLine1, shipping?.addressLine2].filter(Boolean).join(', ') || prev.deliveryAddress.addressLine,
-        city: shipping?.city || prev.deliveryAddress.city,
-        pincode: shipping?.postalCode || (shipping as any)?.pincode || prev.deliveryAddress.pincode,
-        state: shipping?.state || bState,
-        stateCode: shipping?.stateCode || bStateCode,
+        addressLine: [shipping?.addressLine1, shipping?.addressLine2].filter(Boolean).join(', ') || [billing?.addressLine1, billing?.addressLine2].filter(Boolean).join(', ') || '',
+        city: shipping?.city || billing?.city || '',
+        pincode: shipping?.postalCode || (shipping as any)?.pincode || billing?.postalCode || (billing as any)?.pincode || '',
+        state: sState,
+        stateCode: sStateCode,
         phone: selected.phone || (selected as any).contactPhone || prev.deliveryAddress.phone,
       },
     }));
 
+    setIsCustomDelivery(false);
     clearFieldError('customerId');
   };
 
@@ -479,6 +499,7 @@ export default function CreateProformaPage() {
         phone: prev.billingAddress.phone,
       },
     }));
+    setIsCustomDelivery(false);
   };
 
   // Clear Delivery Address for custom site entry
@@ -495,6 +516,7 @@ export default function CreateProformaPage() {
         phone: '',
       },
     }));
+    setIsCustomDelivery(true);
   };
 
   // Import from Quotation
@@ -1417,20 +1439,20 @@ export default function CreateProformaPage() {
 
     setSubmitting(true);
     try {
-      // Build clean structured address lines containing PIN
-      const billAddrParts = [
+      // Build clean structured address lines without repetitive tokens or duplicate PIN
+      const billToAddressFormatted = formatStructuredAddress(
         formData.billingAddress.addressLine,
         formData.billingAddress.city,
-        formData.billingAddress.pincode ? `PIN: ${formData.billingAddress.pincode}` : '',
-      ].filter(Boolean);
-      const billToAddressFormatted = billAddrParts.join(', ');
+        formData.billingAddress.pincode,
+        formData.billingAddress.state
+      );
 
-      const shipAddrParts = [
+      const shipToAddressFormatted = formatStructuredAddress(
         formData.deliveryAddress.addressLine,
         formData.deliveryAddress.city,
-        formData.deliveryAddress.pincode ? `PIN: ${formData.deliveryAddress.pincode}` : '',
-      ].filter(Boolean);
-      const shipToAddressFormatted = shipAddrParts.join(', ');
+        formData.deliveryAddress.pincode,
+        formData.deliveryAddress.state
+      );
 
       // Prepare clean terms without legacy hardware inclusions block
       const finalTerms = formData.terms.filter(
@@ -1791,7 +1813,7 @@ export default function CreateProformaPage() {
                       billingAddress: { ...prev.billingAddress, city: e.target.value },
                     }))
                   }
-                  placeholder="New Delhi"
+                  placeholder="e.g. Gurugram, Noida, Mumbai"
                   className={inputCls}
                 />
               </div>
@@ -1876,23 +1898,44 @@ export default function CreateProformaPage() {
 
         {/* Delivery Address Card */}
         <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-white/5 pb-2">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-cyan-400" /> Delivery Address (Ship To / Site)
-            </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/5 pb-2.5 gap-2">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-cyan-400" /> Delivery Address (Ship To / Site)
+              </h3>
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-md border ${
+                  isCustomDelivery
+                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                    : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
+                }`}
+              >
+                {isCustomDelivery ? (
+                  <>
+                    <Edit3 className="w-3 h-3 text-amber-400" />
+                    Custom Site Entry
+                  </>
+                ) : (
+                  <>
+                    <Package className="w-3 h-3 text-cyan-400" />
+                    Fetched from Customer Data
+                  </>
+                )}
+              </span>
+            </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleClearDeliveryAddress}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 transition cursor-pointer"
-                title="Clear for Custom Site Address"
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 transition cursor-pointer"
+                title="Write Custom Entire Site Details"
               >
-                <RotateCcw className="w-3 h-3" /> Custom Site Address
+                <Edit3 className="w-3 h-3" /> Write Custom Site Address
               </button>
               <button
                 type="button"
                 onClick={handleCopyBillingToDelivery}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 transition cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 transition cursor-pointer"
                 title="Copy from Billing Address"
               >
                 <Copy className="w-3 h-3" /> Same as Billing
@@ -1913,8 +1956,12 @@ export default function CreateProformaPage() {
                         const idx = Number(e.target.value);
                         if (!isNaN(idx) && selectedCustomer.addresses?.[idx]) {
                           const addr = selectedCustomer.addresses[idx];
-                          const sState = addr.state || 'Delhi';
-                          const sCode = addr.stateCode || (sState.toLowerCase().includes('delhi') ? '07' : '07');
+                          let sState = addr.state || '';
+                          let sCode = addr.stateCode || '';
+                          if (!sCode && sState) {
+                            const match = Object.entries(GST_STATE_CODE_MAP).find(([, name]) => name.toLowerCase() === sState.toLowerCase());
+                            if (match) sCode = match[0];
+                          }
                           setFormData((prev) => ({
                             ...prev,
                             deliveryAddress: {
@@ -1927,6 +1974,7 @@ export default function CreateProformaPage() {
                               stateCode: sCode,
                             },
                           }));
+                          setIsCustomDelivery(false);
                         }
                       }}
                       className="bg-[#0a0a1a] border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-cyan-400"
@@ -1949,12 +1997,13 @@ export default function CreateProformaPage() {
               <input
                 type="text"
                 value={formData.deliveryAddress.partyName}
-                onChange={(e) =>
+                onChange={(e) => {
                   setFormData((prev) => ({
                     ...prev,
                     deliveryAddress: { ...prev.deliveryAddress, partyName: e.target.value },
-                  }))
-                }
+                  }));
+                  setIsCustomDelivery(true);
+                }}
                 placeholder="Site contact or company name"
                 className={inputCls}
               />
@@ -1965,13 +2014,14 @@ export default function CreateProformaPage() {
               <input
                 type="text"
                 value={formData.deliveryAddress.addressLine}
-                onChange={(e) =>
+                onChange={(e) => {
                   setFormData((prev) => ({
                     ...prev,
                     deliveryAddress: { ...prev.deliveryAddress, addressLine: e.target.value },
-                  }))
-                }
-                placeholder="Exact site delivery location"
+                  }));
+                  setIsCustomDelivery(true);
+                }}
+                placeholder="Exact site delivery location, plot no, building"
                 className={inputCls}
               />
             </div>
@@ -1982,48 +2032,75 @@ export default function CreateProformaPage() {
                 <input
                   type="text"
                   value={formData.deliveryAddress.city}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setFormData((prev) => ({
                       ...prev,
                       deliveryAddress: { ...prev.deliveryAddress, city: e.target.value },
-                    }))
-                  }
-                  placeholder="New Delhi"
+                    }));
+                    setIsCustomDelivery(true);
+                  }}
+                  placeholder="e.g. Gurugram, Noida, Mumbai"
                   className={inputCls}
                 />
               </div>
 
               <div>
-                <label className={labelCls}>Pincode</label>
+                <label className={labelCls}>PIN / Postal Code</label>
                 <input
                   type="text"
                   maxLength={6}
                   value={formData.deliveryAddress.pincode}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setFormData((prev) => ({
                       ...prev,
-                      deliveryAddress: { ...prev.deliveryAddress, pincode: e.target.value },
-                    }))
-                  }
-                  placeholder="110020"
+                      deliveryAddress: { ...prev.deliveryAddress, pincode: e.target.value.replace(/[^0-9]/g, '') },
+                    }));
+                    setIsCustomDelivery(true);
+                  }}
+                  placeholder="e.g. 122002"
                   className={inputCls + ' font-mono'}
                 />
               </div>
 
               <div>
-                <label className={labelCls}>State</label>
-                <input
-                  type="text"
-                  value={formData.deliveryAddress.state}
-                  onChange={(e) =>
+                <div className="flex items-center justify-between mb-1">
+                  <label className={labelCls}>State / UT</label>
+                  {formData.deliveryAddress.stateCode && (
+                    <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">
+                      Code: {formData.deliveryAddress.stateCode}
+                    </span>
+                  )}
+                </div>
+                <select
+                  value={
+                    formData.deliveryAddress.stateCode ||
+                    Object.entries(GST_STATE_CODE_MAP).find(
+                      ([, name]) => name.toLowerCase() === (formData.deliveryAddress.state || '').toLowerCase()
+                    )?.[0] ||
+                    ''
+                  }
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    const sName = GST_STATE_CODE_MAP[code] || '';
                     setFormData((prev) => ({
                       ...prev,
-                      deliveryAddress: { ...prev.deliveryAddress, state: e.target.value },
-                    }))
-                  }
-                  placeholder="e.g. Delhi, Haryana, Uttar Pradesh"
+                      deliveryAddress: {
+                        ...prev.deliveryAddress,
+                        state: sName,
+                        stateCode: code,
+                      },
+                    }));
+                    setIsCustomDelivery(true);
+                  }}
                   className={inputCls}
-                />
+                >
+                  <option value="">-- Select Destination State --</option>
+                  {Object.entries(GST_STATE_CODE_MAP).map(([code, name]) => (
+                    <option key={code} value={code}>
+                      {name} ({code})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -2032,12 +2109,13 @@ export default function CreateProformaPage() {
               <input
                 type="text"
                 value={formData.deliveryAddress.phone}
-                onChange={(e) =>
+                onChange={(e) => {
                   setFormData((prev) => ({
                     ...prev,
                     deliveryAddress: { ...prev.deliveryAddress, phone: e.target.value },
-                  }))
-                }
+                  }));
+                  setIsCustomDelivery(true);
+                }}
                 placeholder="+91 98765 43210 (Site In-charge)"
                 className={inputCls}
               />

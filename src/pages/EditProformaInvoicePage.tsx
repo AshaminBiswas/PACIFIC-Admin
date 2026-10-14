@@ -22,6 +22,7 @@ import {
   AlertTriangle,
   Package,
   Boxes,
+  Edit3,
 } from 'lucide-react';
 import { piApi } from '../api/proformaApi';
 import { crmApi } from '../api/crmApi';
@@ -39,7 +40,7 @@ import CustomerSearchSelect from '../components/common/CustomerSearchSelect';
 import BranchSelector from '../components/common/BranchSelector';
 import HsnSelectInput from '../components/common/HsnSelectInput';
 import type { BusinessParty, CompanyProfile, ProductCatalogModel } from '../types/admin';
-import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP, isRestroomCubicleItem } from '../utils/tax';
+import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP, isRestroomCubicleItem, formatStructuredAddress } from '../utils/tax';
 import {
   type InstallationPricingMode,
   INSTALLATION_OPTIONS,
@@ -106,10 +107,10 @@ export default function EditProformaInvoicePage() {
     gstin: '',
     pan: '',
     addressLine: '',
-    city: 'New Delhi',
+    city: '',
     pincode: '',
-    state: 'Delhi',
-    stateCode: '07',
+    state: '',
+    stateCode: '',
     phone: '',
     email: '',
   });
@@ -117,12 +118,14 @@ export default function EditProformaInvoicePage() {
   const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddressData>({
     partyName: '',
     addressLine: '',
-    city: 'New Delhi',
+    city: '',
     pincode: '',
-    state: 'Delhi',
-    stateCode: '07',
+    state: '',
+    stateCode: '',
     phone: '',
   });
+
+  const [isCustomDelivery, setIsCustomDelivery] = useState(false);
 
   // Items & Terms
   const [items, setItems] = useState<CreateItem[]>([]);
@@ -213,15 +216,23 @@ export default function EditProformaInvoicePage() {
       const bPan = panMatch ? panMatch[1] : (customerPan || (bGstin.length === 15 ? bGstin.slice(2, 12) : ''));
       const bPincode = pinMatch ? pinMatch[1] : (data.customer?.addresses?.[0]?.postalCode || '');
 
+      const bPartyCity = (bParty as any)?.city || data.customer?.addresses?.[0]?.city || '';
+      const bPartyState = bParty?.state || data.placeOfSupply || '';
+      let bPartyStateCode = bParty?.stateCode || data.placeOfSupplyStateCode || '';
+      if (!bPartyStateCode && bPartyState) {
+        const match = Object.entries(GST_STATE_CODE_MAP).find(([, name]) => name.toLowerCase() === bPartyState.toLowerCase());
+        if (match) bPartyStateCode = match[0];
+      }
+
       setBillingAddress({
         partyName: bParty?.partyName || data.customer?.legalName || '',
         gstin: bGstin,
         pan: bPan,
         addressLine: cleanBAddr,
-        city: 'New Delhi',
+        city: bPartyCity,
         pincode: bPincode,
-        state: bParty?.state || data.placeOfSupply || 'Delhi',
-        stateCode: bParty?.stateCode || data.placeOfSupplyStateCode || '07',
+        state: bPartyState,
+        stateCode: bPartyStateCode,
         phone: bParty?.phone || data.customer?.phone || '',
         email: bParty?.email || data.customer?.email || '',
       });
@@ -229,14 +240,29 @@ export default function EditProformaInvoicePage() {
       const sAddr = sParty?.addressLine || '';
       const sPinMatch = sAddr.match(/PIN:\s*(\d{6})/i);
       const cleanSAddr = sAddr.replace(/,\s*PIN:\s*\d{6}/gi, '').trim();
+      const sPartyCity = (sParty as any)?.city || data.customer?.addresses?.find((a: any) => a.addressType === 'SHIPPING')?.city || bPartyCity;
+      const sPartyState = sParty?.state || bParty?.state || data.placeOfSupply || '';
+      let sPartyStateCode = sParty?.stateCode || bPartyStateCode || '';
+      if (!sPartyStateCode && sPartyState) {
+        const match = Object.entries(GST_STATE_CODE_MAP).find(([, name]) => name.toLowerCase() === sPartyState.toLowerCase());
+        if (match) sPartyStateCode = match[0];
+      }
+
+      const isCustomSite = Boolean(
+        sParty &&
+        ((cleanSAddr && cleanBAddr && cleanSAddr !== cleanBAddr) ||
+         (sParty.partyName && bParty?.partyName && sParty.partyName !== bParty.partyName) ||
+         (sParty.state && bParty?.state && sParty.state !== bParty.state))
+      );
+      setIsCustomDelivery(isCustomSite);
 
       setDeliveryAddress({
         partyName: sParty?.partyName || bParty?.partyName || data.customer?.legalName || '',
         addressLine: cleanSAddr || cleanBAddr,
-        city: 'New Delhi',
+        city: sPartyCity,
         pincode: sPinMatch ? sPinMatch[1] : bPincode,
-        state: sParty?.state || bParty?.state || 'Delhi',
-        stateCode: sParty?.stateCode || bParty?.stateCode || '07',
+        state: sPartyState,
+        stateCode: sPartyStateCode,
         phone: sParty?.phone || bParty?.phone || '',
       });
 
@@ -477,8 +503,25 @@ export default function EditProformaInvoicePage() {
     const billing = selected.addresses?.find((a: any) => a.addressType === 'BILLING' || a.isDefaultBilling) || selected.addresses?.[0];
     const shipping = selected.addresses?.find((a: any) => a.addressType === 'SHIPPING' || a.isDefaultShipping) || billing;
 
-    const bState = billing?.state || 'Delhi';
-    const bStateCode = billing?.stateCode || (bState.toLowerCase().includes('delhi') ? '07' : '07');
+    let bState = billing?.state || (selected as any)?.state || '';
+    let bStateCode = billing?.stateCode || (selected as any)?.stateCode || '';
+    if (!bStateCode && selected.gstin && selected.gstin.length >= 2) {
+      bStateCode = selected.gstin.slice(0, 2);
+    }
+    if (!bState && bStateCode && GST_STATE_CODE_MAP[bStateCode]) {
+      bState = GST_STATE_CODE_MAP[bStateCode];
+    }
+    if (!bState) {
+      bState = 'Delhi';
+      bStateCode = '07';
+    }
+
+    let sState = shipping?.state || bState;
+    let sStateCode = shipping?.stateCode || bStateCode;
+    if (!sStateCode && sState) {
+      const match = Object.entries(GST_STATE_CODE_MAP).find(([, name]) => name.toLowerCase() === sState.toLowerCase());
+      if (match) sStateCode = match[0];
+    }
 
     setPlaceOfSupply(bState);
     setPlaceOfSupplyStateCode(bStateCode);
@@ -489,8 +532,8 @@ export default function EditProformaInvoicePage() {
       gstin: selected.gstin || prev.gstin,
       pan: selected.pan || prev.pan,
       addressLine: [billing?.addressLine1, billing?.addressLine2].filter(Boolean).join(', ') || prev.addressLine,
-      city: billing?.city || prev.city,
-      pincode: billing?.postalCode || (billing as any)?.pincode || prev.pincode,
+      city: billing?.city || '',
+      pincode: billing?.postalCode || (billing as any)?.pincode || '',
       state: bState,
       stateCode: bStateCode,
       phone: selected.phone || (selected as any).contactPhone || prev.phone,
@@ -500,13 +543,15 @@ export default function EditProformaInvoicePage() {
     setDeliveryAddress((prev) => ({
       ...prev,
       partyName: selected.legalName || selected.tradeName || prev.partyName,
-      addressLine: [shipping?.addressLine1, shipping?.addressLine2].filter(Boolean).join(', ') || prev.addressLine,
-      city: shipping?.city || prev.city,
-      pincode: shipping?.postalCode || (shipping as any)?.pincode || prev.pincode,
-      state: shipping?.state || bState,
-      stateCode: shipping?.stateCode || bStateCode,
+      addressLine: [shipping?.addressLine1, shipping?.addressLine2].filter(Boolean).join(', ') || [billing?.addressLine1, billing?.addressLine2].filter(Boolean).join(', ') || '',
+      city: shipping?.city || billing?.city || '',
+      pincode: shipping?.postalCode || (shipping as any)?.pincode || billing?.postalCode || (billing as any)?.pincode || '',
+      state: sState,
+      stateCode: sStateCode,
       phone: selected.phone || (selected as any).contactPhone || prev.phone,
     }));
+
+    setIsCustomDelivery(false);
   };
 
   // Copy Billing Address to Delivery Address
@@ -520,6 +565,7 @@ export default function EditProformaInvoicePage() {
       stateCode: billingAddress.stateCode,
       phone: billingAddress.phone,
     });
+    setIsCustomDelivery(false);
   };
 
   // Clear Delivery Address for custom site entry
@@ -533,6 +579,7 @@ export default function EditProformaInvoicePage() {
       stateCode: '',
       phone: '',
     });
+    setIsCustomDelivery(true);
   };
 
   // Line item handlers
@@ -1071,20 +1118,20 @@ export default function EditProformaInvoicePage() {
 
     setSubmitting(true);
     try {
-      // Build clean structured address lines containing PIN
-      const billAddrParts = [
+      // Build clean structured address lines without repetitive tokens or duplicate PIN
+      const billToAddressFormatted = formatStructuredAddress(
         billingAddress.addressLine,
         billingAddress.city,
-        billingAddress.pincode ? `PIN: ${billingAddress.pincode}` : '',
-      ].filter(Boolean);
-      const billToAddressFormatted = billAddrParts.join(', ');
+        billingAddress.pincode,
+        billingAddress.state
+      );
 
-      const shipAddrParts = [
+      const shipToAddressFormatted = formatStructuredAddress(
         deliveryAddress.addressLine,
         deliveryAddress.city,
-        deliveryAddress.pincode ? `PIN: ${deliveryAddress.pincode}` : '',
-      ].filter(Boolean);
-      const shipToAddressFormatted = shipAddrParts.join(', ');
+        deliveryAddress.pincode,
+        deliveryAddress.state
+      );
 
       // Prepare clean terms without legacy hardware inclusions block
       const finalTerms = terms.filter(
@@ -1173,7 +1220,7 @@ export default function EditProformaInvoicePage() {
           gstin: undefined,
           addressLine: shipToAddressFormatted || billToAddressFormatted,
           state: deliveryAddress.state || billingAddress.state,
-          stateCode: undefined,
+          stateCode: deliveryAddress.stateCode || billingAddress.stateCode || undefined,
           phone: deliveryAddress.phone || billingAddress.phone || undefined,
         },
         items: enrichedItems,
@@ -1466,7 +1513,7 @@ export default function EditProformaInvoicePage() {
                   onChange={(e) =>
                     setBillingAddress((prev) => ({ ...prev, city: e.target.value }))
                   }
-                  placeholder="New Delhi"
+                  placeholder="e.g. Gurugram, Noida, Mumbai"
                   className={inputCls}
                 />
               </div>
@@ -1539,23 +1586,44 @@ export default function EditProformaInvoicePage() {
 
         {/* Delivery Address Card */}
         <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-white/5 pb-2">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-cyan-400" /> Delivery Address (Ship To / Site)
-            </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/5 pb-2.5 gap-2">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-cyan-400" /> Delivery Address (Ship To / Site)
+              </h3>
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-md border ${
+                  isCustomDelivery
+                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                    : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
+                }`}
+              >
+                {isCustomDelivery ? (
+                  <>
+                    <Edit3 className="w-3 h-3 text-amber-400" />
+                    Custom Site Entry
+                  </>
+                ) : (
+                  <>
+                    <Package className="w-3 h-3 text-cyan-400" />
+                    Fetched from Customer Data
+                  </>
+                )}
+              </span>
+            </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleClearDeliveryAddress}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 transition cursor-pointer"
-                title="Clear for Custom Site Address"
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 transition cursor-pointer"
+                title="Write Custom Entire Site Details"
               >
-                <RotateCcw className="w-3 h-3" /> Custom Site Address
+                <Edit3 className="w-3 h-3" /> Write Custom Site Address
               </button>
               <button
                 type="button"
                 onClick={handleCopyBillingToDelivery}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 transition cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 transition cursor-pointer"
                 title="Copy from Billing Address"
               >
                 <Copy className="w-3 h-3" /> Same as Billing
@@ -1576,8 +1644,12 @@ export default function EditProformaInvoicePage() {
                         const idx = Number(e.target.value);
                         if (!isNaN(idx) && selectedCustomer.addresses?.[idx]) {
                           const addr = selectedCustomer.addresses[idx];
-                          const sState = addr.state || 'Delhi';
-                          const sCode = addr.stateCode || (sState.toLowerCase().includes('delhi') ? '07' : '07');
+                          let sState = addr.state || '';
+                          let sCode = addr.stateCode || '';
+                          if (!sCode && sState) {
+                            const match = Object.entries(GST_STATE_CODE_MAP).find(([, name]) => name.toLowerCase() === sState.toLowerCase());
+                            if (match) sCode = match[0];
+                          }
                           setDeliveryAddress({
                             partyName: selectedCustomer.legalName || selectedCustomer.tradeName || deliveryAddress.partyName,
                             addressLine: [addr.addressLine1, addr.addressLine2].filter(Boolean).join(', '),
@@ -1587,6 +1659,7 @@ export default function EditProformaInvoicePage() {
                             stateCode: sCode,
                             phone: selectedCustomer.phone || (selectedCustomer as any).contactPhone || deliveryAddress.phone,
                           });
+                          setIsCustomDelivery(false);
                         }
                       }}
                       className="bg-[#0a0a1a] border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-cyan-400"
@@ -1609,9 +1682,10 @@ export default function EditProformaInvoicePage() {
               <input
                 type="text"
                 value={deliveryAddress.partyName}
-                onChange={(e) =>
-                  setDeliveryAddress((prev) => ({ ...prev, partyName: e.target.value }))
-                }
+                onChange={(e) => {
+                  setDeliveryAddress((prev) => ({ ...prev, partyName: e.target.value }));
+                  setIsCustomDelivery(true);
+                }}
                 placeholder="Site contact or company name"
                 className={inputCls}
               />
@@ -1622,10 +1696,11 @@ export default function EditProformaInvoicePage() {
               <input
                 type="text"
                 value={deliveryAddress.addressLine}
-                onChange={(e) =>
-                  setDeliveryAddress((prev) => ({ ...prev, addressLine: e.target.value }))
-                }
-                placeholder="Exact site delivery location"
+                onChange={(e) => {
+                  setDeliveryAddress((prev) => ({ ...prev, addressLine: e.target.value }));
+                  setIsCustomDelivery(true);
+                }}
+                placeholder="Exact site delivery location, plot no, building"
                 className={inputCls}
               />
             </div>
@@ -1636,39 +1711,69 @@ export default function EditProformaInvoicePage() {
                 <input
                   type="text"
                   value={deliveryAddress.city}
-                  onChange={(e) =>
-                    setDeliveryAddress((prev) => ({ ...prev, city: e.target.value }))
-                  }
-                  placeholder="New Delhi"
+                  onChange={(e) => {
+                    setDeliveryAddress((prev) => ({ ...prev, city: e.target.value }));
+                    setIsCustomDelivery(true);
+                  }}
+                  placeholder="e.g. Gurugram, Noida, Mumbai"
                   className={inputCls}
                 />
               </div>
 
               <div>
-                <label className={labelCls}>Pincode</label>
+                <label className={labelCls}>PIN / Postal Code</label>
                 <input
                   type="text"
                   maxLength={6}
                   value={deliveryAddress.pincode}
-                  onChange={(e) =>
-                    setDeliveryAddress((prev) => ({ ...prev, pincode: e.target.value }))
-                  }
-                  placeholder="110020"
+                  onChange={(e) => {
+                    setDeliveryAddress((prev) => ({
+                      ...prev,
+                      pincode: e.target.value.replace(/[^0-9]/g, ''),
+                    }));
+                    setIsCustomDelivery(true);
+                  }}
+                  placeholder="e.g. 122002"
                   className={inputCls + ' font-mono'}
                 />
               </div>
 
               <div>
-                <label className={labelCls}>State</label>
-                <input
-                  type="text"
-                  value={deliveryAddress.state}
-                  onChange={(e) =>
-                    setDeliveryAddress((prev) => ({ ...prev, state: e.target.value }))
+                <div className="flex items-center justify-between mb-1">
+                  <label className={labelCls}>State / UT</label>
+                  {deliveryAddress.stateCode && (
+                    <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">
+                      Code: {deliveryAddress.stateCode}
+                    </span>
+                  )}
+                </div>
+                <select
+                  value={
+                    deliveryAddress.stateCode ||
+                    Object.entries(GST_STATE_CODE_MAP).find(
+                      ([, name]) => name.toLowerCase() === (deliveryAddress.state || '').toLowerCase()
+                    )?.[0] ||
+                    ''
                   }
-                  placeholder="e.g. Delhi, Haryana, Uttar Pradesh"
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    const sName = GST_STATE_CODE_MAP[code] || '';
+                    setDeliveryAddress((prev) => ({
+                      ...prev,
+                      state: sName,
+                      stateCode: code,
+                    }));
+                    setIsCustomDelivery(true);
+                  }}
                   className={inputCls}
-                />
+                >
+                  <option value="">-- Select Destination State --</option>
+                  {Object.entries(GST_STATE_CODE_MAP).map(([code, name]) => (
+                    <option key={code} value={code}>
+                      {name} ({code})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -1677,9 +1782,10 @@ export default function EditProformaInvoicePage() {
               <input
                 type="text"
                 value={deliveryAddress.phone}
-                onChange={(e) =>
-                  setDeliveryAddress((prev) => ({ ...prev, phone: e.target.value }))
-                }
+                onChange={(e) => {
+                  setDeliveryAddress((prev) => ({ ...prev, phone: e.target.value }));
+                  setIsCustomDelivery(true);
+                }}
                 placeholder="+91 98765 43210 (Site In-charge)"
                 className={inputCls}
               />

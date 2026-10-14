@@ -288,3 +288,59 @@ export function isRestroomCubicleItem(item: {
 
   return false;
 }
+
+/**
+ * Format and deduplicate structured Indian address lines (prevents duplicate cities like "New Delhi, New Delhi", repeated PIN, etc.)
+ */
+export function formatStructuredAddress(
+  addressLine?: string | null,
+  city?: string | null,
+  pincode?: string | null,
+  state?: string | null
+): string {
+  const parts: string[] = [];
+  const cleanAddr = (addressLine || '').trim().replace(/^,\s*|,\s*$/g, '');
+  if (cleanAddr) {
+    parts.push(cleanAddr);
+  }
+
+  const cleanCity = (city || '').trim();
+  if (cleanCity) {
+    const addrLower = cleanAddr.toLowerCase();
+    const cityLower = cleanCity.toLowerCase();
+    const alreadyHasCity =
+      addrLower === cityLower ||
+      addrLower.includes(`, ${cityLower}`) ||
+      addrLower.includes(`${cityLower},`) ||
+      addrLower.endsWith(` ${cityLower}`) ||
+      addrLower.startsWith(`${cityLower} `);
+
+    if (!alreadyHasCity) {
+      parts.push(cleanCity);
+    }
+  }
+
+  const cleanPin = (pincode || '').trim().replace(/[^0-9]/g, '');
+  if (cleanPin && cleanPin.length === 6) {
+    if (!cleanAddr.includes(cleanPin)) {
+      parts.push(`PIN: ${cleanPin}`);
+    }
+  }
+
+  const joined = parts.join(', ');
+  const tokens = joined.split(',').map((t) => t.trim()).filter(Boolean);
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+
+  for (const t of tokens) {
+    const lower = t.toLowerCase();
+    if (seen.has(lower)) continue;
+    if ((lower === 'delhi' || lower === 'new delhi') && (seen.has('delhi') || seen.has('new delhi'))) {
+      continue;
+    }
+    seen.add(lower);
+    deduped.push(t);
+  }
+
+  return deduped.join(', ').replace(/,\s*,/g, ',').replace(/^,\s*|,\s*$/g, '').trim();
+}
