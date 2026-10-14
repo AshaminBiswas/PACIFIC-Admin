@@ -21,6 +21,7 @@ const AdminContactQueries = lazyWithRetry(() => import('./pages/admin/AdminConta
 const AdminFeedback = lazyWithRetry(() => import('./pages/admin/AdminFeedback'));
 const AdminFAQ = lazyWithRetry(() => import('./pages/admin/AdminFAQ'));
 const AdminLeads = lazyWithRetry(() => import('./pages/admin/AdminLeads'));
+const AdminLocations = lazyWithRetry(() => import('./pages/admin/AdminLocations'));
 const CreateAdminProductPage = lazyWithRetry(() => import('./pages/admin/CreateAdminProductPage'));
 const ProductModelDetailPage = lazyWithRetry(() => import('./pages/admin/ProductModelDetailPage'));
 const EditProductModelPage = lazyWithRetry(() => import('./pages/admin/EditProductModelPage'));
@@ -792,6 +793,14 @@ export default function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <AdminPageBanners />
+                </Suspense>
+              }
+            />
+            <Route
+              path="locations"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <AdminLocations />
                 </Suspense>
               }
             />

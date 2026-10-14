@@ -40,6 +40,7 @@ import {
   Lock,
   Columns,
   Target,
+  MapPin,
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -105,6 +106,7 @@ export const cmsNavItems = [
   { name: 'Hero Sliders', path: '/admin/dashboard/hero', icon: MonitorPlay },
   { name: 'Core Services', path: '/admin/dashboard/core-services', icon: Layers },
   { name: 'Page Banners', path: '/admin/dashboard/page-banners', icon: LayoutTemplate },
+  { name: 'Location Pages & Banners', path: '/admin/dashboard/locations', icon: MapPin },
   { name: 'PDF Catalogs', path: '/admin/dashboard/catalogs', icon: FileDown },
   { name: 'Client Testimonials', path: '/admin/dashboard/feedback', icon: Star },
   { name: 'FAQs', path: '/admin/dashboard/faq', icon: HelpCircle },

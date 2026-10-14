@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { supabase, uploadImage } from "@/lib/supabase";
 import { useAdminPageBanners } from "@/lib/hooks";
 import type { PageBanner } from "@/lib/database.types";
@@ -12,6 +13,7 @@ import {
   Pencil,
   Monitor,
   Trash2,
+  MapPin,
 } from "lucide-react";
 
 // Predefined specs per page slug
@@ -128,11 +130,20 @@ export default function AdminPageBanners() {
         </div>
       )}
 
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white mb-1">Page Banners</h1>
-        <p className="text-gray-400 text-sm">
-          Manage hero background images and banners for pages across the website (About, Services, Solutions, Gallery, Contact, Downloads, Testimonials, and Category Banners).
-        </p>
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white mb-1">Page Banners</h1>
+          <p className="text-gray-400 text-sm">
+            Manage hero background images and banners for pages across the website (About, Services, Solutions, Gallery, Contact, Downloads, Testimonials, and Category Banners).
+          </p>
+        </div>
+        <Link
+          to="/admin/dashboard/locations"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#7FB706]/15 hover:bg-[#7FB706]/25 text-[#B5F823] border border-[#7FB706]/30 text-xs font-bold transition whitespace-nowrap self-start sm:self-auto"
+        >
+          <MapPin className="w-4 h-4 text-[#7FB706]" />
+          <span>Regional Location Banners (17 Cities) →</span>
+        </Link>
       </div>
 
       {loading ? (

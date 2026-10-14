@@ -4982,6 +4982,37 @@ A production-grade Content Management System enabling authorized administrators 
 - **Zero TypeScript Errors**: Both `D:\PACIFIC-Admin` and `D:\Pacific Products And Solutions` pass `npx tsc --noEmit` with 0 errors.
 - **Production Build**: Both repositories execute `npm run build` and exit with 0.
 
+---
+
+## 91. Full-Width Footer Service Locations & Admin Location Banner CMS
+
+### 91.1 Centered Full-Width Service Locations in Storefront Footer (`Footer.tsx`)
+1. **Layout & Positioning**:
+   - Extracted the cramped Service Locations subsection out of the 5th grid column (`Contact`), transforming it into a dedicated, centered, full-width section spanning `w-full` across all device viewports.
+   - Positioned prominently between the top 5-column navigation grid and the bottom copyright bar with `bg-gradient-to-b from-white/[0.04] to-white/[0.01]` and `rounded-3xl` glassmorphic styling.
+2. **City Display & Noida Truncation Fix**:
+   - Fixed text truncation where long regional corridor strings ("Delhi NCR · Commercial & Institutional Corridor") pushed city names out of the viewport.
+   - Built a 6-column responsive card grid (`grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6`) where each city (Noida, Delhi NCR, Gurugram, Greater Noida, Ghaziabad, Faridabad, Mumbai, Pune, Ahmedabad, Bengaluru, Hyderabad, Chennai, Kochi, Kolkata, Bhubaneswar, Guwahati, Dubai UAE) is rendered in its own dedicated card with state, dispatch timeline, and active pulsed beacon.
+3. **Interactive Controls & Search**:
+   - Centered city search input with real-time matching and clear button.
+   - Centered region switcher pills (`ALL (17 LOCATIONS)`, `DELHI NCR`, `WEST`, `SOUTH`, `EAST & NE`, `INTERNATIONAL`).
+   - Centered manufacturing & dispatch guarantee strip highlighting Okhla Industrial Area Phase-II primary plant with WhatsApp BOQ link.
+
+### 91.2 Admin Location Landing Pages & Banner Upload System (`AdminLocations.tsx` & `locationService.ts`)
+1. **Dedicated CMS View (`/admin/dashboard/locations`)**:
+   - Added `Location Pages & Banners` to `Website CMS Suite` in `AdminSidebar.tsx` and registered route in `App.tsx`.
+   - Displays all 17 canonical service locations with live custom banner thumbnails, region cluster badges, and canonical URLs.
+2. **Multi-Tab Location Management Drawer**:
+   - **Hero Banner & Media**: Direct image upload via ImageKit/Supabase storage with custom Alt Text and Banner Title. Automatically synchronizes with `gallery_images` (`placement: 'hero'`) and `page_banners`.
+   - **Project Installation Gallery**: Upload up to 8 real commercial installation reference photos per city.
+   - **Headline & Content**: Edit H1 Headline, Tagline, Primary Description, Address, Direct Phone, Email, and WhatsApp.
+   - **Logistics & Corridors**: Edit delivery lead times, dispatch modes, and commercial corridor coverage chips.
+   - **SEO & Google SERP Preview**: Live Google desktop snippet simulator, character counter indicators (60 / 160), target keyword, and meta description.
+   - **Projects & FAQs**: Edit regional reference projects and customer FAQs.
+3. **Cross-Navigation Integration**:
+   - Added regional location banner shortcut to `AdminPageBanners.tsx` header for instant switching between generic page banners and location landing page banners.
+
+
 
 
 
