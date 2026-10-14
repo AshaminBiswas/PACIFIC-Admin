@@ -2765,6 +2765,7 @@ export interface HardwareInventoryItem {
   dia?: string; // Optional diameter e.g. "25mm", "32mm", "38mm"
   length?: string; // Optional length e.g. "100mm", "150mm", "2.5m"
   width?: string; // Optional width e.g. "50mm", "100mm"
+  imageUrl?: string; // Optional ImageKit public URL for SKU photo
   status: 'ACTIVE' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'DISCONTINUED';
   notes?: string;
   createdAt: string;
@@ -2838,6 +2839,7 @@ export interface CreateHardwareItemInput {
   dia?: string;
   length?: string;
   width?: string;
+  imageUrl?: string;
   notes?: string;
 }
 
@@ -2858,6 +2860,7 @@ export interface UpdateHardwareItemInput {
   dia?: string;
   length?: string;
   width?: string;
+  imageUrl?: string;
   status?: 'ACTIVE' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'DISCONTINUED';
   notes?: string;
 }

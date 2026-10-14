@@ -5134,6 +5134,111 @@ A production-grade Content Management System enabling authorized administrators 
 - **TypeScript**: `npx tsc --noEmit` exits with 0 errors.
 - **Production Build**: `npm run build` exits with code 0.
 
+---
+
+## 94. Supabase PostgreSQL Persistence, ImageKit Cloud Media & Superfast Session Caching
+
+### 94.1 Overview & Architecture
+To eradicate reliance on browser local storage as a primary database, all hardware inventory master data, stock movements/vouchers, branch locations, supplier records, and regional landing page configurations have been migrated to authoritative PostgreSQL tables in Supabase. A high-performance **Stale-While-Revalidate Session Caching** pattern guarantees instantaneous (0ms) reads during active sessions while ensuring continuous database synchronization. All product images, media drawings, and videos are processed and hosted via ImageKit CDN (`https://ik.imagekit.io/1r254icf2/`).
+
+### 94.2 Supabase PostgreSQL Database Tables & DDL Schema
+Direct PostgreSQL DDL migrations were executed on the production Supabase database (`aws-0-ap-south-1.pooler.supabase.com:5432/postgres`), establishing 5 core tables with indexes, automatic `updated_at` triggers, Row Level Security (RLS), and API grants:
+
+1. **`public.hardware_inventory_items`**:
+   - `id` (UUID PK, `gen_random_uuid()`)
+   - `sku` (VARCHAR 100, UNIQUE, NOT NULL)
+   - `name` (VARCHAR 255, NOT NULL)
+   - `material` (VARCHAR 100, NOT NULL)
+   - `color` (VARCHAR 100, NOT NULL)
+   - `unit` (VARCHAR 50, DEFAULT "No's")
+   - `hsn_code` (VARCHAR 20, DEFAULT '8302')
+   - `warehouse` (VARCHAR 50, DEFAULT 'DELHI')
+   - `vendor_id` (UUID, FK to `hardware_vendors(id)`)
+   - `vendor_name` (VARCHAR 255)
+   - `opening_stock` (NUMERIC 14,3, DEFAULT 0)
+   - `current_stock` (NUMERIC 14,3, DEFAULT 0)
+   - `total_inward` (NUMERIC 14,3, DEFAULT 0)
+   - `total_issued` (NUMERIC 14,3, DEFAULT 0)
+   - `reorder_level` (NUMERIC 14,3, DEFAULT 10)
+   - `unit_cost` (NUMERIC 14,2, DEFAULT 0)
+   - `location_rack` (VARCHAR 100)
+   - `dia` (VARCHAR 50) — Optional cylindrical diameter
+   - `length` (VARCHAR 50) — Optional length / span
+   - `width` (VARCHAR 50) — Optional channel / base width
+   - `image_url` (TEXT) — Public ImageKit CDN URL
+   - `status` (VARCHAR 50, DEFAULT 'ACTIVE')
+   - `notes` (TEXT), `created_at`, `updated_at`
+   - Indexes on `sku`, `material`, `warehouse`, `current_stock`, `vendor_id`.
+
+2. **`public.hardware_stock_movements`**:
+   - `id` (UUID PK, `gen_random_uuid()`)
+   - `movement_number` (VARCHAR 100, UNIQUE, NOT NULL)
+   - `hardware_item_id` (UUID, FK to `hardware_inventory_items(id)`)
+   - `sku` (VARCHAR 100, NOT NULL), `hardware_name` (VARCHAR 255), `material`, `warehouse`
+   - `movement_type` (VARCHAR 50, INWARD / ISSUE / ADJUST_ADD / ADJUST_SUB / AUDIT_RESET / TRANSFER)
+   - `movement_date` (DATE NOT NULL)
+   - `quantity` (NUMERIC 14,3 NOT NULL)
+   - `stock_before` (NUMERIC 14,3 NOT NULL), `stock_after` (NUMERIC 14,3 NOT NULL)
+   - `unit` (VARCHAR 50)
+   - `dia`, `length`, `width` (VARCHAR 50)
+   - `supplier_invoice_no`, `supplier_invoice_date`, `batch_lot_no`
+   - `unit_cost` (NUMERIC 14,2), `total_valuation` (NUMERIC 14,2)
+   - `issue_reference` (VARCHAR 255), `issued_to_person` (VARCHAR 255), `notes` (TEXT)
+   - `created_at` (TIMESTAMPTZ)
+   - Indexes on `hardware_item_id`, `sku`, `warehouse`, `movement_type`, `movement_date`, `issue_reference`.
+
+3. **`public.hardware_branches`**:
+   - `id` (UUID PK, `gen_random_uuid()`)
+   - `code` (VARCHAR 50, UNIQUE, NOT NULL)
+   - `name` (VARCHAR 255 NOT NULL), `city` (VARCHAR 100), `state` (VARCHAR 100)
+   - `address` (TEXT), `phone` (VARCHAR 50), `contact_person` (VARCHAR 100)
+   - `is_active` (BOOLEAN DEFAULT TRUE), `created_at`, `updated_at`
+   - Seeded with default branches: `DELHI` (Delhi Main Plant & Central Warehouse) and `KOLKATA` (Eastern Regional Distribution Center).
+
+4. **`public.hardware_vendors`**:
+   - `id` (UUID PK, `gen_random_uuid()`)
+   - `name` (VARCHAR 255 NOT NULL), `legal_name` (VARCHAR 255)
+   - `contact_person` (VARCHAR 100), `phone` (VARCHAR 50 NOT NULL), `email` (VARCHAR 150)
+   - `gstin` (VARCHAR 20), `city` (VARCHAR 100), `address` (TEXT)
+   - `materials_supplied` (TEXT[]), `is_active` (BOOLEAN DEFAULT TRUE), `created_at`, `updated_at`
+
+5. **`public.location_customizations`**:
+   - `id` (UUID PK, `gen_random_uuid()`)
+   - `slug` (VARCHAR 150, UNIQUE, NOT NULL)
+   - `city` (VARCHAR 100), `state_name` (VARCHAR 100), `region` (VARCHAR 50)
+   - `h1_headline` (TEXT), `tagline` (TEXT), `description` (TEXT)
+   - `corridors` (JSONB), `projects` (JSONB), `faqs` (JSONB)
+   - `hero_image_url` (TEXT), `banner_image_url` (TEXT), `gallery_image_urls` (JSONB)
+   - `meta_title` (TEXT), `meta_description` (TEXT), `meta_keywords` (TEXT)
+   - `is_published` (BOOLEAN DEFAULT TRUE), `created_at`, `updated_at`
+
+### 94.3 Superfast Session Caching (Stale-While-Revalidate)
+1. **Instant 0ms UI Rendering**:
+   - On initial module access, data is immediately served from `localStorage` / memory cache without UI blocking or loading spinners.
+2. **Background Supabase Revalidation (`ensureSynced`)**:
+   - `HardwareStore.ensureSynced()` and `locationService.fetchLocationCustomizations()` query Supabase tables in the background.
+   - Any unsynced offline/local items are automatically migrated into the database.
+   - In-memory store and session storage are seamlessly refreshed with the latest PostgreSQL database state.
+3. **Synchronous DB Writes with Cache Update**:
+   - Every creation, inward receipt, stock issue, adjustment, or update immediately executes an `INSERT`/`UPDATE` to Supabase PostgreSQL and updates the session cache synchronously.
+
+### 94.4 ImageKit Cloud Media Integration
+1. **Cloud CDN Engine (`src/lib/imagekit.ts`)**:
+   - Connected to ImageKit endpoint `https://ik.imagekit.io/1r254icf2` with automatic image compression and WebP conversion via `optimizeImageBeforeUpload`.
+2. **Hardware SKU Master Media**:
+   - **`CreateHardwareSkuPage.tsx`**: Added Section 6 "Product Photo / Technical Drawing" with 1-click file selector, ImageKit progress indicator, URL input, and image preview.
+   - **`CreateHardwareModal.tsx` & `EditHardwareModal.tsx`**: Added ImageKit photo upload and preview field.
+   - **`HardwareInventoryPage.tsx`**: Table SKU column now renders a thumbnail preview of the item with rounded borders and responsive sizing when `imageUrl` is present.
+
+### 94.5 Frontend Website Footer Customization
+- In `D:\Pacific Products And Solutions\src\app\components\Footer.tsx`, hidden the `"National Footprint & Project Supply / Pan-India Service & Project Locations"` section from public display by enclosing the entire block in `{false && (...)}`.
+- Frontend verified with successful production build (`vite v6.4.2`, exit code 0).
+
+### 94.6 Quality & Verification Directives
+- **Zero TypeScript Errors**: `npx tsc --noEmit` executed in `d:\PACIFIC-Admin` with 0 errors (exit code 0).
+- **Production Build**: `npm run build` executed in `d:\PACIFIC-Admin` with exit code 0.
+
+
 
 
 

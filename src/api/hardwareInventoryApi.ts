@@ -1,10 +1,12 @@
 import apiClient from './client';
+import { supabase } from '../lib/supabase';
 import type {
   ApiResponse,
   PaginatedResponse,
   HardwareInventoryItem,
   HardwareInventoryMaterial,
   HardwareStockMovement,
+  HardwareMovementType,
   HardwareBranch,
   HardwareVendor,
   HardwareAnalyticsSummary,
@@ -201,16 +203,222 @@ export function suggestHardwareSku(
   return `${matPrefix}-${cleanName || 'ITEM'}-${colCode}-${suffix}`;
 }
 
-// In-memory + LocalStorage store manager
+// ─── Database ↔ Domain Mappers ─────────────────────────────
+function mapDbToItem(row: any): HardwareInventoryItem {
+  return {
+    id: row.id,
+    sku: row.sku,
+    name: row.name,
+    material: row.material as HardwareInventoryMaterial,
+    color: row.color || 'Standard',
+    unit: row.unit || "No's",
+    hsnCode: row.hsn_code || '8302',
+    warehouse: row.warehouse || 'DELHI',
+    vendorId: row.vendor_id || undefined,
+    vendorName: row.vendor_name || undefined,
+    openingStock: Number(row.opening_stock) || 0,
+    currentStock: Number(row.current_stock) || 0,
+    totalInward: Number(row.total_inward) || 0,
+    totalIssued: Number(row.total_issued) || 0,
+    reorderLevel: Number(row.reorder_level) || 10,
+    unitCost: Number(row.unit_cost) || 0,
+    locationRack: row.location_rack || undefined,
+    dia: row.dia || undefined,
+    length: row.length || undefined,
+    width: row.width || undefined,
+    imageUrl: row.image_url || undefined,
+    status: (row.status as any) || 'ACTIVE',
+    notes: row.notes || undefined,
+    createdAt: row.created_at || new Date().toISOString(),
+    updatedAt: row.updated_at || new Date().toISOString(),
+  };
+}
+
+function mapItemToDb(item: HardwareInventoryItem): any {
+  return {
+    id: item.id,
+    sku: item.sku,
+    name: item.name,
+    category: 'Cubicle Hardware',
+    material: item.material,
+    color: item.color,
+    unit: item.unit,
+    hsn_code: item.hsnCode,
+    warehouse: item.warehouse,
+    vendor_id: item.vendorId || null,
+    vendor_name: item.vendorName || null,
+    opening_stock: item.openingStock,
+    current_stock: item.currentStock,
+    total_inward: item.totalInward,
+    total_issued: item.totalIssued,
+    reorder_level: item.reorderLevel,
+    unit_cost: item.unitCost,
+    location_rack: item.locationRack || null,
+    dia: item.dia || null,
+    length: item.length || null,
+    width: item.width || null,
+    image_url: item.imageUrl || null,
+    status: item.status,
+    notes: item.notes || null,
+    created_at: item.createdAt,
+    updated_at: item.updatedAt,
+  };
+}
+
+function mapDbToMovement(row: any): HardwareStockMovement {
+  return {
+    id: row.id,
+    movementNumber: row.movement_number,
+    hardwareItemId: row.hardware_item_id,
+    sku: row.sku,
+    hardwareName: row.hardware_name || row.item_name || '',
+    material: row.material || 'STAINLESS_STEEL',
+    warehouse: row.warehouse || 'DELHI',
+    movementType: row.movement_type as HardwareMovementType,
+    movementDate: (row.movement_date ? String(row.movement_date).slice(0, 10) : new Date().toISOString().slice(0, 10)),
+    quantity: Number(row.quantity) || 0,
+    stockBefore: Number(row.stock_before) || 0,
+    stockAfter: Number(row.stock_after) || 0,
+    unit: row.unit || "No's",
+    dia: row.dia || undefined,
+    length: row.length || undefined,
+    width: row.width || undefined,
+    supplierInvoiceNo: row.supplier_invoice_no || undefined,
+    supplierInvoiceDate: row.supplier_invoice_date ? String(row.supplier_invoice_date).slice(0, 10) : undefined,
+    batchLotNo: row.batch_lot_no || undefined,
+    unitCost: Number(row.unit_cost) || 0,
+    totalValue: Number(row.total_value || row.total_valuation) || 0,
+    issueReference: row.issue_reference || row.work_order_ref || undefined,
+    issuedToPerson: row.issued_to_person || undefined,
+    notes: row.notes || undefined,
+    createdById: row.created_by_id || undefined,
+    createdAt: row.created_at || new Date().toISOString(),
+  };
+}
+
+function mapMovementToDb(mov: HardwareStockMovement): any {
+  return {
+    id: mov.id,
+    movement_number: mov.movementNumber,
+    hardware_item_id: mov.hardwareItemId,
+    sku: mov.sku,
+    item_name: mov.hardwareName,
+    hardware_name: mov.hardwareName,
+    warehouse: mov.warehouse,
+    movement_type: mov.movementType,
+    movement_date: mov.movementDate,
+    quantity: mov.quantity,
+    stock_before: mov.stockBefore,
+    stock_after: mov.stockAfter,
+    unit: mov.unit,
+    unit_cost: mov.unitCost || 0,
+    total_value: mov.totalValue || 0,
+    total_valuation: mov.totalValue || 0,
+    dia: mov.dia || null,
+    length: mov.length || null,
+    width: mov.width || null,
+    issue_reference: mov.issueReference || null,
+    work_order_ref: mov.issueReference || null,
+    issued_to_person: mov.issuedToPerson || null,
+    supplier_invoice_no: mov.supplierInvoiceNo || null,
+    supplier_invoice_date: mov.supplierInvoiceDate || null,
+    batch_lot_no: mov.batchLotNo || null,
+    notes: mov.notes || null,
+    created_by_id: mov.createdById || null,
+    created_at: mov.createdAt,
+  };
+}
+
+function mapDbToBranch(row: any): HardwareBranch {
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    city: row.city,
+    state: row.state,
+    address: row.address || undefined,
+    phone: row.phone || undefined,
+    contactPerson: row.contact_person || undefined,
+    isDefault: Boolean(row.is_default),
+    isActive: Boolean(row.is_active),
+    createdAt: row.created_at || new Date().toISOString(),
+  };
+}
+
+function mapBranchToDb(branch: HardwareBranch): any {
+  return {
+    id: branch.id,
+    code: branch.code,
+    name: branch.name,
+    city: branch.city,
+    state: branch.state,
+    address: branch.address || null,
+    phone: branch.phone || null,
+    contact_person: branch.contactPerson || null,
+    is_default: branch.isDefault || false,
+    is_active: branch.isActive !== false,
+    created_at: branch.createdAt || new Date().toISOString(),
+  };
+}
+
+function mapDbToVendor(row: any): HardwareVendor {
+  return {
+    id: row.id,
+    name: row.name,
+    legalName: row.legal_name || row.name,
+    contactPerson: row.contact_person || undefined,
+    phone: row.phone || '',
+    email: row.email || undefined,
+    gstin: row.gstin || undefined,
+    city: row.city || undefined,
+    address: row.address || undefined,
+    materialCategories: Array.isArray(row.materials_supplied)
+      ? row.materials_supplied
+      : Array.isArray(row.material_categories)
+      ? row.material_categories
+      : ['STAINLESS_STEEL'],
+    totalSkus: Number(row.total_skus) || 0,
+    isActive: Boolean(row.is_active !== false && row.status !== 'INACTIVE'),
+    createdAt: row.created_at || new Date().toISOString(),
+  };
+}
+
+function mapVendorToDb(vendor: HardwareVendor): any {
+  return {
+    id: vendor.id,
+    name: vendor.name,
+    legal_name: vendor.legalName || vendor.name,
+    contact_person: vendor.contactPerson || null,
+    phone: vendor.phone,
+    email: vendor.email || null,
+    gstin: vendor.gstin || null,
+    city: vendor.city || null,
+    address: vendor.address || null,
+    materials_supplied: vendor.materialCategories || ['STAINLESS_STEEL'],
+    material_categories: vendor.materialCategories || ['STAINLESS_STEEL'],
+    total_skus: vendor.totalSkus || 0,
+    status: vendor.isActive ? 'ACTIVE' : 'INACTIVE',
+    is_active: vendor.isActive,
+    created_at: vendor.createdAt || new Date().toISOString(),
+  };
+}
+
+// ── Database Synchronized Store with Superfast Session Cache ──
 class HardwareStore {
+  private hasSynced = false;
+  private syncPromise: Promise<void> | null = null;
+
   constructor() {
-    // Purge legacy storage keys containing demo dummy data
     if (typeof window !== 'undefined') {
       try {
         LEGACY_STORAGE_KEYS.forEach((k) => localStorage.removeItem(k));
       } catch (e) {
         console.warn('[HardwareStore] Failed to purge legacy keys:', e);
       }
+      // Start background sync on construct
+      this.ensureSynced().catch((err) =>
+        console.warn('[HardwareStore] Initial DB sync notice:', err)
+      );
     }
   }
 
@@ -237,11 +445,92 @@ class HardwareStore {
     }
   }
 
+  async ensureSynced(): Promise<void> {
+    if (this.hasSynced) return;
+    if (this.syncPromise) return this.syncPromise;
+
+    this.syncPromise = (async () => {
+      try {
+        const [itemsRes, movRes, brRes, vendRes] = await Promise.allSettled([
+          supabase.from('hardware_inventory_items').select('*'),
+          supabase.from('hardware_stock_movements').select('*').order('created_at', { ascending: false }),
+          supabase.from('hardware_branches').select('*'),
+          supabase.from('hardware_vendors').select('*'),
+        ]);
+
+        // Process Items
+        if (itemsRes.status === 'fulfilled' && !itemsRes.value.error && Array.isArray(itemsRes.value.data)) {
+          const dbItems = itemsRes.value.data.map(mapDbToItem).filter((i) => !isDummyHardwareItem(i));
+          const localItems = this.getStorage<HardwareInventoryItem[]>(ITEMS_STORAGE_KEY, []).filter((i) => !isDummyHardwareItem(i));
+
+          const dbItemIds = new Set(dbItems.map((i) => i.id));
+          const unsyncedItems = localItems.filter((i) => !dbItemIds.has(i.id));
+          if (unsyncedItems.length > 0) {
+            for (const item of unsyncedItems) {
+              await supabase.from('hardware_inventory_items').upsert(mapItemToDb(item), { onConflict: 'id' });
+              dbItems.unshift(item);
+            }
+          }
+
+          this.setStorage(ITEMS_STORAGE_KEY, dbItems);
+        }
+
+        // Process Movements
+        if (movRes.status === 'fulfilled' && !movRes.value.error && Array.isArray(movRes.value.data)) {
+          const dbMovs = movRes.value.data.map(mapDbToMovement);
+          const localMovs = this.getStorage<HardwareStockMovement[]>(MOVEMENTS_STORAGE_KEY, []);
+
+          const dbMovIds = new Set(dbMovs.map((m) => m.id));
+          const unsyncedMovs = localMovs.filter((m) => !dbMovIds.has(m.id));
+          if (unsyncedMovs.length > 0) {
+            for (const mov of unsyncedMovs) {
+              await supabase.from('hardware_stock_movements').upsert(mapMovementToDb(mov), { onConflict: 'id' });
+              dbMovs.unshift(mov);
+            }
+          }
+
+          this.setStorage(MOVEMENTS_STORAGE_KEY, dbMovs);
+        }
+
+        // Process Branches
+        if (brRes.status === 'fulfilled' && !brRes.value.error && Array.isArray(brRes.value.data) && brRes.value.data.length > 0) {
+          const dbBranches = brRes.value.data.map(mapDbToBranch);
+          this.setStorage(BRANCHES_STORAGE_KEY, dbBranches);
+        }
+
+        // Process Vendors
+        if (vendRes.status === 'fulfilled' && !vendRes.value.error && Array.isArray(vendRes.value.data)) {
+          const dbVendors = vendRes.value.data.map(mapDbToVendor).filter((v) => !isDummyHardwareVendor(v));
+          const localVendors = this.getStorage<HardwareVendor[]>(VENDORS_STORAGE_KEY, []).filter((v) => !isDummyHardwareVendor(v));
+
+          const dbVendorIds = new Set(dbVendors.map((v) => v.id));
+          const unsyncedVendors = localVendors.filter((v) => !dbVendorIds.has(v.id));
+          if (unsyncedVendors.length > 0) {
+            for (const vendor of unsyncedVendors) {
+              await supabase.from('hardware_vendors').upsert(mapVendorToDb(vendor), { onConflict: 'id' });
+              dbVendors.unshift(vendor);
+            }
+          }
+
+          this.setStorage(VENDORS_STORAGE_KEY, dbVendors);
+        }
+
+        this.hasSynced = true;
+      } catch (err) {
+        console.warn('[HardwareStore] Database sync error:', err);
+      } finally {
+        this.syncPromise = null;
+      }
+    })();
+
+    return this.syncPromise;
+  }
+
   getItems(): HardwareInventoryItem[] {
     const raw = this.getStorage<HardwareInventoryItem[]>(ITEMS_STORAGE_KEY, []);
     const clean = raw.filter((i) => !isDummyHardwareItem(i));
     if (clean.length !== raw.length) {
-      this.saveItems(clean);
+      this.setStorage(ITEMS_STORAGE_KEY, clean);
     }
     return clean;
   }
@@ -249,6 +538,22 @@ class HardwareStore {
   saveItems(items: HardwareInventoryItem[]): void {
     const clean = items.filter((i) => !isDummyHardwareItem(i));
     this.setStorage(ITEMS_STORAGE_KEY, clean);
+  }
+
+  async persistItem(item: HardwareInventoryItem): Promise<void> {
+    try {
+      await supabase.from('hardware_inventory_items').upsert(mapItemToDb(item), { onConflict: 'id' });
+    } catch (err) {
+      console.warn('[HardwareStore] Failed to upsert item to DB:', err);
+    }
+  }
+
+  async deleteItem(id: string): Promise<void> {
+    try {
+      await supabase.from('hardware_inventory_items').delete().eq('id', id);
+    } catch (err) {
+      console.warn('[HardwareStore] Failed to delete item from DB:', err);
+    }
   }
 
   getMovements(): HardwareStockMovement[] {
@@ -259,13 +564,21 @@ class HardwareStore {
       return true;
     });
     if (clean.length !== raw.length) {
-      this.saveMovements(clean);
+      this.setStorage(MOVEMENTS_STORAGE_KEY, clean);
     }
     return clean;
   }
 
   saveMovements(movements: HardwareStockMovement[]): void {
     this.setStorage(MOVEMENTS_STORAGE_KEY, movements);
+  }
+
+  async persistMovement(movement: HardwareStockMovement): Promise<void> {
+    try {
+      await supabase.from('hardware_stock_movements').upsert(mapMovementToDb(movement), { onConflict: 'id' });
+    } catch (err) {
+      console.warn('[HardwareStore] Failed to upsert movement to DB:', err);
+    }
   }
 
   getBranches(): HardwareBranch[] {
@@ -276,11 +589,19 @@ class HardwareStore {
     this.setStorage(BRANCHES_STORAGE_KEY, branches);
   }
 
+  async persistBranch(branch: HardwareBranch): Promise<void> {
+    try {
+      await supabase.from('hardware_branches').upsert(mapBranchToDb(branch), { onConflict: 'id' });
+    } catch (err) {
+      console.warn('[HardwareStore] Failed to upsert branch to DB:', err);
+    }
+  }
+
   getVendors(): HardwareVendor[] {
     const raw = this.getStorage<HardwareVendor[]>(VENDORS_STORAGE_KEY, []);
     const clean = raw.filter((v) => !isDummyHardwareVendor(v));
     if (clean.length !== raw.length) {
-      this.saveVendors(clean);
+      this.setStorage(VENDORS_STORAGE_KEY, clean);
     }
     return clean;
   }
@@ -288,6 +609,22 @@ class HardwareStore {
   saveVendors(vendors: HardwareVendor[]): void {
     const clean = vendors.filter((v) => !isDummyHardwareVendor(v));
     this.setStorage(VENDORS_STORAGE_KEY, clean);
+  }
+
+  async persistVendor(vendor: HardwareVendor): Promise<void> {
+    try {
+      await supabase.from('hardware_vendors').upsert(mapVendorToDb(vendor), { onConflict: 'id' });
+    } catch (err) {
+      console.warn('[HardwareStore] Failed to upsert vendor to DB:', err);
+    }
+  }
+
+  async deleteVendor(id: string): Promise<void> {
+    try {
+      await supabase.from('hardware_vendors').delete().eq('id', id);
+    } catch (err) {
+      console.warn('[HardwareStore] Failed to delete vendor from DB:', err);
+    }
   }
 }
 
@@ -318,9 +655,10 @@ export const hardwareInventoryApi = {
       if (res.data?.success && res.data.data?.items) {
         return { data: res.data };
       }
-    } catch {
-      // Fallback to local storage store
-    }
+    } catch {}
+
+    // Ensure data is synced from database
+    await store.ensureSynced();
 
     let items = store.getItems();
     const page = params?.page || 1;
@@ -396,6 +734,7 @@ export const hardwareInventoryApi = {
       }
     } catch {}
 
+    await store.ensureSynced();
     const items = store.getItems();
     const found = items.find((i) => i.id === id || i.sku.toUpperCase() === id.toUpperCase());
     if (!found) {
@@ -450,6 +789,7 @@ export const hardwareInventoryApi = {
       dia: data.dia?.trim() || undefined,
       length: data.length?.trim() || undefined,
       width: data.width?.trim() || undefined,
+      imageUrl: data.imageUrl?.trim() || undefined,
       status: initialStatus,
       notes: data.notes?.trim() || '',
       createdAt: now,
@@ -458,6 +798,7 @@ export const hardwareInventoryApi = {
 
     items.unshift(newItem);
     store.saveItems(items);
+    store.persistItem(newItem);
 
     // If opening stock > 0, log an initial inward movement
     if (openingStock > 0) {
@@ -486,6 +827,7 @@ export const hardwareInventoryApi = {
       };
       movements.unshift(initialMovement);
       store.saveMovements(movements);
+      store.persistMovement(initialMovement);
     }
 
     return {
@@ -530,6 +872,7 @@ export const hardwareInventoryApi = {
       dia: data.dia !== undefined ? (data.dia.trim() || undefined) : current.dia,
       length: data.length !== undefined ? (data.length.trim() || undefined) : current.length,
       width: data.width !== undefined ? (data.width.trim() || undefined) : current.width,
+      imageUrl: data.imageUrl !== undefined ? (data.imageUrl.trim() || undefined) : current.imageUrl,
       status: (data.status as any) || current.status,
       notes: data.notes !== undefined ? data.notes.trim() : current.notes,
       updatedAt: new Date().toISOString(),
@@ -537,6 +880,7 @@ export const hardwareInventoryApi = {
 
     items[index] = updated;
     store.saveItems(items);
+    store.persistItem(updated);
 
     return {
       data: {
@@ -555,6 +899,7 @@ export const hardwareInventoryApi = {
     let items = store.getItems();
     items = items.filter((i) => i.id !== id);
     store.saveItems(items);
+    store.deleteItem(id);
 
     return {
       data: {
@@ -571,6 +916,7 @@ export const hardwareInventoryApi = {
       widths: string[];
     }>;
   }> => {
+    await store.ensureSynced();
     const items = store.getItems();
     const dias = Array.from(new Set(items.map((i) => i.dia?.trim()).filter(Boolean) as string[])).sort();
     const lengths = Array.from(new Set(items.map((i) => i.length?.trim()).filter(Boolean) as string[])).sort();
@@ -649,10 +995,12 @@ export const hardwareInventoryApi = {
 
     items[itemIndex] = updatedItem;
     store.saveItems(items);
+    store.persistItem(updatedItem);
 
     const movements = store.getMovements();
     movements.unshift(movement);
     store.saveMovements(movements);
+    store.persistMovement(movement);
 
     return {
       data: {
@@ -730,10 +1078,12 @@ export const hardwareInventoryApi = {
 
     items[itemIndex] = updatedItem;
     store.saveItems(items);
+    store.persistItem(updatedItem);
 
     const movements = store.getMovements();
     movements.unshift(movement);
     store.saveMovements(movements);
+    store.persistMovement(movement);
 
     return {
       data: {
@@ -801,10 +1151,12 @@ export const hardwareInventoryApi = {
 
     items[itemIndex] = updatedItem;
     store.saveItems(items);
+    store.persistItem(updatedItem);
 
     const movements = store.getMovements();
     movements.unshift(movement);
     store.saveMovements(movements);
+    store.persistMovement(movement);
 
     return {
       data: {
@@ -826,6 +1178,7 @@ export const hardwareInventoryApi = {
     endDate?: string;
     limit?: number;
   }): Promise<{ data: ApiResponse<HardwareStockMovement[]> }> => {
+    await store.ensureSynced();
     let movements = store.getMovements();
 
     if (params?.hardwareItemId) {
@@ -875,6 +1228,7 @@ export const hardwareInventoryApi = {
       uniqueSkusCount: number;
     }>;
   }> => {
+    await store.ensureSynced();
     let movements = store.getMovements().filter((m) => m.movementType === 'ISSUE');
 
     if (params?.hardwareItemId && params.hardwareItemId !== 'ALL') {
@@ -935,6 +1289,7 @@ export const hardwareInventoryApi = {
   getAnalytics: async (params?: {
     warehouse?: string;
   }): Promise<{ data: ApiResponse<HardwareAnalyticsSummary> }> => {
+    await store.ensureSynced();
     let items = store.getItems();
     let movements = store.getMovements();
 
@@ -1017,6 +1372,7 @@ export const hardwareInventoryApi = {
 
   // ── Dynamic Branch Management ─────────────────────────────
   listBranches: async (): Promise<{ data: ApiResponse<HardwareBranch[]> }> => {
+    await store.ensureSynced();
     const branches = store.getBranches();
     return {
       data: {
@@ -1052,6 +1408,7 @@ export const hardwareInventoryApi = {
 
     branches.push(newBranch);
     store.saveBranches(branches);
+    store.persistBranch(newBranch);
 
     return {
       data: {
@@ -1071,6 +1428,7 @@ export const hardwareInventoryApi = {
 
     branches[idx] = { ...branches[idx], ...data };
     store.saveBranches(branches);
+    store.persistBranch(branches[idx]);
 
     return {
       data: {
@@ -1082,6 +1440,7 @@ export const hardwareInventoryApi = {
 
   // ── Hardware Vendor Management ────────────────────────────
   listVendors: async (): Promise<{ data: ApiResponse<HardwareVendor[]> }> => {
+    await store.ensureSynced();
     const vendors = store.getVendors();
     const items = store.getItems();
 
@@ -1121,6 +1480,7 @@ export const hardwareInventoryApi = {
 
     vendors.unshift(newVendor);
     store.saveVendors(vendors);
+    store.persistVendor(newVendor);
 
     return {
       data: {
@@ -1140,6 +1500,7 @@ export const hardwareInventoryApi = {
 
     vendors[idx] = { ...vendors[idx], ...data };
     store.saveVendors(vendors);
+    store.persistVendor(vendors[idx]);
 
     return {
       data: {
@@ -1158,6 +1519,7 @@ export const hardwareInventoryApi = {
     let vendors = store.getVendors();
     vendors = vendors.filter((v) => v.id !== id);
     store.saveVendors(vendors);
+    store.deleteVendor(id);
 
     return {
       data: {
@@ -1169,6 +1531,9 @@ export const hardwareInventoryApi = {
 
   clearAllVendors: async (): Promise<{ data: ApiResponse<{ success: boolean }> }> => {
     store.saveVendors([]);
+    try {
+      await supabase.from('hardware_vendors').delete().neq('id', '');
+    } catch {}
     return {
       data: {
         success: true,
@@ -1181,6 +1546,10 @@ export const hardwareInventoryApi = {
   clearAllItems: async (): Promise<{ data: ApiResponse<{ success: boolean }> }> => {
     store.saveItems([]);
     store.saveMovements([]);
+    try {
+      await supabase.from('hardware_stock_movements').delete().neq('id', '');
+      await supabase.from('hardware_inventory_items').delete().neq('id', '');
+    } catch {}
     return {
       data: {
         success: true,

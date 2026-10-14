@@ -7,7 +7,10 @@ import {
   Building2,
   Truck,
   Hash,
+  Upload,
+  Image as ImageIcon,
 } from 'lucide-react';
+import { uploadImageToImageKit } from '../../lib/imagekit';
 import {
   hardwareInventoryApi,
   getAllowedColorsForMaterial,
@@ -50,6 +53,8 @@ export default function EditHardwareModal({
   const [dia, setDia] = useState('');
   const [length, setLength] = useState('');
   const [width, setWidth] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [status, setStatus] = useState<HardwareInventoryItem['status']>('ACTIVE');
   const [notes, setNotes] = useState('');
 
@@ -72,11 +77,31 @@ export default function EditHardwareModal({
       setDia(item.dia || '');
       setLength(item.length || '');
       setWidth(item.width || '');
+      setImageUrl(item.imageUrl || '');
       setStatus(item.status);
       setNotes(item.notes || '');
       setError(null);
     }
   }, [isOpen, item]);
+
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsUploadingImage(true);
+      setError(null);
+      const url = await uploadImageToImageKit(file, 'hardware-inventory');
+      if (url) {
+        setImageUrl(url);
+      } else {
+        setError('Failed to upload image to ImageKit.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'ImageKit upload failed');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
 
   if (!isOpen || !item) return null;
 
@@ -114,6 +139,7 @@ export default function EditHardwareModal({
         dia: dia.trim() || undefined,
         length: length.trim() || undefined,
         width: width.trim() || undefined,
+        imageUrl: imageUrl.trim() || undefined,
         status,
         notes: notes.trim(),
       };
@@ -358,6 +384,58 @@ export default function EditHardwareModal({
                 onChange={(e) => setWidth(e.target.value)}
                 className="w-full px-3 py-2 bg-[#030213] border border-white/15 focus:border-[#7FB706] rounded-xl text-white text-xs font-mono focus:outline-none"
               />
+            </div>
+
+            {/* Product Image / Photo via ImageKit */}
+            <div className="sm:col-span-2 p-3 bg-[#030213] border border-white/10 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-gray-300 flex items-center gap-1.5">
+                  <ImageIcon className="w-3.5 h-3.5 text-[#7FB706]" />
+                  Product Photo <span className="text-gray-500 font-normal text-[10px]">(ImageKit CDN)</span>
+                </label>
+                {imageUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setImageUrl('')}
+                    className="text-[10px] text-red-400 hover:underline cursor-pointer"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                {imageUrl ? (
+                  <img
+                    src={imageUrl}
+                    alt="Preview"
+                    className="w-12 h-12 rounded-lg object-cover border border-[#7FB706]/40"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-lg border border-dashed border-white/20 bg-white/5 flex items-center justify-center text-gray-400">
+                    <ImageIcon className="w-4 h-4 opacity-40" />
+                  </div>
+                )}
+                <div className="flex-1 space-y-1.5">
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white/10 hover:bg-white/15 text-white text-xs rounded-lg transition-colors">
+                    <Upload className="w-3 h-3 text-[#B5F823]" />
+                    <span>{isUploadingImage ? 'Uploading...' : 'Upload Image'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageFileChange}
+                      disabled={isUploadingImage}
+                      className="hidden"
+                    />
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="Or paste image URL"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    className="w-full px-2.5 py-1 bg-black/40 border border-white/10 focus:border-[#7FB706] rounded text-white text-xs font-mono focus:outline-none"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="sm:col-span-2">

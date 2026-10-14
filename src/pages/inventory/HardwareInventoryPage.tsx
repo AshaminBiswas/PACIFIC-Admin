@@ -660,36 +660,47 @@ export default function HardwareInventoryPage() {
                       <tr key={item.id} className="hover:bg-white/5 transition-colors">
                         {/* SKU & Name */}
                         <td className="py-3.5 px-4">
-                          <span className="font-mono text-[#B5F823] font-bold text-xs block">
-                            {item.sku}
-                          </span>
-                          <span className="text-white font-medium text-xs block mt-0.5">
-                            {item.name}
-                          </span>
-                          {(item.dia || item.length || item.width) && (
-                            <div className="flex flex-wrap items-center gap-1 mt-1">
-                              {item.dia && (
-                                <span className="px-1.5 py-0.5 bg-blue-500/15 border border-blue-500/30 text-blue-300 rounded text-[10px] font-mono">
-                                  Ø {item.dia}
-                                </span>
+                          <div className="flex items-start gap-2.5">
+                            {item.imageUrl && (
+                              <img
+                                src={item.imageUrl}
+                                alt={item.name}
+                                className="w-9 h-9 rounded-lg object-cover border border-[#7FB706]/40 flex-shrink-0 mt-0.5 bg-black/40"
+                              />
+                            )}
+                            <div className="min-w-0">
+                              <span className="font-mono text-[#B5F823] font-bold text-xs block">
+                                {item.sku}
+                              </span>
+                              <span className="text-white font-medium text-xs block mt-0.5">
+                                {item.name}
+                              </span>
+                              {(item.dia || item.length || item.width) && (
+                                <div className="flex flex-wrap items-center gap-1 mt-1">
+                                  {item.dia && (
+                                    <span className="px-1.5 py-0.5 bg-blue-500/15 border border-blue-500/30 text-blue-300 rounded text-[10px] font-mono">
+                                      Ø {item.dia}
+                                    </span>
+                                  )}
+                                  {item.length && (
+                                    <span className="px-1.5 py-0.5 bg-purple-500/15 border border-purple-500/30 text-purple-300 rounded text-[10px] font-mono">
+                                      L: {item.length}
+                                    </span>
+                                  )}
+                                  {item.width && (
+                                    <span className="px-1.5 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 rounded text-[10px] font-mono">
+                                      W: {item.width}
+                                    </span>
+                                  )}
+                                </div>
                               )}
-                              {item.length && (
-                                <span className="px-1.5 py-0.5 bg-purple-500/15 border border-purple-500/30 text-purple-300 rounded text-[10px] font-mono">
-                                  L: {item.length}
-                                </span>
-                              )}
-                              {item.width && (
-                                <span className="px-1.5 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 rounded text-[10px] font-mono">
-                                  W: {item.width}
+                              {item.vendorName && (
+                                <span className="text-[10px] text-gray-400 block mt-0.5 truncate max-w-[180px]">
+                                  {item.vendorName}
                                 </span>
                               )}
                             </div>
-                          )}
-                          {item.vendorName && (
-                            <span className="text-[10px] text-gray-400 block mt-0.5 truncate max-w-[180px]">
-                              {item.vendorName}
-                            </span>
-                          )}
+                          </div>
                         </td>
 
                         {/* Material & Finish */}

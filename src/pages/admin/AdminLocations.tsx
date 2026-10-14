@@ -6,6 +6,8 @@ import {
   uploadLocationHeroBanner,
   uploadLocationGalleryImage,
   deleteLocationImage,
+  saveLocationCustomization,
+  fetchLocationCustomizations,
   type LocationSectionData,
 } from "../../lib/locationService";
 import type { GalleryImage } from "../../lib/database.types";
@@ -91,6 +93,13 @@ export default function AdminLocations() {
 
   useEffect(() => {
     loadMedia();
+    fetchLocationCustomizations().then((overrides) => {
+      if (overrides && Object.keys(overrides).length > 0) {
+        setLocations((prev) =>
+          prev.map((loc) => (overrides[loc.slug] ? { ...loc, ...overrides[loc.slug] } : loc))
+        );
+      }
+    });
   }, []);
 
   // When a location is selected, fetch its specific media and populate form
@@ -209,7 +218,7 @@ export default function AdminLocations() {
   };
 
   // Save content sections
-  const handleSaveSections = () => {
+  const handleSaveSections = async () => {
     if (!formData || !selectedLocation) return;
     setSavingSections(true);
     try {
@@ -219,17 +228,12 @@ export default function AdminLocations() {
       );
       setSelectedLocation({ ...formData });
 
-      // Save to localStorage as overrides for preview
-      try {
-        localStorage.setItem(
-          `pacific_location_override_${selectedLocation.slug}`,
-          JSON.stringify(formData)
-        );
-      } catch {}
+      // Save directly to PostgreSQL Database + update superfast session cache
+      await saveLocationCustomization(formData);
 
-      showToast("success", `Sections updated for ${formData.city}!`);
+      showToast("success", `Sections saved to database for ${formData.city}!`);
     } catch (err: any) {
-      showToast("error", "Failed to save sections.");
+      showToast("error", "Failed to save sections: " + err.message);
     } finally {
       setSavingSections(false);
     }

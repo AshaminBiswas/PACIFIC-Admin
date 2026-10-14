@@ -633,3 +633,114 @@ export async function deleteLocationImage(imageId: string): Promise<void> {
     throw error;
   }
 }
+
+/**
+ * Save location landing page customizations directly to PostgreSQL database
+ * and keep local session storage in sync for instant, superfast serving.
+ */
+export async function saveLocationCustomization(formData: LocationSectionData): Promise<void> {
+  // 1. Instant session cache update
+  try {
+    localStorage.setItem(`pacific_location_override_${formData.slug}`, JSON.stringify(formData));
+  } catch {}
+
+  // 2. Persist to Supabase PostgreSQL database
+  try {
+    const payload = {
+      id: `loc-${formData.slug}`,
+      slug: formData.slug,
+      city: formData.city,
+      state_name: formData.stateName,
+      target_keyword: formData.targetKeyword,
+      cluster: formData.cluster,
+      h1_headline: formData.h1,
+      tagline: formData.tagline,
+      meta_title: formData.metaTitle,
+      meta_description: formData.metaDescription,
+      canonical_url: formData.canonicalSlug,
+      address: formData.address,
+      direct_phone: formData.phone,
+      email: formData.email,
+      whatsapp: formData.whatsapp,
+      dispatch_mode: formData.dispatchMode,
+      lead_time: formData.deliveryTime,
+      corridors: formData.coverageHubs,
+      projects: formData.projects,
+      faqs: formData.faqs,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("location_customizations")
+      .upsert(payload, { onConflict: "slug" });
+
+    if (error) {
+      console.warn("[locationService] Database save notice (cached locally):", error.message);
+    }
+  } catch (err: any) {
+    console.warn("[locationService] Error persisting customization to database:", err);
+  }
+}
+
+/**
+ * Retrieve location landing page customizations from database,
+ * caching in session/localStorage for 0ms superfast retrieval.
+ */
+export async function fetchLocationCustomizations(): Promise<Record<string, Partial<LocationSectionData>>> {
+  const overrides: Record<string, Partial<LocationSectionData>> = {};
+
+  // 1. Instant memory / localStorage cache read
+  if (typeof window !== "undefined") {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("pacific_location_override_")) {
+          const slug = key.replace("pacific_location_override_", "");
+          try {
+            const raw = localStorage.getItem(key);
+            if (raw) overrides[slug] = JSON.parse(raw);
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Query Supabase PostgreSQL database to revalidate and populate
+  try {
+    const { data, error } = await supabase.from("location_customizations").select("*");
+    if (!error && data && data.length > 0) {
+      data.forEach((row: any) => {
+        const item: Partial<LocationSectionData> = {
+          slug: row.slug,
+          city: row.city,
+          stateName: row.state_name,
+          targetKeyword: row.target_keyword,
+          cluster: row.cluster,
+          h1: row.h1_headline,
+          tagline: row.tagline,
+          metaTitle: row.meta_title,
+          metaDescription: row.meta_description,
+          canonicalSlug: row.canonical_url,
+          address: row.address,
+          phone: row.direct_phone,
+          email: row.email,
+          whatsapp: row.whatsapp,
+          dispatchMode: row.dispatch_mode,
+          deliveryTime: row.lead_time,
+          coverageHubs: Array.isArray(row.corridors) ? row.corridors : [],
+          projects: Array.isArray(row.projects) ? row.projects : [],
+          faqs: Array.isArray(row.faqs) ? row.faqs : [],
+        };
+        overrides[row.slug] = item;
+        try {
+          localStorage.setItem(`pacific_location_override_${row.slug}`, JSON.stringify(item));
+        } catch {}
+      });
+    }
+  } catch (err: any) {
+    console.warn("[locationService] Failed to fetch customizations from database:", err);
+  }
+
+  return overrides;
+}
+

@@ -14,7 +14,10 @@ import {
   Hash,
   Boxes,
   HelpCircle,
+  Upload,
+  Image as ImageIcon,
 } from 'lucide-react';
+import { uploadImageToImageKit } from '../../lib/imagekit';
 import {
   hardwareInventoryApi,
   getAllowedColorsForMaterial,
@@ -91,10 +94,29 @@ export default function CreateHardwareSkuPage() {
   const [dia, setDia] = useState<string>('');
   const [length, setLength] = useState<string>('');
   const [width, setWidth] = useState<string>('');
+  const [imageUrl, setImageUrl] = useState<string>('');
+  const [isUploadingImage, setIsUploadingImage] = useState<boolean>(false);
   const [notes, setNotes] = useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsUploadingImage(true);
+      setError(null);
+      const url = await uploadImageToImageKit(file, 'hardware-inventory');
+      if (url) {
+        setImageUrl(url);
+      }
+    } catch (err: any) {
+      setError('ImageKit upload failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
 
   // Load branches and vendors
   const loadLookups = async () => {
@@ -139,6 +161,25 @@ export default function CreateHardwareSkuPage() {
     const activeColor = isCustomColorActive ? customColor || 'Custom' : color;
     const suggestion = suggestHardwareSku(material, name || 'FITTING', activeColor, warehouse);
     setSku(suggestion);
+  };
+
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsUploadingImage(true);
+      setError(null);
+      const url = await uploadImageToImageKit(file, 'hardware-inventory');
+      if (url) {
+        setImageUrl(url);
+      } else {
+        setError('Failed to upload image to ImageKit. Please check connection or credentials.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'ImageKit upload failed');
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -187,6 +228,7 @@ export default function CreateHardwareSkuPage() {
         dia: dia.trim() || undefined,
         length: length.trim() || undefined,
         width: width.trim() || undefined,
+        imageUrl: imageUrl.trim() || undefined,
         notes: notes.trim(),
       };
 
@@ -513,7 +555,75 @@ export default function CreateHardwareSkuPage() {
           </div>
         </div>
 
-        {/* 6. Branch & Vendor */}
+        {/* 6. Product Image & Media (ImageKit CDN) */}
+        <div className="p-4 bg-[#0d0b21] border border-white/5 rounded-xl space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-300 flex items-center gap-1.5">
+              <ImageIcon className="w-4 h-4 text-[#7FB706]" />
+              Product Photo / Technical Drawing <span className="text-gray-500 font-normal text-[10px]">(Optional — Powered by ImageKit CDN)</span>
+            </label>
+            {imageUrl && (
+              <button
+                type="button"
+                onClick={() => setImageUrl('')}
+                className="text-[11px] text-red-400 hover:underline cursor-pointer"
+              >
+                Remove Photo
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            {imageUrl ? (
+              <div className="relative group w-24 h-24 rounded-lg overflow-hidden border border-[#7FB706]/40 bg-black/40 flex-shrink-0">
+                <img
+                  src={imageUrl}
+                  alt="Hardware fitting preview"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className="w-24 h-24 rounded-lg border border-dashed border-white/20 bg-white/5 flex flex-col items-center justify-center text-gray-400 flex-shrink-0">
+                <ImageIcon className="w-6 h-6 opacity-40 mb-1" />
+                <span className="text-[10px] opacity-60">No image</span>
+              </div>
+            )}
+
+            <div className="flex-1 space-y-2 w-full">
+              <div className="flex items-center gap-2">
+                <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/15 text-white text-xs font-medium rounded-lg transition-colors">
+                  <Upload className="w-3.5 h-3.5 text-[#B5F823]" />
+                  <span>{isUploadingImage ? 'Uploading to ImageKit...' : 'Upload Image'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageFileChange}
+                    disabled={isUploadingImage}
+                    className="hidden"
+                  />
+                </label>
+                {isUploadingImage && (
+                  <span className="text-xs text-[#B5F823] animate-pulse">Optimizing & uploading...</span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="url"
+                  placeholder="Or paste external ImageKit / CDN URL directly"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  className="flex-1 px-3 py-1.5 bg-[#030213] border border-white/15 focus:border-[#7FB706] rounded-lg text-white text-xs focus:outline-none font-mono"
+                />
+              </div>
+              <p className="text-[10px] text-gray-400">
+                Images are automatically converted to optimized WebP format and served globally via ImageKit CDN.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 7. Branch & Vendor */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <div className="flex items-center justify-between mb-1">
