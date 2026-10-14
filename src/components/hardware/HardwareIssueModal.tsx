@@ -173,6 +173,25 @@ export default function HardwareIssueModal({
                     {activeItem.currentStock} {activeItem.unit}
                   </strong>{' '}
                   <span className="text-gray-400">at {activeItem.warehouse}</span>
+                  {(activeItem.dia || activeItem.length || activeItem.width) && (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      {activeItem.dia && (
+                        <span className="px-1.5 py-0.5 bg-blue-500/15 border border-blue-500/30 text-blue-300 rounded text-[10px] font-mono">
+                          Ø {activeItem.dia}
+                        </span>
+                      )}
+                      {activeItem.length && (
+                        <span className="px-1.5 py-0.5 bg-purple-500/15 border border-purple-500/30 text-purple-300 rounded text-[10px] font-mono">
+                          L: {activeItem.length}
+                        </span>
+                      )}
+                      {activeItem.width && (
+                        <span className="px-1.5 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 rounded text-[10px] font-mono">
+                          W: {activeItem.width}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-gray-400">Reorder Level:</span>{' '}

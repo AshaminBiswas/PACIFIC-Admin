@@ -28,6 +28,7 @@ import {
   Sparkles,
   Layers,
   Hash,
+  ClipboardList,
 } from 'lucide-react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { hardwareInventoryApi } from '../../api/hardwareInventoryApi';
@@ -47,6 +48,7 @@ import HardwareReportsModal from '../../components/hardware/HardwareReportsModal
 import HardwareVendorsModal from '../../components/hardware/HardwareVendorsModal';
 import BranchManagerModal from '../../components/hardware/BranchManagerModal';
 import EditHardwareModal from '../../components/hardware/EditHardwareModal';
+import HardwareIssueHistoryModal from '../../components/hardware/HardwareIssueHistoryModal';
 
 export default function HardwareInventoryPage() {
   const navigate = useNavigate();
@@ -73,6 +75,14 @@ export default function HardwareInventoryPage() {
   const [selectedUnit, setSelectedUnit] = useState<string>('ALL');
   const [selectedVendorId, setSelectedVendorId] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
+  const [selectedDia, setSelectedDia] = useState<string>('ALL');
+  const [selectedLength, setSelectedLength] = useState<string>('ALL');
+  const [selectedWidth, setSelectedWidth] = useState<string>('ALL');
+  const [dimensionOptions, setDimensionOptions] = useState<{
+    dias: string[];
+    lengths: string[];
+    widths: string[];
+  }>({ dias: [], lengths: [], widths: [] });
 
   // Modals State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -84,6 +94,8 @@ export default function HardwareInventoryPage() {
   const [isVendorsModalOpen, setIsVendorsModalOpen] = useState(false);
   const [isBranchesModalOpen, setIsBranchesModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isIssueHistoryModalOpen, setIsIssueHistoryModalOpen] = useState(false);
+  const [selectedHistorySkuId, setSelectedHistorySkuId] = useState<string | null>(null);
 
   // Active item for targeted modals
   const [activeItem, setActiveItem] = useState<HardwareInventoryItem | null>(null);
@@ -99,13 +111,16 @@ export default function HardwareInventoryPage() {
     selectedUnit,
     selectedVendorId,
     selectedStatus,
+    selectedDia,
+    selectedLength,
+    selectedWidth,
   ]);
 
   // Load hardware inventory data
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [itemsRes, branchesRes, vendorsRes, analyticsRes] = await Promise.all([
+      const [itemsRes, branchesRes, vendorsRes, analyticsRes, dimRes] = await Promise.all([
         hardwareInventoryApi.list({
           page,
           limit: pageSize,
@@ -116,12 +131,16 @@ export default function HardwareInventoryPage() {
           unit: selectedUnit !== 'ALL' ? selectedUnit : undefined,
           vendorId: selectedVendorId !== 'ALL' ? selectedVendorId : undefined,
           status: selectedStatus !== 'ALL' ? selectedStatus : undefined,
+          dia: selectedDia !== 'ALL' ? selectedDia : undefined,
+          length: selectedLength !== 'ALL' ? selectedLength : undefined,
+          width: selectedWidth !== 'ALL' ? selectedWidth : undefined,
         }),
         hardwareInventoryApi.listBranches(),
         hardwareInventoryApi.listVendors(),
         hardwareInventoryApi.getAnalytics({
           warehouse: selectedBranch !== 'ALL' ? selectedBranch : undefined,
         }),
+        hardwareInventoryApi.getDistinctDimensions(),
       ]);
 
       if (itemsRes.data?.data) {
@@ -138,6 +157,9 @@ export default function HardwareInventoryPage() {
       if (analyticsRes.data?.data) {
         setAnalytics(analyticsRes.data.data);
       }
+      if (dimRes?.data?.data) {
+        setDimensionOptions(dimRes.data.data);
+      }
     } catch (err) {
       console.error('Failed to load hardware inventory data:', err);
     } finally {
@@ -153,6 +175,9 @@ export default function HardwareInventoryPage() {
     selectedUnit,
     selectedVendorId,
     selectedStatus,
+    selectedDia,
+    selectedLength,
+    selectedWidth,
   ]);
 
   useEffect(() => {
@@ -310,6 +335,19 @@ export default function HardwareInventoryPage() {
           >
             <ArrowUpRight className="w-3.5 h-3.5" />
             Issue Stock
+          </button>
+
+          {/* Issue Details & History (All SKUs) */}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedHistorySkuId(null);
+              setIsIssueHistoryModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-bold rounded-xl border border-amber-500/30 transition-colors cursor-pointer"
+          >
+            <ClipboardList className="w-3.5 h-3.5 text-amber-400" />
+            Issue Details (All SKUs)
           </button>
 
           {/* Clear All */}
@@ -490,6 +528,83 @@ export default function HardwareInventoryPage() {
             <option value="OUT_OF_STOCK">Out of Stock</option>
           </select>
         </div>
+
+        {/* Dimension Filters Strip (Dia, Length, Width) */}
+        <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-white/5">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-300">
+            <Sliders className="w-3.5 h-3.5 text-[#B5F823]" />
+            <span>Dimension Filters:</span>
+          </div>
+
+          {/* Dia (Diameter) Filter */}
+          <div className="flex items-center gap-1.5">
+            <label className="text-[11px] text-gray-400 font-medium">Dia:</label>
+            <select
+              value={selectedDia}
+              onChange={(e) => setSelectedDia(e.target.value)}
+              className="px-2.5 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-xs text-gray-300 focus:outline-none focus:border-[#7FB706]"
+            >
+              <option value="ALL">All Dia</option>
+              {dimensionOptions.dias.map((d) => (
+                <option key={d} value={d}>
+                  Ø {d}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Length Filter */}
+          <div className="flex items-center gap-1.5">
+            <label className="text-[11px] text-gray-400 font-medium">Length:</label>
+            <select
+              value={selectedLength}
+              onChange={(e) => setSelectedLength(e.target.value)}
+              className="px-2.5 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-xs text-gray-300 focus:outline-none focus:border-[#7FB706]"
+            >
+              <option value="ALL">All Lengths</option>
+              {dimensionOptions.lengths.map((l) => (
+                <option key={l} value={l}>
+                  L: {l}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Width Filter */}
+          <div className="flex items-center gap-1.5">
+            <label className="text-[11px] text-gray-400 font-medium">Width:</label>
+            <select
+              value={selectedWidth}
+              onChange={(e) => setSelectedWidth(e.target.value)}
+              className="px-2.5 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-xs text-gray-300 focus:outline-none focus:border-[#7FB706]"
+            >
+              <option value="ALL">All Widths</option>
+              {dimensionOptions.widths.map((w) => (
+                <option key={w} value={w}>
+                  W: {w}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Active Dimension Badges & Quick Clear */}
+          {(selectedDia !== 'ALL' || selectedLength !== 'ALL' || selectedWidth !== 'ALL') && (
+            <div className="flex items-center gap-1.5 ml-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDia('ALL');
+                  setSelectedLength('ALL');
+                  setSelectedWidth('ALL');
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-medium rounded-lg border border-red-500/20 transition-colors cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+                Clear Dimensions
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Main Inventory Content */}
@@ -551,6 +666,25 @@ export default function HardwareInventoryPage() {
                           <span className="text-white font-medium text-xs block mt-0.5">
                             {item.name}
                           </span>
+                          {(item.dia || item.length || item.width) && (
+                            <div className="flex flex-wrap items-center gap-1 mt-1">
+                              {item.dia && (
+                                <span className="px-1.5 py-0.5 bg-blue-500/15 border border-blue-500/30 text-blue-300 rounded text-[10px] font-mono">
+                                  Ø {item.dia}
+                                </span>
+                              )}
+                              {item.length && (
+                                <span className="px-1.5 py-0.5 bg-purple-500/15 border border-purple-500/30 text-purple-300 rounded text-[10px] font-mono">
+                                  L: {item.length}
+                                </span>
+                              )}
+                              {item.width && (
+                                <span className="px-1.5 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 rounded text-[10px] font-mono">
+                                  W: {item.width}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           {item.vendorName && (
                             <span className="text-[10px] text-gray-400 block mt-0.5 truncate max-w-[180px]">
                               {item.vendorName}
@@ -677,6 +811,19 @@ export default function HardwareInventoryPage() {
                               <ArrowUpRight className="w-3.5 h-3.5" />
                             </button>
 
+                            {/* Issue History for this SKU */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedHistorySkuId(item.id);
+                                setIsIssueHistoryModalOpen(true);
+                              }}
+                              title={`View Issue History & Details for ${item.sku}`}
+                              className="p-1.5 bg-amber-500/10 hover:bg-amber-500/25 text-amber-300 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </button>
+
                             {/* Adjust Button */}
                             <button
                               type="button"
@@ -788,43 +935,76 @@ export default function HardwareInventoryPage() {
                           ₹{item.unitCost || 0} / ₹{((item.unitCost || 0) * item.currentStock).toLocaleString('en-IN')}
                         </span>
                       </div>
+
+                      {(item.dia || item.length || item.width) && (
+                        <div className="col-span-2 pt-1.5 border-t border-white/5 flex flex-wrap items-center gap-1.5">
+                          <span className="text-[10px] text-gray-500 uppercase font-semibold">Dimensions:</span>
+                          {item.dia && (
+                            <span className="px-1.5 py-0.5 bg-blue-500/15 border border-blue-500/30 text-blue-300 rounded text-[10px] font-mono">
+                              Ø {item.dia}
+                            </span>
+                          )}
+                          {item.length && (
+                            <span className="px-1.5 py-0.5 bg-purple-500/15 border border-purple-500/30 text-purple-300 rounded text-[10px] font-mono">
+                              L: {item.length}
+                            </span>
+                          )}
+                          {item.width && (
+                            <span className="px-1.5 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 rounded text-[10px] font-mono">
+                              W: {item.width}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Touch Action Buttons (targets >= 44px) */}
-                    <div className="grid grid-cols-4 gap-2 pt-1">
+                    <div className="grid grid-cols-5 gap-1.5 pt-1">
                       <button
                         type="button"
                         onClick={() => handleOpenInwardForItem(item)}
-                        className="min-h-[44px] flex flex-col items-center justify-center bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 rounded-xl text-[11px] font-bold transition-all cursor-pointer"
+                        className="min-h-[44px] flex flex-col items-center justify-center bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 rounded-xl text-[10px] font-bold transition-all cursor-pointer"
                       >
-                        <ArrowDownRight className="w-4 h-4" />
+                        <ArrowDownRight className="w-3.5 h-3.5" />
                         Inward
                       </button>
 
                       <button
                         type="button"
                         onClick={() => handleOpenIssueForItem(item)}
-                        className="min-h-[44px] flex flex-col items-center justify-center bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-xl text-[11px] font-bold transition-all cursor-pointer"
+                        className="min-h-[44px] flex flex-col items-center justify-center bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-xl text-[10px] font-bold transition-all cursor-pointer"
                       >
-                        <ArrowUpRight className="w-4 h-4" />
+                        <ArrowUpRight className="w-3.5 h-3.5" />
                         Issue
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => handleOpenAdjustForItem(item)}
-                        className="min-h-[44px] flex flex-col items-center justify-center bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 rounded-xl text-[11px] font-bold transition-all cursor-pointer"
+                        onClick={() => {
+                          setSelectedHistorySkuId(item.id);
+                          setIsIssueHistoryModalOpen(true);
+                        }}
+                        className="min-h-[44px] flex flex-col items-center justify-center bg-amber-500/10 hover:bg-amber-500/20 text-amber-200 border border-amber-500/20 rounded-xl text-[10px] font-bold transition-all cursor-pointer"
                       >
-                        <Sliders className="w-4 h-4" />
+                        <FileText className="w-3.5 h-3.5" />
+                        History
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenAdjustForItem(item)}
+                        className="min-h-[44px] flex flex-col items-center justify-center bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 rounded-xl text-[10px] font-bold transition-all cursor-pointer"
+                      >
+                        <Sliders className="w-3.5 h-3.5" />
                         Adjust
                       </button>
 
                       <button
                         type="button"
                         onClick={() => handleOpenEditForItem(item)}
-                        className="min-h-[44px] flex flex-col items-center justify-center bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10 rounded-xl text-[11px] font-bold transition-all cursor-pointer"
+                        className="min-h-[44px] flex flex-col items-center justify-center bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10 rounded-xl text-[10px] font-bold transition-all cursor-pointer"
                       >
-                        <Edit2 className="w-4 h-4" />
+                        <Edit2 className="w-3.5 h-3.5" />
                         Edit
                       </button>
                     </div>
@@ -948,6 +1128,18 @@ export default function HardwareInventoryPage() {
         item={activeItem}
         branches={branches}
         vendors={vendors}
+      />
+
+      <HardwareIssueHistoryModal
+        isOpen={isIssueHistoryModalOpen}
+        onClose={() => setIsIssueHistoryModalOpen(false)}
+        items={items}
+        branches={branches}
+        initialSkuId={selectedHistorySkuId}
+        onOpenNewIssue={(item) => {
+          setActiveItem(item || null);
+          setIsIssueModalOpen(true);
+        }}
       />
     </div>
   );

@@ -305,6 +305,9 @@ export const hardwareInventoryApi = {
     unit?: string;
     vendorId?: string;
     status?: string;
+    dia?: string;
+    length?: string;
+    width?: string;
   }): Promise<{ data: ApiResponse<PaginatedResponse<HardwareInventoryItem>> }> => {
     // Try backend if available
     try {
@@ -342,6 +345,15 @@ export const hardwareInventoryApi = {
     if (params?.status && params.status !== 'ALL') {
       items = items.filter((i) => i.status === params.status);
     }
+    if (params?.dia && params.dia !== 'ALL') {
+      items = items.filter((i) => i.dia && i.dia.toLowerCase() === params.dia!.toLowerCase());
+    }
+    if (params?.length && params.length !== 'ALL') {
+      items = items.filter((i) => i.length && i.length.toLowerCase() === params.length!.toLowerCase());
+    }
+    if (params?.width && params.width !== 'ALL') {
+      items = items.filter((i) => i.width && i.width.toLowerCase() === params.width!.toLowerCase());
+    }
     if (params?.search && params.search.trim()) {
       const q = params.search.toLowerCase().trim();
       items = items.filter(
@@ -350,7 +362,10 @@ export const hardwareInventoryApi = {
           i.name.toLowerCase().includes(q) ||
           (i.hsnCode && i.hsnCode.includes(q)) ||
           (i.vendorName && i.vendorName.toLowerCase().includes(q)) ||
-          (i.locationRack && i.locationRack.toLowerCase().includes(q))
+          (i.locationRack && i.locationRack.toLowerCase().includes(q)) ||
+          (i.dia && i.dia.toLowerCase().includes(q)) ||
+          (i.length && i.length.toLowerCase().includes(q)) ||
+          (i.width && i.width.toLowerCase().includes(q))
       );
     }
 
@@ -432,6 +447,9 @@ export const hardwareInventoryApi = {
       reorderLevel,
       unitCost,
       locationRack: data.locationRack?.trim() || '',
+      dia: data.dia?.trim() || undefined,
+      length: data.length?.trim() || undefined,
+      width: data.width?.trim() || undefined,
       status: initialStatus,
       notes: data.notes?.trim() || '',
       createdAt: now,
@@ -458,6 +476,9 @@ export const hardwareInventoryApi = {
         stockBefore: 0,
         stockAfter: openingStock,
         unit: newItem.unit,
+        dia: newItem.dia,
+        length: newItem.length,
+        width: newItem.width,
         unitCost,
         totalValue: openingStock * unitCost,
         notes: 'Initial opening stock registration',
@@ -506,6 +527,9 @@ export const hardwareInventoryApi = {
       reorderLevel: data.reorderLevel !== undefined ? Number(data.reorderLevel) : current.reorderLevel,
       unitCost: data.unitCost !== undefined ? Number(data.unitCost) : current.unitCost,
       locationRack: data.locationRack !== undefined ? data.locationRack.trim() : current.locationRack,
+      dia: data.dia !== undefined ? (data.dia.trim() || undefined) : current.dia,
+      length: data.length !== undefined ? (data.length.trim() || undefined) : current.length,
+      width: data.width !== undefined ? (data.width.trim() || undefined) : current.width,
       status: (data.status as any) || current.status,
       notes: data.notes !== undefined ? data.notes.trim() : current.notes,
       updatedAt: new Date().toISOString(),
@@ -536,6 +560,25 @@ export const hardwareInventoryApi = {
       data: {
         success: true,
         data: { success: true },
+      },
+    };
+  },
+
+  getDistinctDimensions: async (): Promise<{
+    data: ApiResponse<{
+      dias: string[];
+      lengths: string[];
+      widths: string[];
+    }>;
+  }> => {
+    const items = store.getItems();
+    const dias = Array.from(new Set(items.map((i) => i.dia?.trim()).filter(Boolean) as string[])).sort();
+    const lengths = Array.from(new Set(items.map((i) => i.length?.trim()).filter(Boolean) as string[])).sort();
+    const widths = Array.from(new Set(items.map((i) => i.width?.trim()).filter(Boolean) as string[])).sort();
+    return {
+      data: {
+        success: true,
+        data: { dias, lengths, widths },
       },
     };
   },
@@ -578,6 +621,9 @@ export const hardwareInventoryApi = {
       stockBefore,
       stockAfter,
       unit: item.unit,
+      dia: item.dia,
+      length: item.length,
+      width: item.width,
       supplierInvoiceNo: data.supplierInvoiceNo?.trim(),
       supplierInvoiceDate: data.supplierInvoiceDate,
       batchLotNo: data.batchLotNo?.trim(),
@@ -660,6 +706,9 @@ export const hardwareInventoryApi = {
       stockBefore,
       stockAfter,
       unit: item.unit,
+      dia: item.dia,
+      length: item.length,
+      width: item.width,
       issueReference: data.issueReference?.trim(),
       issuedToPerson: data.issuedToPerson?.trim(),
       unitCost: item.unitCost,
@@ -803,6 +852,81 @@ export const hardwareInventoryApi = {
       data: {
         success: true,
         data: movements,
+      },
+    };
+  },
+
+  // ── Dedicated Stock Issue History (All SKUs or filtered) ──
+  getIssueHistory: async (params?: {
+    hardwareItemId?: string;
+    sku?: string;
+    warehouse?: string;
+    material?: string;
+    search?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+  }): Promise<{
+    data: ApiResponse<{
+      issues: HardwareStockMovement[];
+      totalUnitsIssued: number;
+      totalIssueValuation: number;
+      totalTransactions: number;
+      uniqueSkusCount: number;
+    }>;
+  }> => {
+    let movements = store.getMovements().filter((m) => m.movementType === 'ISSUE');
+
+    if (params?.hardwareItemId && params.hardwareItemId !== 'ALL') {
+      movements = movements.filter((m) => m.hardwareItemId === params.hardwareItemId);
+    }
+    if (params?.sku && params.sku !== 'ALL') {
+      movements = movements.filter((m) => m.sku.toUpperCase() === params.sku!.toUpperCase());
+    }
+    if (params?.warehouse && params.warehouse !== 'ALL') {
+      movements = movements.filter((m) => m.warehouse.toUpperCase() === params.warehouse!.toUpperCase());
+    }
+    if (params?.material && params.material !== 'ALL') {
+      movements = movements.filter((m) => m.material.toUpperCase() === params.material!.toUpperCase());
+    }
+    if (params?.startDate) {
+      movements = movements.filter((m) => m.movementDate >= params.startDate!);
+    }
+    if (params?.endDate) {
+      movements = movements.filter((m) => m.movementDate <= params.endDate!);
+    }
+    if (params?.search && params.search.trim()) {
+      const q = params.search.toLowerCase().trim();
+      movements = movements.filter(
+        (m) =>
+          m.sku.toLowerCase().includes(q) ||
+          m.hardwareName.toLowerCase().includes(q) ||
+          m.movementNumber.toLowerCase().includes(q) ||
+          (m.issueReference && m.issueReference.toLowerCase().includes(q)) ||
+          (m.issuedToPerson && m.issuedToPerson.toLowerCase().includes(q)) ||
+          (m.notes && m.notes.toLowerCase().includes(q))
+      );
+    }
+
+    const totalTransactions = movements.length;
+    const totalUnitsIssued = movements.reduce((acc, m) => acc + (Number(m.quantity) || 0), 0);
+    const totalIssueValuation = movements.reduce((acc, m) => acc + (Number(m.totalValue) || 0), 0);
+    const uniqueSkusCount = new Set(movements.map((m) => m.sku)).size;
+
+    if (params?.limit) {
+      movements = movements.slice(0, params.limit);
+    }
+
+    return {
+      data: {
+        success: true,
+        data: {
+          issues: movements,
+          totalUnitsIssued,
+          totalIssueValuation,
+          totalTransactions,
+          uniqueSkusCount,
+        },
       },
     };
   },

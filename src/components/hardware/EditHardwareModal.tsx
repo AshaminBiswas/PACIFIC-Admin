@@ -47,6 +47,9 @@ export default function EditHardwareModal({
   const [reorderLevel, setReorderLevel] = useState<string | number>(20);
   const [unitCost, setUnitCost] = useState<string | number>('');
   const [locationRack, setLocationRack] = useState('');
+  const [dia, setDia] = useState('');
+  const [length, setLength] = useState('');
+  const [width, setWidth] = useState('');
   const [status, setStatus] = useState<HardwareInventoryItem['status']>('ACTIVE');
   const [notes, setNotes] = useState('');
 
@@ -66,6 +69,9 @@ export default function EditHardwareModal({
       setReorderLevel(item.reorderLevel);
       setUnitCost(item.unitCost || '');
       setLocationRack(item.locationRack || '');
+      setDia(item.dia || '');
+      setLength(item.length || '');
+      setWidth(item.width || '');
       setStatus(item.status);
       setNotes(item.notes || '');
       setError(null);
@@ -105,6 +111,9 @@ export default function EditHardwareModal({
         reorderLevel: Number(reorderLevel) || 10,
         unitCost: unitCost ? Number(unitCost) : undefined,
         locationRack: locationRack.trim(),
+        dia: dia.trim() || undefined,
+        length: length.trim() || undefined,
+        width: width.trim() || undefined,
         status,
         notes: notes.trim(),
       };
@@ -309,6 +318,45 @@ export default function EditHardwareModal({
                 value={locationRack}
                 onChange={(e) => setLocationRack(e.target.value)}
                 className="w-full px-3 py-2 bg-[#030213] border border-white/15 focus:border-[#7FB706] rounded-xl text-white text-xs focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 mb-1">
+                Diameter (Dia) <span className="text-gray-500 font-normal text-[10px]">(Optional)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 25mm, 32mm"
+                value={dia}
+                onChange={(e) => setDia(e.target.value)}
+                className="w-full px-3 py-2 bg-[#030213] border border-white/15 focus:border-[#7FB706] rounded-xl text-white text-xs font-mono focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 mb-1">
+                Length <span className="text-gray-500 font-normal text-[10px]">(Optional)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 100mm, 150mm, 2.4m"
+                value={length}
+                onChange={(e) => setLength(e.target.value)}
+                className="w-full px-3 py-2 bg-[#030213] border border-white/15 focus:border-[#7FB706] rounded-xl text-white text-xs font-mono focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 mb-1">
+                Width <span className="text-gray-500 font-normal text-[10px]">(Optional)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 50mm, 100mm"
+                value={width}
+                onChange={(e) => setWidth(e.target.value)}
+                className="w-full px-3 py-2 bg-[#030213] border border-white/15 focus:border-[#7FB706] rounded-xl text-white text-xs font-mono focus:outline-none"
               />
             </div>
 

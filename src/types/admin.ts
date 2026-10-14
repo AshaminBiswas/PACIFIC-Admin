@@ -2762,6 +2762,9 @@ export interface HardwareInventoryItem {
   reorderLevel: number;
   unitCost: number;
   locationRack?: string;
+  dia?: string; // Optional diameter e.g. "25mm", "32mm", "38mm"
+  length?: string; // Optional length e.g. "100mm", "150mm", "2.5m"
+  width?: string; // Optional width e.g. "50mm", "100mm"
   status: 'ACTIVE' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'DISCONTINUED';
   notes?: string;
   createdAt: string;
@@ -2794,6 +2797,9 @@ export interface HardwareStockMovement {
   batchLotNo?: string;
   unitCost?: number;
   totalValue?: number;
+  dia?: string;
+  length?: string;
+  width?: string;
   issueReference?: string;
   issuedToPerson?: string;
   notes?: string;
@@ -2829,6 +2835,9 @@ export interface CreateHardwareItemInput {
   reorderLevel?: number;
   unitCost?: number;
   locationRack?: string;
+  dia?: string;
+  length?: string;
+  width?: string;
   notes?: string;
 }
 
@@ -2846,6 +2855,9 @@ export interface UpdateHardwareItemInput {
   reorderLevel?: number;
   unitCost?: number;
   locationRack?: string;
+  dia?: string;
+  length?: string;
+  width?: string;
   status?: 'ACTIVE' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'DISCONTINUED';
   notes?: string;
 }

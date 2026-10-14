@@ -88,6 +88,9 @@ export default function CreateHardwareSkuPage() {
   const [reorderLevel, setReorderLevel] = useState<string | number>(20);
   const [unitCost, setUnitCost] = useState<string | number>('');
   const [locationRack, setLocationRack] = useState<string>('');
+  const [dia, setDia] = useState<string>('');
+  const [length, setLength] = useState<string>('');
+  const [width, setWidth] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -181,6 +184,9 @@ export default function CreateHardwareSkuPage() {
         reorderLevel: Number(reorderLevel) || 10,
         unitCost: unitCost ? Number(unitCost) : undefined,
         locationRack: locationRack.trim(),
+        dia: dia.trim() || undefined,
+        length: length.trim() || undefined,
+        width: width.trim() || undefined,
         notes: notes.trim(),
       };
 
@@ -453,7 +459,61 @@ export default function CreateHardwareSkuPage() {
           </div>
         </div>
 
-        {/* 5. Branch & Vendor */}
+        {/* 5. Dimensions & Sizing (Optional: Dia, Length, Width) */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-300">
+              5. Dimensions & Sizing <span className="text-gray-500 font-normal lowercase">(optional)</span>
+            </label>
+            <span className="text-[11px] text-gray-400">Diameter (Dia), Length, & Width</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-[#0d0b21] border border-white/5 rounded-xl">
+            <div>
+              <label className="block text-xs font-medium text-gray-300 mb-1">
+                Diameter (Dia) <span className="text-gray-500 font-normal text-[10px]">(Optional)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 25mm, 32mm, 38mm"
+                value={dia}
+                onChange={(e) => setDia(e.target.value)}
+                className="w-full px-3 py-2 bg-[#030213] border border-white/15 focus:border-[#7FB706] rounded-lg text-white text-xs focus:outline-none font-mono"
+              />
+              <p className="text-[10px] text-gray-500 mt-1">Tube, bar, or leg diameter</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-300 mb-1">
+                Length <span className="text-gray-500 font-normal text-[10px]">(Optional)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 100mm, 150mm, 2.4m, 3.65m"
+                value={length}
+                onChange={(e) => setLength(e.target.value)}
+                className="w-full px-3 py-2 bg-[#030213] border border-white/15 focus:border-[#7FB706] rounded-lg text-white text-xs focus:outline-none font-mono"
+              />
+              <p className="text-[10px] text-gray-500 mt-1">Overall length / rail span</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-300 mb-1">
+                Width <span className="text-gray-500 font-normal text-[10px]">(Optional)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 50mm, 100mm, 150mm"
+                value={width}
+                onChange={(e) => setWidth(e.target.value)}
+                className="w-full px-3 py-2 bg-[#030213] border border-white/15 focus:border-[#7FB706] rounded-lg text-white text-xs focus:outline-none font-mono"
+              />
+              <p className="text-[10px] text-gray-500 mt-1">Channel / baseplate width</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 6. Branch & Vendor */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -509,7 +569,7 @@ export default function CreateHardwareSkuPage() {
           </div>
         </div>
 
-        {/* 6. Stock Levels & Financials */}
+        {/* 7. Stock Levels & Financials */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-[#0d0b21] border border-white/5 rounded-xl">
           <div>
             <label className="block text-xs font-medium text-gray-300 mb-1">Opening Stock</label>

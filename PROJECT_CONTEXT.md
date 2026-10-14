@@ -5012,6 +5012,130 @@ A production-grade Content Management System enabling authorized administrators 
 3. **Cross-Navigation Integration**:
    - Added regional location banner shortcut to `AdminPageBanners.tsx` header for instant switching between generic page banners and location landing page banners.
 
+---
+
+## 92. Hardware Inventory Dimensions (Dia, Length, Width) & Dimension Filters
+
+### 92.1 Dimensional Schema Extensions (`src/types/admin.ts`)
+1. **Model & Input Interfaces**:
+   - Extended `HardwareInventoryItem` with optional dimensional parameters:
+     - `dia?: string;` (Diameter, e.g. `25mm`, `32mm`, `38mm` for tubes, legs, and bar fittings)
+     - `length?: string;` (Length, e.g. `100mm`, `150mm`, `2.4m`, `3.65m` for rails and spans)
+     - `width?: string;` (Width, e.g. `50mm`, `100mm` for U-channels and baseplates)
+   - Synchronized `CreateHardwareItemInput` and `UpdateHardwareItemInput` with identical optional `dia`, `length`, and `width` string fields.
+
+### 92.2 API & Query Engine (`src/api/hardwareInventoryApi.ts`)
+1. **Dimension Parameter Support in `list`**:
+   - Added `dia?: string; length?: string; width?: string;` filter parameters to `hardwareInventoryApi.list`.
+   - Implemented exact case-insensitive filtering for `dia`, `length`, and `width` when selected (`!== 'ALL'`).
+   - Integrated `dia`, `length`, and `width` into the free-text search filter (`params?.search`), enabling instant SKU searches by diameter or length (e.g. typing "25mm" or "150mm").
+2. **Persistence in `create` & `update`**:
+   - Trimmed and persisted `dia`, `length`, and `width` on new item registration and SKU master updates.
+3. **Dynamic Dimension Introspection (`getDistinctDimensions`)**:
+   - Added `hardwareInventoryApi.getDistinctDimensions()` returning unique, sorted lists of existing `dias`, `lengths`, and `widths` across all catalog items to populate dynamic filter dropdowns.
+
+### 92.3 SKU Creation & Editing Views
+1. **Dedicated Sizing & Dimensions Group**:
+   - **Full-Page Builder (`CreateHardwareSkuPage.tsx`)**: Added "5. Dimensions & Sizing (Optional)" card with 3 clean inputs: Diameter (Dia), Length, and Width, complete with architectural placeholder examples.
+   - **Quick Modal Creation (`CreateHardwareModal.tsx`)**: Added identical optional dimensions block before warehouse/vendor assignment.
+   - **SKU Master Editor (`EditHardwareModal.tsx`)**: Added Diameter, Length, and Width inputs for updating existing SKU specifications.
+
+### 92.4 Inventory Listing, Filters & Badging (`HardwareInventoryPage.tsx`)
+1. **Interactive Dimension Filter Strip**:
+   - Positioned cleanly beneath the secondary filter row with Lucide `Sliders` icon.
+   - Individual dropdown selectors for **Dia**, **Length**, and **Width**, populated with all catalog dimensions plus "All".
+   - Active filter badges with individual dismiss controls and a single-click "Clear Dimensions" button.
+2. **Table & Mobile Card Visual Representation**:
+   - **Desktop Table**: Displays color-coded monospace badges in the SKU column:
+     - Blue badge for Diameter (`Ø 25mm`)
+     - Purple badge for Length (`L: 150mm`)
+     - Emerald badge for Width (`W: 50mm`)
+   - **Mobile Responsive Cards**: Integrated dimension specifications row into the metadata grid.
+
+### 92.5 Quality & Verification
+- **TypeScript**: `npx tsc --noEmit` exits with 0 errors.
+- **Production Build**: `npm run build` exits with code 0 (`vite v6.4.3 built in 2m 25s`).
+
+---
+
+## 93. Hardware Inventory Issue Details & Historical Issue Audit Ledger (All SKUs & Single SKU)
+
+### 93.1 Business Context & Requirements
+1. **Material Issue Tracking**:
+   - Hardware fittings (gravity hinges, occupancy locks, supporting legs, brackets, headrails, screws, fasteners) are issued from branches/warehouses against production work orders, installation site requests, and maintenance jobs.
+   - Administrators and warehouse supervisors require complete visibility into chronological issue details across **all SKUs** or focused on any single SKU.
+   - Historical movement ledger must preserve an immutable record of each transaction, including issuing voucher references (`ISS-xxxxxx`), issuing branch/warehouse, recipient person, project/work order reference, quantity issued, stock level progression (`stockBefore` → `-qty` → `stockAfter`), material valuation, and dimensional specifications.
+
+### 93.2 Schema & Dimension Snapshot Preservation (`src/types/admin.ts`)
+1. **Dimension Snapshots on Stock Movements**:
+   - Extended `HardwareStockMovement` interface:
+     - `dia?: string;` (Diameter at time of issue, e.g. `Ø 25mm`)
+     - `length?: string;` (Length at time of issue, e.g. `150mm`)
+     - `width?: string;` (Width at time of issue, e.g. `50mm`)
+   - Ensures an immutable audit trail even if catalog master SKU definitions are subsequently updated or deleted.
+
+### 93.3 API Query & Reporting Engine (`src/api/hardwareInventoryApi.ts`)
+1. **`getIssueHistory(params)` Query Engine**:
+   - Accepts flexible filter criteria:
+     - `skuId?: string` (Filters to a specific SKU or `'ALL'` for all SKUs consolidated)
+     - `warehouse?: string` (Branch filter, e.g. `DELHI_NCR`, `MUMBAI_HQ`, `KOLKATA_EAST`, `BENGALURU_SOUTH`)
+     - `material?: string` (Material filter, e.g. `SS_304`, `SS_316`, `ALUMINUM`, `NYLON`, `BRASS`)
+     - `search?: string` (Case-insensitive multi-field search against SKU code, item name, recipient name, work order reference, and notes)
+     - `dateRange?: 'TODAY' | 'LAST_7_DAYS' | 'LAST_30_DAYS' | 'ALL'` (Pre-configured date presets)
+     - `startDate?: string; endDate?: string;` (Explicit ISO date bounds)
+     - `limit?: number` (Maximum records returned)
+   - Filters records specifically for `movementType === 'ISSUE'` sorted in descending chronological order.
+   - Calculates aggregate metrics in real time:
+     - `totalUnitsIssued`: Sum of issued quantities.
+     - `totalIssueValuation`: Calculated financial valuation (`qty * unitCost`).
+     - `totalTransactions`: Number of individual issue voucher entries.
+     - `uniqueSkusCount`: Count of unique SKUs represented in the queried result set.
+2. **Dimension Preservation in `createMovement`**:
+   - Automatically populates `dia`, `length`, and `width` on new inward, issue, and adjustment ledger entries from the parent item.
+
+### 93.4 Interactive Issue History Modal (`HardwareIssueHistoryModal.tsx`)
+1. **Header & Quick Actions**:
+   - Dynamic title displaying total issue transactions count.
+   - Refresh button with live spinning indicator.
+   - One-click **Export CSV** generating formatted spreadsheet reports including Voucher Ref, Date, SKU, Item Name, Dimensions, Branch, Quantity, Unit, Stock Before, Stock After, Unit Cost, Total Valuation, Work Order, Issued To, and Notes.
+2. **KPI Summary Cards**:
+   - **Total Units Issued**: Total quantity consumed across filtered records.
+   - **Issue Valuation (₹)**: Financial value of issued materials with Indian Rupee formatting.
+   - **Issue Slips Count**: Total issue vouchers generated.
+   - **Unique SKUs Involved**: Diversity of items issued.
+3. **Multi-Filter & Control Toolbar**:
+   - **SKU Dropdown Selector**: Switch instantly between "All SKUs (Consolidated History)" and any catalog SKU with instant re-querying.
+   - **Branch / Warehouse Selector**: Filter by issuing location or all branches.
+   - **Date Range Presets**: Quick-select All Time, Today, Last 7 Days, or Last 30 Days.
+   - **Search Input**: Live keyword search across vouchers, SKUs, names, recipients, and project references.
+   - **Active Filter Dismiss Pills**: Individual removable badges for each active filter + "Clear all filters" button.
+4. **Dual Presentation (Desktop & Mobile)**:
+   - **Desktop Data Table**: Displays Date & Time, Voucher Ref (`ISS-xxxxxx`), SKU & Item Name with dimension badges (Dia, Length, Width), Branch, Qty Flow (`stockBefore` → `-qty` → `stockAfter`), Work Order / Project Ref, Recipient & Notes, Valuation, and "View Slip" action.
+   - **Mobile Touch Cards**: Optimized card layout with colored badges and quick "View Voucher Slip" buttons.
+5. **Printable Store Issue Voucher Slip**:
+   - Clean, formal A4 voucher overlay:
+     - Official company header with GSTIN and branch details.
+     - Voucher reference, issue date/timestamp, issuing warehouse, project reference, and recipient name.
+     - Item specifications table with SKU, description, dimensions, issued quantity, unit cost, and valuation.
+     - Stock ledger summary (`Opening Stock`, `Issued`, `Remaining Balance`).
+     - Formal dual signature authorization blocks: **Store Incharge (Issued By)** and **Received By / Project Incharge**.
+     - Native browser `window.print()` trigger for physical printing or PDF generation.
+
+### 93.5 Entry Points & Page Integration (`HardwareInventoryPage.tsx` & `HardwareIssueModal.tsx`)
+1. **Global Toolbar Action**:
+   - Prominent `"Issue Details (All SKUs)"` button styled with `ClipboardList` icon on the main inventory toolbar.
+2. **Per-SKU Row & Card Actions**:
+   - Desktop table action button: `"View Issue History for this SKU"` (`FileText` icon) on every SKU row.
+   - Mobile card action: `"History"` button inside the responsive action grid.
+3. **Issue Modal Dimension Inspection**:
+   - Updated `HardwareIssueModal.tsx` item preview card to display Diameter, Length, and Width specifications before confirming issue transactions.
+
+### 93.6 Quality & Verification
+- **TypeScript**: `npx tsc --noEmit` exits with 0 errors.
+- **Production Build**: `npm run build` exits with code 0.
+
+
+
 
 
 
