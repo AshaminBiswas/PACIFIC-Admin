@@ -5238,6 +5238,86 @@ Direct PostgreSQL DDL migrations were executed on the production Supabase databa
 - **Zero TypeScript Errors**: `npx tsc --noEmit` executed in `d:\PACIFIC-Admin` with 0 errors (exit code 0).
 - **Production Build**: `npm run build` executed in `d:\PACIFIC-Admin` with exit code 0.
 
+---
+
+## 95. Proforma Invoice UMP HSN Code Customization & Color Auto-Fill Removal
+
+### 95.1 Urinal Modesty Partition (UMP) HSN Code Customization
+1. **Interactive HSN Selection / Manual Entry**:
+   - In both [`CreateProformaPage.tsx`](file:///d:/PACIFIC-Admin/src/pages/CreateProformaPage.tsx) and [`EditProformaInvoicePage.tsx`](file:///d:/PACIFIC-Admin/src/pages/EditProformaInvoicePage.tsx), the UMP configuration card (`Section 2: Urinal Modesty Partitions`) has been upgraded from a 3-column grid (`Unit`, `Quantity`, `Rate`) to a 4-column grid:
+     - **HSN / SAC**: Interactive [`HsnSelectInput`](file:///d:/PACIFIC-Admin/src/components/common/HsnSelectInput.tsx) pre-loaded with standard washroom partition HSN codes (`9403`, `48239019`, `44119229`, `8302`) plus full manual entry for custom codes.
+     - **Unit**: Dropdown with `NOS`, `SET`, `SQM`, `MTR`, `LOT`.
+     - **Quantity**: Numeric input.
+     - **Rate (₹)**: Unit rate input.
+2. **Dynamic State & Ledger Sync**:
+   - `handleSelectUmpModel`: Preserves any pre-existing or user-specified `hsnSac` instead of hardcoding or overwriting to `'9403'`.
+   - `handleUmpFieldChange`: Full reactive handler for `field === 'hsnSac'`.
+   - UMP Summary Footer: Displays dynamic active HSN code (`umpItem.hsnSac || '9403'`).
+3. **Robust Model Catalog Matching**:
+   - Updated `urinalModels` useMemo filter across both files to resiliently match `'Urinal Partitions'`, `'Urinal Partition'`, title containing `'urinal'`, or slug containing `'ump'`.
+
+### 95.2 Color Auto-Fill Removal Across All Models
+1. **Eradication of Hardcoded Default Color**:
+   - Removed the default auto-filled string `'D.No. 123 – Oyster White'` / `'D.No. 123 - Oyster White'` from:
+     - `INITIAL_FORM` default cubicle item (`boardColor: ''`).
+     - Quotation import mappers across all scopes (`boardColor: it.boardColor || ''`).
+     - UMP Model selector (`boardColor: existingUmp?.boardColor || ''`).
+     - Modular Locker selector (`boardColor: existingLocker?.boardColor || ''`).
+     - Scope presets (`BOARD`, `CUSTOM`, `CUBICLE`).
+     - Quick add item triggers (`handleAddCubicleItem`, `handleAddBoardItem`).
+2. **Clean User Interface Placeholders**:
+   - Updated all model color input placeholders across Primary Cubicle, Urinal Partitions, Modular Lockers, Additional Cubicle Systems, and Board sheets to:
+     `placeholder="e.g. As approved / Shade code (Optional)"`.
+   - Allows users to enter custom shade/design codes whenever specified, while leaving it completely blank by default to prevent unintentional quotation/PI text pollution.
+
+### 95.3 Quality & Verification
+- **TypeScript**: `npx tsc --noEmit` exited with 0 errors.
+- **Production Build**: `npm run build` completed with exit code 0 in 34s.
+
+---
+
+## 96. Manual HSN / SAC Code Direct Typing For Every Item & Vector PDF Synchronization
+
+### 96.1 Universal Manual HSN Entry Across All Item Scopes
+1. **Direct Keyboard Typing via Upgraded `HsnSelectInput`**:
+   - Replaced the restrictive `<select>` modal approach in [`HsnSelectInput.tsx`](file:///d:/PACIFIC-Admin/src/components/common/HsnSelectInput.tsx) with a direct, editable `<input type="text">` connected to an HTML5 `<datalist>`.
+   - **Zero Friction Typing**: Users can immediately focus the input and type ANY custom HSN/SAC code manually (e.g. `48239019`, `9403`, `8302`, `44119229`, `7610`, `7318`, `6810`) without having to toggle between select and custom input modes.
+   - **One-Click Quick Suggestion Pills**: Displays contextual suggestion badges right below the input (`Quick: [9403] [48239019] [8302] ...`). Clicking any pill instantly populates the code and highlights the badge with `#7FB706`.
+2. **Modular Lockers HSN Input**:
+   - Added direct HSN/SAC input to `Section 3: Modular Lockers` in both [`CreateProformaPage.tsx`](file:///d:/PACIFIC-Admin/src/pages/CreateProformaPage.tsx) and [`EditProformaInvoicePage.tsx`](file:///d:/PACIFIC-Admin/src/pages/EditProformaInvoicePage.tsx).
+   - Layout expanded from 3 to 4 columns (`Unit`, `Quantity`, `Rate`, `HSN / SAC`).
+   - `handleSelectLockerModel` preserves existing `lockerItem.hsnSac` when switching models.
+   - Dynamic summary footer note displays active `lockerItem.hsnSac || '9403'`.
+3. **Board Items HSN Input**:
+   - Added direct HSN input column (`bItem.hsnSac || '4823'`) to the Board items table in Section 1 of both [`CreateProformaPage.tsx`](file:///d:/PACIFIC-Admin/src/pages/CreateProformaPage.tsx) and [`EditProformaInvoicePage.tsx`](file:///d:/PACIFIC-Admin/src/pages/EditProformaInvoicePage.tsx).
+   - Added dynamic HSN badge display in the board item row footer.
+4. **All Scopes Supported**:
+   - Primary Restroom Cubicle System (`primaryCubicleItem.hsnSac`).
+   - Urinal Modesty Partition System (`umpItem.hsnSac`).
+   - Modular Locker System (`lockerItem.hsnSac`).
+   - Board items and Board Scope (`boardItems`, `bItem.hsnSac`).
+   - Hardware items and Hardware Scope (`hardwareItems`, `item.hsnSac`).
+   - Additional Cubicle systems (`additionalCubicleItems`).
+   - Custom scope line items (`CUSTOM` scope).
+
+### 96.2 Vector PDF & Detail View Synchronization
+1. **Backend PDF Generator (`pdf.service.ts`)**:
+   - In [`D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`](file:///D:/PACIFIC-Backend/src/modules/pdf/pdf.service.ts), verified and enhanced the `HSN/SAC` column in `generatePiHtml`:
+     - Monospace typography (`font-family: monospace; font-size: 9.5px; white-space: nowrap;`).
+     - Column width set to 62px so 8-digit codes never wrap.
+     - Line items table dynamically prints `${it.hsnSac || '9403'}` from the database record.
+2. **Backend PI Service (`pi.service.ts`)**:
+   - In [`D:\PACIFIC-Backend\src\modules\sales\pi.service.ts`](file:///D:/PACIFIC-Backend/src/modules/sales\pi.service.ts), standardized `hsnSac: rawItems[idx]?.hsnSac || '9403'` across both `create` and `update` methods.
+3. **Admin Console PI Detail View (`ProformaInvoiceDetailPage.tsx`)**:
+   - Added dedicated `HSN/SAC` table column to the desktop line items table in [`ProformaInvoiceDetailPage.tsx`](file:///d:/PACIFIC-Admin/src/pages/ProformaInvoiceDetailPage.tsx).
+   - Added `HSN: {it.hsnSac || '9403'}` badge in the mobile card view.
+
+### 96.3 Quality & Verification
+- **TypeScript**: `npx tsc --noEmit` exited with 0 errors.
+- **Production Build**: `npm run build` completed with exit code 0.
+
+
+
 
 
 

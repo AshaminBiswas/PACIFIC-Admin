@@ -796,6 +796,7 @@ export default function ProformaInvoiceDetailPage() {
               <tr>
                 <th className="py-3 px-4 text-center w-10">S.No</th>
                 <th className="py-3 px-4">Description</th>
+                <th className="py-3 px-4 text-center w-24">HSN/SAC</th>
                 <th className="py-3 px-4 text-center w-16">Unit</th>
                 <th className="py-3 px-4 text-right w-16">Qty</th>
                 <th className="py-3 px-4 text-right w-28">Rate (₹)</th>
@@ -825,6 +826,9 @@ export default function ProformaInvoiceDetailPage() {
                           <div className="text-[11px] text-gray-400 mt-1 font-mono">SKU: {it.product.sku || it.product.name}</div>
                         )}
                       </td>
+                      <td className="py-3 px-4 text-center font-mono text-xs text-[#7FB706]">
+                        {it.hsnSac || '9403'}
+                      </td>
                       <td className="py-3 px-4 text-center text-gray-400">{it.unit || 'NOS'}</td>
                       <td className="py-3 px-4 text-right font-mono">{qty}</td>
                       <td className="py-3 px-4 text-right font-mono">
@@ -838,7 +842,7 @@ export default function ProformaInvoiceDetailPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-gray-500">No line items recorded on this Proforma Invoice.</td>
+                  <td colSpan={7} className="py-8 text-center text-gray-500">No line items recorded on this Proforma Invoice.</td>
                 </tr>
               )}
             </tbody>
@@ -856,8 +860,13 @@ export default function ProformaInvoiceDetailPage() {
                 <div key={it.id ?? idx} className="p-4 space-y-1">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
-                      <span className="text-xs text-gray-500 font-mono">#{it.serialNumber ?? idx + 1}</span>
-                      <div className="font-medium text-white text-sm">{mainDesc}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 font-mono">#{it.serialNumber ?? idx + 1}</span>
+                        <span className="px-1.5 py-0.2 rounded bg-white/5 border border-white/10 text-[10px] font-mono text-[#7FB706]">
+                          HSN: {it.hsnSac || '9403'}
+                        </span>
+                      </div>
+                      <div className="font-medium text-white text-sm mt-0.5">{mainDesc}</div>
                       {specs.length > 0 && (
                         <div className="mt-1 text-[11px] text-gray-500 space-y-0.5">
                           {specs.map((s, sIdx) => (

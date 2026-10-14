@@ -747,6 +747,7 @@ export default function EditProformaInvoicePage() {
       const prevModelId = existingLocker?.modelId;
       const currentQty = existingLocker ? Number(existingLocker.quantity) || 1 : 1;
       const currentRate = existingLocker && existingLocker.rate > 0 ? existingLocker.rate : 14500;
+      const currentHsn = existingLocker?.hsnSac || '9403';
 
       const updatedLockerItem: CreateItem = {
         id: existingLocker?.id,
@@ -754,7 +755,7 @@ export default function EditProformaInvoicePage() {
         systemCategory: 'locker',
         itemType: 'cubicle',
         description: `Pacific ${selected.title} (Lockers)`,
-        hsnSac: '9403',
+        hsnSac: currentHsn,
         quantity: currentQty,
         unit: existingLocker?.unit || 'NOS',
         rate: currentRate,
@@ -2708,13 +2709,21 @@ export default function EditProformaInvoicePage() {
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-6 gap-2 text-xs">
+                            <div className="grid grid-cols-1 sm:grid-cols-7 gap-2 text-xs">
                               <input
                                 type="text"
                                 value={bItem.description}
                                 onChange={(e) => handleItemChange(bIdx, 'description', e.target.value)}
                                 placeholder="Board description"
                                 className="sm:col-span-2 bg-[#121226] border border-white/10 rounded px-2.5 py-1.5 text-white"
+                              />
+                              <input
+                                type="text"
+                                value={bItem.hsnSac || '4823'}
+                                onChange={(e) => handleItemChange(bIdx, 'hsnSac', e.target.value)}
+                                placeholder="HSN (4823)"
+                                className="bg-[#121226] border border-white/10 rounded px-2.5 py-1.5 text-white font-mono"
+                                title="HSN / SAC Code"
                               />
                               <input
                                 type="text"
@@ -2747,8 +2756,9 @@ export default function EditProformaInvoicePage() {
                                 />
                               </div>
                             </div>
-                            <div className="text-right text-[11px] text-gray-400 font-mono">
-                              Subtotal: <span className="font-bold text-white">₹ {bTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                            <div className="flex items-center justify-between text-[11px] text-gray-400 font-mono">
+                              <span>HSN: <span className="text-[#7FB706] font-bold">{bItem.hsnSac || '4823'}</span></span>
+                              <span>Subtotal: <span className="font-bold text-white">₹ {bTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></span>
                             </div>
                           </div>
                         );
@@ -3238,7 +3248,7 @@ export default function EditProformaInvoicePage() {
 
                   {lockerItem && (
                     <div className="space-y-3 pt-2 border-t border-purple-500/20">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                         <div>
                           <label className={labelCls}>Unit</label>
                           <select
@@ -3275,6 +3285,16 @@ export default function EditProformaInvoicePage() {
                             onChange={(e) => handleLockerFieldChange('rate', Number(e.target.value) || 0)}
                             className={inputCls}
                             required
+                          />
+                        </div>
+
+                        <div>
+                          <label className={labelCls}>HSN / SAC</label>
+                          <HsnSelectInput
+                            value={lockerItem.hsnSac || '9403'}
+                            onChange={(val) => handleLockerFieldChange('hsnSac', val)}
+                            options={['9403', '48239019', '44119229', '8302']}
+                            placeholder="e.g. 9403"
                           />
                         </div>
                       </div>
@@ -3371,7 +3391,7 @@ export default function EditProformaInvoicePage() {
 
                       <div className="flex items-center justify-between text-xs pt-1">
                         <span className="text-[11px] text-gray-400 italic">
-                          HSN: 9403 · Modular Locker System (Auto-generates individual hardware below)
+                          HSN: {lockerItem.hsnSac || '9403'} · Modular Locker System (Auto-generates individual hardware below)
                         </span>
                         <div className="font-mono text-xs text-gray-400">
                           Line Total: <span className="font-bold text-purple-300 text-sm">
