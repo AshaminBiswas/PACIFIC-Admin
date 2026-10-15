@@ -41,6 +41,8 @@ export const PATH_PERMISSIONS: Record<string, UserRole[]> = {
   // ─── CRM & Finance ────────────────────────────────────────────────────────
   '/admin/dashboard/customers': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'FINANCE_OFFICER', 'VIEWER'],
   '/admin/dashboard/payments': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'VIEWER'],
+  '/admin/dashboard/installer-payments': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'SALES_MANAGER', 'VIEWER'],
+  '/admin/dashboard/installer-payments/new': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'SALES_MANAGER'],
 
   // ─── Export & Global Trade Suite ──────────────────────────────────────────
   '/admin/dashboard/export': ['SUPER_ADMIN', 'ADMIN', 'EXPORT_MANAGER', 'VIEWER'],

@@ -18,6 +18,7 @@ export interface PacificAdminUser {
 
 interface AdminAuthContextType {
   user: PacificAdminUser | null;
+  adminUser: PacificAdminUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<LoginResult>;
@@ -210,6 +211,7 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     <AdminAuthContext.Provider
       value={{
         user,
+        adminUser: user,
         isAuthenticated,
         isLoading,
         login,

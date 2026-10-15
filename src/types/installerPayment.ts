@@ -1,0 +1,267 @@
+export type InstallationCategory = 'CUBICLE' | 'UMP' | 'LOCKER';
+
+export interface CubicleModel {
+  id: string;
+  category?: InstallationCategory;
+  modelName: string;
+  installationPrice: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    billItems: number;
+  };
+}
+
+export interface InstallerBillItem {
+  id: string;
+  billId: string;
+  category?: InstallationCategory;
+  modelId: string;
+  modelName: string;
+  quantity: number;
+  installationPrice: number;
+  lineTotal: number;
+  createdAt: string;
+  updatedAt: string;
+  model?: CubicleModel;
+}
+
+export interface InstallerBillPayment {
+  id: string;
+  billId: string;
+  amount: number;
+  paymentDate: string;
+  paymentMode?: string | null;
+  referenceNote?: string | null;
+  isAdvance?: boolean;
+  recordedById?: string | null;
+  createdAt: string;
+}
+
+export type InstallerPaymentStatus = 'PARTIAL' | 'CLEARED';
+
+export interface CubicleInstaller {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    bills: number;
+  };
+}
+
+export interface CreateCubicleInstallerPayload {
+  name: string;
+  email: string;
+  phone?: string;
+  isActive?: boolean;
+}
+
+export interface UpdateCubicleInstallerPayload {
+  name?: string;
+  email?: string;
+  phone?: string;
+  isActive?: boolean;
+}
+
+export interface InstallerBill {
+  id: string;
+  billNo: string;
+  installerId?: string | null;
+  installerName: string;
+  installerEmail: string;
+  installDate: string;
+  isNcr: boolean;
+  travelExpenses: number;
+  siteAddress: string;
+  sitePin: string;
+  cubicleQuantity?: number;
+  cubicleTotal?: number;
+  umpQuantity?: number;
+  umpRate?: number;
+  umpTotal?: number;
+  lockerQuantity?: number;
+  lockerTotal?: number;
+  deductionAmount?: number;
+  deductionReason?: string | null;
+  subtotal: number;
+  total: number;
+  amountPaid: number;
+  balanceDue: number;
+  paymentStatus: InstallerPaymentStatus;
+  paymentDate?: string | null;
+  notes?: string | null;
+  advancePaid?: number;
+  advanceDate?: string | null;
+  advanceNote?: string | null;
+  emailSent: boolean;
+  emailSentAt?: string | null;
+  emailStatus?: string | null;
+  emailError?: string | null;
+  createdById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  installer?: CubicleInstaller | null;
+  items: InstallerBillItem[];
+  payments?: InstallerBillPayment[];
+  createdBy?: {
+    id: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    email: string;
+  } | null;
+}
+
+export interface InstallerPaymentKpis {
+  totalBills: number;
+  totalAmount: number;
+  totalPaid: number;
+  totalDue: number;
+  clearedCount: number;
+  partialCount: number;
+  totalAdvancePaid?: number;
+  totalNetPayable?: number;
+}
+
+export interface ListInstallerBillsResponse {
+  bills: InstallerBill[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  kpis: InstallerPaymentKpis;
+}
+
+export interface CreateInstallerBillPayload {
+  installerId?: string;
+  installerName: string;
+  installerEmail: string;
+  installDate: string;
+  isNcr: boolean;
+  travelExpenses: number;
+  siteAddress: string;
+  sitePin: string;
+  items: Array<{
+    modelId: string;
+    category?: InstallationCategory;
+    quantity: number;
+  }>;
+  umpQuantity?: number;
+  umpRate?: number;
+  deductionAmount?: number;
+  deductionReason?: string;
+  initialAmountPaid?: number;
+  paymentDate?: string;
+  paymentMode?: string;
+  notes: string;
+  advancePaid?: number;
+  advanceDate?: string;
+  advanceNote?: string;
+  sendEmailToInstaller?: boolean;
+}
+
+export interface UpdateInstallerBillPayload {
+  installerName?: string;
+  installerEmail?: string;
+  installDate?: string;
+  isNcr?: boolean;
+  travelExpenses?: number;
+  deductionAmount?: number;
+  deductionReason?: string;
+  umpQuantity?: number;
+  umpRate?: number;
+  siteAddress?: string;
+  sitePin?: string;
+  notes?: string;
+  advancePaid?: number;
+  advanceDate?: string;
+  advanceNote?: string;
+}
+
+export interface RecordPaymentPayload {
+  amount: number;
+  paymentDate: string;
+  paymentMode?: string;
+  referenceNote?: string;
+  isAdvance?: boolean;
+}
+
+export interface CreateCubicleModelPayload {
+  category?: InstallationCategory;
+  modelName: string;
+  installationPrice: number;
+  isActive?: boolean;
+}
+
+export interface UpdateCubicleModelPayload {
+  category?: InstallationCategory;
+  modelName?: string;
+  installationPrice?: number;
+  isActive?: boolean;
+}
+
+export interface InstallerBillsFilter {
+  search?: string;
+  installerId?: string;
+  installerEmail?: string;
+  status?: 'ALL' | 'PARTIAL' | 'CLEARED';
+  isNcr?: 'all' | 'true' | 'false';
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface InstallerExportFilter {
+  month?: number;
+  year?: number;
+  installerId?: string;
+  startDate?: string;
+  endDate?: string;
+  status?: 'ALL' | 'PARTIAL' | 'CLEARED';
+}
+
+export interface InstallerLedgerKpis {
+  totalBills: number;
+  totalCubicleUnits: number;
+  totalUmpUnits: number;
+  totalLockerUnits: number;
+  totalUnits: number;
+  grossSubtotal: number;
+  totalTravel: number;
+  totalDeductions: number;
+  totalAdvances?: number;
+  netPayable: number;
+  totalPaid: number;
+  balanceDue: number;
+  clearedCount: number;
+  partialCount: number;
+}
+
+export interface InstallerLedgerResponse {
+  installer: CubicleInstaller;
+  kpis: InstallerLedgerKpis;
+  bills: InstallerBill[];
+}
+
+export interface BillAuditLogEntry {
+  id: string;
+  action: string;
+  userId?: string | null;
+  ipAddress?: string | null;
+  changes: {
+    billNo?: string;
+    fields?: Record<string, { before: unknown; after: unknown }>;
+  } | null;
+  createdAt: string;
+  user?: {
+    id: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    email: string;
+  } | null;
+}

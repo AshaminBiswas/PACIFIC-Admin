@@ -76,6 +76,7 @@ export const procurementNavItems = [
 export const crmFinanceNavItems = [
   { name: 'B2B Customers', path: '/admin/dashboard/customers', icon: Users },
   { name: 'Payments & Ledger', path: '/admin/dashboard/payments', icon: CreditCard },
+  { name: 'Installer Payments', path: '/admin/dashboard/installer-payments', icon: Wrench },
 ];
 
 export const systemNavItems = [

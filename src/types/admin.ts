@@ -33,6 +33,8 @@ export type AdminView =
   | 'ump-inventory'
   | 'store-inventory'
   | 'hardware-inventory'
+  | 'installer-payments'
+  | 'installer-payments-new'
   | 'settings';
 
 export type UserRole =
@@ -2971,5 +2973,8 @@ export interface LocationPageRecord {
   createdAt?: string;
   updatedAt?: string;
 }
+
+export * from './installerPayment';
+
 
 

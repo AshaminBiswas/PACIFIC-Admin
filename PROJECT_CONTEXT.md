@@ -216,6 +216,8 @@ D:\PACIFIC-Admin\
 | `/admin/dashboard/vendors/:id/edit` | `EditVendorPage` | Protected | Dedicated full-page Supplier Editor: Legal name, category, payment terms, contact persons, depot addresses |
 | `/admin/dashboard/payments` | `PaymentsPage` | Protected | Payment allocation, Receivables & Payables ledgers, Dues recovery, Customer Ledger & Statement of Account, 4-tier automated overdue escalation cadence, manual email dispatch modal, and vector print |
 | `/admin/dashboard/payments/new` | `CreatePaymentPage` | Protected | Dedicated payment record page with localStorage |
+| `/admin/dashboard/installer-payments` | `InstallerPaymentsPage` | Protected | Cubicle Installer Payment Tracking Hub: Total payment metrics, advance disbursements, settlements, multi-category models, and ledger statements |
+| `/admin/dashboard/installer-payments/new` | `CreateInstallerBillPage` | Protected | Dedicated Installer Job Bill generator: Advance management, NCR postal travel automation, deduction reasons, and PDF voucher dispatch |
 | `/admin/dashboard/qr-center` | `QrCenterPage` | Protected | Camera viewfinder QR scanner, code generator, audit logs |
 | `/admin/dashboard/company-settings`| `CompanySettingsPage`| Protected | Multi-entity manager (IN/AE), bank accounts, signatories, sequences |
 | `/admin/dashboard/export` | `ExportDashboardPage` | Protected | Global Export KPIs, omni-search, stage pipelines & realization tracker |
@@ -5635,6 +5637,63 @@ A total of **115 new targeted B-tree indexes** were created across public schema
 ### 104.3 Build & Validation
 - `PACIFIC-Backend`: `fix-db.js` auto-heal executed successfully; `npx tsc --noEmit` passed with 0 errors.
 - `PACIFIC-Admin`: `npx tsc --noEmit` and `npm run build` verified.
+
+---
+
+## 105. Installer Payment Subsystem: Complete Clone, Theme Unification, Advance & Total Payment Management
+
+### 105.1 Architectural Overview & Zero Data Loss Migration
+1. **Zero Data Loss Migration from Legacy Project**:
+   - Safely extracted and backed up all historical records from `ktfsxsllbyyjgplitvfe` to `D:\PACIFIC-Backend\installer_data_backup\installer_full_data.json`.
+   - Executed PostgreSQL DDL and migrated all 22 `cubicle_models`, 3 `cubicle_installers`, 9 `installer_bills`, 14 `installer_bill_items`, and 11 `installer_bill_payments` into the active production database (`bcbswbzbtskvmdqmgrjm.supabase.co`).
+   - Synchronized PostgreSQL sequence `ppsi_bill_seq` to 9.
+   - Preserved all foreign keys and mapped legacy creator IDs to valid active admin users.
+2. **Backend Persistence & Auto-Healing Integration (`PACIFIC-Backend`)**:
+   - Added Step 22 in `src/scripts/fix-db.js` ensuring automated idempotent creation of all installer tables, sequences, and enum types on every backend container reboot.
+   - Added models (`CubicleModel`, `CubicleInstaller`, `InstallerBill`, `InstallerBillItem`, `InstallerBillPayment`, `InstallerBillSequence`, `InstallerPaymentStatus`) to `prisma/schema.prisma`.
+   - Mounted modular router at `/api/v1/installer-payments` with PDF export, Excel register export, auto-email dispatch, and audit logging.
+
+### 105.2 Pacific Admin Dark Theme Alignment
+- Converted all legacy violet and zinc/white styling into the Pacific Admin design tokens:
+  - Canvas background: `#030213`
+  - Elevated surfaces: `#0a091e` with `border-white/10` and `shadow-xl`
+  - Subtle cards: `#121226` with `border-white/5`
+  - Primary accents: `#7FB706` and `#B5F823` gradient highlights and buttons
+  - Badges: `bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30`
+  - Monospace typography (`font-mono`) on all bill numbers, currency values, dates, and PIN codes.
+  - Full mobile responsiveness: tables dynamically transform into touch-friendly cards on small viewports (`< md`).
+
+### 105.3 Payment Advance Management System
+- **Job Bill Creation (`CreateInstallerBillPage.tsx`)**:
+  - Dedicated Section 6 for upfront site advances with toggle `hasAdvance`.
+  - Captures `advancePaid`, `advanceDate`, and `advanceNote`.
+  - Live calculation dock reflects advance deduction: `Gross Total = Subtotal + Travel - Deductions`; `Net Due on Completion = Gross Total - advancePaid`; `Final Balance = Net Due - initialAmountPaid`.
+- **Advance Management Center (`InstallerPaymentsPage.tsx`)**:
+  - Dedicated "Payment Advances" tab and top executive KPI card ("Total Advances Disbursed").
+  - "Disburse Advance" quick modal on every bill row allowing operators to issue site advances via Bank Transfer, UPI, Cash, or Cheque.
+  - Automatically tags transaction with `isAdvance: true`, updating `advancePaid` and recalculating balance dues.
+  - Advance status filter in search toolbar: "All Bills", "With Advance Disbursed", or "No Advance".
+  - Prominent visual advance badges in bills table and mobile cards (`Advance: ₹X`).
+
+### 105.4 Total Payment Management System
+- **Executive Metrics Dock**:
+  - Top 6-card KPI summary: Total Billed Value, Total Advances Disbursed, Total Settled Payments, Net Outstanding Dues, Cleared Ratio, and Active Contractors.
+- **Multi-Mode Settlement Engine**:
+  - Settlement modal supporting Bank Transfer (NEFT/RTGS/IMPS), UPI, Cheque, and Cash with 100% quick balance settle action.
+- **Installer Statement & Ledger**:
+  - Chronological running ledger statement per installer with gross totals, advances, settlements, and net balances.
+  - Vector A4 print statement preview via browser print dialog.
+  - Multi-filter master Excel register export (`.xlsx`).
+
+### 105.5 Cross-Stack Synchronization & Build Validation
+- Synchronized `src/types/installerPayment.ts` and `src/types/admin.ts`.
+- Re-exported `installerPaymentsService` and `installerPaymentsApi` via `src/api/index.ts` and `src/api/services.ts`.
+- Registered routes `/admin/dashboard/installer-payments` and `/admin/dashboard/installer-payments/new` in `src/App.tsx`.
+- Added "Installer Payments" with `Wrench` icon to `crmFinanceNavItems` in `src/components/layout/AdminSidebar.tsx`.
+- Updated RBAC permissions in `src/utils/rbacNavigation.ts`.
+- Verified `npx tsc --noEmit` passed with 0 errors across both `PACIFIC-Backend` and `PACIFIC-Admin`.
+- Verified `npm run build` completed with exit code 0 across both codebases.
+
 
 
 
