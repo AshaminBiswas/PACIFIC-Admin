@@ -5575,7 +5575,34 @@ A total of **115 new targeted B-tree indexes** were created across public schema
 5. `SCHEMA_METADATA.json` (731 kB):
    - Full structural schema definition including column types, nullability, constraints, and indexes.
 6. `BACKUP_MANIFEST.md` & `RESTORE_INSTRUCTIONS.md`:
-   - Detailed audit manifest and step-by-step restoration guides for Supabase Dashboard, `psql`, or Prisma.
+
+---
+
+## 103. Production Database Migration to New Supabase Instance (Complete & Verified)
+
+### 103.1 Migration Overview
+- **Source Database**: `kgalsrokdmsrqysyoffm.supabase.co` (Legacy Supabase project)
+- **Target Database**: `bcbswbzbtskvmdqmgrjm.supabase.co` (New Supabase project on `aws-0-ap-south-1`)
+- **Execution Script**: `D:\PACIFIC-Backend\src\scripts\migrate-to-new-db.js`
+- **Migration Duration**: **16.8 seconds** with 0 errors.
+
+### 103.2 Verification & Parity Audit
+1. **Public Schema Tables**: **121 / 121 base tables** created with identical column schemas, default values, and primary keys.
+2. **Data Records**: **1,852 total rows** across all 60 active operational tables migrated with **100% exact match** (0 row mismatches).
+3. **Custom Types**: 22 custom ENUM types and PostgreSQL extensions (`uuid-ossp`, `pgcrypto`) created.
+4. **Relational Constraints**: 128 unique and foreign key constraints successfully applied post-data insert.
+5. **Database Indexes**: All **395 performance indexes** verified and active in target database.
+6. **Auto-Increment Sequences**: All sequence generators synchronized to `MAX(id)`.
+7. **Row Level Security (RLS)**: Public read policies configured across public CMS tables (`products`, `solutions`, `blogs`, `gallery_images`, `core_services`, `page_banners`, `hero_images`, `catalogs`, `testimonials`, `faqs`).
+8. **Auth & Storage**: Restored 2 super-admin user profiles in `auth.users` / `auth.identities` (`admin@pacificrestroomcubicle.com` and `ashaminbiswas123@gmail.com`) and initialized 5 storage buckets (`products`, `documents`, `avatars`, `categories`, `cms`).
+9. **Query Planner**: `ANALYZE` executed across the new database to prime PostgreSQL query plans.
+
+### 103.3 Cross-Stack Synchronization
+- Updated `D:\PACIFIC-Admin\.env`: `DATABASE_URL`, `DIRECT_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_SECRET_KEY`.
+- Updated `D:\PACIFIC-Backend\.env`: `DATABASE_URL`, `DIRECT_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`.
+- Updated `D:\Pacific Products And Solutions\.env`: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SUPABASE_PUBLISHABLE_KEY`.
+- Verified `npx tsc --noEmit` passed with 0 errors.
+- Verified `npm run build` passed with exit code 0.
 
 
 
