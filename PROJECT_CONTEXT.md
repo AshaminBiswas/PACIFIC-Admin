@@ -125,6 +125,8 @@ D:\PACIFIC-Admin\
 │       ├── EditVendorPage.tsx        # Dedicated full-page Supplier Editor (/admin/dashboard/vendors/:id/edit), category, terms, addresses & contacts
 │       ├── PurchaseOrdersPage.tsx    # Multi-step PO wizard, approval workflow, vector A4 PDF preview
 │       ├── PaymentsPage.tsx          # Payment recording, PI invoice allocation, receivables/payables ledger, customer ledger & Statement of Account email modal
+│       ├── InstallerPaymentsPage.tsx # Executive Installer Payment & Advance Hub (/admin/dashboard/installer-payments)
+│       ├── CreateInstallerBillPage.tsx # Comprehensive Installer Bill & Advance Creator (/admin/dashboard/installer-payments/new)
 │       ├── QrCenterPage.tsx          # Mobile camera scanner, targeting brackets, laser beam, QR generator
 │       ├── CompanySettingsPage.tsx   # Multi-entity switcher (India GST / UAE VAT), bank accounts, signatories, sequences
 │       ├── PublicVerifyPage.tsx      # Public-safe document certificate verification (/verify/:token)
