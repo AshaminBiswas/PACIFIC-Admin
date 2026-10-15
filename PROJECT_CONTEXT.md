@@ -5696,6 +5696,24 @@ A total of **115 new targeted B-tree indexes** were created across public schema
 - Verified `npx tsc --noEmit` passed with 0 errors across both `PACIFIC-Backend` and `PACIFIC-Admin`.
 - Verified `npm run build` completed with exit code 0 across both codebases.
 
+### 105.6 Installer Advance Recording Enhancements (Zero-Friction Advance Hub)
+- **Database Schema Upgrades (`installer_bill_payments`)**:
+  - Made `bill_id` nullable (`bill_id TEXT REFERENCES installer_bills(id) ON DELETE CASCADE`) to allow direct installer upfront advance disbursements before or independent of specific job bills.
+  - Added `installer_id TEXT REFERENCES cubicle_installers(id) ON DELETE SET NULL` with index `idx_installer_bill_pmts_installer` and backfilled all existing payments.
+  - Added index `idx_installer_bill_pmts_advance` on `is_advance`.
+  - Step 22 in `src/scripts/fix-db.js` auto-heals these columns on every container start.
+- **Backend API Endpoints**:
+  - `POST /api/v1/installer-payments/advances`: Directly record advance disbursements to an installer with optional or selected `billId`. Updates `advancePaid`, `amountPaid`, `balanceDue`, and creates transaction with `isAdvance: true`.
+  - `GET /api/v1/installer-payments/advances`: List all advance disbursement records across installers and bills with full relation objects.
+  - Fixed `createInstallerBill`: Persists `advancePaid`, `advanceDate`, `advanceNote` and records `InstallerBillPayment` with `isAdvance: true`.
+  - Fixed `recordBillPayment`: Sets `isAdvance: true`, increments `advancePaid`, and sets `installerId`.
+- **Frontend Architecture (`PACIFIC-Admin`)**:
+  - Top Header: Added dedicated amber **"Disburse Advance"** button opening the advance modal immediately.
+  - Payment Advances Tab (`activeTab === 'advances'`): Added prominent "Record Advance" button, installer filter dropdown, full transaction register table, and active bill reconciliation list.
+  - Quick Advance Triggers: Added `+ Advance` buttons across installer cards, ledger statement header, and table/mobile bill rows.
+  - Universal Advance Modal: Supports installer dropdown selection, optional target job link, amount, disbursement date, payment mode (Bank Transfer, UPI, Cash, Cheque), and reference notes.
+
+
 
 
 

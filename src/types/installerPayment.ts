@@ -190,6 +190,44 @@ export interface RecordPaymentPayload {
   isAdvance?: boolean;
 }
 
+export interface RecordAdvancePayload {
+  installerId: string;
+  billId?: string | null;
+  amount: number;
+  paymentDate: string;
+  paymentMode?: string;
+  referenceNote?: string;
+}
+
+export interface InstallerAdvanceRecord {
+  id: string;
+  billId?: string | null;
+  installerId?: string | null;
+  amount: number;
+  paymentDate: string;
+  paymentMode?: string | null;
+  referenceNote?: string | null;
+  isAdvance: boolean;
+  createdAt: string;
+  installer?: {
+    id: string;
+    name: string;
+    email: string;
+    phone?: string | null;
+  } | null;
+  bill?: {
+    id: string;
+    billNo: string;
+    installerName: string;
+    total: number;
+    amountPaid: number;
+    advancePaid: number;
+    balanceDue: number;
+    paymentStatus: InstallerPaymentStatus;
+    siteAddress: string;
+  } | null;
+}
+
 export interface CreateCubicleModelPayload {
   category?: InstallationCategory;
   modelName: string;

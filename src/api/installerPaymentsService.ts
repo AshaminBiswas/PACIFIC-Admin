@@ -7,6 +7,8 @@ import type {
   CreateInstallerBillPayload,
   UpdateInstallerBillPayload,
   RecordPaymentPayload,
+  RecordAdvancePayload,
+  InstallerAdvanceRecord,
   CreateCubicleModelPayload,
   UpdateCubicleModelPayload,
   CreateCubicleInstallerPayload,
@@ -70,6 +72,25 @@ export const installerPaymentsService = {
   async recordPayment(billId: string, payload: RecordPaymentPayload): Promise<InstallerBill> {
     const res = await apiClient.post<any>(`/installer-payments/${encodeURIComponent(billId)}/payments`, payload);
     return res.data?.data || res.data;
+  },
+
+  async recordAdvance(payload: RecordAdvancePayload): Promise<any> {
+    const res = await apiClient.post<any>('/installer-payments/advances', payload);
+    return res.data?.data || res.data;
+  },
+
+  async listAdvances(installerId?: string): Promise<InstallerAdvanceRecord[]> {
+    try {
+      const query = new URLSearchParams();
+      if (installerId) query.append('installerId', installerId);
+      const qStr = query.toString();
+      const res = await apiClient.get<any>(`/installer-payments/advances${qStr ? `?${qStr}` : ''}`);
+      const data = res.data?.data || res.data;
+      if (Array.isArray(data)) return data;
+      return [];
+    } catch {
+      return [];
+    }
   },
 
   async downloadBillPdf(id: string, billNo: string): Promise<void> {

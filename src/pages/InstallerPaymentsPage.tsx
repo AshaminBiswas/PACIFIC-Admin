@@ -52,6 +52,7 @@ import type {
   InstallerLedgerResponse,
   UpdateInstallerBillPayload,
   BillAuditLogEntry,
+  InstallerAdvanceRecord,
 } from '../types/installerPayment';
 
 export interface InstallerPaymentsPageProps {
@@ -133,10 +134,16 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
   const [paymentRefNote, setPaymentRefNote] = useState<string>('');
 
   // Advance Recording State
+  const [showAdvanceModal, setShowAdvanceModal] = useState<boolean>(false);
+  const [advanceInstallerId, setAdvanceInstallerId] = useState<string>('');
+  const [advanceBillId, setAdvanceBillId] = useState<string>('');
   const [advanceAmountInput, setAdvanceAmountInput] = useState<string>('');
   const [advanceDateInput, setAdvanceDateInput] = useState<string>(new Date().toISOString().split('T')[0]);
   const [advanceModeInput, setAdvanceModeInput] = useState<string>('BANK_TRANSFER');
   const [advanceNoteInput, setAdvanceNoteInput] = useState<string>('');
+  const [advancesList, setAdvancesList] = useState<InstallerAdvanceRecord[]>([]);
+  const [isLoadingAdvances, setIsLoadingAdvances] = useState<boolean>(false);
+  const [advancesInstallerFilter, setAdvancesInstallerFilter] = useState<string>('all');
 
   // Export filters
   const [exportMonth, setExportMonth] = useState<number | ''>('');
@@ -250,11 +257,41 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
     }
   };
 
+  // Load Advances
+  const loadAdvances = async (installerId?: string) => {
+    try {
+      setIsLoadingAdvances(true);
+      const res = await installerPaymentsService.listAdvances(
+        installerId && installerId !== 'all' ? installerId : undefined
+      );
+      setAdvancesList(Array.isArray(res) ? res : []);
+    } catch (err: any) {
+      console.error('Failed to load advances:', err);
+      setAdvancesList([]);
+    } finally {
+      setIsLoadingAdvances(false);
+    }
+  };
+
+  // Open Advance Modal Helper
+  const openAdvanceModal = (installerId?: string, bill?: InstallerBill | null) => {
+    setBillForAdvance(bill || null);
+    const resolvedInstId = installerId || bill?.installerId || (installers.length > 0 ? installers[0].id : '');
+    setAdvanceInstallerId(resolvedInstId);
+    setAdvanceBillId(bill?.id || '');
+    setAdvanceAmountInput(bill && Number(bill.balanceDue) > 0 ? String(Math.min(2000, Number(bill.balanceDue))) : '');
+    setAdvanceDateInput(new Date().toISOString().split('T')[0]);
+    setAdvanceModeInput('BANK_TRANSFER');
+    setAdvanceNoteInput('');
+    setShowAdvanceModal(true);
+  };
+
   // Initial Data Fetch
   useEffect(() => {
     loadModels();
     loadInstallers();
     loadBills(1);
+    loadAdvances();
   }, []);
 
   // Filter effect for debounced search
@@ -291,6 +328,12 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
     }
   }, [activeTab, selectedLedgerInstallerId, installers]);
 
+  useEffect(() => {
+    if (activeTab === 'advances') {
+      loadAdvances(advancesInstallerFilter);
+    }
+  }, [activeTab, advancesInstallerFilter]);
+
   // Filtered bills by Advance status
   const displayedBills = useMemo(() => {
     if (advanceFilter === 'WITH_ADVANCE') {
@@ -308,6 +351,7 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
     loadModels();
     loadInstallers();
     loadBills(currentPage);
+    loadAdvances(advancesInstallerFilter);
     if (selectedLedgerInstallerId) {
       loadInstallerLedger(selectedLedgerInstallerId);
     }
@@ -427,34 +471,51 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
   // ─── Advance Payment Handler (USER REQUESTED) ──────────────────────────────
   const handleRecordAdvance = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!billForAdvance) return;
     const amountNum = parseFloat(advanceAmountInput);
     if (isNaN(amountNum) || amountNum <= 0) {
       setActionNotice({ type: 'error', message: 'Please enter a valid advance disbursement amount.' });
       return;
     }
 
+    const installerId = advanceInstallerId || billForAdvance?.installerId;
+    if (!installerId && !billForAdvance) {
+      setActionNotice({ type: 'error', message: 'Please select an installer for this advance disbursement.' });
+      return;
+    }
+
     try {
       setIsSubmitting(true);
-      const updated = await installerPaymentsService.recordPayment(billForAdvance.id, {
+      const targetBillId = advanceBillId || billForAdvance?.id || undefined;
+
+      const res = await installerPaymentsService.recordAdvance({
+        installerId: installerId!,
+        billId: targetBillId || null,
         amount: amountNum,
         paymentDate: advanceDateInput,
         paymentMode: advanceModeInput,
-        referenceNote: advanceNoteInput.trim() ? `[Advance] ${advanceNoteInput.trim()}` : '[Advance Disbursement]',
-        isAdvance: true,
+        referenceNote: advanceNoteInput.trim() || undefined,
       });
+
+      const installerName = res?.installerName || billForAdvance?.installerName || 'Installer';
+      const billNoStr = res?.billNo || billForAdvance?.billNo;
 
       setActionNotice({
         type: 'success',
-        message: `Advance payment of ${formatINR(amountNum)} disbursed on ${updated.billNo}! Total Advance: ${formatINR(updated.advancePaid)}.`,
+        message: `Advance payment of ${formatINR(amountNum)} disbursed to ${installerName}${billNoStr ? ` on Job ${billNoStr}` : ''} successfully!`,
       });
 
+      setShowAdvanceModal(false);
       setBillForAdvance(null);
+      setAdvanceInstallerId('');
+      setAdvanceBillId('');
       setAdvanceAmountInput('');
       setAdvanceNoteInput('');
+
       loadBills(currentPage);
-      if (selectedBillForDetails?.id === billForAdvance.id) {
-        setSelectedBillForDetails(updated);
+      loadAdvances(advancesInstallerFilter);
+      loadInstallers();
+      if (selectedLedgerInstallerId) {
+        loadInstallerLedger(selectedLedgerInstallerId);
       }
     } catch (err: any) {
       setActionNotice({ type: 'error', message: err?.message || 'Failed to record advance payment' });
@@ -610,11 +671,11 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
           </button>
 
           <button
-            onClick={() => setActiveTab('advances')}
-            className="inline-flex items-center gap-2 px-3.5 py-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs sm:text-sm font-semibold rounded-xl transition-colors cursor-pointer"
+            onClick={() => openAdvanceModal()}
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black text-xs sm:text-sm font-bold rounded-xl shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
           >
-            <Coins size={16} className="text-amber-400" />
-            <span>Advance Center</span>
+            <Coins size={16} />
+            <span>Disburse Advance</span>
           </button>
 
           <button
@@ -1009,10 +1070,7 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                               {Number(bill.balanceDue) > 0 && (
                                 <>
                                   <button
-                                    onClick={() => {
-                                      setBillForAdvance(bill);
-                                      setAdvanceAmountInput(String(Math.min(2000, Number(bill.balanceDue))));
-                                    }}
+                                    onClick={() => openAdvanceModal(bill.installerId || undefined, bill)}
                                     className="p-1.5 text-amber-400 hover:text-white bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-lg transition-colors cursor-pointer"
                                     title="Disburse Advance"
                                   >
@@ -1126,10 +1184,7 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                         {Number(bill.balanceDue) > 0 && (
                           <>
                             <button
-                              onClick={() => {
-                                setBillForAdvance(bill);
-                                setAdvanceAmountInput(String(Math.min(2000, Number(bill.balanceDue))));
-                              }}
+                              onClick={() => openAdvanceModal(bill.installerId || undefined, bill)}
                               className="px-2.5 py-1 text-xs font-semibold text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded-lg cursor-pointer"
                             >
                               + Advance
@@ -1190,10 +1245,10 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
       {activeTab === 'advances' && (
         <div className="space-y-4">
           <div className="bg-[#0a091e] p-5 rounded-2xl border border-white/10 shadow-xl space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-base font-bold text-white flex items-center gap-2">
-                  <Coins className="text-[#7FB706]" size={18} />
+                <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                  <Coins className="text-[#7FB706]" size={20} />
                   Payment Advance Management System
                 </h2>
                 <p className="text-xs text-gray-400 mt-0.5">
@@ -1201,30 +1256,167 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 font-mono">
-                <span className="text-xs text-gray-400">Total Advances Disbursed:</span>
-                <span className="text-base font-bold text-amber-400">
-                  {formatINR(kpis.totalAdvancePaid || 0)}
-                </span>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="px-3.5 py-2 bg-[#121226] border border-amber-500/30 rounded-xl flex items-center gap-2 font-mono">
+                  <span className="text-xs text-gray-400">Total Advances:</span>
+                  <span className="text-base font-bold text-amber-400">
+                    {formatINR(kpis.totalAdvancePaid || 0)}
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => openAdvanceModal(advancesInstallerFilter !== 'all' ? advancesInstallerFilter : undefined)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black text-xs sm:text-sm font-bold rounded-xl shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+                >
+                  <Coins size={16} /> Record Advance
+                </button>
               </div>
+            </div>
+
+            {/* Filter by Installer */}
+            <div className="pt-3 border-t border-white/5 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <Filter size={14} className="text-gray-400" />
+                <span className="text-gray-400">Filter by Installer:</span>
+                <select
+                  value={advancesInstallerFilter}
+                  onChange={(e) => setAdvancesInstallerFilter(e.target.value)}
+                  className="px-3 py-1.5 bg-[#030213] border border-white/10 rounded-xl text-xs text-white focus:outline-hidden focus:border-amber-400"
+                >
+                  <option value="all">All Certified Installers</option>
+                  {installers.map((inst) => (
+                    <option key={inst.id} value={inst.id}>
+                      {inst.name} ({inst.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <span className="text-gray-400 font-mono">
+                {advancesList.length} Voucher(s) • {bills.filter((b) => Number(b.advancePaid || 0) > 0).length} Job Link(s)
+              </span>
             </div>
           </div>
 
-          {/* List of Bills with Advances Disbursed */}
+          {/* Section A: Individual Advance Disbursements Register */}
+          {advancesList.length > 0 && (
+            <div className="bg-[#0a091e] rounded-2xl border border-white/10 overflow-hidden shadow-xl">
+              <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Receipt size={16} className="text-amber-400" />
+                  <h3 className="text-sm font-semibold text-white">
+                    Advance Payment Disbursements Register
+                  </h3>
+                </div>
+                <span className="text-xs text-gray-400 font-mono">
+                  {advancesList.length} Transaction(s)
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-white/5 border-b border-white/10 text-gray-400 font-semibold uppercase tracking-wider">
+                    <tr>
+                      <th className="py-3 px-4">Date</th>
+                      <th className="py-3 px-4">Installer</th>
+                      <th className="py-3 px-4">Target Job / Bill Link</th>
+                      <th className="py-3 px-4 text-right">Advance Amount</th>
+                      <th className="py-3 px-4 text-center">Payment Mode</th>
+                      <th className="py-3 px-4">Note / Purpose</th>
+                      <th className="py-3 px-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-gray-300 font-mono">
+                    {advancesList.map((adv) => (
+                      <tr key={adv.id} className="hover:bg-white/5 transition-colors">
+                        <td className="py-3 px-4 text-gray-400">{formatDate(adv.paymentDate)}</td>
+                        <td className="py-3 px-4 font-sans">
+                          <span className="font-semibold text-white block">
+                            {adv.installer?.name || adv.bill?.installerName || 'Certified Contractor'}
+                          </span>
+                          <span className="text-[11px] text-gray-500 font-mono">
+                            {adv.installer?.phone || adv.installer?.email || '-'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-sans">
+                          {adv.bill ? (
+                            <div>
+                              <span className="font-mono font-bold text-[#B5F823]">
+                                {adv.bill.billNo}
+                              </span>
+                              <span className="text-[11px] text-gray-500 block truncate max-w-[180px]">
+                                {adv.bill.siteAddress}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/5 text-gray-400 border border-white/10 font-sans">
+                              Upfront General Advance
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right font-bold text-amber-400 text-sm">
+                          {formatINR(adv.amount)}
+                        </td>
+                        <td className="py-3 px-4 text-center font-sans">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/5 border border-white/10 text-gray-300">
+                            {adv.paymentMode ? adv.paymentMode.replace('_', ' ') : 'BANK TRANSFER'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-sans text-gray-400 max-w-[220px] truncate">
+                          {adv.referenceNote || '-'}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {adv.bill && Number(adv.bill.balanceDue) > 0 ? (
+                            <button
+                              onClick={() => {
+                                const found = bills.find((b) => b.id === adv.billId);
+                                if (found) {
+                                  setBillForPayment(found);
+                                  setPaymentAmount(String(found.balanceDue));
+                                }
+                              }}
+                              className="px-2.5 py-1 bg-[#7FB706]/15 hover:bg-[#7FB706]/25 border border-[#7FB706]/30 text-[#B5F823] text-xs font-semibold rounded-lg cursor-pointer"
+                            >
+                              Settle Due
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-emerald-400 font-sans">Reconciled</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Section B: List of Bills with Advances Disbursed */}
           <div className="bg-[#0a091e] rounded-2xl border border-white/10 overflow-hidden shadow-xl">
             <div className="p-4 border-b border-white/10 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white">
+              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                <Layers size={16} className="text-[#7FB706]" />
                 Active Job Advances & Reconciliations
               </h3>
               <span className="text-xs text-gray-400">
-                {bills.filter((b) => Number(b.advancePaid || 0) > 0).length} Advance Record(s) Found
+                {bills.filter((b) => Number(b.advancePaid || 0) > 0).length} Job(s) with Advance
               </span>
             </div>
 
             <div className="divide-y divide-white/5">
               {bills.filter((b) => Number(b.advancePaid || 0) > 0).length === 0 ? (
-                <div className="p-8 text-center text-gray-400 text-xs">
-                  No active advances found across current bills. You can record an advance directly from any bill row.
+                <div className="p-8 text-center text-gray-400 text-xs space-y-3">
+                  <Coins className="mx-auto text-amber-400/60" size={32} />
+                  <p className="text-sm font-medium text-white">No active job advances currently outstanding.</p>
+                  <p className="text-xs text-gray-500 max-w-md mx-auto">
+                    You can disburse an upfront advance to any certified installer before site completion.
+                  </p>
+                  <button
+                    onClick={() => openAdvanceModal()}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-black font-semibold rounded-xl text-xs shadow-lg transition-all cursor-pointer"
+                  >
+                    <Plus size={16} /> Disburse First Advance
+                  </button>
                 </div>
               ) : (
                 bills
@@ -1305,6 +1497,14 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => openAdvanceModal(selectedLedgerInstallerId)}
+                  disabled={!selectedLedgerInstallerId}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-40"
+                >
+                  <Coins size={15} className="text-amber-400" /> Disburse Advance
+                </button>
+
                 <button
                   onClick={handlePrintLedger}
                   disabled={!ledgerData || isLoadingLedger}
@@ -1520,6 +1720,13 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
 
                   <div className="flex items-center gap-1">
                     <button
+                      onClick={() => openAdvanceModal(inst.id)}
+                      className="px-2 py-1 text-xs text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-lg cursor-pointer"
+                      title="Disburse Advance to Installer"
+                    >
+                      + Advance
+                    </button>
+                    <button
                       onClick={() => {
                         setSelectedLedgerInstallerId(inst.id);
                         setActiveTab('ledger');
@@ -1707,7 +1914,8 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
       )}
 
       {/* ─── MODAL: DISBURSE ADVANCE (USER REQUESTED) ────────────────────────── */}
-      {billForAdvance && (
+      {/* ─── MODAL: DISBURSE ADVANCE (USER REQUESTED) ────────────────────────── */}
+      {(showAdvanceModal || billForAdvance) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4">
           <div className="bg-[#0a091e] border border-amber-500/30 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
@@ -1716,27 +1924,91 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                 <h3 className="font-bold text-white text-base">Record Advance Disbursement</h3>
               </div>
               <button
-                onClick={() => setBillForAdvance(null)}
+                onClick={() => {
+                  setShowAdvanceModal(false);
+                  setBillForAdvance(null);
+                }}
                 className="p-1 text-gray-400 hover:text-white cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div className="text-xs bg-[#121226] p-3 rounded-xl border border-white/5 space-y-1">
-              <div className="flex justify-between">
-                <span className="text-gray-400">Bill Number:</span>
-                <span className="font-mono font-bold text-white">{billForAdvance.billNo}</span>
+            {/* Installer & Target Job Selection */}
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-300 mb-1">
+                  Certified Installer <span className="text-rose-400">*</span>
+                </label>
+                {billForAdvance ? (
+                  <div className="px-3 py-2 bg-[#121226] border border-white/10 rounded-xl text-sm font-semibold text-white flex items-center justify-between">
+                    <span>{billForAdvance.installerName}</span>
+                    <span className="text-xs font-mono text-gray-400">{billForAdvance.billNo}</span>
+                  </div>
+                ) : (
+                  <select
+                    value={advanceInstallerId}
+                    onChange={(e) => {
+                      setAdvanceInstallerId(e.target.value);
+                      setAdvanceBillId('');
+                    }}
+                    required
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-sm text-white focus:outline-hidden focus:border-amber-400"
+                  >
+                    <option value="">-- Select Installer --</option>
+                    {installers.map((inst) => (
+                      <option key={inst.id} value={inst.id}>
+                        {inst.name} ({inst.email})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Installer:</span>
-                <span className="text-white font-semibold">{billForAdvance.installerName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Remaining Balance:</span>
-                <span className="font-mono font-bold text-rose-400">
-                  {formatINR(billForAdvance.balanceDue)}
-                </span>
+
+              {/* Target Bill Selection */}
+              <div>
+                <label className="block text-xs font-medium text-gray-300 mb-1">
+                  Target Job / Bill Link (Optional)
+                </label>
+                {billForAdvance ? (
+                  <div className="text-xs bg-[#121226] p-3 rounded-xl border border-white/5 space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Bill Number:</span>
+                      <span className="font-mono font-bold text-white">{billForAdvance.billNo}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Job Total:</span>
+                      <span className="font-mono font-bold text-white">{formatINR(billForAdvance.total)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Remaining Balance:</span>
+                      <span className="font-mono font-bold text-rose-400">
+                        {formatINR(billForAdvance.balanceDue)}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <select
+                    value={advanceBillId}
+                    onChange={(e) => {
+                      setAdvanceBillId(e.target.value);
+                      const selected = bills.find((b) => b.id === e.target.value);
+                      if (selected && Number(selected.balanceDue) > 0) {
+                        setAdvanceAmountInput(String(Math.min(2000, Number(selected.balanceDue))));
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-sm text-white focus:outline-hidden focus:border-amber-400"
+                  >
+                    <option value="">General Upfront Advance (Unallocated Site Fund)</option>
+                    {bills
+                      .filter((b) => !advanceInstallerId || b.installerId === advanceInstallerId)
+                      .map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.billNo} — {b.installerName} (Due: {formatINR(b.balanceDue)})
+                        </option>
+                      ))}
+                  </select>
+                )}
               </div>
             </div>
 
@@ -1783,7 +2055,7 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
 
               <div>
                 <label className="block text-xs font-medium text-gray-300 mb-1">
-                  Advance Note / Reference
+                  Advance Note / Reference / Purpose
                 </label>
                 <input
                   type="text"
@@ -1797,7 +2069,10 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
               <div className="pt-2 flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setBillForAdvance(null)}
+                  onClick={() => {
+                    setShowAdvanceModal(false);
+                    setBillForAdvance(null);
+                  }}
                   className="px-4 py-2 text-xs font-medium text-gray-400 hover:text-white cursor-pointer"
                 >
                   Cancel
