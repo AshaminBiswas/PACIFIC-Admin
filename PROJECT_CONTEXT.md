@@ -5581,8 +5581,8 @@ A total of **115 new targeted B-tree indexes** were created across public schema
 ## 103. Production Database Migration to New Supabase Instance (Complete & Verified)
 
 ### 103.1 Migration Overview
-- **Source Database**: `kgalsrokdmsrqysyoffm.supabase.co` (Legacy Supabase project)
-- **Target Database**: `bcbswbzbtskvmdqmgrjm.supabase.co` (New Supabase project on `aws-0-ap-south-1`)
+- **Source Database**: `[LEGACY_SUPABASE_PROJECT].supabase.co` (Legacy Supabase project)
+- **Target Database**: `[NEW_SUPABASE_PROJECT].supabase.co` (New Supabase project on `aws-0-ap-south-1`)
 - **Execution Script**: `D:\PACIFIC-Backend\src\scripts\migrate-to-new-db.js`
 - **Migration Duration**: **16.8 seconds** with 0 errors.
 
