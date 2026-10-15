@@ -18,6 +18,8 @@ export interface FollowupReminder {
   createdAt: string;
 }
 
+import { supabase } from '../lib/supabase';
+
 const STORAGE_KEY = 'pacific_quotation_reminders';
 
 /**
@@ -85,6 +87,9 @@ export function playReminderChime(): void {
 /**
  * Retrieves all stored quotation reminders from localStorage.
  */
+/**
+ * Retrieves all stored quotation reminders from local cache (0ms instant access).
+ */
 export function getAllReminders(): FollowupReminder[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -98,7 +103,54 @@ export function getAllReminders(): FollowupReminder[] {
 }
 
 /**
- * Saves a new or updated reminder into localStorage.
+ * Fetches reminders scheduled in Supabase quotation_followups table and merges into cache.
+ */
+export async function syncRemindersFromSupabase(): Promise<FollowupReminder[]> {
+  try {
+    const { data, error } = await supabase
+      .from('quotation_followups')
+      .select('id, quotationId, channel, discussionNotes, nextFollowupDate, contactPerson, contactPhone, contactEmail, createdAt, quotation:sales_quotations(referenceNumber)')
+      .not('nextFollowupDate', 'is', null)
+      .order('nextFollowupDate', { ascending: true });
+
+    if (!error && Array.isArray(data)) {
+      const current = getAllReminders();
+      const currentMap = new Map(current.map((r) => [r.id, r]));
+
+      const remoteReminders: FollowupReminder[] = data.map((row: any) => {
+        const existing = currentMap.get(row.id);
+        return {
+          id: row.id,
+          quotationId: row.quotationId,
+          quotationNumber: row.quotation?.referenceNumber || existing?.quotationNumber || 'QUOTATION',
+          clientName: row.contactPerson || existing?.clientName || 'Valued Client',
+          channel: (row.channel || 'CALL') as any,
+          scheduledAt: new Date(row.nextFollowupDate).toISOString(),
+          discussionNotes: row.discussionNotes || '',
+          clientPhone: row.contactPhone || undefined,
+          clientEmail: row.contactEmail || undefined,
+          fired: existing?.fired || false,
+          createdAt: row.createdAt || new Date().toISOString(),
+        };
+      });
+
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteReminders));
+      } catch {}
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('pacific-reminders-updated'));
+      }
+      return remoteReminders;
+    }
+  } catch (err) {
+    console.warn('[followupReminder] Could not sync reminders from Supabase:', err);
+  }
+  return getAllReminders();
+}
+
+/**
+ * Saves a new or updated reminder into local cache and persists to Supabase database.
  */
 export function saveFollowupReminder(
   data: Omit<FollowupReminder, 'id' | 'createdAt' | 'fired'> & { id?: string }
@@ -127,6 +179,25 @@ export function saveFollowupReminder(
     window.dispatchEvent(new CustomEvent('pacific-reminders-updated', { detail: reminder }));
   }
 
+  // Authoritative background persistence to Supabase database
+  (async () => {
+    try {
+      await supabase.from('quotation_followups').upsert({
+        id: reminder.id,
+        quotationId: reminder.quotationId,
+        channel: reminder.channel,
+        status: 'PENDING',
+        discussionNotes: reminder.discussionNotes || `Scheduled reminder for ${reminder.clientName}`,
+        nextFollowupDate: reminder.scheduledAt,
+        contactPerson: reminder.clientName,
+        contactPhone: reminder.clientPhone,
+        contactEmail: reminder.clientEmail,
+      });
+    } catch (err) {
+      console.warn('Could not sync reminder to Supabase quotation_followups:', err);
+    }
+  })();
+
   return reminder;
 }
 
@@ -138,7 +209,7 @@ export function getRemindersForQuotation(quotationId: string): FollowupReminder[
 }
 
 /**
- * Dismisses / clears a reminder by ID.
+ * Dismisses / clears a reminder by ID and updates Supabase.
  */
 export function dismissReminder(id: string): void {
   const current = getAllReminders();
@@ -149,6 +220,15 @@ export function dismissReminder(id: string): void {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('pacific-reminders-updated'));
   }
+
+  (async () => {
+    try {
+      await supabase
+        .from('quotation_followups')
+        .update({ status: 'RESOLVED', nextFollowupDate: null })
+        .eq('id', id);
+    } catch {}
+  })();
 }
 
 /**
@@ -216,8 +296,9 @@ export function startReminderMonitor(
     }
   };
 
-  // Run initial check
+  // Run initial check and sync fresh reminders from Supabase
   checkDueReminders();
+  syncRemindersFromSupabase().then(() => checkDueReminders());
   const intervalId = setInterval(checkDueReminders, 15000);
 
   return () => clearInterval(intervalId);

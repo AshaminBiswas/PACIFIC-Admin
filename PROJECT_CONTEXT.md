@@ -5359,6 +5359,58 @@ Direct PostgreSQL DDL migrations were executed on the production Supabase databa
 - **Production Build (Admin)**: `npm run build` completed with exit code 0 (`dist/` packaged in 45.81s).
 - **Production Build (Backend)**: `npm run build` completed with exit code 0 (Prisma client regenerated and `tsc` compiled).
 
+---
+
+## 98. Document Edit Clean Pre-Fill, Zero Dummy Data Sanitization, and Supabase Storage Migration
+
+### 98.1 Purpose & Problem Addressed
+1. **Document Edit Pre-Fill & Zero Dummy Data Requirement**:
+   - In `EditSalesQuotationPage.tsx`, clicking "Edit" previously checked for `localStorage` draft keys and merged stale cached data over server data, causing previously abandoned drafts or dummy items to corrupt the edit form.
+   - Adding items or switching category presets previously defaulted `boardColor` to `'D.No. 123 – Oyster White'` across `EditSalesQuotationPage.tsx` and `DraftQuotationPage.tsx`, forcing users to manually clear or replace fake colors.
+   - Strict validation on `recipientName` and `projectName` previously failed with alert boxes if a quotation had missing contact fields, forcing users to type fake dummy text just to save an edit.
+   - `CreateProformaPage.tsx` initialized with 8 pre-seeded dummy cubicle & hardware items (`rate: 18500`, `'std-delight'`), forcing users to delete them one by one.
+   - `CreateSalesOrderPage.tsx` initialized with a dummy cubicle item (`rate: 22000`, `boardColor: 'Solid / Woodgrain Finish'`) and hardcoded `'New Delhi'` / `'Delhi'` as fallback for city and state.
+   - `EditSalesOrderPage.tsx` fell back to `'New Delhi'` / `'Delhi'` if city or state was empty, causing unexpected repeated "New Delhi" printouts in sales orders and PDFs.
+2. **Shift LocalStorage Persistence to Supabase PostgreSQL**:
+   - FAQs previously resided solely in browser `localStorage` ("no database required").
+   - Follow-up reminders previously resided solely in browser `localStorage`.
+   - Authoritative data is now stored in Supabase PostgreSQL tables (`faqs` and `quotation_followups`), keeping in-memory/localStorage strictly as a 0ms fast client cache for instant rendering and responsive UI.
+
+### 98.2 Technical Implementation Details
+
+#### 1. EditSalesQuotationPage (`src/pages/EditSalesQuotationPage.tsx`)
+- **Pristine Server Initialization**: Removed stale `localStorage.getItem(storageKey)` override logic in `useEffect`. When opening an edit page, `form` is initialized strictly from `serverForm`. Any previous stale draft key is cleared on load and on save (`localStorage.removeItem(storageKey)`).
+- **Zero Dummy Colors**: Replaced all hardcoded `boardColor: 'D.No. 123 – Oyster White'` with clean empty string `''` across preset loaders, UMP switchers, Locker switchers, and `addItem()`.
+- **Auto-Fallback Validation**: In `validateForm()`, if `recipientName` is blank, auto-resolves to `form.recipientCompany || 'Valued Customer'`. If `projectName` is blank, auto-resolves to `form.title || form.recipientCompany || 'Commercial Restroom Project'`. If item description is blank, auto-resolves to catalog model name or `'Pacific Restroom Cubicle System'`. Users are never blocked from saving or forced to insert dummy text.
+
+#### 2. EditProformaInvoicePage (`src/pages/EditProformaInvoicePage.tsx`)
+- **Relaxed Non-Strict Validation**: Relaxed `validateForm()` so partial or unregistered GSTINs (e.g. `URP`, `UNREGISTERED`) do not trigger blocking validation alerts. If `billingAddress.partyName` is blank, auto-resolves from `customers` master. If line item description is blank, auto-resolves to model name or system description.
+
+#### 3. EditSalesOrderPage (`src/pages/EditSalesOrderPage.tsx`) & CreateSalesOrderPage (`src/pages/CreateSalesOrderPage.tsx`)
+- **Clean City & State Defaults**: Removed all hardcoded `'New Delhi'` and `'Delhi'` fallbacks from lines 109, 120, 208, 210, 223, 225, 313, 315, 324, 326 of `EditSalesOrderPage.tsx` and lines 93, 95, 103, 105, 425, 427, 435, 437 of `CreateSalesOrderPage.tsx`. Empty addresses now cleanly remain empty or populate accurately from customer CRM records.
+- **Zero Dummy Items**: In `CreateSalesOrderPage.tsx`, initialized `INITIAL_FORM.items` with clean empty array `[]` (removed the 22,000 dummy cubicle item).
+
+#### 4. CreateProformaPage (`src/pages/CreateProformaPage.tsx`) & DraftQuotationPage (`src/pages/DraftQuotationPage.tsx`)
+- **Zero Dummy Items in PI**: In `CreateProformaPage.tsx`, initialized `INITIAL_FORM.items` with clean empty array `[]` (removed 8 pre-seeded dummy cubicle and hardware lines).
+- **Zero Dummy Colors in Quotation**: In `DraftQuotationPage.tsx`, replaced all `boardColor: 'D.No. 123 – Oyster White'` assignments with clean empty strings `''` in presets, UMP models, Locker models, and `addItem()`. Auto-resolved empty `recipientName`, `projectName`, and descriptions in `validateForm()`.
+
+#### 5. Supabase FAQ Storage (`src/lib/faq-data.ts` & `src/pages/admin/AdminFAQ.tsx`)
+- **Supabase Functions**: Connected `fetchFaqsFromSupabase()`, `upsertFaqToSupabase()`, `deleteFaqFromSupabase()`, and `reorderFaqsInSupabase()` directly to Supabase table `faqs`.
+- **Fast Client Cache**: Retained `loadFAQs()` / `saveFAQs()` as an in-memory/localStorage fast cache for 0ms initial page load, followed by fresh asynchronous synchronization with Supabase.
+- **Admin UI**: Replaced the "no database required" banner with an active "Supabase PostgreSQL Database Connected" badge and live sync indicator.
+
+#### 6. Supabase Follow-Up Reminders (`src/utils/followupReminder.ts`)
+- **Supabase Synchronization**: Added `syncRemindersFromSupabase()`, querying table `quotation_followups` where `nextFollowupDate IS NOT NULL`.
+- **Persistence & Monitoring**: `saveFollowupReminder()` and `dismissReminder()` asynchronously persist to Supabase `quotation_followups` while updating the local cache, allowing instant 0ms Web Audio chimes and desktop alarms without blocking.
+
+#### 7. Frontend Footer Verification
+- Verified that in `D:\Pacific Products And Solutions\src\app\components\Footer.tsx`, lines 278-439 containing "National Footprint & Project Supply" and "Pan-India Service & Project Locations" are wrapped with `{false && (` and cleanly hidden from the footer.
+
+### 98.3 Quality & Verification
+- **TypeScript**: `npx tsc --noEmit` verified with 0 errors across the entire project.
+- **Production Build**: `npm run build` (`tsc && vite build`) passed with exit code 0 (`dist/` packaged in 1m 10s).
+
+
 
 
 

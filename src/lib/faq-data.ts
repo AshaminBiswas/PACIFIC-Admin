@@ -97,12 +97,20 @@ const DEFAULT_FAQS: FAQ[] = [
 
 const STORAGE_KEY = "pacific_faqs_v1";
 
-// ── Storage helpers ──────────────────────────────────────────────────────────
+import { supabase } from "./supabase";
 
+// ── Storage & Supabase helpers ───────────────────────────────────────────────
+
+/**
+ * Synchronous instant read from memory / localStorage for 0ms initial render.
+ */
 export function loadFAQs(): FAQ[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as FAQ[];
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
   } catch {
     // ignore parse errors
   }
@@ -113,7 +121,144 @@ export function saveFAQs(faqs: FAQ[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(faqs));
   } catch {
-    console.warn("Could not save FAQs to localStorage.");
+    console.warn("Could not save FAQs to localStorage cache.");
+  }
+}
+
+/**
+ * Fetch fresh FAQs from Supabase PostgreSQL database.
+ * If database is empty, automatically seeds DEFAULT_FAQS to Supabase.
+ */
+export async function fetchFaqsFromSupabase(): Promise<FAQ[]> {
+  try {
+    const { data, error } = await supabase
+      .from("faqs")
+      .select("*")
+      .order("sortOrder", { ascending: true });
+
+    if (!error && data && data.length > 0) {
+      const mapped: FAQ[] = data.map((row: any, idx: number) => ({
+        id: row.id,
+        question: row.question,
+        answer: row.answer,
+        category: row.category || "General",
+        sort_order: row.sortOrder ?? idx + 1,
+      }));
+      saveFAQs(mapped);
+      return mapped;
+    }
+
+    // Auto-seed DEFAULT_FAQS to Supabase if table is empty
+    if (!error && (!data || data.length === 0)) {
+      const seedRows = DEFAULT_FAQS.map((f, idx) => ({
+        question: f.question,
+        answer: f.answer,
+        category: f.category,
+        sortOrder: f.sort_order || idx + 1,
+        isActive: true,
+      }));
+      const { data: inserted } = await supabase.from("faqs").insert(seedRows).select();
+      if (inserted && inserted.length > 0) {
+        const seeded: FAQ[] = inserted.map((row: any, idx: number) => ({
+          id: row.id,
+          question: row.question,
+          answer: row.answer,
+          category: row.category || "General",
+          sort_order: row.sortOrder ?? idx + 1,
+        }));
+        saveFAQs(seeded);
+        return seeded;
+      }
+    }
+  } catch (err) {
+    console.warn("[faq-data] Error querying Supabase faqs:", err);
+  }
+
+  return loadFAQs();
+}
+
+/**
+ * Create or Update a FAQ directly in Supabase database.
+ */
+export async function upsertFaqToSupabase(faq: Omit<FAQ, "id"> & { id?: string }): Promise<FAQ> {
+  const isExisting = Boolean(faq.id && !faq.id.startsWith("faq-"));
+
+  if (isExisting && faq.id) {
+    const { data, error } = await supabase
+      .from("faqs")
+      .update({
+        question: faq.question,
+        answer: faq.answer,
+        category: faq.category,
+        sortOrder: faq.sort_order,
+      })
+      .eq("id", faq.id)
+      .select()
+      .single();
+
+    if (!error && data) {
+      return {
+        id: data.id,
+        question: data.question,
+        answer: data.answer,
+        category: data.category || "General",
+        sort_order: data.sortOrder,
+      };
+    }
+  } else {
+    const { data, error } = await supabase
+      .from("faqs")
+      .insert({
+        question: faq.question,
+        answer: faq.answer,
+        category: faq.category,
+        sortOrder: faq.sort_order,
+        isActive: true,
+      })
+      .select()
+      .single();
+
+    if (!error && data) {
+      return {
+        id: data.id,
+        question: data.question,
+        answer: data.answer,
+        category: data.category || "General",
+        sort_order: data.sortOrder,
+      };
+    }
+  }
+
+  // Fallback to local ID if network fails
+  return {
+    id: faq.id || `faq-${Date.now()}`,
+    ...faq,
+  };
+}
+
+/**
+ * Delete a FAQ from Supabase database.
+ */
+export async function deleteFaqFromSupabase(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase.from("faqs").delete().eq("id", id);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Batch re-order FAQs in Supabase database.
+ */
+export async function reorderFaqsInSupabase(faqs: FAQ[]): Promise<void> {
+  try {
+    const updates = faqs.map((f, i) =>
+      supabase.from("faqs").update({ sortOrder: i + 1 }).eq("id", f.id)
+    );
+    await Promise.allSettled(updates);
+  } catch (err) {
+    console.warn("[faq-data] Error updating FAQ sort orders:", err);
   }
 }
 

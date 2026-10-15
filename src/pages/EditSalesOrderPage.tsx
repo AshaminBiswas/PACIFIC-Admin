@@ -106,10 +106,10 @@ export default function EditSalesOrderPage() {
     gstin: '',
     pan: '',
     addressLine: '',
-    city: 'New Delhi',
+    city: '',
     pincode: '',
-    state: 'Delhi',
-    stateCode: '07',
+    state: '',
+    stateCode: '',
     phone: '',
     email: '',
   });
@@ -117,10 +117,10 @@ export default function EditSalesOrderPage() {
   const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddressData>({
     partyName: '',
     addressLine: '',
-    city: 'New Delhi',
+    city: '',
     pincode: '',
-    state: 'Delhi',
-    stateCode: '07',
+    state: '',
+    stateCode: '',
     phone: '',
   });
 
@@ -205,10 +205,10 @@ export default function EditSalesOrderPage() {
         gstin: bSnap.gstin || cust?.gstin || '',
         pan: bSnap.pan || cust?.pan || (cust?.gstin && cust.gstin.length === 15 ? cust.gstin.substring(2, 12) : ''),
         addressLine: bSnap.address || bSnap.addressLine || custBillingAddr?.addressLine1 || '',
-        city: bSnap.city || custBillingAddr?.city || 'New Delhi',
+        city: bSnap.city || custBillingAddr?.city || '',
         pincode: bSnap.pincode || bSnap.postalCode || custBillingAddr?.postalCode || '',
-        state: bSnap.state || custBillingAddr?.state || 'Delhi',
-        stateCode: bSnap.stateCode || custBillingAddr?.stateCode || '07',
+        state: bSnap.state || custBillingAddr?.state || '',
+        stateCode: bSnap.stateCode || custBillingAddr?.stateCode || '',
         phone: bSnap.phone || cust?.phone || '',
         email: bSnap.email || cust?.email || '',
       });
@@ -220,10 +220,10 @@ export default function EditSalesOrderPage() {
       setDeliveryAddress({
         partyName: sSnap.partyName || sSnap.recipient || sSnap.siteName || cust?.legalName || '',
         addressLine: sSnap.address || sSnap.addressLine || sSnap.siteAddress || custShipAddr?.addressLine1 || '',
-        city: sSnap.city || custShipAddr?.city || 'New Delhi',
+        city: sSnap.city || custShipAddr?.city || '',
         pincode: sSnap.pincode || sSnap.postalCode || custShipAddr?.postalCode || '',
-        state: sSnap.state || custShipAddr?.state || 'Delhi',
-        stateCode: sSnap.stateCode || custShipAddr?.stateCode || '07',
+        state: sSnap.state || custShipAddr?.state || '',
+        stateCode: sSnap.stateCode || custShipAddr?.stateCode || '',
         phone: sSnap.phone || cust?.phone || '',
       });
 
@@ -310,10 +310,10 @@ export default function EditSalesOrderPage() {
       gstin: cust.gstin || '',
       pan: cust.pan || (cust.gstin && cust.gstin.length === 15 ? cust.gstin.substring(2, 12) : ''),
       addressLine: bAddr?.addressLine1 || '',
-      city: bAddr?.city || 'New Delhi',
+      city: bAddr?.city || '',
       pincode: bAddr?.postalCode || '',
-      state: bAddr?.state || 'Delhi',
-      stateCode: bAddr?.stateCode || '07',
+      state: bAddr?.state || '',
+      stateCode: bAddr?.stateCode || '',
       phone: cust.phone || '',
       email: cust.email || '',
     });
@@ -321,10 +321,10 @@ export default function EditSalesOrderPage() {
     setDeliveryAddress({
       partyName: cust.tradeName || cust.legalName || '',
       addressLine: sAddr?.addressLine1 || '',
-      city: sAddr?.city || 'New Delhi',
+      city: sAddr?.city || '',
       pincode: sAddr?.postalCode || '',
-      state: sAddr?.state || 'Delhi',
-      stateCode: sAddr?.stateCode || '07',
+      state: sAddr?.state || '',
+      stateCode: sAddr?.stateCode || '',
       phone: cust.phone || '',
     });
 

@@ -143,7 +143,7 @@ const INITIAL_FORM_STATE: CreateFormData = {
       rate: 18500,
       boardType: 'HPL',
       cubicleSize: '1000mm W × 1500mm D',
-      boardColor: 'D.No. 123 – Oyster White',
+      boardColor: '',
       boardThickness: '12mm',
       doorSize: '600mm × 1785mm',
       overallHeight: '1980mm (incl. 100mm ground clearance)',
@@ -304,7 +304,7 @@ export default function DraftQuotationPage() {
             rate: 18500,
             boardType: 'HPL',
             cubicleSize: '1000mm W × 1500mm D',
-            boardColor: 'D.No. 123 – Oyster White',
+            boardColor: '',
             boardThickness: '12mm',
             doorSize: '600mm × 1785mm',
             overallHeight: '1980mm (incl. 100mm ground clearance)',
@@ -329,7 +329,7 @@ export default function DraftQuotationPage() {
             rate: 185,
             boardType: 'HPL',
             boardThickness: '12mm',
-            boardColor: 'D.No. 123 – Oyster White',
+            boardColor: '',
             cubicleSize: '1220mm × 2440mm (4ft × 8ft)',
           },
         ],
@@ -400,7 +400,7 @@ export default function DraftQuotationPage() {
             rate: 5500,
             boardType: 'HPL',
             cubicleSize: '450mm W × 900mm H',
-            boardColor: 'D.No. 123 – Oyster White',
+            boardColor: '',
             boardThickness: '12mm',
             doorSize: 'N/A',
             overallHeight: '900mm (wall-mounted with 300mm floor clearance)',
@@ -423,7 +423,7 @@ export default function DraftQuotationPage() {
             rate: 32000,
             boardType: 'HPL',
             cubicleSize: '300mm W × 450mm D × 1800mm H',
-            boardColor: 'D.No. 123 – Oyster White',
+            boardColor: '',
             boardThickness: '12mm',
             doorSize: 'Tier Configuration as per drawing',
             overallHeight: '1800mm (plus 100mm plinth base)',
@@ -602,7 +602,7 @@ export default function DraftQuotationPage() {
           rate: currentRate,
           boardType: existingUmp?.boardType || 'HPL',
           boardThickness: existingUmp?.boardThickness || '12mm',
-          boardColor: existingUmp?.boardColor || 'D.No. 123 – Oyster White',
+          boardColor: existingUmp?.boardColor || '',
           cubicleSize: existingUmp?.cubicleSize || '450mm W × 900mm H',
           doorSize: 'N/A',
           overallHeight: existingUmp?.overallHeight || '1200mm (affixed 300mm above finished floor)',
@@ -639,7 +639,7 @@ export default function DraftQuotationPage() {
         rate: currentRate,
         boardType: dims.boardType || 'HPL',
         boardThickness: dims.boardThickness || '12mm',
-        boardColor: existingUmp?.boardColor || 'D.No. 123 – Oyster White',
+        boardColor: existingUmp?.boardColor || '',
         cubicleSize: dims.cubicleSize || '450mm W × 900mm H',
         doorSize: 'N/A',
         overallHeight: dims.overallHeight || '1200mm (affixed 300mm above finished floor)',
@@ -731,7 +731,7 @@ export default function DraftQuotationPage() {
           rate: currentRate,
           boardType: existingLocker?.boardType || 'HPL',
           boardThickness: existingLocker?.boardThickness || '12mm',
-          boardColor: existingLocker?.boardColor || 'D.No. 123 – Oyster White',
+          boardColor: existingLocker?.boardColor || '',
           cubicleSize: existingLocker?.cubicleSize || '300mm W × 450mm D × 1800mm H',
           doorSize: existingLocker?.doorSize || 'Tier Modular Doors as per drawing',
           overallHeight: existingLocker?.overallHeight || '1900mm (including 100mm plinth base)',
@@ -767,7 +767,7 @@ export default function DraftQuotationPage() {
         rate: currentRate,
         boardType: dims.boardType || 'HPL',
         boardThickness: dims.boardThickness || '12mm',
-        boardColor: existingLocker?.boardColor || 'D.No. 123 – Oyster White',
+        boardColor: existingLocker?.boardColor || '',
         cubicleSize: dims.cubicleSize || '300mm W × 450mm D × 1800mm H',
         doorSize: dims.doorSize || 'Tier Modular Doors as per drawing',
         overallHeight: dims.overallHeight || '1900mm (including 100mm plinth base)',
@@ -827,7 +827,7 @@ export default function DraftQuotationPage() {
           rate: 185,
           boardType: 'HPL',
           boardThickness: '12mm',
-          boardColor: 'D.No. 123 – Oyster White',
+          boardColor: '',
           cubicleSize: '1220mm × 2440mm (4ft × 8ft)',
         },
       ],
@@ -875,7 +875,7 @@ export default function DraftQuotationPage() {
           rate: 0,
           boardType: 'HPL',
           cubicleSize: '1000mm W × 1500mm D',
-          boardColor: 'D.No. 123 – Oyster White',
+          boardColor: '',
           boardThickness: '12mm',
           doorSize: '600mm × 1785mm',
           overallHeight: '1980mm (incl. 100mm ground clearance)',
@@ -939,7 +939,7 @@ export default function DraftQuotationPage() {
           rate: 0,
           boardType: 'HPL',
           cubicleSize: '1000mm W × 1500mm D',
-          boardColor: 'D.No. 123 – Oyster White',
+          boardColor: '',
           boardThickness: '12mm',
           doorSize: '600mm × 1785mm',
           overallHeight: '1980mm (incl. 100mm ground clearance)',
@@ -1075,10 +1075,10 @@ export default function DraftQuotationPage() {
       errs.customerId = 'Please select a customer from Client Master.';
     }
 
+    // Auto-resolve empty recipient or project name so user is not blocked with dummy input demands
     if (!form.recipientName.trim()) {
-      errs.recipientName = 'Contact / Recipient name is required.';
-    } else if (form.recipientName.trim().length < 2) {
-      errs.recipientName = 'Contact name must be at least 2 characters.';
+      const fallbackName = form.recipientCompany.trim() || 'Valued Customer';
+      setForm((f) => ({ ...f, recipientName: fallbackName }));
     }
 
     if (form.recipientEmail && form.recipientEmail.trim()) {
@@ -1096,9 +1096,8 @@ export default function DraftQuotationPage() {
     }
 
     if (!form.projectName.trim()) {
-      errs.projectName = 'Project name is required.';
-    } else if (form.projectName.trim().length < 2) {
-      errs.projectName = 'Project name must be at least 2 characters.';
+      const fallbackProject = form.title?.trim() || form.recipientCompany?.trim() || 'Commercial Restroom Project';
+      setForm((f) => ({ ...f, projectName: fallbackProject }));
     }
 
     if (form.isSezExempt && !form.sezCertificateRef.trim()) {
@@ -1118,7 +1117,8 @@ export default function DraftQuotationPage() {
     } else {
       form.items.forEach((it, idx) => {
         if (!it.description.trim()) {
-          errs[`item_${idx}_desc`] = `Item #${idx + 1} description is required.`;
+          const matchedModel = it.modelId ? catalogModels.find((m) => m.id === it.modelId) : null;
+          it.description = matchedModel?.title ? `Pacific ${matchedModel.title}` : 'Pacific Restroom Cubicle System';
         }
         if (Number(it.quantity) <= 0) {
           errs[`item_${idx}_qty`] = `Item #${idx + 1} quantity must be greater than 0.`;

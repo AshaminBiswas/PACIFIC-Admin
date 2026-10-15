@@ -1075,15 +1075,16 @@ export default function EditProformaInvoicePage() {
     const errs: Record<string, string> = {};
 
     if (!billingAddress.partyName.trim()) {
-      errs.partyName = 'Billing Party Name is required.';
+      const fallbackParty = customers.find((c) => c.id === customerId)?.legalName || 'Valued Customer';
+      setBillingAddress((b) => ({ ...b, partyName: fallbackParty }));
     }
 
-    if (billingAddress.gstin && billingAddress.gstin.trim().length !== 15) {
-      errs.gstin = 'GSTIN must be exactly 15 characters (e.g. 07AAAAA0000A1Z5).';
-    }
-
-    if (billingAddress.pan && billingAddress.pan.trim().length !== 10) {
-      errs.pan = 'PAN must be exactly 10 alphanumeric characters (e.g. ABCDE1234F).';
+    // Only validate GSTIN format if an actual commercial GSTIN is provided and not unregistered
+    if (billingAddress.gstin && billingAddress.gstin.trim()) {
+      const gstinVal = billingAddress.gstin.trim().toUpperCase();
+      if (gstinVal !== 'URP' && gstinVal !== 'UNREGISTERED' && gstinVal.length !== 15 && gstinVal.length > 3) {
+        errs.gstin = 'GSTIN should be 15 characters (e.g. 07AAAAA0000A1Z5) or URP if unregistered.';
+      }
     }
 
     if (items.length === 0) {
@@ -1091,7 +1092,8 @@ export default function EditProformaInvoicePage() {
     } else {
       items.forEach((it, idx) => {
         if (!it.description.trim()) {
-          errs[`item_${idx}_desc`] = `Item #${idx + 1} description is required.`;
+          const matchedModel = it.modelId ? catalogModels.find((m) => m.id === it.modelId) : null;
+          it.description = matchedModel?.title ? `Pacific ${matchedModel.title}` : 'Pacific Restroom Cubicle System';
         }
         if (Number(it.quantity) <= 0) {
           errs[`item_${idx}_qty`] = `Item #${idx + 1} quantity must be greater than 0.`;
