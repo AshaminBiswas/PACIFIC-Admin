@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { companiesApi, auditApi } from '../api/services';
+import { uploadImage } from '../lib/supabase';
 import type {
   CompanyProfile,
   CompanyAddress,
@@ -307,6 +308,7 @@ export default function CompanySettingsPage() {
 
   const [showSignatoryModal, setShowSignatoryModal] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const [uploadingSignature, setUploadingSignature] = useState(false);
   const signatureInputRef = useRef<HTMLInputElement>(null);
   const [signatoryForm, setSignatoryForm] = useState({
     name: '',
@@ -545,27 +547,35 @@ export default function CompanySettingsPage() {
     }
   };
 
-  // Signature File Upload Handler
-  const handleSignatureFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Signature File Upload Handler with CDN Storage & Auto-Optimization
+  const handleSignatureFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       showToast('error', 'Please upload an image file (PNG, JPG, SVG, WebP).');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      showToast('error', 'Signature file must be smaller than 5MB.');
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('error', 'Signature file must be smaller than 10MB.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      setSignatoryForm((prev) => ({ ...prev, signatureUrl: result }));
-      showToast('success', 'Signature image uploaded successfully.');
-    };
-    reader.readAsDataURL(file);
-    // Reset file input value so same file can be re-uploaded if needed
-    e.target.value = '';
+    try {
+      setUploadingSignature(true);
+      showToast('success', 'Optimizing and uploading signature to CDN...');
+      const cdnUrl = await uploadImage(file, 'signatures');
+      if (cdnUrl) {
+        setSignatoryForm((prev) => ({ ...prev, signatureUrl: cdnUrl }));
+        showToast('success', 'Signature optimized and uploaded successfully to CDN.');
+      } else {
+        showToast('error', 'Failed to upload signature. Please check network connection.');
+      }
+    } catch (err: any) {
+      showToast('error', err.message || 'Error uploading signature image.');
+    } finally {
+      setUploadingSignature(false);
+      // Reset file input value so same file can be re-uploaded if needed
+      e.target.value = '';
+    }
   };
 
   // Add Signatory
@@ -1447,7 +1457,13 @@ export default function CompanySettingsPage() {
                   className="hidden"
                 />
 
-                {signatoryForm.signatureUrl ? (
+                {uploadingSignature ? (
+                  <div className="border-2 border-dashed border-[#7FB706]/40 rounded-xl p-5 text-center min-h-[110px] flex flex-col items-center justify-center bg-[#7FB706]/5">
+                    <RefreshCw className="w-6 h-6 mx-auto mb-2 text-[#7FB706] animate-spin" />
+                    <p className="text-xs font-semibold text-white">Optimizing &amp; Uploading to CDN...</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">Compressing WebP image to prevent database egress bloat</p>
+                  </div>
+                ) : signatoryForm.signatureUrl ? (
                   <div className="space-y-2">
                     <div className="h-28 bg-white/10 border border-white/20 rounded-xl flex items-center justify-center p-3 relative bg-gradient-to-b from-white/10 to-white/5">
                       <img
@@ -1483,7 +1499,7 @@ export default function CompanySettingsPage() {
                       Click to upload signature
                     </p>
                     <p className="text-[11px] text-gray-500 mt-0.5">
-                      PNG, JPG, SVG or WebP (transparent PNG recommended, max 5MB)
+                      PNG, JPG, SVG or WebP (transparent PNG recommended, auto-optimized to CDN)
                     </p>
                   </div>
                 )}
@@ -1531,9 +1547,16 @@ export default function CompanySettingsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-white rounded-xl text-xs font-bold min-h-[44px]"
+                  disabled={uploadingSignature}
+                  className="px-5 py-2 bg-[#7FB706] hover:bg-[#6fa005] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold min-h-[44px] flex items-center gap-1.5"
                 >
-                  Add Signatory
+                  {uploadingSignature ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Uploading...
+                    </>
+                  ) : (
+                    'Add Signatory'
+                  )}
                 </button>
               </div>
             </form>

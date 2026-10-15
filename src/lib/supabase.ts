@@ -159,7 +159,7 @@ export async function uploadImage(
     const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
     const { error } = await supabase.storage.from(BUCKET).upload(fileName, optimizedFile, {
-      cacheControl: "3600",
+      cacheControl: "31536000, immutable",
       upsert: false,
     });
 
@@ -205,7 +205,7 @@ export async function uploadFile(
     const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
     const { error } = await supabase.storage.from(BUCKET).upload(fileName, processedFile, {
-      cacheControl: "3600",
+      cacheControl: "31536000, immutable",
       upsert: false,
       contentType: file.type,
     });

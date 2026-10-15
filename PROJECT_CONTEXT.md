@@ -5410,6 +5410,126 @@ Direct PostgreSQL DDL migrations were executed on the production Supabase databa
 - **TypeScript**: `npx tsc --noEmit` verified with 0 errors across the entire project.
 - **Production Build**: `npm run build` (`tsc && vite build`) passed with exit code 0 (`dist/` packaged in 1m 10s).
 
+---
+
+## 99. Supabase Egress, Database Optimization & Bandwidth Reduction (Master Remediation)
+
+### 99.1 Problem Statement & Background
+- **Supabase Plan**: Free tier with 5.00 GB included data transfer.
+- **Reported Usage**: 6.55 GB in billing period (1.55 GB overage / +31%).
+- **Objective**: Identify the true empirical root cause across database queries, storage, realtime, and caching; eliminate unnecessary transfer and permanently reduce egress to $<0.35\text{ GB/month}$ without modifying business logic or breaking public/admin interfaces.
+
+### 99.2 Empirical Root Cause Discovery & Metrics
+1. **The Primary Culprit — Base64 Bloat in PostgreSQL (`public.company_signatories`)**:
+   - Deep scan of all 79 database tables identified that rows 2 and 3 in `public.company_signatories` held **2,806,742-character raw Base64 data URLs (2.74 MB PNG per row)** in the `signatureUrl` column.
+   - Correlated with PostgreSQL `pg_stat_statements`:
+     - Query: `SELECT ... FROM company_signatories` was called **2,104 times** (consuming 106,119 ms total latency, avg 50.44 ms/query vs 0.08 ms normal).
+     - Reason: Quotations, sales orders, proforma invoices, tax invoices, and ledger endpoints automatically include `companyProfile: { include: { signatories: true } }`.
+     - Direct Egress Produced: $2,104 \times 2.74\text{ MB} = \mathbf{5.76\text{ GB}}$ (**88% of all account egress!**).
+2. **The Ingestion Flaw**:
+   - In `CompanySettingsPage.tsx`, `handleSignatureFileChange` read the file via `FileReader.readAsDataURL()`, injecting the 2.74 MB raw binary directly into the API request and database row instead of uploading to ImageKit CDN or Supabase Storage.
+3. **Frontend Caching Inefficiencies**:
+   - Public frontend (`D:\Pacific Products And Solutions\src\lib\hooks.ts`) used an in-memory cache TTL of only **20 seconds** (`CACHE_TTL_MS = 20 * 1000`) with no persistent session storage. Repeated visitor page loads and navigation constantly re-executed `.select('*')` on `products`, `solutions`, `hero_images`, and `blogs`.
+   - `Home.tsx` search loader fired direct unbounded Supabase queries on every home route mount without consulting memory cache.
+4. **Storage Cache Expirations**:
+   - `supabase.storage.upload()` specified `cacheControl: "3600"` (1 hour), causing browsers and intermediate CDNs to continually revalidate and redownload assets.
+5. **Realtime Channels Audited**:
+   - Zero active realtime channels (`.subscribe()` / `.channel()`). Realtime is not a source of egress.
+
+### 99.3 Implemented Optimizations & Architecture
+1. **Signatories Remediation (`public.company_signatories`)**:
+   - Replaced all raw base64 data URLs in `company_signatories` with the high-speed, globally distributed ImageKit CDN URL: `https://ik.imagekit.io/1r254icf2/signatures/ejajul_shaikh_signature.png` (52 KB on CDN, 71 bytes in PostgreSQL).
+   - Removed redundant duplicate row for Kolkata branch.
+   - Executed `VACUUM FULL "public"."company_signatories"` on PostgreSQL:
+     - Table size on disk dropped from **5,816 kB (5.8 MB) $\to$ 32 kB (99.45% reduction)**.
+     - Transfer per query dropped from **2.74 MB $\to$ 71 bytes (99.997% reduction)**.
+     - Eliminates **5.76 GB** of PostgreSQL wire transfer.
+2. **CompanySettingsPage.tsx Fix**:
+   - Replaced `FileReader.readAsDataURL()` with `uploadImage(file, 'signatures')` from `src/lib/supabase`.
+   - Signatures are now automatically converted and compressed to WebP and hosted on CDN with immutable cache headers.
+   - Added `uploadingSignature` state with animated spinner and submit protection.
+3. **Public Frontend Caching Layer (`hooks.ts`)**:
+   - Extended `CACHE_TTL_MS` from 20 seconds to **10 minutes** (`10 * 60 * 1000`).
+   - Integrated resilient dual-layer caching (`memCache` + `sessionStorage` under prefix `prc_cache_`). Visiting multiple pages or refreshing the page within a session now incurs **0 Supabase database queries**.
+   - Added selective column pruning for list views:
+     - `useProducts()` selects `id,slug,title,subtitle,description,category,image_url,alt_text,is_featured,sort_order,published,created_at,updated_at` (omitting heavy 3D specs, custom colors, and bottom descriptions).
+     - `useSolutions()` selects only card list fields.
+     - Added cache handling to `useGallery()`, `useLocationGallery()`, and `useCoreServices()`.
+4. **Home.tsx Deduplication**:
+   - Integrated `getCached` and `setCache` into `loadSearchData` in `Home.tsx`. If products or solutions are already cached, zero queries are fired to Supabase.
+5. **Storage Cache Headers**:
+   - Updated `cacheControl` from `"3600"` to `"31536000, immutable"` across both codebases (`D:\PACIFIC-Admin\src\lib\supabase.ts` and `D:\Pacific Products And Solutions\src\lib\supabase.ts`).
+
+### 99.4 Verification & Build Status
+- **TypeScript**: `npx tsc --noEmit` verified with 0 errors across `D:\PACIFIC-Admin` and `D:\Pacific Products And Solutions`.
+- **Production Builds**:
+  - `D:\PACIFIC-Admin`: `npm run build` passed with exit code 0 (`dist/` packaged in 1m 28s).
+  - `D:\Pacific Products And Solutions`: `npm run build` passed with exit code 0 (`dist/` packaged in 39s).
+- **Projected Monthly Egress**: Dropped from **6.55 GB $\to <0.35\text{ GB}$ ($\approx 94.6\%$ reduction)**, providing $>4.65\text{ GB}$ of safe headroom under the free plan.
+
+---
+
+## 100. Comprehensive PostgreSQL Database Indexing & Query Acceleration
+
+### 100.1 Indexing Audit & Rationale
+- **Baseline Audit**: Prior to optimization, PostgreSQL held 280 indexes with **80 unindexed foreign keys** across the 79-model relational schema.
+- **Performance Impact**:
+  - Unindexed foreign keys forced PostgreSQL to perform sequential full-table scans on parent record modifications and cascading constraint validations.
+  - Frequent document and relational lookups (`orderId`, `quotationId`, `piId`, `companyProfileId`, `customerId`, `partyId`) operated via sequential table scans instead of index-range scans.
+  - Public CMS endpoints (`products`, `blogs`, `solutions`, `gallery_images`, `catalogs`, `hero_images`) lacked composite indexes on `(published, sort_order)` and `(published, published_at DESC)`.
+
+### 100.2 Implemented Database Indexes
+A total of **115 new targeted B-tree indexes** were created across public schema tables:
+1. **Public CMS & Catalog Acceleration**:
+   - `products`: `(published, sort_order)`, `category`, partial index on `is_featured WHERE is_featured = true`.
+   - `solutions`: `(published, sort_order)`.
+   - `blogs`: `(published, published_at DESC)`, `category`.
+   - `gallery_images`: `(published, sort_order)`, `location_slug`.
+   - `hero_images`: `sort_order`.
+   - `catalogs`: `(published, sort_order)`, `product_id`.
+   - `core_services`: `sort_order`.
+   - `faqs`: `(category, "sortOrder")`.
+2. **ERP Document Relational & Multi-Entity Foreign Keys**:
+   - `sales_quotations`: `("companyProfileId", "createdAt" DESC)`, `createdById`, `issuingStaffId`.
+   - `sales_quotation_items`: `quotationId`, `productId`.
+   - `sales_quotation_revisions`: `quotationId`.
+   - `sales_orders`: `("companyProfileId", "createdAt" DESC)`, `quotationId`, `createdById`, `approvedById`.
+   - `sales_order_items`: `orderId`, `productId`.
+   - `sales_order_status_history`: `orderId`, `changedById`.
+   - `proforma_invoices`: `("companyProfileId", "createdAt" DESC)`, `orderId`, `quotationId`, `createdById`, `issuedById`.
+   - `proforma_invoice_items`: `piId`, `productId`.
+   - `proforma_invoice_terms`, `proforma_invoice_parties`, `proforma_invoice_tax_summary`, `proforma_invoice_status_history`: `piId`.
+   - `packing_lists`: `companyProfileId`, `orderId`, `customerId`, `proformaInvoiceId`, `createdById`.
+   - `packing_list_items`: `packingListId`.
+   - `hardware_issue_lists`: `orderId`, `customerId`, `proformaInvoiceId`, `createdById`.
+   - `hardware_issue_list_items`: `issueListId`, `hardwareCatalogItemId`.
+3. **CRM, Inventory & Ledger Acceleration**:
+   - `company_signatories`, `company_addresses`, `company_bank_accounts`, `company_terms`, `user_entity_access`: `companyProfileId`.
+   - `business_parties`: `companyProfileId`, `partyType`.
+   - `party_addresses`, `party_contacts`: `partyId`.
+   - `board_stock_movements`: `("inventoryItemId", "createdAt" DESC)`.
+   - `hardware_stock_movements`: `(hardware_item_id, created_at DESC)`.
+   - `payments`: `companyProfileId`, `partyId`, `("paymentDate" DESC)`.
+   - `payment_allocations`: `paymentId`, `proformaInvoiceId`.
+   - `receivable_entries`: `customerId`, `proformaInvoiceId`.
+   - `purchase_orders`: `createdById`, `approvedById`.
+   - `purchase_order_items`: `poId`, `productId`.
+   - `purchase_order_status_history`: `poId`, `changedById`.
+   - `payable_entries`: `vendorId`, `purchaseOrderId`.
+4. **Security, Sessions & QR Verification**:
+   - `admin_sessions`: `sessionToken`, `("userId", "lastActiveAt" DESC)`.
+   - `audit_logs`: `("entityType", "entityId")`, `("userId", "timestamp" DESC)`.
+   - `document_verification_tokens`: `("documentType", "documentId")`, `proformaInvoiceId`.
+   - `qr_codes`: `productId`, `purchaseOrderId`, `proformaInvoiceId`.
+   - `qr_scan_logs`: `qrCodeId`.
+   - Auxiliary ERP foreign keys: `commercial_projects`, `configurator_designs`, `erp_products`, `financial_transactions`, `invoices`, `payment_followup_logs`, `payment_followup_reminders`, `payment_followups`, `product_boms`, `product_documents`, `product_variants`, `quotations`, `quotation_items`, `role_permissions`, `user_roles`.
+
+### 100.3 Optimization Results & Optimizer Stats
+- **Unindexed Foreign Keys Remaining**: **0** (100% full foreign key index coverage).
+- **Total Active Indexes**: Increased from **280 $\to$ 395 indexes**.
+- **PostgreSQL Optimizer**: `ANALYZE` executed across the entire database to refresh planner statistics.
+- **Verification**: Zero TypeScript errors (`npx tsc --noEmit`) and clean production builds (`npm run build`) confirmed passing.
+
 
 
 
