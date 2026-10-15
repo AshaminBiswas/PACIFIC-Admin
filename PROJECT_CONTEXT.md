@@ -5528,7 +5528,25 @@ A total of **115 new targeted B-tree indexes** were created across public schema
 - **Unindexed Foreign Keys Remaining**: **0** (100% full foreign key index coverage).
 - **Total Active Indexes**: Increased from **280 $\to$ 395 indexes**.
 - **PostgreSQL Optimizer**: `ANALYZE` executed across the entire database to refresh planner statistics.
-- **Verification**: Zero TypeScript errors (`npx tsc --noEmit`) and clean production builds (`npm run build`) confirmed passing.
+
+---
+
+## 101. Hardware Inventory Safety: Removal of "Clear All" Action
+
+### 101.1 Rationale & Safeguard
+- The Hardware Inventory page (`HardwareInventoryPage.tsx`) previously exposed a destructive red "Clear All" button in the primary action header bar next to "New Hardware SKU" and "Issue Details (All SKUs)".
+- While guarded by a confirmation prompt, keeping a bulk purge button on a live inventory tracking view posed an accidental data loss risk to operational store inventory.
+
+### 101.2 Changes Applied
+1. **View Clean-up (`HardwareInventoryPage.tsx`)**:
+   - Removed the `{items.length > 0 && (<button onClick={handleClearAllItems}>Clear All</button>)}` JSX element from the header action toolbar.
+   - Removed the unused `handleClearAllItems` handler.
+   - Preserved individual item delete controls (`handleDeleteItem`) with per-SKU confirmation modals.
+   - Preserved the backend API function `hardwareInventoryApi.clearAllItems` in `src/api/hardwareInventoryApi.ts` for automated script maintenance if ever required.
+
+### 101.3 Verification & Build Status
+- **TypeScript**: `npx tsc --noEmit` verified with 0 errors.
+- **Production Build**: `npm run build` completed cleanly with exit code 0.
 
 
 
