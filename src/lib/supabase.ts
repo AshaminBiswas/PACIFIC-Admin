@@ -2,25 +2,16 @@ import { createClient } from "@supabase/supabase-js";
 import { optimizeImageBeforeUpload } from "../utils/imageOptimizer";
 import type { Database } from "./database.types";
 
-// Production Pacific Supabase Cloud Credentials
-export const DEFAULT_SUPABASE_URL = "https://kgalsrokdmsrqysyoffm.supabase.co";
-export const DEFAULT_SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtnYWxzcm9rZG1zcnF5c3lvZmZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNDY2NjYsImV4cCI6MjEwNTYyMjY2Nn0.o2IfoG0cJmLlYJdiAzd7b9Iko8hQaotEM-yxInqJIqk";
-export const DEFAULT_SUPABASE_SERVICE_ROLE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtnYWxzcm9rZG1zcnF5c3lvZmZtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDA0NjY2NiwiZXhwIjoyMTA1NjIyNjY2fQ.GL24GAGFecR-SntNH3Oa_1mmbU8z-lWAeRk3k0V2Gy0";
-
 function isValidSupabaseKey(key?: string): boolean {
   if (!key || typeof key !== "string") return false;
   const trimmed = key.trim();
   if (trimmed.length < 20) return false;
   if (trimmed.includes("placeholder")) return false;
-  // Discard unregistered publishable/secret keys that return 401 UNAUTHORIZED_UNREGISTERED_API_KEY
-  if (trimmed.startsWith("sb_publishable_0xZl0he") || trimmed.startsWith("sb_secret_HTGNMlNYub")) return false;
   return true;
 }
 
 const rawUrl = (import.meta.env.VITE_SUPABASE_URL as string)?.trim();
-const supabaseUrl = rawUrl && !rawUrl.includes("placeholder") ? rawUrl : DEFAULT_SUPABASE_URL;
+const supabaseUrl = rawUrl && !rawUrl.includes("placeholder") ? rawUrl : "https://placeholder.supabase.co";
 
 const envCandidates = [
   import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY,
@@ -29,11 +20,11 @@ const envCandidates = [
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
 ];
 
-// Prioritize valid JWT keys (starts with eyJ...) over anything else, then fall back to canonical service role key
+// Prioritize valid JWT keys (starts with eyJ...) over anything else
 const resolvedKey =
   envCandidates.find((k) => isValidSupabaseKey(k) && typeof k === "string" && k.startsWith("eyJ")) ||
   envCandidates.find((k) => isValidSupabaseKey(k)) ||
-  DEFAULT_SUPABASE_SERVICE_ROLE_KEY;
+  "placeholder-key";
 
 const supabaseKey = resolvedKey;
 

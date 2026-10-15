@@ -5604,6 +5604,38 @@ A total of **115 new targeted B-tree indexes** were created across public schema
 - Verified `npx tsc --noEmit` passed with 0 errors.
 - Verified `npm run build` passed with exit code 0.
 
+---
+
+## 104. Board Stock Unique Constraint Resolution, Sequence Auto-Heal & Credential Sanitization
+
+### 104.1 Root Cause Analysis of `movementNumber` Unique Constraint Error
+- **Symptom**: When creating a board inventory item with the same design name but different size, the backend crashed with:
+  `Invalid tx.boardStockMovement.create() invocation in boardInventory.service.ts: Unique constraint failed on the fields: (movementNumber)`.
+- **Root Cause 1 (PostgreSQL Sequence Desynchronization)**:
+  - During database migration, the auto-increment sequence `board_inventory_items_serialNumber_seq` was initialized at 26 while the highest existing `serialNumber` in the imported dataset was 136.
+  - Creating any new board item generated `serialNumber = 27`.
+  - In `boardInventory.service.ts`, the opening stock movement generated `movementNumber = 'BSM-OPN-0027'`, which already existed from a previous item, violating the unique constraint on `board_stock_movements.movementNumber`.
+- **Root Cause 2 (Item Code Collision on Multi-Size SKUs)**:
+  - `itemCode` generation formula omitted the board `size` dimension (`BRD-${warehouse}-${prefix}-${cleanDesign}-${cleanThick}-${timestamp}`), increasing collision probability for items sharing the same design and thickness.
+
+### 104.2 Hardening & Fixes Implemented
+1. **Sequence Synchronization (`D:\PACIFIC-Backend`)**:
+   - Manually synchronized `board_inventory_items_serialNumber_seq` to 140 (exceeding current max serial).
+   - Added Step 21 to `src/scripts/fix-db.js`: An idempotent DDL auto-healing patch that checks and synchronizes `board_inventory_items_serialNumber_seq` to `MAX("serialNumber")` on every backend container startup.
+2. **Service Hardening (`boardInventory.service.ts`)**:
+   - Embedded `cleanSize` into the item code generation pattern:
+     `BRD-${warehouse.slice(0, 3)}-${prefix}-${cleanDesign}-${cleanSize ? cleanSize + '-' : ''}${cleanThick}-${timestamp}`.
+   - Added pre-creation duplicate check on `itemCode` with randomized suffix fallback.
+   - Added collision check on `movementNumber`: pre-checks `boardStockMovement.findUnique({ where: { movementNumber } })`; if already existing, appends a unique timestamp suffix (`${baseMovementNumber}-${Date.now().toString().slice(-4)}`).
+3. **Frontend Supabase Fallback Sanitization (`D:\PACIFIC-Admin/src/lib/supabase.ts`)**:
+   - Removed hardcoded default credentials that pointed to the legacy Supabase project (`kgalsrokdmsrqysyoffm`).
+   - Sourced credentials strictly from runtime environment variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SUPABASE_PUBLISHABLE_KEY`), with sanitized placeholder fallbacks.
+   - Clarified that 400/409 errors on the deployed Vercel admin console occur because Vercel environment variables need to be updated to the new Supabase project (`bcbswbzbtskvmdqmgrjm`).
+
+### 104.3 Build & Validation
+- `PACIFIC-Backend`: `fix-db.js` auto-heal executed successfully; `npx tsc --noEmit` passed with 0 errors.
+- `PACIFIC-Admin`: `npx tsc --noEmit` and `npm run build` verified.
+
 
 
 
