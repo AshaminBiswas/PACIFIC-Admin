@@ -16,7 +16,16 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   let token = localStorage.getItem('pacific_access_token');
   if (!token) {
     try {
-      const supaToken = localStorage.getItem('sb-kgalsrokdmsrqysyoffm-auth-token');
+      let supaToken = localStorage.getItem('sb-bcbswbzbtskvmdqmgrjm-auth-token');
+      if (!supaToken) {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('sb-') && k.endsWith('-auth-token')) {
+            supaToken = localStorage.getItem(k);
+            break;
+          }
+        }
+      }
       if (supaToken) {
         const parsed = JSON.parse(supaToken);
         const supaAccess = parsed?.access_token;
