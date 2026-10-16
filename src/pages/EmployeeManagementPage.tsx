@@ -1247,7 +1247,7 @@ export function EmployeeManagementPage() {
           className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border text-sm animate-in fade-in slide-in-from-top-4 ${
             feedback.type === 'success'
               ? 'bg-[#0f172a] text-emerald-400 border-emerald-500/30'
-              : 'bg-[#18181b] text-rose-400 border-rose-500/30'
+              : 'bg-[#0a091e] text-rose-400 border-rose-500/30'
           }`}
         >
           {feedback.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
@@ -1256,20 +1256,24 @@ export function EmployeeManagementPage() {
       )}
 
       {/* ── Top Header & Global Controls ───────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#27272A] pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-[#0a091e] p-5 rounded-2xl border border-white/10 shadow-xl">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              HR & Payroll
-            </span>
-            <span className="text-xs text-[#71717A]">• Pacific Restroom Cubicle Enterprise</span>
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 rounded-xl bg-[#7FB706]/15 border border-[#7FB706]/30 text-[#B5F823]">
+              <Users size={22} />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+                Employee & Compensation Suite
+                <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30 font-medium">
+                  HR & Payroll
+                </span>
+              </h1>
+              <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
+                Master directory, daily attendance tracking, leave ledgers, advances & automated payroll disbursement
+              </p>
+            </div>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#FAFAFA] mt-1">
-            Employee & Compensation Suite
-          </h1>
-          <p className="text-sm text-[#A1A1AA] mt-1">
-            Master directory, daily attendance tracking, leave ledgers, advances & automated payroll disbursement.
-          </p>
         </div>
 
         {/* Global Month / Year Selector & Actions */}
@@ -1277,7 +1281,7 @@ export function EmployeeManagementPage() {
           <select
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(Number(e.target.value))}
-            className="bg-[#18181B] border border-[#27272A] text-sm text-[#FAFAFA] rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+            className="bg-[#0a091e] border border-white/10 text-sm text-white rounded-xl px-3 py-2 focus:outline-none focus:border-[#7FB706]"
           >
             {MONTHS.map((m) => (
               <option key={m.value} value={m.value}>
@@ -1289,7 +1293,7 @@ export function EmployeeManagementPage() {
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="bg-[#18181B] border border-[#27272A] text-sm text-[#FAFAFA] rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+            className="bg-[#0a091e] border border-white/10 text-sm text-white rounded-xl px-3 py-2 focus:outline-none focus:border-[#7FB706]"
           >
             {[2024, 2025, 2026, 2027].map((y) => (
               <option key={y} value={y}>
@@ -1302,7 +1306,7 @@ export function EmployeeManagementPage() {
             type="button"
             disabled={isDownloadingAttendancePdf}
             onClick={() => handleDownloadMonthlyAttendancePdf(false)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#18181B] hover:bg-[#27272A] text-amber-400 border border-amber-500/30 text-xs font-semibold rounded-xl transition shadow-sm disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#0a091e] hover:bg-white/10 text-amber-400 border border-amber-500/30 text-xs font-semibold rounded-xl transition shadow-sm disabled:opacity-50"
             title={`Download Master Attendance & Payroll Register PDF (${MONTHS[selectedMonth - 1]?.label} ${selectedYear})`}
           >
             {isDownloadingAttendancePdf ? (
@@ -1330,7 +1334,7 @@ export function EmployeeManagementPage() {
                 setIsSalaryCalculatorOpen(true);
               }
             }}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#18181B] hover:bg-[#27272A] text-emerald-400 border border-emerald-500/30 text-xs font-semibold rounded-xl transition shadow-sm"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#0a091e] hover:bg-white/10 text-emerald-400 border border-emerald-500/30 text-xs font-semibold rounded-xl transition shadow-sm"
             title="Open Dynamic Salary, Attendance & Overtime Calculation Studio"
           >
             <Calculator size={15} />
@@ -1350,7 +1354,7 @@ export function EmployeeManagementPage() {
                 fetchPayroll();
               }
             }}
-            className="p-2 bg-[#18181B] hover:bg-[#27272A] text-[#A1A1AA] hover:text-[#FAFAFA] border border-[#27272A] rounded-xl transition"
+            className="p-2 bg-[#0a091e] hover:bg-white/10 text-gray-400 hover:text-white border border-white/10 rounded-xl transition"
             title="Refresh Data"
           >
             <RefreshCw size={16} />
@@ -1361,7 +1365,7 @@ export function EmployeeManagementPage() {
               setEditingEmployee(null);
               setIsAddEmployeeModalOpen(true);
             }}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-sm font-semibold rounded-xl shadow-lg shadow-amber-900/20 transition"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#7FB706] hover:bg-[#6fa005] cursor-pointer text-white text-sm font-semibold rounded-xl shadow-lg shadow-[#7FB706]/20 transition-all cursor-pointer"
           >
             <Plus size={16} />
             <span>Add Employee</span>
@@ -1371,45 +1375,45 @@ export function EmployeeManagementPage() {
 
       {/* ── KPI Metric Cards ────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl space-y-1.5">
-          <div className="flex items-center justify-between text-[#A1A1AA]">
+        <div className="p-4 bg-[#0a091e] border border-white/10 rounded-2xl space-y-1.5">
+          <div className="flex items-center justify-between text-gray-400">
             <span className="text-xs font-medium uppercase tracking-wider">Active Staff</span>
             <Users size={18} className="text-amber-400" />
           </div>
-          <div className="text-2xl font-bold text-[#FAFAFA]">{kpis.activeStaff}</div>
-          <p className="text-xs text-[#71717A]">{employees.length} total registered</p>
+          <div className="text-2xl font-bold text-white">{kpis.activeStaff}</div>
+          <p className="text-xs text-gray-500">{employees.length} total registered</p>
         </div>
 
-        <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl space-y-1.5">
-          <div className="flex items-center justify-between text-[#A1A1AA]">
+        <div className="p-4 bg-[#0a091e] border border-white/10 rounded-2xl space-y-1.5">
+          <div className="flex items-center justify-between text-gray-400">
             <span className="text-xs font-medium uppercase tracking-wider">Total Monthly CTC</span>
             <TrendingUp size={18} className="text-emerald-400" />
           </div>
-          <div className="text-2xl font-bold text-[#FAFAFA]">{formatINR(kpis.totalMonthlyCtc)}</div>
-          <p className="text-xs text-[#71717A]">Active payroll commitment</p>
+          <div className="text-2xl font-bold text-white">{formatINR(kpis.totalMonthlyCtc)}</div>
+          <p className="text-xs text-gray-500">Active payroll commitment</p>
         </div>
 
-        <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl space-y-1.5">
-          <div className="flex items-center justify-between text-[#A1A1AA]">
+        <div className="p-4 bg-[#0a091e] border border-white/10 rounded-2xl space-y-1.5">
+          <div className="flex items-center justify-between text-gray-400">
             <span className="text-xs font-medium uppercase tracking-wider">Pending Advances</span>
             <CreditCard size={18} className="text-blue-400" />
           </div>
-          <div className="text-2xl font-bold text-[#FAFAFA]">{formatINR(kpis.pendingAdvances)}</div>
-          <p className="text-xs text-[#71717A]">Recovery in {MONTHS[selectedMonth - 1]?.label}</p>
+          <div className="text-2xl font-bold text-white">{formatINR(kpis.pendingAdvances)}</div>
+          <p className="text-xs text-gray-500">Recovery in {MONTHS[selectedMonth - 1]?.label}</p>
         </div>
 
-        <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl space-y-1.5">
-          <div className="flex items-center justify-between text-[#A1A1AA]">
+        <div className="p-4 bg-[#0a091e] border border-white/10 rounded-2xl space-y-1.5">
+          <div className="flex items-center justify-between text-gray-400">
             <span className="text-xs font-medium uppercase tracking-wider">Disbursed Net Pay</span>
             <DollarSign size={18} className="text-purple-400" />
           </div>
-          <div className="text-2xl font-bold text-[#FAFAFA]">{formatINR(kpis.finalizedNetPayroll)}</div>
-          <p className="text-xs text-[#71717A]">{payrollRuns.length} calculated records</p>
+          <div className="text-2xl font-bold text-white">{formatINR(kpis.finalizedNetPayroll)}</div>
+          <p className="text-xs text-gray-500">{payrollRuns.length} calculated records</p>
         </div>
       </div>
 
-      {/* ── Navigation Tabs ─────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 overflow-x-auto border-b border-[#27272A] pb-px no-scrollbar">
+      {/* ── Navigation Tabs (Pacific Brand Pills) ─────────────────────────── */}
+      <div className="flex items-center gap-2 overflow-x-auto border-b border-white/10 pb-2 no-scrollbar">
         {[
           { id: 'directory', label: 'Employee Directory', icon: <Users size={16} />, badge: employees.length },
           {
@@ -1426,16 +1430,18 @@ export function EmployeeManagementPage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-xs sm:text-sm whitespace-nowrap transition-all cursor-pointer ${
               activeTab === tab.id
-                ? 'border-amber-500 text-amber-400 bg-amber-500/5'
-                : 'border-transparent text-[#A1A1AA] hover:text-[#FAFAFA] hover:border-[#3F3F46]'
+                ? 'bg-[#7FB706] text-white shadow-lg shadow-[#7FB706]/20'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
             {tab.icon}
             <span>{tab.label}</span>
             {tab.badge !== undefined && (
-              <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-[#27272A] text-[#FAFAFA]">
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
+                activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-white/10 text-gray-300'
+              }`}>
                 {tab.badge}
               </span>
             )}
@@ -1449,23 +1455,23 @@ export function EmployeeManagementPage() {
       {activeTab === 'directory' && (
         <div className="space-y-4">
           {/* Filters Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3 rounded-2xl border border-[#27272A]">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0a091e] p-3 rounded-2xl border border-white/10">
             <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
               <div className="relative flex-1 min-w-[200px]">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]" />
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                 <input
                   type="text"
                   placeholder="Search by name, ID (PPSE...), email, phone..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-sm text-[#FAFAFA] placeholder-[#71717A] focus:outline-none focus:border-amber-500"
+                  className="w-full pl-9 pr-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706]"
                 />
               </div>
 
               <select
                 value={selectedDepartment}
                 onChange={(e) => setSelectedDepartment(e.target.value)}
-                className="bg-[#09090B] border border-[#27272A] text-sm text-[#FAFAFA] rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+                className="bg-[#030213] border border-white/10 text-sm text-white rounded-xl px-3 py-2 focus:outline-none focus:border-[#7FB706]"
               >
                 {DEPARTMENTS.map((d) => (
                   <option key={d} value={d}>
@@ -1477,7 +1483,7 @@ export function EmployeeManagementPage() {
               <select
                 value={selectedDesignation}
                 onChange={(e) => setSelectedDesignation(e.target.value)}
-                className="bg-[#09090B] border border-[#27272A] text-sm text-[#FAFAFA] rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+                className="bg-[#030213] border border-white/10 text-sm text-white rounded-xl px-3 py-2 focus:outline-none focus:border-[#7FB706]"
               >
                 <option value="All Designations">All Designations</option>
                 {COMMON_DESIGNATIONS.map((desig) => (
@@ -1490,7 +1496,7 @@ export function EmployeeManagementPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as any)}
-                className="bg-[#09090B] border border-[#27272A] text-sm text-[#FAFAFA] rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+                className="bg-[#030213] border border-white/10 text-sm text-white rounded-xl px-3 py-2 focus:outline-none focus:border-[#7FB706]"
               >
                 <option value="ALL">All Status</option>
                 <option value="ACTIVE">Active Staff</option>
@@ -1500,10 +1506,10 @@ export function EmployeeManagementPage() {
           </div>
 
           {/* Directory Table */}
-          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+          <div className="bg-[#0a091e] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+              <table className="w-full text-left text-sm hidden lg:table">
+                <thead className="bg-[#030213] text-gray-500 text-xs uppercase tracking-wider border-b border-white/10">
                   <tr>
                     <th className="px-4 py-3.5">Employee ID</th>
                     <th className="px-4 py-3.5">Name & Contact</th>
@@ -1516,61 +1522,61 @@ export function EmployeeManagementPage() {
                     <th className="px-4 py-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#27272A]">
+                <tbody className="divide-y divide-white/10">
                   {isLoadingEmployees ? (
                     <tr>
-                      <td colSpan={9} className="px-4 py-12 text-center text-[#71717A]">
+                      <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
                         <RefreshCw className="animate-spin inline-block mr-2" size={18} />
                         Loading employee directory...
                       </td>
                     </tr>
                   ) : employees.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-4 py-12 text-center text-[#71717A]">
+                      <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
                         No employees found matching the criteria. Click &quot;Add Employee&quot; to register staff.
                       </td>
                     </tr>
                   ) : (
                     employees.map((emp) => (
-                      <tr key={emp.id} className="hover:bg-[#27272A]/40 transition">
+                      <tr key={emp.id} className="hover:bg-white/5 transition">
                         <td className="px-4 py-3.5 font-mono text-xs font-semibold text-amber-400">
                           {emp.employeeId}
                         </td>
                         <td className="px-4 py-3.5">
-                          <div className="font-medium text-[#FAFAFA]">{emp.name}</div>
-                          <div className="text-xs text-[#71717A]">{emp.email} • {emp.phone}</div>
+                          <div className="font-medium text-white">{emp.name}</div>
+                          <div className="text-xs text-gray-500">{emp.email} • {emp.phone}</div>
                         </td>
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[#FAFAFA] font-medium">{emp.designation}</span>
+                            <span className="text-white font-medium">{emp.designation}</span>
                             {emp.designation.toLowerCase() === 'workers' && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
                                 Worker
                               </span>
                             )}
                           </div>
-                          <div className="text-xs text-[#71717A]">{emp.department}</div>
+                          <div className="text-xs text-gray-500">{emp.department}</div>
                         </td>
                         <td className="px-4 py-3.5">
-                          <span className="text-xs font-mono px-2 py-0.5 rounded bg-[#09090B] border border-[#27272A] text-[#FAFAFA]">
+                          <span className="text-xs font-mono px-2 py-0.5 rounded bg-[#030213] border border-white/10 text-white">
                             {emp.governmentIdType}: {emp.governmentIdNumber}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 text-xs text-[#A1A1AA]">
+                        <td className="px-4 py-3.5 text-xs text-gray-400">
                           {emp.bankName || emp.bankAccountNumber ? (
                             <>
-                              <div className="font-medium text-[#FAFAFA]">{emp.bankName || 'Disbursement Account'}</div>
-                              <div className="font-mono text-[11px] text-[#71717A]">
+                              <div className="font-medium text-white">{emp.bankName || 'Disbursement Account'}</div>
+                              <div className="font-mono text-[11px] text-gray-500">
                                 {emp.bankAccountNumber || '—'} {emp.bankIfsc ? `(${emp.bankIfsc})` : ''}
                               </div>
                             </>
                           ) : (
-                            <span className="inline-flex items-center text-[11px] text-[#71717A] italic px-1.5 py-0.5 rounded bg-zinc-800/40 border border-zinc-700/30">
+                            <span className="inline-flex items-center text-[11px] text-gray-500 italic px-1.5 py-0.5 rounded bg-zinc-800/40 border border-zinc-700/30">
                               Optional (Not Provided)
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3.5 font-semibold text-[#FAFAFA]">
+                        <td className="px-4 py-3.5 font-semibold text-white">
                           {formatINR(emp.monthlyCtc)}
                         </td>
                         <td className="px-4 py-3.5 text-xs">
@@ -1594,7 +1600,7 @@ export function EmployeeManagementPage() {
                               setEditingEmployee(emp);
                               setIsAddEmployeeModalOpen(true);
                             }}
-                            className="p-1.5 text-[#A1A1AA] hover:text-amber-400 transition"
+                            className="p-1.5 text-gray-400 hover:text-amber-400 transition"
                             title="Edit Employee"
                           >
                             <Edit2 size={15} />
@@ -1602,7 +1608,7 @@ export function EmployeeManagementPage() {
                           {isSuperAdmin && emp.status === 'ACTIVE' && (
                             <button
                               onClick={() => handleDeactivateEmployee(emp.id)}
-                              className="p-1.5 text-[#A1A1AA] hover:text-rose-400 transition"
+                              className="p-1.5 text-gray-400 hover:text-rose-400 transition"
                               title="Deactivate Employee"
                             >
                               <UserX size={15} />
@@ -1615,6 +1621,87 @@ export function EmployeeManagementPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile Employee Directory Cards */}
+            <div className="lg:hidden divide-y divide-white/10 p-3 space-y-3">
+              {isLoadingEmployees ? (
+                <div className="py-10 text-center text-gray-500">
+                  <RefreshCw className="animate-spin inline-block mr-2" size={18} />
+                  Loading employee directory...
+                </div>
+              ) : employees.length === 0 ? (
+                <div className="py-10 text-center text-gray-500 text-sm">
+                  No employees found matching criteria. Click "Add Employee" to register staff.
+                </div>
+              ) : (
+                employees.map((emp) => (
+                  <div key={emp.id} className="bg-[#030213] p-4 rounded-xl border border-white/10 space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-semibold text-white text-base">{emp.name}</div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="font-mono text-xs text-[#B5F823] bg-[#7FB706]/15 px-1.5 py-0.5 rounded border border-[#7FB706]/30 font-medium">
+                            {emp.employeeId}
+                          </span>
+                          <span className="text-xs text-gray-400">{emp.designation}</span>
+                        </div>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 text-xs rounded-full border ${
+                          emp.status === 'ACTIVE'
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                        }`}
+                      >
+                        {emp.status}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-white/5">
+                      <div>
+                        <span className="text-gray-500 block text-[10px] uppercase">Department</span>
+                        <span className="text-gray-300 font-medium">{emp.department}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block text-[10px] uppercase">Monthly CTC</span>
+                        <span className="text-white font-bold">{formatINR(emp.monthlyCtc)}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block text-[10px] uppercase">Contact</span>
+                        <span className="text-gray-300 truncate block">{emp.phone || emp.email || '—'}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block text-[10px] uppercase">Leave Balances</span>
+                        <span className="text-blue-400 font-medium">CL: {Number(emp.clBalance).toFixed(1)}</span>
+                        <span className="text-purple-400 font-medium ml-1.5">EL: {Number(emp.elBalance).toFixed(1)}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/5">
+                      <button
+                        onClick={() => {
+                          setEditingEmployee(emp);
+                          setIsAddEmployeeModalOpen(true);
+                        }}
+                        className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 rounded-lg text-xs font-medium flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit2 size={13} />
+                        <span>Edit</span>
+                      </button>
+                      {isSuperAdmin && emp.status === 'ACTIVE' && (
+                        <button
+                          onClick={() => handleDeactivateEmployee(emp.id)}
+                          className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-medium flex items-center gap-1 cursor-pointer"
+                        >
+                          <UserX size={13} />
+                          <span>Deactivate</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -1625,21 +1712,21 @@ export function EmployeeManagementPage() {
       {activeTab === 'workers' && (
         <div className="space-y-5">
           {/* Worker Hub Top Banner & Quick Actions */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#18181B] p-4 rounded-2xl border border-[#27272A]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#0a091e] p-4 rounded-2xl border border-white/10">
             <div>
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5">
                   <Construction size={13} />
                   <span>Workshop & Site Operations</span>
                 </span>
-                <span className="text-xs text-[#71717A]">
+                <span className="text-xs text-gray-500">
                   • {workerEmployees.filter((e) => e.status === 'ACTIVE').length} Active Workers
                 </span>
               </div>
-              <h2 className="text-lg sm:text-xl font-bold text-[#FAFAFA] mt-1">
+              <h2 className="text-lg sm:text-xl font-bold text-white mt-1">
                 Worker Operations: Attendance, Advances & Payroll Runs
               </h2>
-              <p className="text-xs text-[#A1A1AA] mt-0.5">
+              <p className="text-xs text-gray-400 mt-0.5">
                 Streamlined execution portal for factory workers, carpenters, fabricators, installers, and helpers.
               </p>
             </div>
@@ -1652,7 +1739,7 @@ export function EmployeeManagementPage() {
                   setModalDesignation('Workers');
                   setIsAddEmployeeModalOpen(true);
                 }}
-                className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-semibold rounded-xl shadow-lg transition flex items-center gap-1.5"
+                className="px-3.5 py-2 bg-[#7FB706] hover:bg-[#6fa005] cursor-pointer text-white text-xs font-semibold rounded-xl shadow-lg transition flex items-center gap-1.5"
               >
                 <Plus size={14} />
                 <span>Register Worker</span>
@@ -1662,21 +1749,21 @@ export function EmployeeManagementPage() {
 
           {/* Worker KPI Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-            <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl space-y-1">
-              <div className="flex items-center justify-between text-[#A1A1AA]">
+            <div className="p-4 bg-[#0a091e] border border-white/10 rounded-2xl space-y-1">
+              <div className="flex items-center justify-between text-gray-400">
                 <span className="text-xs font-medium uppercase tracking-wider">Active Workers</span>
                 <Users size={16} className="text-amber-400" />
               </div>
-              <div className="text-2xl font-bold text-[#FAFAFA]">{workerKpis.totalWorkers}</div>
-              <p className="text-xs text-[#71717A]">Workshop & site crew</p>
+              <div className="text-2xl font-bold text-white">{workerKpis.totalWorkers}</div>
+              <p className="text-xs text-gray-500">Workshop & site crew</p>
             </div>
 
-            <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl space-y-1">
-              <div className="flex items-center justify-between text-[#A1A1AA]">
+            <div className="p-4 bg-[#0a091e] border border-white/10 rounded-2xl space-y-1">
+              <div className="flex items-center justify-between text-gray-400">
                 <span className="text-xs font-medium uppercase tracking-wider">Today&apos;s Attendance</span>
                 <Calendar size={16} className="text-emerald-400" />
               </div>
-              <div className="text-2xl font-bold text-[#FAFAFA]">
+              <div className="text-2xl font-bold text-white">
                 {workerKpis.presentToday} / {workerKpis.totalWorkers}
               </div>
               <p className="text-xs text-emerald-400 font-medium">
@@ -1686,29 +1773,29 @@ export function EmployeeManagementPage() {
               </p>
             </div>
 
-            <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl space-y-1">
-              <div className="flex items-center justify-between text-[#A1A1AA]">
+            <div className="p-4 bg-[#0a091e] border border-white/10 rounded-2xl space-y-1">
+              <div className="flex items-center justify-between text-gray-400">
                 <span className="text-xs font-medium uppercase tracking-wider">Worker Advances</span>
                 <DollarSign size={16} className="text-blue-400" />
               </div>
-              <div className="text-2xl font-bold text-[#FAFAFA]">{formatINR(workerKpis.pendingAdvances)}</div>
-              <p className="text-xs text-[#71717A]">Recovery in {MONTHS[selectedMonth - 1]?.label}</p>
+              <div className="text-2xl font-bold text-white">{formatINR(workerKpis.pendingAdvances)}</div>
+              <p className="text-xs text-gray-500">Recovery in {MONTHS[selectedMonth - 1]?.label}</p>
             </div>
 
-            <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl space-y-1">
-              <div className="flex items-center justify-between text-[#A1A1AA]">
+            <div className="p-4 bg-[#0a091e] border border-white/10 rounded-2xl space-y-1">
+              <div className="flex items-center justify-between text-gray-400">
                 <span className="text-xs font-medium uppercase tracking-wider">Net Worker Payroll</span>
                 <TrendingUp size={16} className="text-purple-400" />
               </div>
-              <div className="text-2xl font-bold text-[#FAFAFA]">{formatINR(workerKpis.netPayroll)}</div>
-              <p className="text-xs text-[#71717A]">
+              <div className="text-2xl font-bold text-white">{formatINR(workerKpis.netPayroll)}</div>
+              <p className="text-xs text-gray-500">
                 {workerKpis.paidCount} of {workerKpis.totalPayrollCount} runs disbursed
               </p>
             </div>
           </div>
 
           {/* Sub-Tabs Selector */}
-          <div className="flex items-center gap-2 border-b border-[#27272A] pb-2 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-2 border-b border-white/10 pb-2 overflow-x-auto no-scrollbar">
             {[
               { id: 'directory', label: '1. Worker Directory', icon: <Users size={15} />, badge: workerEmployees.length },
               { id: 'attendance', label: '2. Worker Attendance Matrix', icon: <Calendar size={15} /> },
@@ -1736,13 +1823,13 @@ export function EmployeeManagementPage() {
                 className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-xl border transition whitespace-nowrap ${
                   workerSubTab === st.id
                     ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 shadow-sm'
-                    : 'bg-[#18181B] text-[#A1A1AA] border-[#27272A] hover:text-[#FAFAFA]'
+                    : 'bg-[#0a091e] text-gray-400 border-white/10 hover:text-white'
                 }`}
               >
                 {st.icon}
                 <span>{st.label}</span>
                 {st.badge !== undefined && st.badge > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 rounded-full bg-[#09090B] text-amber-400 text-[10px] font-mono border border-amber-500/20">
+                  <span className="ml-1 px-1.5 py-0.5 rounded-full bg-[#030213] text-amber-400 text-[10px] font-mono border border-amber-500/20">
                     {st.badge}
                   </span>
                 )}
@@ -1753,19 +1840,19 @@ export function EmployeeManagementPage() {
           {/* ── SUB-VIEW 0: WORKER DIRECTORY ─────────────────────────────────── */}
           {workerSubTab === 'directory' && (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3.5 rounded-2xl border border-[#27272A]">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0a091e] p-3.5 rounded-2xl border border-white/10">
                 <div className="relative flex-1 min-w-[240px]">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]" />
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                   <input
                     type="text"
                     placeholder="Search worker by name, ID (PPSE...), phone, or designation..."
                     value={workerSearchQuery}
                     onChange={(e) => setWorkerSearchQuery(e.target.value)}
-                    className="w-full bg-[#09090B] border border-[#27272A] text-xs text-[#FAFAFA] rounded-xl pl-8 pr-3 py-2 focus:outline-none focus:border-amber-500 placeholder:text-[#71717A]"
+                    className="w-full bg-[#030213] border border-white/10 text-xs text-white rounded-xl pl-8 pr-3 py-2 focus:outline-none focus:border-[#7FB706] placeholder:text-gray-500"
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-[#71717A]">
+                  <span className="text-xs text-gray-500">
                     Showing{' '}
                     {
                       workerEmployees.filter(
@@ -1795,10 +1882,10 @@ export function EmployeeManagementPage() {
               </div>
 
               {/* Workers Table */}
-              <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+              <div className="bg-[#0a091e] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
-                    <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                    <thead className="bg-[#030213] text-gray-500 text-xs uppercase tracking-wider border-b border-white/10">
                       <tr>
                         <th className="px-4 py-3.5">Worker ID</th>
                         <th className="px-4 py-3.5">Name & Contact</th>
@@ -1810,10 +1897,10 @@ export function EmployeeManagementPage() {
                         <th className="px-4 py-3.5 text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#27272A]">
+                    <tbody className="divide-y divide-white/10">
                       {workerEmployees.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="px-4 py-12 text-center text-[#71717A]">
+                          <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
                             No workers registered yet. Click &quot;Add Worker&quot; above to register workshop staff.
                           </td>
                         </tr>
@@ -1828,13 +1915,13 @@ export function EmployeeManagementPage() {
                               (e.designation || '').toLowerCase().includes(workerSearchQuery.toLowerCase())
                           )
                           .map((worker) => (
-                            <tr key={worker.id} className="hover:bg-[#27272A]/40 transition">
+                            <tr key={worker.id} className="hover:bg-white/5 transition">
                               <td className="px-4 py-3.5 font-mono text-xs font-semibold text-amber-400">
                                 {worker.employeeId}
                               </td>
                               <td className="px-4 py-3.5">
-                                <div className="font-medium text-[#FAFAFA]">{worker.name}</div>
-                                <div className="text-xs text-[#71717A]">
+                                <div className="font-medium text-white">{worker.name}</div>
+                                <div className="text-xs text-gray-500">
                                   {worker.phone}
                                   {worker.email && !worker.email.includes('@internal.prc') ? ` • ${worker.email}` : ''}
                                 </div>
@@ -1843,15 +1930,15 @@ export function EmployeeManagementPage() {
                                 <span className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
                                   {worker.designation}
                                 </span>
-                                <div className="text-xs text-[#71717A] mt-0.5">{worker.department}</div>
+                                <div className="text-xs text-gray-500 mt-0.5">{worker.department}</div>
                               </td>
-                              <td className="px-4 py-3.5 text-xs text-[#A1A1AA]">
+                              <td className="px-4 py-3.5 text-xs text-gray-400">
                                 {worker.joiningDate ? new Date(worker.joiningDate).toLocaleDateString('en-IN') : '—'}
                               </td>
-                              <td className="px-4 py-3.5 text-xs font-mono font-medium text-[#FAFAFA]">
+                              <td className="px-4 py-3.5 text-xs font-mono font-medium text-white">
                                 {Number(worker.monthlyCtc) > 0 ? formatINR(worker.monthlyCtc) : 'Daily-wage / Variable'}
                               </td>
-                              <td className="px-4 py-3.5 text-xs font-mono text-[#71717A]">
+                              <td className="px-4 py-3.5 text-xs font-mono text-gray-500">
                                 {worker.governmentIdType}: {worker.governmentIdNumber}
                               </td>
                               <td className="px-4 py-3.5">
@@ -1871,7 +1958,7 @@ export function EmployeeManagementPage() {
                                     setEditingEmployee(worker);
                                     setIsAddEmployeeModalOpen(true);
                                   }}
-                                  className="p-1.5 text-[#A1A1AA] hover:text-amber-400 transition"
+                                  className="p-1.5 text-gray-400 hover:text-amber-400 transition"
                                   title="Edit Worker Details"
                                 >
                                   <Edit2 size={15} />
@@ -1890,13 +1977,13 @@ export function EmployeeManagementPage() {
           {/* ── SUB-VIEW 1: WORKER ATTENDANCE MATRIX ─────────────────────────── */}
           {workerSubTab === 'attendance' && (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3.5 rounded-2xl border border-[#27272A]">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0a091e] p-3.5 rounded-2xl border border-white/10">
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="text-sm font-semibold text-[#FAFAFA]">Target Day:</span>
+                  <span className="text-sm font-semibold text-white">Target Day:</span>
                   <select
                     value={selectedAttendanceDay}
                     onChange={(e) => setSelectedAttendanceDay(Number(e.target.value))}
-                    className="bg-[#09090B] border border-[#27272A] text-sm text-[#FAFAFA] rounded-xl px-3 py-1.5 focus:outline-none focus:border-amber-500"
+                    className="bg-[#030213] border border-white/10 text-sm text-white rounded-xl px-3 py-1.5 focus:outline-none focus:border-[#7FB706]"
                   >
                     {Array.from({ length: totalDaysInMonth }).map((_, i) => {
                       const dayNum = i + 1;
@@ -1913,7 +2000,7 @@ export function EmployeeManagementPage() {
                   <button
                     type="button"
                     onClick={() => handleMarkAllWorkersPresentForDay(selectedAttendanceDay)}
-                    className="px-3.5 py-1.5 bg-[#09090B] hover:bg-[#27272A] text-emerald-400 text-xs font-semibold rounded-xl border border-emerald-500/30 transition flex items-center gap-1.5 shadow-sm"
+                    className="px-3.5 py-1.5 bg-[#030213] hover:bg-white/10 text-emerald-400 text-xs font-semibold rounded-xl border border-emerald-500/30 transition flex items-center gap-1.5 shadow-sm"
                   >
                     <Check size={14} />
                     <span>Mark All Workers Present (Day {selectedAttendanceDay})</span>
@@ -1922,7 +2009,7 @@ export function EmployeeManagementPage() {
                   <button
                     type="button"
                     onClick={() => handleMarkAllWorkersHolidayForDay(selectedAttendanceDay)}
-                    className="px-3.5 py-1.5 bg-[#09090B] hover:bg-[#27272A] text-indigo-400 text-xs font-semibold rounded-xl border border-indigo-500/30 transition flex items-center gap-1.5 shadow-sm"
+                    className="px-3.5 py-1.5 bg-[#030213] hover:bg-white/10 text-indigo-400 text-xs font-semibold rounded-xl border border-indigo-500/30 transition flex items-center gap-1.5 shadow-sm"
                     title={`Mark all active workers as Holiday for Day ${selectedAttendanceDay}`}
                   >
                     <Calendar size={14} />
@@ -1933,7 +2020,7 @@ export function EmployeeManagementPage() {
                     type="button"
                     disabled={isDownloadingAttendancePdf}
                     onClick={() => handleDownloadMonthlyAttendancePdf(true)}
-                    className="px-3.5 py-1.5 bg-[#09090B] hover:bg-[#27272A] text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                    className="px-3.5 py-1.5 bg-[#030213] hover:bg-white/10 text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                     title={`Download Month-Wise Attendance & Payroll Register PDF for Workers (${MONTHS[selectedMonth - 1]?.label} ${selectedYear})`}
                   >
                     {isDownloadingAttendancePdf ? (
@@ -1946,22 +2033,22 @@ export function EmployeeManagementPage() {
                 </div>
 
                 <div className="relative min-w-[220px]">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]" />
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                   <input
                     type="text"
                     placeholder="Search worker by name or ID..."
                     value={workerSearchQuery}
                     onChange={(e) => setWorkerSearchQuery(e.target.value)}
-                    className="w-full bg-[#09090B] border border-[#27272A] text-xs text-[#FAFAFA] rounded-xl pl-8 pr-3 py-1.5 focus:outline-none focus:border-amber-500 placeholder:text-[#71717A]"
+                    className="w-full bg-[#030213] border border-white/10 text-xs text-white rounded-xl pl-8 pr-3 py-1.5 focus:outline-none focus:border-[#7FB706] placeholder:text-gray-500"
                   />
                 </div>
               </div>
 
               {/* Worker Attendance Table */}
-              <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+              <div className="bg-[#0a091e] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
-                    <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                    <thead className="bg-[#030213] text-gray-500 text-xs uppercase tracking-wider border-b border-white/10">
                       <tr>
                         <th className="px-4 py-3.5">Worker Profile</th>
                         <th className="px-4 py-3.5">Status (Day {selectedAttendanceDay})</th>
@@ -1972,7 +2059,7 @@ export function EmployeeManagementPage() {
                         <th className="px-4 py-3.5 text-right">Edit</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#27272A]">
+                    <tbody className="divide-y divide-white/10">
                       {workerEmployees
                         .filter(
                           (e) =>
@@ -2007,9 +2094,9 @@ export function EmployeeManagementPage() {
                           );
 
                           return (
-                            <tr key={emp.id} className="hover:bg-[#27272A]/40 transition">
+                            <tr key={emp.id} className="hover:bg-white/5 transition">
                               <td className="px-4 py-3.5">
-                                <div className="font-semibold text-[#FAFAFA]">{emp.name}</div>
+                                <div className="font-semibold text-white">{emp.name}</div>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                   <span className="text-xs font-mono text-amber-400">{emp.employeeId}</span>
                                   <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
@@ -2035,7 +2122,7 @@ export function EmployeeManagementPage() {
                                     </span>
                                     {record.notes && (
                                       <div
-                                        className="text-[11px] text-[#71717A] italic mt-1 max-w-[150px] truncate"
+                                        className="text-[11px] text-gray-500 italic mt-1 max-w-[150px] truncate"
                                         title={record.notes}
                                       >
                                         Note: {record.notes}
@@ -2043,7 +2130,7 @@ export function EmployeeManagementPage() {
                                     )}
                                   </div>
                                 ) : (
-                                  <span className="text-xs text-[#71717A] italic">Not Recorded</span>
+                                  <span className="text-xs text-gray-500 italic">Not Recorded</span>
                                 )}
                               </td>
 
@@ -2057,7 +2144,7 @@ export function EmployeeManagementPage() {
                                       className={`px-2 py-1 text-xs rounded-lg border transition ${
                                         record?.status === st
                                           ? (ATTENDANCE_STATUS_LABELS[st]?.bg || 'bg-zinc-800 text-zinc-200') + ' font-bold shadow-sm'
-                                          : 'bg-[#09090B] text-[#A1A1AA] border-[#27272A] hover:bg-[#27272A] hover:text-[#FAFAFA]'
+                                          : 'bg-[#030213] text-gray-400 border-white/10 hover:bg-white/10 hover:text-white'
                                       }`}
                                       title={
                                         st === 'DOUBLE_DUTY'
@@ -2103,7 +2190,7 @@ export function EmployeeManagementPage() {
                                       handleOvertimeChange(emp.id, selectedAttendanceDay, val);
                                     }
                                   }}
-                                  className="w-20 px-2 py-1 bg-[#09090B] border border-[#27272A] rounded-lg text-xs text-[#FAFAFA] focus:outline-none focus:border-amber-500 font-mono"
+                                  className="w-20 px-2 py-1 bg-[#030213] border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-[#7FB706] font-mono"
                                 />
                               </td>
 
@@ -2115,18 +2202,18 @@ export function EmployeeManagementPage() {
                                     className={`px-2.5 py-1 text-xs rounded-xl border transition ${
                                       record?.isSundayOverride
                                         ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 font-semibold'
-                                        : 'bg-[#09090B] text-[#71717A] border-[#27272A] hover:text-[#FAFAFA]'
+                                        : 'bg-[#030213] text-gray-500 border-white/10 hover:text-white'
                                     }`}
                                   >
                                     {record?.isSundayOverride ? 'Approved (Paid)' : 'Off Day'}
                                   </button>
                                 ) : (
-                                  <span className="text-xs text-[#71717A]">—</span>
+                                  <span className="text-xs text-gray-500">—</span>
                                 )}
                               </td>
 
-                              <td className="px-4 py-3.5 text-xs text-[#A1A1AA]">
-                                <div className="font-medium text-[#FAFAFA]">
+                              <td className="px-4 py-3.5 text-xs text-gray-400">
+                                <div className="font-medium text-white">
                                   {monthPresent} P {monthDoubleDuty > 0 && <span className="text-cyan-400 font-semibold">| {monthDoubleDuty} DD</span>} | {monthHalf} Half {monthHoliday > 0 && <span className="text-indigo-400 font-semibold">| {monthHoliday} Hol</span>}
                                 </div>
                                 <div className="text-[11px] text-emerald-400">
@@ -2145,7 +2232,7 @@ export function EmployeeManagementPage() {
                                       dateStr: targetDateStr,
                                     })
                                   }
-                                  className="p-1.5 text-[#A1A1AA] hover:text-amber-400 hover:bg-[#27272A] rounded-lg transition"
+                                  className="p-1.5 text-gray-400 hover:text-amber-400 hover:bg-white/10 rounded-lg transition"
                                   title="Edit detailed attendance"
                                 >
                                   <Edit2 size={14} />
@@ -2164,19 +2251,19 @@ export function EmployeeManagementPage() {
           {/* ── SUB-VIEW 2: WORKER ADVANCES & RECOVERY ───────────────────────── */}
           {workerSubTab === 'advances' && (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3.5 rounded-2xl border border-[#27272A]">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0a091e] p-3.5 rounded-2xl border border-white/10">
                 <div>
-                  <h3 className="text-base font-semibold text-[#FAFAFA]">
+                  <h3 className="text-base font-semibold text-white">
                     Worker Salary Advances: {MONTHS[selectedMonth - 1]?.label} {selectedYear}
                   </h3>
-                  <p className="text-xs text-[#A1A1AA]">
+                  <p className="text-xs text-gray-400">
                     Cash and digital advances issued to workshop/site workers. Automatically deducted during monthly payroll run.
                   </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <div className="px-3 py-1.5 bg-[#09090B] border border-amber-500/30 rounded-xl flex items-center gap-2">
-                    <span className="text-[11px] text-[#A1A1AA]">Workers Pending Recovery:</span>
+                  <div className="px-3 py-1.5 bg-[#030213] border border-amber-500/30 rounded-xl flex items-center gap-2">
+                    <span className="text-[11px] text-gray-400">Workers Pending Recovery:</span>
                     <span className="text-sm font-bold text-amber-400 font-mono">
                       {formatINR(
                         advancesList
@@ -2191,7 +2278,7 @@ export function EmployeeManagementPage() {
                       setActiveTab('advances');
                       setAdvancesSubTab('ledger');
                     }}
-                    className="px-3 py-1.5 bg-[#09090B] hover:bg-[#27272A] border border-[#27272A] rounded-xl text-xs text-[#FAFAFA] font-medium transition flex items-center gap-1.5"
+                    className="px-3 py-1.5 bg-[#030213] hover:bg-white/10 border border-white/10 rounded-xl text-xs text-white font-medium transition flex items-center gap-1.5"
                   >
                     <History size={13} className="text-amber-400" />
                     <span>Credit & Debit Ledger</span>
@@ -2199,7 +2286,7 @@ export function EmployeeManagementPage() {
                   <button
                     type="button"
                     onClick={() => setIsAddAdvanceModalOpen(true)}
-                    className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-semibold rounded-xl shadow transition flex items-center gap-1.5"
+                    className="px-4 py-2 bg-[#7FB706] hover:bg-[#6fa005] cursor-pointer text-white text-xs font-semibold rounded-xl shadow transition flex items-center gap-1.5"
                   >
                     <Plus size={14} />
                     <span>Issue Worker Advance</span>
@@ -2208,10 +2295,10 @@ export function EmployeeManagementPage() {
               </div>
 
               {/* Worker Advances Table */}
-              <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+              <div className="bg-[#0a091e] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
-                    <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                    <thead className="bg-[#030213] text-gray-500 text-xs uppercase tracking-wider border-b border-white/10">
                       <tr>
                         <th className="px-4 py-3.5">Worker</th>
                         <th className="px-4 py-3.5">Amount Disbursed</th>
@@ -2223,16 +2310,16 @@ export function EmployeeManagementPage() {
                         <th className="px-4 py-3.5 text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#27272A]">
+                    <tbody className="divide-y divide-white/10">
                       {isLoadingAdvances ? (
                         <tr>
-                          <td colSpan={8} className="px-4 py-8 text-center text-[#71717A]">
+                          <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                             Loading worker advances...
                           </td>
                         </tr>
                       ) : advancesList.filter((a) => workerEmployees.some((w) => w.id === a.employeeId)).length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="px-4 py-8 text-center text-[#71717A]">
+                          <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                             No worker advances scheduled for {MONTHS[selectedMonth - 1]?.label} {selectedYear}.
                           </td>
                         </tr>
@@ -2240,15 +2327,15 @@ export function EmployeeManagementPage() {
                         advancesList
                           .filter((a) => workerEmployees.some((w) => w.id === a.employeeId))
                           .map((adv) => (
-                            <tr key={adv.id} className="hover:bg-[#27272A]/40 transition">
+                            <tr key={adv.id} className="hover:bg-white/5 transition">
                               <td className="px-4 py-3.5">
-                                <div className="font-semibold text-[#FAFAFA]">{adv.employee?.name}</div>
+                                <div className="font-semibold text-white">{adv.employee?.name}</div>
                                 <div className="text-xs font-mono text-amber-400">{adv.employee?.employeeId}</div>
                               </td>
-                              <td className="px-4 py-3.5 font-bold text-[#FAFAFA] font-mono">
+                              <td className="px-4 py-3.5 font-bold text-white font-mono">
                                 {formatINR(adv.amount)}
                                 {adv.originalAmount && Number(adv.originalAmount) > Number(adv.amount) && (
-                                  <div className="text-[10px] text-[#71717A] font-normal">
+                                  <div className="text-[10px] text-gray-500 font-normal">
                                     Orig: {formatINR(adv.originalAmount)}
                                   </div>
                                 )}
@@ -2270,7 +2357,7 @@ export function EmployeeManagementPage() {
                                   </div>
                                 )}
                               </td>
-                              <td className="px-4 py-3.5 text-xs text-[#FAFAFA]">
+                              <td className="px-4 py-3.5 text-xs text-white">
                                 {adv.advanceDate
                                   ? new Date(adv.advanceDate).toLocaleDateString('en-IN', {
                                       day: '2-digit',
@@ -2285,8 +2372,8 @@ export function EmployeeManagementPage() {
                                     })
                                   : '—'}
                               </td>
-                              <td className="px-4 py-3.5 text-xs text-[#A1A1AA]">{adv.reason}</td>
-                              <td className="px-4 py-3.5 text-xs text-[#FAFAFA]">
+                              <td className="px-4 py-3.5 text-xs text-gray-400">{adv.reason}</td>
+                              <td className="px-4 py-3.5 text-xs text-white">
                                 {MONTHS[adv.recoveryMonth - 1]?.label} {adv.recoveryYear}
                               </td>
                               <td className="px-4 py-3.5">
@@ -2304,7 +2391,7 @@ export function EmployeeManagementPage() {
                                 <button
                                   type="button"
                                   onClick={() => setEditingAdvance(adv)}
-                                  className="p-1.5 text-[#A1A1AA] hover:text-amber-400 hover:bg-[#27272A] rounded-lg transition"
+                                  className="p-1.5 text-gray-400 hover:text-amber-400 hover:bg-white/10 rounded-lg transition"
                                   title="Edit Advance"
                                 >
                                   <Edit2 size={14} />
@@ -2332,7 +2419,7 @@ export function EmployeeManagementPage() {
                                       await employeeService.deleteAdvance(adv.id);
                                       fetchAdvancesAndDeductions();
                                     }}
-                                    className="p-1.5 text-[#71717A] hover:text-rose-400 hover:bg-[#27272A] rounded-lg transition"
+                                    className="p-1.5 text-gray-500 hover:text-rose-400 hover:bg-white/10 rounded-lg transition"
                                     title="Delete Advance"
                                   >
                                     <Trash2 size={14} />
@@ -2352,10 +2439,10 @@ export function EmployeeManagementPage() {
           {/* ── SUB-VIEW 3: WORKER MONTHLY PAYROLL RUNS ──────────────────────── */}
           {workerSubTab === 'payroll' && (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3.5 rounded-2xl border border-[#27272A]">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0a091e] p-3.5 rounded-2xl border border-white/10">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-base font-semibold text-[#FAFAFA]">
+                    <h3 className="text-base font-semibold text-white">
                       Worker Wage Computation: {MONTHS[selectedMonth - 1]?.label} {selectedYear}
                     </h3>
                     <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -2363,7 +2450,7 @@ export function EmployeeManagementPage() {
                       Live Auto-Sync
                     </span>
                   </div>
-                  <p className="text-xs text-[#A1A1AA]">
+                  <p className="text-xs text-gray-400">
                     Net Pay = (Days Worked × Daily Rate) + Overtime Pay - Advances Auto-Recovered - Deductions.
                   </p>
                 </div>
@@ -2373,7 +2460,7 @@ export function EmployeeManagementPage() {
                     type="button"
                     disabled={isDownloadingAttendancePdf}
                     onClick={() => handleDownloadMonthlyAttendancePdf(true)}
-                    className="px-3.5 py-2 bg-[#09090B] hover:bg-[#27272A] text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                    className="px-3.5 py-2 bg-[#030213] hover:bg-white/10 text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                     title={`Download Month-Wise Worker Attendance & Payroll Register PDF (${MONTHS[selectedMonth - 1]?.label} ${selectedYear})`}
                   >
                     {isDownloadingAttendancePdf ? (
@@ -2388,7 +2475,7 @@ export function EmployeeManagementPage() {
                     type="button"
                     onClick={handleCalculatePayroll}
                     disabled={isCalculatingPayroll}
-                    className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-lg transition flex items-center gap-2"
+                    className="px-4 py-2 bg-[#7FB706] hover:bg-[#6fa005] cursor-pointer disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-lg transition flex items-center gap-2"
                   >
                     {isCalculatingPayroll ? <RefreshCw className="animate-spin" size={15} /> : <TrendingUp size={15} />}
                     <span>{isCalculatingPayroll ? 'Calculating Wages...' : 'Calculate Worker Payroll'}</span>
@@ -2397,10 +2484,10 @@ export function EmployeeManagementPage() {
               </div>
 
               {/* Worker Payroll Table */}
-              <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+              <div className="bg-[#0a091e] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
-                    <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                    <thead className="bg-[#030213] text-gray-500 text-xs uppercase tracking-wider border-b border-white/10">
                       <tr>
                         <th className="px-4 py-3.5">Worker</th>
                         <th className="px-4 py-3.5">Daily Rate / Monthly CTC</th>
@@ -2413,16 +2500,16 @@ export function EmployeeManagementPage() {
                         <th className="px-4 py-3.5 text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#27272A]">
+                    <tbody className="divide-y divide-white/10">
                       {isLoadingPayroll ? (
                         <tr>
-                          <td colSpan={9} className="px-4 py-12 text-center text-[#71717A]">
+                          <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
                             Loading worker payroll runs...
                           </td>
                         </tr>
                       ) : payrollRuns.filter((r) => workerEmployees.some((w) => w.id === r.employeeId)).length === 0 ? (
                         <tr>
-                          <td colSpan={9} className="px-4 py-12 text-center text-[#71717A]">
+                          <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
                             No payroll calculated yet for workers in {MONTHS[selectedMonth - 1]?.label} {selectedYear}. Click &quot;Calculate Worker Payroll&quot; above.
                           </td>
                         </tr>
@@ -2430,9 +2517,9 @@ export function EmployeeManagementPage() {
                         payrollRuns
                           .filter((r) => workerEmployees.some((w) => w.id === r.employeeId))
                           .map((run) => (
-                            <tr key={run.id} className="hover:bg-[#27272A]/40 transition">
+                            <tr key={run.id} className="hover:bg-white/5 transition">
                               <td className="px-4 py-3.5">
-                                <div className="font-semibold text-[#FAFAFA]">{run.employee?.name}</div>
+                                <div className="font-semibold text-white">{run.employee?.name}</div>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                   <span className="text-xs font-mono text-amber-400">{run.employee?.employeeId}</span>
                                   <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
@@ -2441,16 +2528,16 @@ export function EmployeeManagementPage() {
                                 </div>
                               </td>
 
-                              <td className="px-4 py-3.5 text-xs text-[#FAFAFA]">
+                              <td className="px-4 py-3.5 text-xs text-white">
                                 <div className="font-semibold">{formatINR(run.perDayRate)}/day</div>
-                                <div className="text-[11px] text-[#71717A]">{formatINR(run.monthlyCtc)}/mo</div>
+                                <div className="text-[11px] text-gray-500">{formatINR(run.monthlyCtc)}/mo</div>
                               </td>
 
                               <td className="px-4 py-3.5 text-xs">
-                                <div className="font-bold text-[#FAFAFA]">
+                                <div className="font-bold text-white">
                                   {run.payableDays} Fixed Divisor / <span className="text-emerald-400">{run.paidDays} Paid Days</span>
                                 </div>
-                                <div className="text-[11px] text-[#71717A]">
+                                <div className="text-[11px] text-gray-500">
                                   P: {run.presentDays} | Half: {run.halfDays} {Number(run.holidayDays || 0) > 0 && <span className="text-indigo-400">| Hol: {run.holidayDays}</span>} | Sun: {run.approvedSundays}
                                 </div>
                               </td>
@@ -2460,7 +2547,7 @@ export function EmployeeManagementPage() {
                                 <div className="text-emerald-400 font-medium">+{formatINR(run.overtimePay)}</div>
                               </td>
 
-                              <td className="px-4 py-3.5 font-semibold text-[#FAFAFA]">{formatINR(run.grossSalary)}</td>
+                              <td className="px-4 py-3.5 font-semibold text-white">{formatINR(run.grossSalary)}</td>
 
                               <td className="px-4 py-3.5 text-xs">
                                 <div className="text-rose-400 font-medium flex items-center gap-1.5">
@@ -2526,7 +2613,7 @@ export function EmployeeManagementPage() {
                                 <button
                                   type="button"
                                   onClick={() => handleDownloadPdf(run)}
-                                  className="p-1.5 text-[#A1A1AA] hover:text-[#FAFAFA] bg-[#09090B] border border-[#27272A] rounded-lg transition"
+                                  className="p-1.5 text-gray-400 hover:text-white bg-[#030213] border border-white/10 rounded-lg transition"
                                   title="Download Payslip PDF"
                                 >
                                   <Download size={14} />
@@ -2535,7 +2622,7 @@ export function EmployeeManagementPage() {
                                 <button
                                   type="button"
                                   onClick={() => handleResendEmail(run.id)}
-                                  className="p-1.5 text-[#A1A1AA] hover:text-amber-400 bg-[#09090B] border border-[#27272A] rounded-lg transition"
+                                  className="p-1.5 text-gray-400 hover:text-amber-400 bg-[#030213] border border-white/10 rounded-lg transition"
                                   title="Email Payslip to Worker"
                                 >
                                   <Mail size={14} />
@@ -2593,15 +2680,15 @@ export function EmployeeManagementPage() {
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 'attendance' && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3 rounded-2xl border border-[#27272A]">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0a091e] p-3 rounded-2xl border border-white/10">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm font-semibold text-[#FAFAFA]">
+              <span className="text-sm font-semibold text-white">
                 Target Day:
               </span>
               <select
                 value={selectedAttendanceDay}
                 onChange={(e) => setSelectedAttendanceDay(Number(e.target.value))}
-                className="bg-[#09090B] border border-[#27272A] text-sm text-[#FAFAFA] rounded-xl px-3 py-1.5 focus:outline-none focus:border-amber-500"
+                className="bg-[#030213] border border-white/10 text-sm text-white rounded-xl px-3 py-1.5 focus:outline-none focus:border-[#7FB706]"
               >
                 {Array.from({ length: totalDaysInMonth }).map((_, i) => {
                   const dayNum = i + 1;
@@ -2616,14 +2703,14 @@ export function EmployeeManagementPage() {
               </select>
 
               {/* Filter Pills: All Staff vs Workers Only */}
-              <div className="flex items-center bg-[#09090B] p-0.5 rounded-xl border border-[#27272A]">
+              <div className="flex items-center bg-[#030213] p-0.5 rounded-xl border border-white/10">
                 <button
                   type="button"
                   onClick={() => setWorkerAttendanceFilter('ALL')}
                   className={`px-2.5 py-1 text-xs rounded-lg font-medium transition ${
                     workerAttendanceFilter === 'ALL'
-                      ? 'bg-[#27272A] text-[#FAFAFA]'
-                      : 'text-[#71717A] hover:text-[#FAFAFA]'
+                      ? 'bg-white/10 text-white'
+                      : 'text-gray-500 hover:text-white'
                   }`}
                 >
                   All Staff ({employees.filter((e) => e.status === 'ACTIVE').length})
@@ -2634,7 +2721,7 @@ export function EmployeeManagementPage() {
                   className={`px-2.5 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1 ${
                     workerAttendanceFilter === 'WORKERS'
                       ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold'
-                      : 'text-[#71717A] hover:text-[#FAFAFA]'
+                      : 'text-gray-500 hover:text-white'
                   }`}
                 >
                   <Construction size={12} />
@@ -2649,7 +2736,7 @@ export function EmployeeManagementPage() {
                     ? handleMarkAllWorkersPresentForDay(selectedAttendanceDay)
                     : handleMarkAllPresentForDay(selectedAttendanceDay)
                 }
-                className="px-3 py-1.5 bg-[#09090B] hover:bg-[#27272A] text-emerald-400 text-xs font-semibold rounded-xl border border-emerald-500/30 transition flex items-center gap-1.5"
+                className="px-3 py-1.5 bg-[#030213] hover:bg-white/10 text-emerald-400 text-xs font-semibold rounded-xl border border-emerald-500/30 transition flex items-center gap-1.5"
               >
                 <Check size={14} />
                 <span>
@@ -2666,7 +2753,7 @@ export function EmployeeManagementPage() {
                     ? handleMarkAllWorkersHolidayForDay(selectedAttendanceDay)
                     : handleMarkAllHolidayForDay(selectedAttendanceDay)
                 }
-                className="px-3 py-1.5 bg-[#09090B] hover:bg-[#27272A] text-indigo-400 text-xs font-semibold rounded-xl border border-indigo-500/30 transition flex items-center gap-1.5"
+                className="px-3 py-1.5 bg-[#030213] hover:bg-white/10 text-indigo-400 text-xs font-semibold rounded-xl border border-indigo-500/30 transition flex items-center gap-1.5"
                 title={`Mark all ${workerAttendanceFilter === 'WORKERS' ? 'workers' : 'employees'} as Holiday for Day ${selectedAttendanceDay}`}
               >
                 <Calendar size={14} />
@@ -2681,7 +2768,7 @@ export function EmployeeManagementPage() {
                 type="button"
                 disabled={isDownloadingAttendancePdf}
                 onClick={() => handleDownloadMonthlyAttendancePdf(workerAttendanceFilter === 'WORKERS')}
-                className="px-3 py-1.5 bg-[#09090B] hover:bg-[#27272A] text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                className="px-3 py-1.5 bg-[#030213] hover:bg-white/10 text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                 title={`Download Month-Wise Master Attendance & Payroll Register PDF (${MONTHS[selectedMonth - 1]?.label} ${selectedYear})`}
               >
                 {isDownloadingAttendancePdf ? (
@@ -2695,18 +2782,18 @@ export function EmployeeManagementPage() {
               </button>
             </div>
 
-            <div className="text-xs text-[#71717A]">
+            <div className="text-xs text-gray-500">
               Sundays are off by default. Use &quot;Sunday Work Approved&quot; to credit approved Sunday shifts.
             </div>
           </div>
 
           {/* Attendance Daily Sheet Table */}
-          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+          <div className="bg-[#0a091e] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                <thead className="bg-[#030213] text-gray-500 text-xs uppercase tracking-wider border-b border-white/10">
                   <tr>
-                    <th className="px-4 py-3.5">Employee</th>
+                    <th className="px-4 py-3.5 sticky left-0 z-20 bg-[#030213] border-r border-white/10 min-w-[200px]">Employee</th>
                     <th className="px-4 py-3.5">Department</th>
                     <th className="px-4 py-3.5">Current Status</th>
                     <th className="px-4 py-3.5">Mark Attendance</th>
@@ -2715,7 +2802,7 @@ export function EmployeeManagementPage() {
                     <th className="px-4 py-3.5 text-right">Edit</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#27272A]">
+                <tbody className="divide-y divide-white/10">
                   {(workerAttendanceFilter === 'WORKERS' ? workerEmployees : employees)
                     .filter((e) => e.status === 'ACTIVE')
                     .map((emp) => {
@@ -2732,9 +2819,9 @@ export function EmployeeManagementPage() {
                       const isTargetSunday = new Date(selectedYear, selectedMonth - 1, selectedAttendanceDay).getDay() === 0;
 
                       return (
-                        <tr key={emp.id} className="hover:bg-[#27272A]/40 transition">
-                          <td className="px-4 py-3.5">
-                            <div className="font-medium text-[#FAFAFA]">{emp.name}</div>
+                        <tr key={emp.id} className="hover:bg-white/5 transition">
+                          <td className="px-4 py-3.5 sticky left-0 z-20 bg-[#0a091e] border-r border-white/10 min-w-[200px]">
+                            <div className="font-medium text-white">{emp.name}</div>
                             <div className="flex items-center gap-2 text-xs mt-0.5">
                               <span className="font-mono text-amber-400">{emp.employeeId}</span>
                               <span className="text-[10px] text-zinc-400">
@@ -2744,7 +2831,7 @@ export function EmployeeManagementPage() {
                               </span>
                             </div>
                           </td>
-                          <td className="px-4 py-3.5 text-xs text-[#A1A1AA]">{emp.department}</td>
+                          <td className="px-4 py-3.5 text-xs text-gray-400">{emp.department}</td>
                           <td className="px-4 py-3.5">
                             {record ? (
                               <div>
@@ -2756,13 +2843,13 @@ export function EmployeeManagementPage() {
                                   {ATTENDANCE_STATUS_LABELS[record.status]?.label || record.status}
                                 </span>
                                 {record.notes && (
-                                  <div className="text-[11px] text-[#71717A] italic mt-1 max-w-[150px] truncate" title={record.notes}>
+                                  <div className="text-[11px] text-gray-500 italic mt-1 max-w-[150px] truncate" title={record.notes}>
                                     Note: {record.notes}
                                   </div>
                                 )}
                               </div>
                             ) : (
-                              <span className="text-xs text-[#71717A] italic">Not Recorded</span>
+                              <span className="text-xs text-gray-500 italic">Not Recorded</span>
                             )}
                           </td>
                           <td className="px-4 py-3.5">
@@ -2775,7 +2862,7 @@ export function EmployeeManagementPage() {
                                   className={`px-2 py-1 text-xs rounded-lg border transition ${
                                     record?.status === st
                                       ? ATTENDANCE_STATUS_LABELS[st].bg + ' font-semibold shadow-sm'
-                                      : 'bg-[#09090B] text-[#A1A1AA] border-[#27272A] hover:bg-[#27272A] hover:text-[#FAFAFA]'
+                                      : 'bg-[#030213] text-gray-400 border-white/10 hover:bg-white/10 hover:text-white'
                                   }`}
                                   title={st === 'DOUBLE_DUTY' ? 'Mark as Double Duty (2x Shifts)' : st === 'HOLIDAY' ? 'Mark as Holiday (Paid)' : `Mark as ${st}`}
                                 >
@@ -2798,7 +2885,7 @@ export function EmployeeManagementPage() {
                                   handleOvertimeChange(emp.id, selectedAttendanceDay, val);
                                 }
                               }}
-                              className="w-20 px-2 py-1 bg-[#09090B] border border-[#27272A] rounded-lg text-xs text-[#FAFAFA] focus:outline-none focus:border-amber-500 font-mono"
+                              className="w-20 px-2 py-1 bg-[#030213] border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-[#7FB706] font-mono"
                             />
                           </td>
                           <td className="px-4 py-3.5">
@@ -2808,13 +2895,13 @@ export function EmployeeManagementPage() {
                                 className={`px-2.5 py-1 text-xs rounded-xl border transition ${
                                   record?.isSundayOverride
                                     ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 font-semibold'
-                                    : 'bg-[#09090B] text-[#71717A] border-[#27272A] hover:text-[#FAFAFA]'
+                                    : 'bg-[#030213] text-gray-500 border-white/10 hover:text-white'
                                 }`}
                               >
                                 {record?.isSundayOverride ? 'Approved Sunday Work (Paid)' : 'Off (Default)'}
                               </button>
                             ) : (
-                              <span className="text-xs text-[#71717A]">— Weekday —</span>
+                              <span className="text-xs text-gray-500">— Weekday —</span>
                             )}
                           </td>
                           <td className="px-4 py-3.5 text-right">
@@ -2827,7 +2914,7 @@ export function EmployeeManagementPage() {
                                   dateStr: targetDateStr,
                                 })
                               }
-                              className="p-1.5 text-[#A1A1AA] hover:text-amber-400 hover:bg-[#27272A] rounded-lg transition inline-flex items-center gap-1"
+                              className="p-1.5 text-gray-400 hover:text-amber-400 hover:bg-white/10 rounded-lg transition inline-flex items-center gap-1"
                               title="Edit Details & Notes"
                             >
                               <Edit2 size={13} />
@@ -2849,10 +2936,10 @@ export function EmployeeManagementPage() {
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 'leaves' && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3.5 rounded-2xl border border-[#27272A]">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0a091e] p-3.5 rounded-2xl border border-white/10">
             <div>
-              <h3 className="text-base font-semibold text-[#FAFAFA]">Leave Accrual & Ledger Rules</h3>
-              <p className="text-xs text-[#A1A1AA]">
+              <h3 className="text-base font-semibold text-white">Leave Accrual & Ledger Rules</h3>
+              <p className="text-xs text-gray-400">
                 Casual Leave (CL) accrues +1 per month. Earned Leave (EL) accrues +0.25 per month (1 every 4 months).
               </p>
             </div>
@@ -2876,7 +2963,7 @@ export function EmployeeManagementPage() {
                   setLeaveAdjustReason('');
                   setIsLeaveAdjustModalOpen(true);
                 }}
-                className="px-4 py-2 bg-[#09090B] hover:bg-[#27272A] text-[#FAFAFA] text-xs font-semibold rounded-xl border border-[#27272A] transition"
+                className="px-4 py-2 bg-[#030213] hover:bg-white/10 text-white text-xs font-semibold rounded-xl border border-white/10 transition"
               >
                 Manual Leave Adjustment
               </button>
@@ -2893,21 +2980,21 @@ export function EmployeeManagementPage() {
                   onClick={() => setSelectedEmployeeForLeave(emp.id)}
                   className={`p-4 rounded-2xl border cursor-pointer transition ${
                     selectedEmployeeForLeave === emp.id
-                      ? 'bg-[#18181B] border-amber-500/50 ring-1 ring-amber-500'
-                      : 'bg-[#18181B] border-[#27272A] hover:border-[#3F3F46]'
+                      ? 'bg-[#0a091e] border-amber-500/50 ring-1 ring-amber-500'
+                      : 'bg-[#0a091e] border-white/10 hover:border-white/20'
                   }`}
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <div className="font-semibold text-[#FAFAFA]">{emp.name}</div>
-                      <div className="text-xs text-[#71717A] font-mono">{emp.employeeId}</div>
+                      <div className="font-semibold text-white">{emp.name}</div>
+                      <div className="text-xs text-gray-500 font-mono">{emp.employeeId}</div>
                     </div>
-                    <span className="text-xs px-2 py-0.5 rounded bg-[#09090B] text-[#A1A1AA]">
+                    <span className="text-xs px-2 py-0.5 rounded bg-[#030213] text-gray-400">
                       {emp.department}
                     </span>
                   </div>
 
-                  <div className="mt-3 grid grid-cols-2 gap-2 pt-3 border-t border-[#27272A]">
+                  <div className="mt-3 grid grid-cols-2 gap-2 pt-3 border-t border-white/10">
                     <div className="p-2 rounded-xl bg-blue-500/5 border border-blue-500/10">
                       <span className="text-[11px] text-blue-400 uppercase font-semibold">CL Balance</span>
                       <div className="text-lg font-bold text-blue-300">{Number(emp.clBalance).toFixed(2)}</div>
@@ -2923,13 +3010,13 @@ export function EmployeeManagementPage() {
 
           {/* Selected Employee History */}
           {selectedEmployeeForLeave && (
-            <div className="bg-[#18181B] border border-[#27272A] rounded-2xl p-4 space-y-3">
-              <h4 className="text-sm font-semibold text-[#FAFAFA]">
+            <div className="bg-[#0a091e] border border-white/10 rounded-2xl p-4 space-y-3">
+              <h4 className="text-sm font-semibold text-white">
                 Detailed Leave History: {employees.find((e) => e.id === selectedEmployeeForLeave)?.name}
               </h4>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-[#09090B] text-[#71717A] uppercase border-b border-[#27272A]">
+                  <thead className="bg-[#030213] text-gray-500 uppercase border-b border-white/10">
                     <tr>
                       <th className="px-3 py-2">Date</th>
                       <th className="px-3 py-2">Leave Type</th>
@@ -2939,23 +3026,23 @@ export function EmployeeManagementPage() {
                       <th className="px-3 py-2">Reason</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#27272A]">
+                  <tbody className="divide-y divide-white/10">
                     {isLoadingLeaveHistory ? (
                       <tr>
-                        <td colSpan={6} className="px-3 py-6 text-center text-[#71717A]">
+                        <td colSpan={6} className="px-3 py-6 text-center text-gray-500">
                           Loading history...
                         </td>
                       </tr>
                     ) : leaveHistory.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-3 py-6 text-center text-[#71717A]">
+                        <td colSpan={6} className="px-3 py-6 text-center text-gray-500">
                           No leave transactions logged yet.
                         </td>
                       </tr>
                     ) : (
                       leaveHistory.map((item) => (
-                        <tr key={item.id} className="hover:bg-[#27272A]/30">
-                          <td className="px-3 py-2 text-[#A1A1AA]">
+                        <tr key={item.id} className="hover:bg-white/5">
+                          <td className="px-3 py-2 text-gray-400">
                             {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
                           </td>
                           <td className="px-3 py-2 font-semibold">
@@ -2964,7 +3051,7 @@ export function EmployeeManagementPage() {
                             </span>
                           </td>
                           <td className="px-3 py-2">
-                            <span className="px-2 py-0.5 rounded bg-[#09090B] text-[10px] text-[#A1A1AA]">
+                            <span className="px-2 py-0.5 rounded bg-[#030213] text-[10px] text-gray-400">
                               {item.transactionType}
                             </span>
                           </td>
@@ -2973,8 +3060,8 @@ export function EmployeeManagementPage() {
                               {Number(item.amount) > 0 ? `+${Number(item.amount)}` : item.amount}
                             </span>
                           </td>
-                          <td className="px-3 py-2 font-mono text-[#FAFAFA]">{Number(item.balanceAfter).toFixed(2)}</td>
-                          <td className="px-3 py-2 text-[#71717A]">{item.reason || '—'}</td>
+                          <td className="px-3 py-2 font-mono text-white">{Number(item.balanceAfter).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-gray-500">{item.reason || '—'}</td>
                         </tr>
                       ))
                     )}
@@ -2994,21 +3081,21 @@ export function EmployeeManagementPage() {
           {/* ── Advance Recovery KPI Summary Cards ────────────────────────────── */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             {/* 1. Total Amount Pending for Recovery (Primary Requirement) */}
-            <div className="p-4 bg-gradient-to-br from-[#1c1917] via-[#18181B] to-[#18181B] border-2 border-amber-500/50 rounded-2xl shadow-xl relative overflow-hidden">
-              <div className="flex items-center justify-between text-[#A1A1AA]">
+            <div className="p-4 bg-gradient-to-br from-[#1c1917] via-[#0a091e] to-[#0a091e] border-2 border-amber-500/50 rounded-2xl shadow-xl relative overflow-hidden">
+              <div className="flex items-center justify-between text-gray-400">
                 <span className="text-xs font-semibold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
                   Total Pending For Recovery
                 </span>
                 <DollarSign size={18} className="text-amber-400" />
               </div>
-              <div className="text-2xl sm:text-3xl font-extrabold text-[#FAFAFA] mt-2 font-mono tracking-tight">
+              <div className="text-2xl sm:text-3xl font-extrabold text-white mt-2 font-mono tracking-tight">
                 {formatINR(
                   advanceSummary?.totalPendingRecovery ??
                     advancesList.filter((a) => !a.isRecovered).reduce((sum, a) => sum + Number(a.amount || 0), 0)
                 )}
               </div>
-              <div className="flex items-center justify-between text-xs text-[#A1A1AA] mt-1.5 pt-1.5 border-t border-[#27272A]/80">
+              <div className="flex items-center justify-between text-xs text-gray-400 mt-1.5 pt-1.5 border-t border-white/5">
                 <span>
                   {advanceSummary?.pendingAdvancesCount ?? advancesList.filter((a) => !a.isRecovered).length} active advance(s) awaiting deduction
                 </span>
@@ -3019,28 +3106,28 @@ export function EmployeeManagementPage() {
             </div>
 
             {/* 2. Total Advances Disbursed (Credits) */}
-            <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl shadow-sm">
-              <div className="flex items-center justify-between text-[#A1A1AA]">
+            <div className="p-4 bg-[#0a091e] border border-white/10 rounded-2xl shadow-sm">
+              <div className="flex items-center justify-between text-gray-400">
                 <span className="text-xs font-semibold uppercase tracking-wider text-blue-400 flex items-center gap-1">
                   <ArrowDownRight size={14} className="text-blue-400" />
                   Total Disbursed (Credits)
                 </span>
                 <CreditCard size={18} className="text-blue-400" />
               </div>
-              <div className="text-2xl font-bold text-[#FAFAFA] mt-2 font-mono">
+              <div className="text-2xl font-bold text-white mt-2 font-mono">
                 {formatINR(
                   advanceSummary?.totalDisbursed ??
                     advancesList.reduce((sum, a) => sum + Number(a.originalAmount || a.amount || 0), 0)
                 )}
               </div>
-              <div className="text-xs text-[#71717A] mt-1.5 pt-1.5 border-t border-[#27272A]/50">
+              <div className="text-xs text-gray-500 mt-1.5 pt-1.5 border-t border-white/5">
                 {advanceSummary?.totalAdvancesCount ?? advancesList.length} total advance disbursement records
               </div>
             </div>
 
             {/* 3. Total Recovered (Debits) */}
-            <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl shadow-sm">
-              <div className="flex items-center justify-between text-[#A1A1AA]">
+            <div className="p-4 bg-[#0a091e] border border-white/10 rounded-2xl shadow-sm">
+              <div className="flex items-center justify-between text-gray-400">
                 <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
                   <ArrowUpRight size={14} className="text-emerald-400" />
                   Total Recovered (Debits)
@@ -3053,21 +3140,21 @@ export function EmployeeManagementPage() {
                     advancesList.filter((a) => a.isRecovered).reduce((sum, a) => sum + Number(a.amount || 0), 0)
                 )}
               </div>
-              <div className="text-xs text-[#71717A] mt-1.5 pt-1.5 border-t border-[#27272A]/50">
+              <div className="text-xs text-gray-500 mt-1.5 pt-1.5 border-t border-white/5">
                 {advanceSummary?.recoveredAdvancesCount ?? advancesList.filter((a) => a.isRecovered).length} cleared via payroll / deductions
               </div>
             </div>
           </div>
 
           {/* Sub-Tabs and Action Controls */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3 rounded-2xl border border-[#27272A]">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0a091e] p-3 rounded-2xl border border-white/10">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setAdvancesSubTab('advances')}
                 className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl border transition ${
                   advancesSubTab === 'advances'
                     ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                    : 'bg-[#09090B] text-[#A1A1AA] border-[#27272A] hover:text-[#FAFAFA]'
+                    : 'bg-[#030213] text-gray-400 border-white/10 hover:text-white'
                 }`}
               >
                 Salary Advances ({advancesList.length})
@@ -3077,7 +3164,7 @@ export function EmployeeManagementPage() {
                 className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl border transition flex items-center gap-1.5 ${
                   advancesSubTab === 'ledger'
                     ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 shadow-sm'
-                    : 'bg-[#09090B] text-[#A1A1AA] border-[#27272A] hover:text-[#FAFAFA]'
+                    : 'bg-[#030213] text-gray-400 border-white/10 hover:text-white'
                 }`}
               >
                 <History size={13} />
@@ -3088,7 +3175,7 @@ export function EmployeeManagementPage() {
                 className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl border transition ${
                   advancesSubTab === 'deductions'
                     ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                    : 'bg-[#09090B] text-[#A1A1AA] border-[#27272A] hover:text-[#FAFAFA]'
+                    : 'bg-[#030213] text-gray-400 border-white/10 hover:text-white'
                 }`}
               >
                 Other Deductions & Penalties ({deductionsList.length})
@@ -3097,14 +3184,14 @@ export function EmployeeManagementPage() {
 
             <div className="flex items-center gap-2">
               {advancesSubTab === 'advances' && (
-                <div className="flex items-center bg-[#09090B] p-0.5 rounded-xl border border-[#27272A]">
+                <div className="flex items-center bg-[#030213] p-0.5 rounded-xl border border-white/10">
                   <button
                     type="button"
                     onClick={() => setWorkerAdvancesFilter('ALL')}
                     className={`px-2.5 py-1 text-xs rounded-lg font-medium transition ${
                       workerAdvancesFilter === 'ALL'
-                        ? 'bg-[#27272A] text-[#FAFAFA]'
-                        : 'text-[#71717A] hover:text-[#FAFAFA]'
+                        ? 'bg-white/10 text-white'
+                        : 'text-gray-500 hover:text-white'
                     }`}
                   >
                     All Staff
@@ -3115,7 +3202,7 @@ export function EmployeeManagementPage() {
                     className={`px-2.5 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1 ${
                       workerAdvancesFilter === 'WORKERS'
                         ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold'
-                        : 'text-[#71717A] hover:text-[#FAFAFA]'
+                        : 'text-gray-500 hover:text-white'
                     }`}
                   >
                     <Construction size={12} />
@@ -3135,7 +3222,7 @@ export function EmployeeManagementPage() {
               ) : (
                 <button
                   onClick={() => setIsAddAdvanceModalOpen(true)}
-                  className="px-3.5 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 text-white text-xs font-semibold rounded-xl shadow transition flex items-center gap-1.5"
+                  className="px-3.5 py-1.5 bg-[#7FB706] hover:bg-[#6fa005] cursor-pointer text-white text-xs font-semibold rounded-xl shadow transition flex items-center gap-1.5"
                 >
                   <Plus size={14} />
                   <span>Give Advance</span>
@@ -3146,10 +3233,10 @@ export function EmployeeManagementPage() {
 
           {/* ── View 1: Advances Table ────────────────────────────────────────── */}
           {advancesSubTab === 'advances' && (
-            <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+            <div className="bg-[#0a091e] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
-                  <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                  <thead className="bg-[#030213] text-gray-500 text-xs uppercase tracking-wider border-b border-white/10">
                     <tr>
                       <th className="px-4 py-3.5">Employee</th>
                       <th className="px-4 py-3.5">Amount Disbursed</th>
@@ -3161,10 +3248,10 @@ export function EmployeeManagementPage() {
                       <th className="px-4 py-3.5 text-right">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#27272A]">
+                  <tbody className="divide-y divide-white/10">
                     {isLoadingAdvances ? (
                       <tr>
-                        <td colSpan={8} className="px-4 py-8 text-center text-[#71717A]">
+                        <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                           Loading advances...
                         </td>
                       </tr>
@@ -3173,7 +3260,7 @@ export function EmployeeManagementPage() {
                         : advancesList
                       ).length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-4 py-8 text-center text-[#71717A]">
+                        <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                           No advances scheduled for {MONTHS[selectedMonth - 1]?.label} {selectedYear}.
                         </td>
                       </tr>
@@ -3182,15 +3269,15 @@ export function EmployeeManagementPage() {
                         ? advancesList.filter((a) => workerEmployees.some((w) => w.id === a.employeeId))
                         : advancesList
                       ).map((adv) => (
-                        <tr key={adv.id} className="hover:bg-[#27272A]/40 transition">
+                        <tr key={adv.id} className="hover:bg-white/5 transition">
                           <td className="px-4 py-3.5">
-                            <div className="font-medium text-[#FAFAFA]">{adv.employee?.name}</div>
+                            <div className="font-medium text-white">{adv.employee?.name}</div>
                             <div className="text-xs font-mono text-amber-400">{adv.employee?.employeeId}</div>
                           </td>
-                          <td className="px-4 py-3.5 font-bold text-[#FAFAFA] font-mono">
+                          <td className="px-4 py-3.5 font-bold text-white font-mono">
                             {formatINR(adv.amount)}
                             {adv.originalAmount && Number(adv.originalAmount) > Number(adv.amount) && (
-                              <div className="text-[10px] text-[#71717A] font-normal">
+                              <div className="text-[10px] text-gray-500 font-normal">
                                 Orig: {formatINR(adv.originalAmount)}
                               </div>
                             )}
@@ -3212,15 +3299,15 @@ export function EmployeeManagementPage() {
                               </div>
                             )}
                           </td>
-                          <td className="px-4 py-3.5 text-xs text-[#FAFAFA]">
+                          <td className="px-4 py-3.5 text-xs text-white">
                             {adv.advanceDate
                               ? new Date(adv.advanceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
                               : adv.createdAt
                               ? new Date(adv.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
                               : '—'}
                           </td>
-                          <td className="px-4 py-3.5 text-xs text-[#A1A1AA]">{adv.reason}</td>
-                          <td className="px-4 py-3.5 text-xs text-[#FAFAFA]">
+                          <td className="px-4 py-3.5 text-xs text-gray-400">{adv.reason}</td>
+                          <td className="px-4 py-3.5 text-xs text-white">
                             {MONTHS[adv.recoveryMonth - 1]?.label} {adv.recoveryYear}
                           </td>
                           <td className="px-4 py-3.5">
@@ -3237,7 +3324,7 @@ export function EmployeeManagementPage() {
                           <td className="px-4 py-3.5 text-right space-x-1">
                             <button
                               onClick={() => setEditingAdvance(adv)}
-                              className="p-1.5 text-[#A1A1AA] hover:text-amber-400 hover:bg-[#27272A] rounded-lg transition"
+                              className="p-1.5 text-gray-400 hover:text-amber-400 hover:bg-white/10 rounded-lg transition"
                               title="Edit Advance"
                             >
                               <Edit2 size={14} />
@@ -3264,7 +3351,7 @@ export function EmployeeManagementPage() {
                                   await employeeService.deleteAdvance(adv.id);
                                   fetchAdvancesAndDeductions();
                                 }}
-                                className="p-1.5 text-[#71717A] hover:text-rose-400 hover:bg-[#27272A] rounded-lg transition"
+                                className="p-1.5 text-gray-500 hover:text-rose-400 hover:bg-white/10 rounded-lg transition"
                                 title="Delete Advance"
                               >
                                 <Trash2 size={14} />
@@ -3284,23 +3371,23 @@ export function EmployeeManagementPage() {
           {advancesSubTab === 'ledger' && (
             <div className="space-y-3">
               {/* Ledger Controls Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3 rounded-2xl border border-[#27272A]">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0a091e] p-3 rounded-2xl border border-white/10">
                 <div className="flex items-center gap-2 flex-1 min-w-[240px]">
                   <div className="relative flex-1">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]" />
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                     <input
                       type="text"
                       value={ledgerSearch}
                       onChange={(e) => setLedgerSearch(e.target.value)}
                       placeholder="Search ledger by employee name, code, reason..."
-                      className="w-full pl-9 pr-3 py-1.5 bg-[#09090B] border border-[#27272A] rounded-xl text-xs text-[#FAFAFA] placeholder-[#71717A] focus:outline-none focus:border-amber-500/50"
+                      className="w-full pl-9 pr-3 py-1.5 bg-[#030213] border border-white/10 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706]/50"
                     />
                   </div>
                   {ledgerSearch && (
                     <button
                       type="button"
                       onClick={() => setLedgerSearch('')}
-                      className="p-1.5 text-[#71717A] hover:text-[#FAFAFA] bg-[#09090B] rounded-lg border border-[#27272A]"
+                      className="p-1.5 text-gray-500 hover:text-white bg-[#030213] rounded-lg border border-white/10"
                     >
                       <X size={12} />
                     </button>
@@ -3309,14 +3396,14 @@ export function EmployeeManagementPage() {
 
                 <div className="flex items-center gap-2">
                   {/* Scope filter */}
-                  <div className="flex items-center bg-[#09090B] p-0.5 rounded-xl border border-[#27272A]">
+                  <div className="flex items-center bg-[#030213] p-0.5 rounded-xl border border-white/10">
                     <button
                       type="button"
                       onClick={() => setLedgerScope('MONTH')}
                       className={`px-2.5 py-1 text-xs rounded-lg font-medium transition ${
                         ledgerScope === 'MONTH'
-                          ? 'bg-[#27272A] text-[#FAFAFA]'
-                          : 'text-[#71717A] hover:text-[#FAFAFA]'
+                          ? 'bg-white/10 text-white'
+                          : 'text-gray-500 hover:text-white'
                       }`}
                     >
                       {MONTHS[selectedMonth - 1]?.label} {selectedYear}
@@ -3327,7 +3414,7 @@ export function EmployeeManagementPage() {
                       className={`px-2.5 py-1 text-xs rounded-lg font-medium transition ${
                         ledgerScope === 'ALL'
                           ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold'
-                          : 'text-[#71717A] hover:text-[#FAFAFA]'
+                          : 'text-gray-500 hover:text-white'
                       }`}
                     >
                       All-Time History
@@ -3335,14 +3422,14 @@ export function EmployeeManagementPage() {
                   </div>
 
                   {/* Type Filter */}
-                  <div className="flex items-center bg-[#09090B] p-0.5 rounded-xl border border-[#27272A]">
+                  <div className="flex items-center bg-[#030213] p-0.5 rounded-xl border border-white/10">
                     <button
                       type="button"
                       onClick={() => setLedgerTypeFilter('ALL')}
                       className={`px-2 py-1 text-xs rounded-lg font-medium transition ${
                         ledgerTypeFilter === 'ALL'
-                          ? 'bg-[#27272A] text-[#FAFAFA]'
-                          : 'text-[#71717A] hover:text-[#FAFAFA]'
+                          ? 'bg-white/10 text-white'
+                          : 'text-gray-500 hover:text-white'
                       }`}
                     >
                       All ({advanceLedger.length})
@@ -3353,7 +3440,7 @@ export function EmployeeManagementPage() {
                       className={`px-2 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1 ${
                         ledgerTypeFilter === 'CREDIT'
                           ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                          : 'text-[#71717A] hover:text-[#FAFAFA]'
+                          : 'text-gray-500 hover:text-white'
                       }`}
                     >
                       Credits ({advanceLedger.filter((t) => t.type === 'CREDIT').length})
@@ -3364,7 +3451,7 @@ export function EmployeeManagementPage() {
                       className={`px-2 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1 ${
                         ledgerTypeFilter === 'DEBIT'
                           ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                          : 'text-[#71717A] hover:text-[#FAFAFA]'
+                          : 'text-gray-500 hover:text-white'
                       }`}
                     >
                       Debits ({advanceLedger.filter((t) => t.type === 'DEBIT').length})
@@ -3374,10 +3461,10 @@ export function EmployeeManagementPage() {
               </div>
 
               {/* Ledger Table */}
-              <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+              <div className="bg-[#0a091e] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
-                    <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                    <thead className="bg-[#030213] text-gray-500 text-xs uppercase tracking-wider border-b border-white/10">
                       <tr>
                         <th className="px-4 py-3.5">Date & Time</th>
                         <th className="px-4 py-3.5">Employee</th>
@@ -3389,10 +3476,10 @@ export function EmployeeManagementPage() {
                         <th className="px-4 py-3.5 text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#27272A]">
+                    <tbody className="divide-y divide-white/10">
                       {isLoadingLedger ? (
                         <tr>
-                          <td colSpan={8} className="px-4 py-8 text-center text-[#71717A]">
+                          <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                             Loading advance ledger history...
                           </td>
                         </tr>
@@ -3410,7 +3497,7 @@ export function EmployeeManagementPage() {
                             return true;
                           }).length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="px-4 py-8 text-center text-[#71717A]">
+                          <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                             No credit/debit transactions found for current filter.
                           </td>
                         </tr>
@@ -3429,8 +3516,8 @@ export function EmployeeManagementPage() {
                             return true;
                           })
                           .map((tx) => (
-                            <tr key={tx.id} className="hover:bg-[#27272A]/40 transition">
-                              <td className="px-4 py-3 text-xs text-[#FAFAFA]">
+                            <tr key={tx.id} className="hover:bg-white/5 transition">
+                              <td className="px-4 py-3 text-xs text-white">
                                 <div className="font-medium">
                                   {new Date(tx.date).toLocaleDateString('en-IN', {
                                     day: '2-digit',
@@ -3438,7 +3525,7 @@ export function EmployeeManagementPage() {
                                     year: 'numeric',
                                   })}
                                 </div>
-                                <div className="text-[10px] text-[#71717A]">
+                                <div className="text-[10px] text-gray-500">
                                   {new Date(tx.date).toLocaleTimeString('en-IN', {
                                     hour: '2-digit',
                                     minute: '2-digit',
@@ -3446,7 +3533,7 @@ export function EmployeeManagementPage() {
                                 </div>
                               </td>
                               <td className="px-4 py-3">
-                                <div className="font-semibold text-[#FAFAFA]">{tx.employeeName}</div>
+                                <div className="font-semibold text-white">{tx.employeeName}</div>
                                 <div className="text-xs font-mono text-amber-400">{tx.employeeCode}</div>
                               </td>
                               <td className="px-4 py-3">
@@ -3469,7 +3556,7 @@ export function EmployeeManagementPage() {
                                   <span className="text-emerald-400">-{formatINR(tx.amount)}</span>
                                 )}
                               </td>
-                              <td className="px-4 py-3 text-xs text-[#FAFAFA]">
+                              <td className="px-4 py-3 text-xs text-white">
                                 {MONTHS[tx.recoveryMonth - 1]?.label} {tx.recoveryYear}
                               </td>
                               <td className="px-4 py-3">
@@ -3489,7 +3576,7 @@ export function EmployeeManagementPage() {
                                     : 'Pending Recovery'}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-xs text-[#A1A1AA] max-w-xs truncate" title={tx.reason}>
+                              <td className="px-4 py-3 text-xs text-gray-400 max-w-xs truncate" title={tx.reason}>
                                 {tx.reason}
                               </td>
                               <td className="px-4 py-3 text-right space-x-1">
@@ -3501,7 +3588,7 @@ export function EmployeeManagementPage() {
                                         const match = advancesList.find((a) => a.id === tx.advanceId);
                                         if (match) setPartialDeductAdvanceItem(match);
                                       }}
-                                      className="p-1.5 text-[#A1A1AA] hover:text-amber-400 hover:bg-[#27272A] rounded-lg transition"
+                                      className="p-1.5 text-gray-400 hover:text-amber-400 hover:bg-white/10 rounded-lg transition"
                                       title="Partially Deduct Advance (Carry forward balance)"
                                     >
                                       <Scissors size={14} />
@@ -3512,7 +3599,7 @@ export function EmployeeManagementPage() {
                                         const match = advancesList.find((a) => a.id === tx.advanceId);
                                         if (match) setEditingAdvance(match);
                                       }}
-                                      className="p-1.5 text-[#A1A1AA] hover:text-amber-400 hover:bg-[#27272A] rounded-lg transition"
+                                      className="p-1.5 text-gray-400 hover:text-amber-400 hover:bg-white/10 rounded-lg transition"
                                       title="Edit Advance"
                                     >
                                       <Edit2 size={14} />
@@ -3532,10 +3619,10 @@ export function EmployeeManagementPage() {
 
           {/* ── View 3: Deductions Table ──────────────────────────────────────── */}
           {advancesSubTab === 'deductions' && (
-            <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+            <div className="bg-[#0a091e] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
-                  <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                  <thead className="bg-[#030213] text-gray-500 text-xs uppercase tracking-wider border-b border-white/10">
                     <tr>
                       <th className="px-4 py-3.5">Employee</th>
                       <th className="px-4 py-3.5">Amount</th>
@@ -3545,29 +3632,29 @@ export function EmployeeManagementPage() {
                       <th className="px-4 py-3.5 text-right">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#27272A]">
+                  <tbody className="divide-y divide-white/10">
                     {isLoadingAdvances ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-[#71717A]">
+                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                           Loading deductions...
                         </td>
                       </tr>
                     ) : deductionsList.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-[#71717A]">
+                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                           No deductions scheduled for {MONTHS[selectedMonth - 1]?.label} {selectedYear}.
                         </td>
                       </tr>
                     ) : (
                       deductionsList.map((ded) => (
-                        <tr key={ded.id} className="hover:bg-[#27272A]/40 transition">
+                        <tr key={ded.id} className="hover:bg-white/5 transition">
                           <td className="px-4 py-3.5">
-                            <div className="font-medium text-[#FAFAFA]">{ded.employee?.name}</div>
+                            <div className="font-medium text-white">{ded.employee?.name}</div>
                             <div className="text-xs font-mono text-amber-400">{ded.employee?.employeeId}</div>
                           </td>
                           <td className="px-4 py-3.5 font-bold text-rose-400">{formatINR(ded.amount)}</td>
-                          <td className="px-4 py-3.5 text-xs text-[#A1A1AA]">{ded.reason}</td>
-                          <td className="px-4 py-3.5 text-xs text-[#FAFAFA]">
+                          <td className="px-4 py-3.5 text-xs text-gray-400">{ded.reason}</td>
+                          <td className="px-4 py-3.5 text-xs text-white">
                             {MONTHS[ded.applyMonth - 1]?.label} {ded.applyYear}
                           </td>
                           <td className="px-4 py-3.5">
@@ -3584,7 +3671,7 @@ export function EmployeeManagementPage() {
                           <td className="px-4 py-3.5 text-right space-x-1">
                             <button
                               onClick={() => setEditingDeduction(ded)}
-                              className="p-1.5 text-[#A1A1AA] hover:text-amber-400 hover:bg-[#27272A] rounded-lg transition"
+                              className="p-1.5 text-gray-400 hover:text-amber-400 hover:bg-white/10 rounded-lg transition"
                               title="Edit Deduction"
                             >
                               <Edit2 size={14} />
@@ -3596,7 +3683,7 @@ export function EmployeeManagementPage() {
                                   await employeeService.deleteDeduction(ded.id);
                                   fetchAdvancesAndDeductions();
                                 }}
-                                className="p-1.5 text-[#71717A] hover:text-rose-400 hover:bg-[#27272A] rounded-lg transition"
+                                className="p-1.5 text-gray-500 hover:text-rose-400 hover:bg-white/10 rounded-lg transition"
                                 title="Delete Deduction"
                               >
                                 <Trash2 size={14} />
@@ -3619,10 +3706,10 @@ export function EmployeeManagementPage() {
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 'payroll' && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3.5 rounded-2xl border border-[#27272A]">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0a091e] p-3.5 rounded-2xl border border-white/10">
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-semibold text-[#FAFAFA]">
+                <h3 className="text-base font-semibold text-white">
                   Payroll Computation: {MONTHS[selectedMonth - 1]?.label} {selectedYear}
                 </h3>
                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -3630,20 +3717,20 @@ export function EmployeeManagementPage() {
                   Live Auto-Sync
                 </span>
               </div>
-              <p className="text-xs text-[#A1A1AA]">
+              <p className="text-xs text-gray-400">
                 Formula: Payable Days (Fixed) = Days in Month - Sundays (e.g. 26 in Sep, 27 in Oct). Paid Days = Total Present Days (e.g. 28). Per-Day Rate = CTC / Payable Days (Fixed). Base Salary = Paid Days × Per-Day Rate. Overtime Rate = Per-Day Rate / 8. Net = Gross - Advance - Deductions.
               </p>
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="flex items-center bg-[#09090B] p-0.5 rounded-xl border border-[#27272A]">
+              <div className="flex items-center bg-[#030213] p-0.5 rounded-xl border border-white/10">
                 <button
                   type="button"
                   onClick={() => setWorkerPayrollFilter('ALL')}
                   className={`px-2.5 py-1 text-xs rounded-lg font-medium transition ${
                     workerPayrollFilter === 'ALL'
-                      ? 'bg-[#27272A] text-[#FAFAFA]'
-                      : 'text-[#71717A] hover:text-[#FAFAFA]'
+                      ? 'bg-white/10 text-white'
+                      : 'text-gray-500 hover:text-white'
                   }`}
                 >
                   All Staff ({payrollRuns.length})
@@ -3654,7 +3741,7 @@ export function EmployeeManagementPage() {
                   className={`px-2.5 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1 ${
                     workerPayrollFilter === 'WORKERS'
                       ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold'
-                      : 'text-[#71717A] hover:text-[#FAFAFA]'
+                      : 'text-gray-500 hover:text-white'
                   }`}
                 >
                   <Construction size={12} />
@@ -3668,7 +3755,7 @@ export function EmployeeManagementPage() {
                 type="button"
                 disabled={isDownloadingAttendancePdf}
                 onClick={() => handleDownloadMonthlyAttendancePdf(workerPayrollFilter === 'WORKERS')}
-                className="px-3.5 py-2 bg-[#09090B] hover:bg-[#27272A] text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                className="px-3.5 py-2 bg-[#030213] hover:bg-white/10 text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                 title={`Download Month-Wise Master Attendance & Payroll Register PDF (${MONTHS[selectedMonth - 1]?.label} ${selectedYear})`}
               >
                 {isDownloadingAttendancePdf ? (
@@ -3682,7 +3769,7 @@ export function EmployeeManagementPage() {
               <button
                 onClick={handleCalculatePayroll}
                 disabled={isCalculatingPayroll}
-                className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-lg transition flex items-center gap-2"
+                className="px-4 py-2 bg-[#7FB706] hover:bg-[#6fa005] cursor-pointer disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-lg transition flex items-center gap-2"
               >
                 {isCalculatingPayroll ? <RefreshCw className="animate-spin" size={15} /> : <TrendingUp size={15} />}
                 <span>{isCalculatingPayroll ? 'Computing Formulas...' : 'Calculate Monthly Payroll'}</span>
@@ -3691,10 +3778,10 @@ export function EmployeeManagementPage() {
           </div>
 
           {/* Payroll Sheet */}
-          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+          <div className="bg-[#0a091e] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+              <table className="w-full text-left text-sm hidden lg:table">
+                <thead className="bg-[#030213] text-gray-500 text-xs uppercase tracking-wider border-b border-white/10">
                   <tr>
                     <th className="px-4 py-3.5">Employee</th>
                     <th className="px-4 py-3.5">Monthly CTC</th>
@@ -3708,10 +3795,10 @@ export function EmployeeManagementPage() {
                     <th className="px-4 py-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#27272A]">
+                <tbody className="divide-y divide-white/10">
                   {isLoadingPayroll ? (
                     <tr>
-                      <td colSpan={10} className="px-4 py-12 text-center text-[#71717A]">
+                      <td colSpan={10} className="px-4 py-12 text-center text-gray-500">
                         Loading payroll run...
                       </td>
                     </tr>
@@ -3720,7 +3807,7 @@ export function EmployeeManagementPage() {
                       : payrollRuns
                     ).length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-4 py-12 text-center text-[#71717A]">
+                      <td colSpan={10} className="px-4 py-12 text-center text-gray-500">
                         No payroll calculated yet for current filter in {MONTHS[selectedMonth - 1]?.label} {selectedYear}. Click &quot;Calculate Monthly Payroll&quot; above.
                       </td>
                     </tr>
@@ -3729,17 +3816,17 @@ export function EmployeeManagementPage() {
                       ? payrollRuns.filter((p) => workerEmployees.some((w) => w.id === p.employeeId))
                       : payrollRuns
                     ).map((run) => (
-                      <tr key={run.id} className="hover:bg-[#27272A]/40 transition">
+                      <tr key={run.id} className="hover:bg-white/5 transition">
                         <td className="px-4 py-3.5">
-                          <div className="font-semibold text-[#FAFAFA]">{run.employee?.name}</div>
+                          <div className="font-semibold text-white">{run.employee?.name}</div>
                           <div className="text-xs font-mono text-amber-400">{run.employee?.employeeId}</div>
                         </td>
-                        <td className="px-4 py-3.5 text-xs text-[#FAFAFA]">{formatINR(run.monthlyCtc)}</td>
+                        <td className="px-4 py-3.5 text-xs text-white">{formatINR(run.monthlyCtc)}</td>
                         <td className="px-4 py-3.5 text-xs">
-                          <div className="font-bold text-[#FAFAFA]">
+                          <div className="font-bold text-white">
                             {run.payableDays} Days
                           </div>
-                          <div className="text-[11px] text-[#71717A]">
+                          <div className="text-[11px] text-gray-500">
                             Fixed ({run.totalCalendarDays ?? 30} - {run.sundaysCount ?? 4})
                           </div>
                         </td>
@@ -3747,7 +3834,7 @@ export function EmployeeManagementPage() {
                           <div className="font-bold text-emerald-400">
                             {run.paidDays} Days
                           </div>
-                          <div className="text-[11px] text-[#71717A]">
+                          <div className="text-[11px] text-gray-500">
                             P: {run.presentDays} | Sun: {run.approvedSundays} | DD: {run.doubleDutyDays} {Number(run.holidayDays || 0) > 0 && <span className="text-indigo-400">| Hol: {run.holidayDays}</span>}
                           </div>
                         </td>
@@ -3755,7 +3842,7 @@ export function EmployeeManagementPage() {
                           <div>{run.overtimeHours} hrs</div>
                           <div className="text-emerald-400 font-medium">+{formatINR(run.overtimePay)}</div>
                         </td>
-                        <td className="px-4 py-3.5 font-semibold text-[#FAFAFA]">{formatINR(run.grossSalary)}</td>
+                        <td className="px-4 py-3.5 font-semibold text-white">{formatINR(run.grossSalary)}</td>
                         <td className="px-4 py-3.5 text-xs">
                           <div className="flex items-center gap-1.5 text-rose-400 font-medium">
                             <span>Adv: -{formatINR(run.advanceDeduction)}</span>
@@ -3821,7 +3908,7 @@ export function EmployeeManagementPage() {
                           {/* Download PDF button */}
                           <button
                             onClick={() => handleDownloadPdf(run)}
-                            className="p-1.5 text-[#A1A1AA] hover:text-[#FAFAFA] bg-[#09090B] border border-[#27272A] rounded-lg transition"
+                            className="p-1.5 text-gray-400 hover:text-white bg-[#030213] border border-white/10 rounded-lg transition"
                             title="Download Official Payslip PDF"
                           >
                             <Download size={14} />
@@ -3830,7 +3917,7 @@ export function EmployeeManagementPage() {
                           {/* Email Payslip button */}
                           <button
                             onClick={() => handleResendEmail(run.id)}
-                            className="p-1.5 text-[#A1A1AA] hover:text-amber-400 bg-[#09090B] border border-[#27272A] rounded-lg transition"
+                            className="p-1.5 text-gray-400 hover:text-amber-400 bg-[#030213] border border-white/10 rounded-lg transition"
                             title="Email Payslip to Employee"
                           >
                             <Mail size={14} />
@@ -3877,6 +3964,136 @@ export function EmployeeManagementPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile Monthly Payroll Cards */}
+            <div className="lg:hidden divide-y divide-white/10 p-3 space-y-3">
+              {isLoadingPayroll ? (
+                <div className="py-10 text-center text-gray-500">
+                  <RefreshCw className="animate-spin inline-block mr-2" size={18} />
+                  Loading payroll runs...
+                </div>
+              ) : (workerPayrollFilter === 'WORKERS'
+                  ? payrollRuns.filter((p) => workerEmployees.some((w) => w.id === p.employeeId))
+                  : payrollRuns
+                ).length === 0 ? (
+                <div className="py-10 text-center text-gray-500 text-sm">
+                  No payroll calculated yet for current filter.
+                </div>
+              ) : (
+                (workerPayrollFilter === 'WORKERS'
+                  ? payrollRuns.filter((p) => workerEmployees.some((w) => w.id === p.employeeId))
+                  : payrollRuns
+                ).map((run) => (
+                  <div key={run.id} className="bg-[#030213] p-4 rounded-xl border border-white/10 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-semibold text-white text-base">{run.employee?.name}</div>
+                        <div className="font-mono text-xs text-[#B5F823] bg-[#7FB706]/15 px-1.5 py-0.5 rounded border border-[#7FB706]/30 inline-block mt-0.5 font-medium">
+                          {run.employee?.employeeId}
+                        </div>
+                      </div>
+                      <span
+                        className={`px-2.5 py-0.5 text-xs rounded-full border ${
+                          run.status === 'PAID'
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            : run.status === 'FINALIZED'
+                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                            : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                        }`}
+                      >
+                        {run.status}
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-[#0a091e] border border-white/10 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] text-gray-500 uppercase block font-semibold">Net Take-Home Pay</span>
+                        <div className="text-xl font-extrabold text-[#B5F823] font-mono mt-0.5">
+                          {formatINR(run.netSalary)}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-gray-500 uppercase block">Gross / CTC</span>
+                        <span className="text-xs text-white font-semibold">{formatINR(run.grossSalary)}</span>
+                        <span className="text-[11px] text-gray-500 block">CTC: {formatINR(run.monthlyCtc)}</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-white/5">
+                      <div>
+                        <span className="text-gray-500 block text-[10px] uppercase">Attendance Units</span>
+                        <span className="text-white font-medium">{run.paidDays} Paid Days</span>
+                        <span className="text-gray-500 block text-[10px]">Divisor: {run.payableDays}d</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block text-[10px] uppercase">Overtime</span>
+                        <span className="text-[#B5F823] font-medium">{run.overtimeHours} hrs (+{formatINR(run.overtimePay)})</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block text-[10px] uppercase">Advance Deductions</span>
+                        <span className="text-rose-400 font-medium">-{formatINR(run.advanceDeduction)}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block text-[10px] uppercase">Other Deductions</span>
+                        <span className="text-rose-400 font-medium">-{formatINR(run.otherDeductions || 0)}</span>
+                      </div>
+                    </div>
+
+                    {/* Actions row */}
+                    <div className="flex flex-wrap items-center justify-end gap-1.5 pt-2 border-t border-white/5">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCalculatorForRun(run)}
+                        className="p-2 text-[#B5F823] hover:text-white bg-[#7FB706]/15 hover:bg-[#7FB706]/30 border border-[#7FB706]/30 rounded-lg text-xs font-medium flex items-center gap-1 cursor-pointer"
+                        title="Calculator"
+                      >
+                        <Calculator size={13} />
+                        <span>Recalculate</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadPdf(run)}
+                        className="p-2 text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-medium flex items-center gap-1 cursor-pointer"
+                        title="Download PDF"
+                      >
+                        <Download size={13} />
+                        <span>PDF</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleResendEmail(run.id)}
+                        className="p-2 text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-medium flex items-center gap-1 cursor-pointer"
+                        title="Email"
+                      >
+                        <Mail size={13} />
+                        <span>Email</span>
+                      </button>
+                      {run.status === 'DRAFT' && (
+                        <button
+                          type="button"
+                          onClick={() => handleFinalizePayroll(run.id)}
+                          className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 text-xs font-semibold rounded-lg cursor-pointer"
+                        >
+                          Finalize
+                        </button>
+                      )}
+                      {isSuperAdmin && run.status !== 'PAID' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPayrollForPaid(run);
+                            setIsMarkPaidModalOpen(true);
+                          }}
+                          className="px-3 py-1.5 bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs font-semibold rounded-lg shadow cursor-pointer"
+                        >
+                          Mark Paid
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -3886,9 +4103,9 @@ export function EmployeeManagementPage() {
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       {isAddEmployeeModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-[#27272A] pb-3">
-              <h3 className="text-lg font-bold text-[#FAFAFA]">
+          <div className="bg-[#0a091e] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 className="text-lg font-bold text-white">
                 {editingEmployee ? `Edit Employee: ${editingEmployee.name}` : 'Register New Employee'}
               </h3>
               <button
@@ -3896,7 +4113,7 @@ export function EmployeeManagementPage() {
                   setIsAddEmployeeModalOpen(false);
                   setEditingEmployee(null);
                 }}
-                className="text-[#71717A] hover:text-[#FAFAFA]"
+                className="text-gray-500 hover:text-white"
               >
                 <X size={18} />
               </button>
@@ -3944,19 +4161,19 @@ export function EmployeeManagementPage() {
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-xs font-semibold text-[#A1A1AA] mb-1">Full Name *</label>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">Full Name *</label>
                   <input
                     name="name"
                     required
                     defaultValue={editingEmployee?.name || ''}
                     placeholder="e.g. Ramesh Kumar"
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706]"
                   />
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-[#A1A1AA]">Email Address</label>
+                    <label className="text-xs font-semibold text-gray-400">Email Address</label>
                     <span className="text-[10px] text-amber-400 font-medium">Optional for workers</span>
                   </div>
                   <input
@@ -3968,26 +4185,26 @@ export function EmployeeManagementPage() {
                         : ''
                     }
                     placeholder="e.g. worker@example.com (or leave blank)"
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706]"
                   />
-                  <p className="text-[10px] text-[#71717A] mt-1">
+                  <p className="text-[10px] text-gray-500 mt-1">
                     Leave blank if worker has no email (system generates auto-ID email).
                   </p>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#A1A1AA] mb-1">Phone Number *</label>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">Phone Number *</label>
                   <input
                     name="phone"
                     required
                     defaultValue={editingEmployee?.phone || ''}
                     placeholder="10-digit mobile number"
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#A1A1AA] mb-1">
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">
                     Designation * <span className="text-amber-400 font-normal">(Default: Workers)</span>
                   </label>
                   <select
@@ -3998,7 +4215,7 @@ export function EmployeeManagementPage() {
                         setCustomDesignation('');
                       }
                     }}
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500 font-medium text-xs"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706] font-medium text-xs"
                   >
                     {COMMON_DESIGNATIONS.map((d) => (
                       <option key={d} value={d}>
@@ -4015,12 +4232,12 @@ export function EmployeeManagementPage() {
                       placeholder="Enter custom designation (e.g. CNC Operator)"
                       value={customDesignation}
                       onChange={(e) => setCustomDesignation(e.target.value)}
-                      className="w-full mt-2 px-3 py-2 bg-[#09090B] border border-amber-500/60 rounded-xl text-[#FAFAFA] text-xs focus:outline-none focus:border-amber-500 placeholder-[#71717A]"
+                      className="w-full mt-2 px-3 py-2 bg-[#030213] border border-amber-500/60 rounded-xl text-white text-xs focus:outline-none focus:border-[#7FB706] placeholder-gray-500"
                     />
                   )}
 
                   <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                    <span className="text-[11px] text-[#71717A]">Quick pick:</span>
+                    <span className="text-[11px] text-gray-500">Quick pick:</span>
                     {['Workers', 'Hardware Technician', 'Cubicle Installer', 'Site Supervisor'].map((role) => (
                       <button
                         type="button"
@@ -4032,7 +4249,7 @@ export function EmployeeManagementPage() {
                         className={`text-[11px] px-2 py-0.5 rounded-md border transition ${
                           modalDesignation === role
                             ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-semibold'
-                            : 'bg-[#27272A]/50 text-[#A1A1AA] border-[#27272A] hover:bg-[#27272A] hover:text-[#FAFAFA]'
+                            : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white'
                         }`}
                       >
                         {role}
@@ -4042,11 +4259,11 @@ export function EmployeeManagementPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#A1A1AA] mb-1">Department *</label>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">Department *</label>
                   <select
                     name="department"
                     defaultValue={editingEmployee?.department || 'Operations'}
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706]"
                   >
                     {DEPARTMENTS.filter((d) => d !== 'All Departments').map((d) => (
                       <option key={d} value={d}>
@@ -4057,7 +4274,7 @@ export function EmployeeManagementPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#A1A1AA] mb-1">
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">
                     Monthly CTC (₹)
                     <span className="ml-1.5 text-[10px] font-normal text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded-md">Optional</span>
                   </label>
@@ -4068,12 +4285,12 @@ export function EmployeeManagementPage() {
                     min="0"
                     defaultValue={editingEmployee ? Number(editingEmployee.monthlyCtc) : ''}
                     placeholder="Leave blank for daily-wage workers"
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500 font-mono"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706] font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#A1A1AA] mb-1">Joining Date *</label>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">Joining Date *</label>
                   <input
                     type="date"
                     name="joiningDate"
@@ -4083,16 +4300,16 @@ export function EmployeeManagementPage() {
                         ? new Date(editingEmployee.joiningDate).toISOString().slice(0, 10)
                         : new Date().toISOString().slice(0, 10)
                     }
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#A1A1AA] mb-1">Employment Status</label>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">Employment Status</label>
                   <select
                     name="status"
                     defaultValue={editingEmployee?.status || 'ACTIVE'}
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706]"
                   >
                     <option value="ACTIVE">Active</option>
                     <option value="INACTIVE">Inactive</option>
@@ -4102,28 +4319,28 @@ export function EmployeeManagementPage() {
 
               {/* Address */}
               <div>
-                <label className="block text-xs font-semibold text-[#A1A1AA] mb-1">Residential / Site Address</label>
+                <label className="block text-xs font-semibold text-gray-400 mb-1">Residential / Site Address</label>
                 <textarea
                   name="address"
                   rows={2}
                   defaultValue={editingEmployee?.address || ''}
                   placeholder="Street, City, State, or workshop location"
-                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500 text-xs"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706] text-xs"
                 />
               </div>
 
               {/* Government ID Section */}
-              <div className="p-3.5 bg-[#09090B] border border-[#27272A] rounded-xl space-y-2">
+              <div className="p-3.5 bg-[#030213] border border-white/10 rounded-xl space-y-2">
                 <span className="text-xs font-bold text-amber-400 uppercase tracking-wide">
                   Government Identification
                 </span>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-[#71717A] mb-1">ID Type</label>
+                    <label className="block text-xs text-gray-500 mb-1">ID Type</label>
                     <select
                       name="governmentIdType"
                       defaultValue={editingEmployee?.governmentIdType || 'AADHAAR'}
-                      className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500 text-xs"
+                      className="w-full px-3 py-2 bg-[#0a091e] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706] text-xs"
                     >
                       <option value="AADHAAR">Aadhaar (12 digits)</option>
                       <option value="PAN">PAN (ABCDE1234F)</option>
@@ -4132,21 +4349,21 @@ export function EmployeeManagementPage() {
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs text-[#71717A]">ID Number</label>
+                      <label className="text-xs text-gray-500">ID Number</label>
                       <span className="text-[10px] text-zinc-500">Spaces auto-removed</span>
                     </div>
                     <input
                       name="governmentIdNumber"
                       defaultValue={editingEmployee?.governmentIdNumber || ''}
                       placeholder="e.g. 1234 5678 9012 or PENDING"
-                      className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500 text-xs font-mono"
+                      className="w-full px-3 py-2 bg-[#0a091e] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706] text-xs font-mono"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Bank Account Section (Optional) */}
-              <div className="p-3.5 bg-[#09090B] border border-[#27272A] rounded-xl space-y-2.5">
+              <div className="p-3.5 bg-[#030213] border border-white/10 rounded-xl space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <CreditCard size={14} className="text-emerald-400" />
@@ -4158,68 +4375,68 @@ export function EmployeeManagementPage() {
                     Optional / Can be added later
                   </span>
                 </div>
-                <p className="text-[11px] text-[#71717A]">
+                <p className="text-[11px] text-gray-500">
                   Bank details are entirely optional (e.g. for cash workers or daily wage staff). You can leave all bank fields blank or update them anytime.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-[#71717A] mb-1">
+                    <label className="block text-xs text-gray-500 mb-1">
                       Bank Name <span className="text-[#52525B] font-normal">(Optional)</span>
                     </label>
                     <input
                       name="bankName"
                       defaultValue={editingEmployee?.bankName || ''}
                       placeholder="e.g. State Bank of India"
-                      className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:outline-none focus:border-emerald-500/50"
+                      className="w-full px-3 py-2 bg-[#0a091e] border border-white/10 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500/50"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-[#71717A] mb-1">
+                    <label className="block text-xs text-gray-500 mb-1">
                       Account Holder Name <span className="text-[#52525B] font-normal">(Optional)</span>
                     </label>
                     <input
                       name="bankAccountHolder"
                       defaultValue={editingEmployee?.bankAccountHolder || ''}
                       placeholder="as per bank passbook"
-                      className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:outline-none focus:border-emerald-500/50"
+                      className="w-full px-3 py-2 bg-[#0a091e] border border-white/10 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500/50"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-[#71717A] mb-1">
+                    <label className="block text-xs text-gray-500 mb-1">
                       Account Number <span className="text-[#52525B] font-normal">(Optional)</span>
                     </label>
                     <input
                       name="bankAccountNumber"
                       defaultValue={editingEmployee?.bankAccountNumber || ''}
                       placeholder="e.g. 123456789012"
-                      className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs font-mono focus:outline-none focus:border-emerald-500/50"
+                      className="w-full px-3 py-2 bg-[#0a091e] border border-white/10 rounded-xl text-white text-xs font-mono focus:outline-none focus:border-emerald-500/50"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-[#71717A] mb-1">
+                    <label className="block text-xs text-gray-500 mb-1">
                       IFSC Code <span className="text-[#52525B] font-normal">(Optional)</span>
                     </label>
                     <input
                       name="bankIfsc"
                       defaultValue={editingEmployee?.bankIfsc || ''}
                       placeholder="e.g. SBIN0001234"
-                      className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs font-mono uppercase focus:outline-none focus:border-emerald-500/50"
+                      className="w-full px-3 py-2 bg-[#0a091e] border border-white/10 rounded-xl text-white text-xs font-mono uppercase focus:outline-none focus:border-emerald-500/50"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#27272A]">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setIsAddEmployeeModalOpen(false)}
-                  className="px-4 py-2 text-xs text-[#A1A1AA] hover:text-[#FAFAFA]"
+                  className="px-4 py-2 text-xs text-gray-400 hover:text-white"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-semibold text-xs rounded-xl shadow-lg transition"
+                  className="px-5 py-2 bg-[#7FB706] hover:bg-[#6fa005] cursor-pointer text-white font-semibold text-xs rounded-xl shadow-lg transition"
                 >
                   Save Employee
                 </button>
@@ -4257,18 +4474,18 @@ export function EmployeeManagementPage() {
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-            <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-md p-6 space-y-4">
+            <div className="bg-[#0a091e] border border-white/10 rounded-2xl w-full max-w-md p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-base font-bold text-[#FAFAFA]">Manual Leave Adjustment</h3>
-                  <p className="text-xs text-[#A1A1AA] mt-0.5">
+                  <h3 className="text-base font-bold text-white">Manual Leave Adjustment</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
                     Credit, debit (usage), or adjust employee leave balances
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsLeaveAdjustModalOpen(false)}
-                  className="p-1 text-[#71717A] hover:text-[#FAFAFA] rounded-lg transition"
+                  className="p-1 text-gray-500 hover:text-white rounded-lg transition"
                 >
                   <X size={16} />
                 </button>
@@ -4337,12 +4554,12 @@ export function EmployeeManagementPage() {
                 className="space-y-3.5 text-sm"
               >
                 <div>
-                  <label className="block text-xs text-[#A1A1AA] mb-1">Select Employee *</label>
+                  <label className="block text-xs text-gray-400 mb-1">Select Employee *</label>
                   <select
                     value={selectedEmp?.id || ''}
                     onChange={(e) => setLeaveAdjustEmpId(e.target.value)}
                     required
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:outline-none focus:border-amber-500"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs focus:outline-none focus:border-[#7FB706]"
                   >
                     {activeStaff.map((emp) => (
                       <option key={emp.id} value={emp.id}>
@@ -4354,11 +4571,11 @@ export function EmployeeManagementPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-[#A1A1AA] mb-1">Leave Type *</label>
+                    <label className="block text-xs text-gray-400 mb-1">Leave Type *</label>
                     <select
                       value={leaveAdjustType}
                       onChange={(e) => setLeaveAdjustType(e.target.value as 'CL' | 'EL')}
-                      className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:outline-none focus:border-amber-500"
+                      className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs focus:outline-none focus:border-[#7FB706]"
                     >
                       <option value="CL">Casual Leave (CL)</option>
                       <option value="EL">Earned Leave (EL)</option>
@@ -4366,11 +4583,11 @@ export function EmployeeManagementPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs text-[#A1A1AA] mb-1">Action Type *</label>
+                    <label className="block text-xs text-gray-400 mb-1">Action Type *</label>
                     <select
                       value={leaveAdjustAction}
                       onChange={(e) => setLeaveAdjustAction(e.target.value as any)}
-                      className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:outline-none focus:border-amber-500"
+                      className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs focus:outline-none focus:border-[#7FB706]"
                     >
                       <option value="USAGE">CL/EL Debit (Used / Deduct)</option>
                       <option value="ACCRUAL">Credit (Accrual / Add)</option>
@@ -4381,14 +4598,14 @@ export function EmployeeManagementPage() {
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs text-[#A1A1AA]">
+                    <label className="block text-xs text-gray-400">
                       {leaveAdjustAction === 'USAGE'
                         ? 'Days to Deduct (Debit) *'
                         : leaveAdjustAction === 'ACCRUAL'
                         ? 'Days to Credit (Accrual) *'
                         : 'Days to Adjust *'}
                     </label>
-                    <span className="text-[11px] text-[#71717A]">Step: 0.25 / 0.5 / 1.0 day</span>
+                    <span className="text-[11px] text-gray-500">Step: 0.25 / 0.5 / 1.0 day</span>
                   </div>
                   <input
                     type="number"
@@ -4398,19 +4615,19 @@ export function EmployeeManagementPage() {
                     onChange={(e) => setLeaveAdjustAmount(e.target.value)}
                     required
                     placeholder="e.g. 1.0"
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs font-mono focus:outline-none focus:border-amber-500"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs font-mono focus:outline-none focus:border-[#7FB706]"
                   />
                 </div>
 
                 {/* ─── Real-Time Balance & Remaining Calculation Card ────────────── */}
-                <div className="p-3.5 bg-[#09090B] border border-[#27272A] rounded-xl space-y-2">
+                <div className="p-3.5 bg-[#030213] border border-white/10 rounded-xl space-y-2">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-[#A1A1AA]">Current {leaveAdjustType} Balance:</span>
-                    <span className="font-mono font-semibold text-[#FAFAFA]">{currentBal.toFixed(2)} days</span>
+                    <span className="text-gray-400">Current {leaveAdjustType} Balance:</span>
+                    <span className="font-mono font-semibold text-white">{currentBal.toFixed(2)} days</span>
                   </div>
 
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-[#A1A1AA]">
+                    <span className="text-gray-400">
                       {leaveAdjustAction === 'USAGE'
                         ? `Debit (${leaveAdjustType} Used):`
                         : leaveAdjustAction === 'ACCRUAL'
@@ -4419,16 +4636,16 @@ export function EmployeeManagementPage() {
                     </span>
                     <span
                       className={`font-mono font-bold ${
-                        delta < 0 ? 'text-rose-400' : delta > 0 ? 'text-emerald-400' : 'text-[#71717A]'
+                        delta < 0 ? 'text-rose-400' : delta > 0 ? 'text-emerald-400' : 'text-gray-500'
                       }`}
                     >
                       {delta < 0 ? `-${Math.abs(delta).toFixed(2)}` : `+${delta.toFixed(2)}`} days
                     </span>
                   </div>
 
-                  <div className="pt-2 border-t border-[#27272A] flex items-center justify-between">
+                  <div className="pt-2 border-t border-white/10 flex items-center justify-between">
                     <div>
-                      <span className="text-xs font-semibold text-[#FAFAFA]">
+                      <span className="text-xs font-semibold text-white">
                         Remaining {leaveAdjustType} Balance:
                       </span>
                       {isNegativeRemaining && (
@@ -4448,22 +4665,22 @@ export function EmployeeManagementPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs text-[#A1A1AA] mb-1">Reason for Adjustment *</label>
+                  <label className="block text-xs text-gray-400 mb-1">Reason for Adjustment *</label>
                   <input
                     type="text"
                     value={leaveAdjustReason}
                     onChange={(e) => setLeaveAdjustReason(e.target.value)}
                     required
                     placeholder="e.g. Leave taken on 10th Sep / Compensatory off granted"
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:outline-none focus:border-amber-500"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs focus:outline-none focus:border-[#7FB706]"
                   />
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#27272A]">
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
                   <button
                     type="button"
                     onClick={() => setIsLeaveAdjustModalOpen(false)}
-                    className="px-3 py-1.5 text-xs text-[#A1A1AA] hover:text-[#FAFAFA] transition"
+                    className="px-3 py-1.5 text-xs text-gray-400 hover:text-white transition"
                   >
                     Cancel
                   </button>
@@ -4489,8 +4706,8 @@ export function EmployeeManagementPage() {
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       {isAddAdvanceModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-base font-bold text-[#FAFAFA]">Issue Salary Advance</h3>
+          <div className="bg-[#0a091e] border border-white/10 rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-base font-bold text-white">Issue Salary Advance</h3>
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -4516,11 +4733,11 @@ export function EmployeeManagementPage() {
               className="space-y-3 text-sm"
             >
               <div>
-                <label className="block text-xs text-[#A1A1AA] mb-1">Employee *</label>
+                <label className="block text-xs text-gray-400 mb-1">Employee *</label>
                 <select
                   name="employeeId"
                   required
-                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                 >
                   <option value="" disabled selected>
                     -- Select Employee --
@@ -4537,35 +4754,35 @@ export function EmployeeManagementPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-[#A1A1AA] mb-1">Advance Taken Date *</label>
+                  <label className="block text-xs text-gray-400 mb-1">Advance Taken Date *</label>
                   <input
                     type="date"
                     name="advanceDate"
                     required
                     defaultValue={new Date().toISOString().slice(0, 10)}
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-[#A1A1AA] mb-1">Advance Amount (₹) *</label>
+                  <label className="block text-xs text-gray-400 mb-1">Advance Amount (₹) *</label>
                   <input
                     type="number"
                     name="amount"
                     required
                     min="1"
                     placeholder="e.g. 5000"
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] font-mono text-xs"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white font-mono text-xs"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-[#A1A1AA] mb-1">Recovery Month</label>
+                  <label className="block text-xs text-gray-400 mb-1">Recovery Month</label>
                   <select
                     name="recoveryMonth"
                     defaultValue={selectedMonth}
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                   >
                     {MONTHS.map((m) => (
                       <option key={m.value} value={m.value}>
@@ -4575,11 +4792,11 @@ export function EmployeeManagementPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-[#A1A1AA] mb-1">Recovery Year</label>
+                  <label className="block text-xs text-gray-400 mb-1">Recovery Year</label>
                   <select
                     name="recoveryYear"
                     defaultValue={selectedYear}
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                   >
                     {[2025, 2026, 2027].map((y) => (
                       <option key={y} value={y}>
@@ -4591,21 +4808,21 @@ export function EmployeeManagementPage() {
               </div>
 
               <div>
-                <label className="block text-xs text-[#A1A1AA] mb-1">Reason for Advance *</label>
+                <label className="block text-xs text-gray-400 mb-1">Reason for Advance *</label>
                 <textarea
                   name="reason"
                   required
                   rows={2}
                   placeholder="e.g. Medical emergency / Festival advance"
-                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#27272A]">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setIsAddAdvanceModalOpen(false)}
-                  className="px-3 py-1.5 text-xs text-[#A1A1AA]"
+                  className="px-3 py-1.5 text-xs text-gray-400"
                 >
                   Cancel
                 </button>
@@ -4626,8 +4843,8 @@ export function EmployeeManagementPage() {
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       {isAddDeductionModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-base font-bold text-[#FAFAFA]">Record Other Deduction</h3>
+          <div className="bg-[#0a091e] border border-white/10 rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-base font-bold text-white">Record Other Deduction</h3>
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -4652,11 +4869,11 @@ export function EmployeeManagementPage() {
               className="space-y-3 text-sm"
             >
               <div>
-                <label className="block text-xs text-[#A1A1AA] mb-1">Employee *</label>
+                <label className="block text-xs text-gray-400 mb-1">Employee *</label>
                 <select
                   name="employeeId"
                   required
-                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                 >
                   <option value="" disabled selected>
                     -- Select Employee --
@@ -4672,24 +4889,24 @@ export function EmployeeManagementPage() {
               </div>
 
               <div>
-                <label className="block text-xs text-[#A1A1AA] mb-1">Deduction Amount (₹) *</label>
+                <label className="block text-xs text-gray-400 mb-1">Deduction Amount (₹) *</label>
                 <input
                   type="number"
                   name="amount"
                   required
                   min="1"
                   placeholder="e.g. 500"
-                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] font-mono text-xs"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white font-mono text-xs"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-[#A1A1AA] mb-1">Apply Month</label>
+                  <label className="block text-xs text-gray-400 mb-1">Apply Month</label>
                   <select
                     name="applyMonth"
                     defaultValue={selectedMonth}
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                   >
                     {MONTHS.map((m) => (
                       <option key={m.value} value={m.value}>
@@ -4699,11 +4916,11 @@ export function EmployeeManagementPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-[#A1A1AA] mb-1">Apply Year</label>
+                  <label className="block text-xs text-gray-400 mb-1">Apply Year</label>
                   <select
                     name="applyYear"
                     defaultValue={selectedYear}
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                   >
                     {[2025, 2026, 2027].map((y) => (
                       <option key={y} value={y}>
@@ -4715,21 +4932,21 @@ export function EmployeeManagementPage() {
               </div>
 
               <div>
-                <label className="block text-xs text-[#A1A1AA] mb-1">Reason *</label>
+                <label className="block text-xs text-gray-400 mb-1">Reason *</label>
                 <textarea
                   name="reason"
                   required
                   rows={2}
                   placeholder="e.g. Penalty / Tool damage / Statutory deduction"
-                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#27272A]">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setIsAddDeductionModalOpen(false)}
-                  className="px-3 py-1.5 text-xs text-[#A1A1AA]"
+                  className="px-3 py-1.5 text-xs text-gray-400"
                 >
                   Cancel
                 </button>
@@ -4750,12 +4967,12 @@ export function EmployeeManagementPage() {
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       {isMarkPaidModalOpen && selectedPayrollForPaid && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-md p-6 space-y-4">
+          <div className="bg-[#0a091e] border border-white/10 rounded-2xl w-full max-w-md p-6 space-y-4">
             <div className="flex items-center gap-2 text-emerald-400">
               <ShieldCheck size={20} />
-              <h3 className="text-base font-bold text-[#FAFAFA]">Authorize Salary Disbursement</h3>
+              <h3 className="text-base font-bold text-white">Authorize Salary Disbursement</h3>
             </div>
-            <p className="text-xs text-[#A1A1AA]">
+            <p className="text-xs text-gray-400">
               Confirming payment for <strong>{selectedPayrollForPaid.employee?.name}</strong> (
               {selectedPayrollForPaid.employee?.employeeId}) for amount{' '}
               <strong className="text-emerald-400">{formatINR(selectedPayrollForPaid.netSalary)}</strong>.
@@ -4775,10 +4992,10 @@ export function EmployeeManagementPage() {
               className="space-y-3 text-sm"
             >
               <div>
-                <label className="block text-xs text-[#A1A1AA] mb-1">Payment Mode *</label>
+                <label className="block text-xs text-gray-400 mb-1">Payment Mode *</label>
                 <select
                   name="paymentMode"
-                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                 >
                   <option value="Bank Transfer (NEFT/RTGS)">Bank Transfer (NEFT/RTGS)</option>
                   <option value="IMPS / Instant Transfer">IMPS / Instant Transfer</option>
@@ -4789,33 +5006,33 @@ export function EmployeeManagementPage() {
               </div>
 
               <div>
-                <label className="block text-xs text-[#A1A1AA] mb-1">UTR / Transaction Reference</label>
+                <label className="block text-xs text-gray-400 mb-1">UTR / Transaction Reference</label>
                 <input
                   type="text"
                   name="paymentReference"
                   placeholder="e.g. UTR123456789"
-                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs font-mono"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs font-mono"
                 />
               </div>
 
               <div>
-                <label className="block text-xs text-[#A1A1AA] mb-1">Internal Notes</label>
+                <label className="block text-xs text-gray-400 mb-1">Internal Notes</label>
                 <input
                   type="text"
                   name="paymentNotes"
                   placeholder="e.g. Disbursed via SBI corporate netbanking"
-                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#27272A]">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => {
                     setIsMarkPaidModalOpen(false);
                     setSelectedPayrollForPaid(null);
                   }}
-                  className="px-3 py-1.5 text-xs text-[#A1A1AA]"
+                  className="px-3 py-1.5 text-xs text-gray-400"
                 >
                   Cancel
                 </button>
@@ -4836,12 +5053,12 @@ export function EmployeeManagementPage() {
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       {editingAttendance && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-md p-6 space-y-4">
+          <div className="bg-[#0a091e] border border-white/10 rounded-2xl w-full max-w-md p-6 space-y-4">
             <div>
-              <h3 className="text-base font-bold text-[#FAFAFA]">Edit Attendance Record</h3>
-              <p className="text-xs text-[#A1A1AA] mt-1">
+              <h3 className="text-base font-bold text-white">Edit Attendance Record</h3>
+              <p className="text-xs text-gray-400 mt-1">
                 Editing attendance for <strong className="text-amber-400">{editingAttendance.employee.name}</strong> on{' '}
-                <span className="font-mono text-[#FAFAFA]">{editingAttendance.dateStr}</span> (Day {editingAttendance.day})
+                <span className="font-mono text-white">{editingAttendance.dateStr}</span> (Day {editingAttendance.day})
               </p>
             </div>
 
@@ -4860,11 +5077,11 @@ export function EmployeeManagementPage() {
               className="space-y-3.5 text-sm"
             >
               <div>
-                <label className="block text-xs text-[#A1A1AA] mb-1">Attendance Status *</label>
+                <label className="block text-xs text-gray-400 mb-1">Attendance Status *</label>
                 <select
                   name="status"
                   defaultValue={editingAttendance.record?.status || 'PRESENT'}
-                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                 >
                   <option value="PRESENT">Present (Full Day)</option>
                   <option value="DOUBLE_DUTY">Double Duty (2x Shifts / 2 Duties)</option>
@@ -4879,7 +5096,7 @@ export function EmployeeManagementPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-[#A1A1AA] mb-1">Overtime Hours</label>
+                  <label className="block text-xs text-gray-400 mb-1">Overtime Hours</label>
                   <input
                     type="number"
                     name="overtimeHours"
@@ -4887,15 +5104,15 @@ export function EmployeeManagementPage() {
                     max="24"
                     step="0.5"
                     defaultValue={editingAttendance.record ? Number(editingAttendance.record.overtimeHours) : 0}
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] font-mono text-xs"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white font-mono text-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-[#A1A1AA] mb-1">Sunday Shift</label>
+                  <label className="block text-xs text-gray-400 mb-1">Sunday Shift</label>
                   <select
                     name="isSundayOverride"
                     defaultValue={editingAttendance.record?.isSundayOverride ? 'true' : 'false'}
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                   >
                     <option value="false">Standard / Off</option>
                     <option value="true">Approved Sunday Work (Paid)</option>
@@ -4904,21 +5121,21 @@ export function EmployeeManagementPage() {
               </div>
 
               <div>
-                <label className="block text-xs text-[#A1A1AA] mb-1">Remarks / Reason / Notes</label>
+                <label className="block text-xs text-gray-400 mb-1">Remarks / Reason / Notes</label>
                 <input
                   type="text"
                   name="notes"
                   defaultValue={editingAttendance.record?.notes || ''}
                   placeholder="e.g. Late reporting by 30 mins, client visit"
-                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#27272A]">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setEditingAttendance(null)}
-                  className="px-3 py-1.5 text-xs text-[#A1A1AA] hover:text-[#FAFAFA] transition"
+                  className="px-3 py-1.5 text-xs text-gray-400 hover:text-white transition"
                 >
                   Cancel
                 </button>
@@ -4939,11 +5156,11 @@ export function EmployeeManagementPage() {
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       {editingAdvance && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-md p-6 space-y-4">
+          <div className="bg-[#0a091e] border border-white/10 rounded-2xl w-full max-w-md p-6 space-y-4">
             <div>
-              <h3 className="text-base font-bold text-[#FAFAFA]">Edit Salary Advance</h3>
-              <p className="text-xs text-[#A1A1AA] mt-1">
-                Employee: <strong className="text-[#FAFAFA]">{editingAdvance.employee?.name}</strong> ({editingAdvance.employee?.employeeId})
+              <h3 className="text-base font-bold text-white">Edit Salary Advance</h3>
+              <p className="text-xs text-gray-400 mt-1">
+                Employee: <strong className="text-white">{editingAdvance.employee?.name}</strong> ({editingAdvance.employee?.employeeId})
               </p>
             </div>
 
@@ -4965,7 +5182,7 @@ export function EmployeeManagementPage() {
             >
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-[#A1A1AA] mb-1">Advance Taken Date *</label>
+                  <label className="block text-xs text-gray-400 mb-1">Advance Taken Date *</label>
                   <input
                     type="date"
                     name="advanceDate"
@@ -4977,29 +5194,29 @@ export function EmployeeManagementPage() {
                         ? new Date(editingAdvance.createdAt).toISOString().slice(0, 10)
                         : new Date().toISOString().slice(0, 10)
                     }
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-[#A1A1AA] mb-1">Amount (₹) *</label>
+                  <label className="block text-xs text-gray-400 mb-1">Amount (₹) *</label>
                   <input
                     type="number"
                     name="amount"
                     required
                     min="1"
                     defaultValue={Number(editingAdvance.amount)}
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] font-mono text-xs"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white font-mono text-xs"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-[#A1A1AA] mb-1">Recovery Month</label>
+                  <label className="block text-xs text-gray-400 mb-1">Recovery Month</label>
                   <select
                     name="recoveryMonth"
                     defaultValue={editingAdvance.recoveryMonth}
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                   >
                     {MONTHS.map((m) => (
                       <option key={m.value} value={m.value}>
@@ -5009,11 +5226,11 @@ export function EmployeeManagementPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-[#A1A1AA] mb-1">Recovery Year</label>
+                  <label className="block text-xs text-gray-400 mb-1">Recovery Year</label>
                   <select
                     name="recoveryYear"
                     defaultValue={editingAdvance.recoveryYear}
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                   >
                     {[2025, 2026, 2027].map((y) => (
                       <option key={y} value={y}>
@@ -5025,33 +5242,33 @@ export function EmployeeManagementPage() {
               </div>
 
               <div>
-                <label className="block text-xs text-[#A1A1AA] mb-1">Reason for Advance *</label>
+                <label className="block text-xs text-gray-400 mb-1">Reason for Advance *</label>
                 <textarea
                   name="reason"
                   required
                   rows={2}
                   defaultValue={editingAdvance.reason}
-                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                 />
               </div>
 
               <div>
-                <label className="block text-xs text-[#A1A1AA] mb-1">Recovery Status</label>
+                <label className="block text-xs text-gray-400 mb-1">Recovery Status</label>
                 <select
                   name="isRecovered"
                   defaultValue={editingAdvance.isRecovered ? 'true' : 'false'}
-                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                 >
                   <option value="false">Pending Recovery</option>
                   <option value="true">Recovered (Deducted from salary)</option>
                 </select>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#27272A]">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setEditingAdvance(null)}
-                  className="px-3 py-1.5 text-xs text-[#A1A1AA] hover:text-[#FAFAFA] transition"
+                  className="px-3 py-1.5 text-xs text-gray-400 hover:text-white transition"
                 >
                   Cancel
                 </button>
@@ -5085,7 +5302,7 @@ export function EmployeeManagementPage() {
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
-            <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="bg-[#0a091e] border border-white/10 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-start justify-between">
                 <div>
                   <div className="flex items-center gap-2">
@@ -5093,8 +5310,8 @@ export function EmployeeManagementPage() {
                       <RotateCcw size={18} />
                     </div>
                     <div>
-                      <h3 className="text-base font-bold text-[#FAFAFA]">Recover Salary Advance</h3>
-                      <p className="text-xs text-[#A1A1AA]">
+                      <h3 className="text-base font-bold text-white">Recover Salary Advance</h3>
+                      <p className="text-xs text-gray-400">
                         Select Full Recovery or Customize Amount with carry-forward balance.
                       </p>
                     </div>
@@ -5103,36 +5320,36 @@ export function EmployeeManagementPage() {
                 <button
                   type="button"
                   onClick={() => setPartialDeductAdvanceItem(null)}
-                  className="text-[#71717A] hover:text-[#FAFAFA] p-1 rounded-lg transition"
+                  className="text-gray-500 hover:text-white p-1 rounded-lg transition"
                 >
                   <X size={18} />
                 </button>
               </div>
 
               {/* Employee & Outstanding Advances Context Card */}
-              <div className="p-3.5 bg-[#09090B] border border-[#27272A] rounded-xl space-y-2.5">
+              <div className="p-3.5 bg-[#030213] border border-white/10 rounded-xl space-y-2.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-[#71717A]">Employee:</span>
-                  <span className="font-semibold text-[#FAFAFA]">
+                  <span className="text-gray-500">Employee:</span>
+                  <span className="font-semibold text-white">
                     {partialDeductAdvanceItem.employee?.name}{' '}
                     <span className="font-mono text-amber-400">({partialDeductAdvanceItem.employee?.employeeId})</span>
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-[#71717A]">Scheduled Period:</span>
-                  <span className="font-medium text-[#FAFAFA]">
+                  <span className="text-gray-500">Scheduled Period:</span>
+                  <span className="font-medium text-white">
                     {MONTHS[partialDeductAdvanceItem.recoveryMonth - 1]?.label} {partialDeductAdvanceItem.recoveryYear}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#27272A]/70">
-                  <div className="p-2 rounded-lg bg-[#18181B] border border-[#27272A]">
-                    <span className="text-[10px] text-[#A1A1AA] uppercase font-semibold block">This Advance Pending</span>
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
+                  <div className="p-2 rounded-lg bg-[#0a091e] border border-white/10">
+                    <span className="text-[10px] text-gray-400 uppercase font-semibold block">This Advance Pending</span>
                     <span className="text-sm font-bold text-amber-400 font-mono">{formatINR(thisAmount)}</span>
                   </div>
-                  <div className="p-2 rounded-lg bg-[#18181B] border border-amber-500/20">
+                  <div className="p-2 rounded-lg bg-[#0a091e] border border-amber-500/20">
                     <span className="text-[10px] text-amber-400 uppercase font-semibold block">Total Pending (Employee)</span>
-                    <span className="text-sm font-bold text-[#FAFAFA] font-mono">{formatINR(totalEmpPending)}</span>
-                    <span className="text-[10px] text-[#71717A] block">{empPendingAdvances.length} advance record(s)</span>
+                    <span className="text-sm font-bold text-white font-mono">{formatINR(totalEmpPending)}</span>
+                    <span className="text-[10px] text-gray-500 block">{empPendingAdvances.length} advance record(s)</span>
                   </div>
                 </div>
                 {otherPendingList.length > 0 && (
@@ -5141,7 +5358,7 @@ export function EmployeeManagementPage() {
                   </div>
                 )}
                 {partialDeductAdvanceItem.reason && (
-                  <div className="text-[11px] text-[#71717A] italic">
+                  <div className="text-[11px] text-gray-500 italic">
                     Reason logged: {partialDeductAdvanceItem.reason}
                   </div>
                 )}
@@ -5149,7 +5366,7 @@ export function EmployeeManagementPage() {
 
               {/* Mode Selection Cards */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-[#A1A1AA] uppercase tracking-wider">
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">
                   Choose Recovery Mode:
                 </label>
                 <div className="grid grid-cols-2 gap-2.5">
@@ -5159,18 +5376,18 @@ export function EmployeeManagementPage() {
                     className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
                       advanceRecoveryMode === 'FULL'
                         ? 'bg-amber-500/10 border-amber-500/50 shadow-md ring-1 ring-amber-500/30'
-                        : 'bg-[#09090B] border-[#27272A] hover:border-[#3F3F46]'
+                        : 'bg-[#030213] border-white/10 hover:border-white/20'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#FAFAFA]">Full Recovery</span>
+                      <span className="text-xs font-bold text-white">Full Recovery</span>
                       <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
                         advanceRecoveryMode === 'FULL' ? 'border-amber-400 bg-amber-400' : 'border-[#52525B]'
                       }`}>
                         {advanceRecoveryMode === 'FULL' && <span className="w-1.5 h-1.5 rounded-full bg-black" />}
                       </span>
                     </div>
-                    <p className="text-[11px] text-[#A1A1AA] mt-1.5">
+                    <p className="text-[11px] text-gray-400 mt-1.5">
                       Deduct 100% ({formatINR(thisAmount)}) from current salary. Fully clears this advance.
                     </p>
                   </button>
@@ -5186,18 +5403,18 @@ export function EmployeeManagementPage() {
                     className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
                       advanceRecoveryMode === 'CUSTOM'
                         ? 'bg-amber-500/10 border-amber-500/50 shadow-md ring-1 ring-amber-500/30'
-                        : 'bg-[#09090B] border-[#27272A] hover:border-[#3F3F46]'
+                        : 'bg-[#030213] border-white/10 hover:border-white/20'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#FAFAFA]">Customize Amount</span>
+                      <span className="text-xs font-bold text-white">Customize Amount</span>
                       <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
                         advanceRecoveryMode === 'CUSTOM' ? 'border-amber-400 bg-amber-400' : 'border-[#52525B]'
                       }`}>
                         {advanceRecoveryMode === 'CUSTOM' && <span className="w-1.5 h-1.5 rounded-full bg-black" />}
                       </span>
                     </div>
-                    <p className="text-[11px] text-[#A1A1AA] mt-1.5">
+                    <p className="text-[11px] text-gray-400 mt-1.5">
                       Deduct custom partial amount now; carry forward remaining balance.
                     </p>
                   </button>
@@ -5244,12 +5461,12 @@ export function EmployeeManagementPage() {
                 {advanceRecoveryMode === 'FULL' ? (
                   <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl space-y-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#A1A1AA]">Deducting from Current Payroll:</span>
+                      <span className="text-gray-400">Deducting from Current Payroll:</span>
                       <span className="text-emerald-400 font-bold font-mono text-sm">{formatINR(thisAmount)}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#A1A1AA]">Remaining Balance:</span>
-                      <span className="text-[#FAFAFA] font-bold font-mono">₹0.00 (Fully Settled)</span>
+                      <span className="text-gray-400">Remaining Balance:</span>
+                      <span className="text-white font-bold font-mono">₹0.00 (Fully Settled)</span>
                     </div>
                     <div className="text-[11px] text-emerald-400/90 pt-1 border-t border-emerald-500/20">
                       ✓ No carry-forward advance will be created. Advance status will update to Recovered.
@@ -5259,7 +5476,7 @@ export function EmployeeManagementPage() {
                   <>
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="text-xs text-[#A1A1AA] font-medium">
+                        <label className="text-xs text-gray-400 font-medium">
                           Amount to Deduct This Month (₹) *
                         </label>
                         {/* Quick Percentage Presets */}
@@ -5271,7 +5488,7 @@ export function EmployeeManagementPage() {
                                 key={pct}
                                 type="button"
                                 onClick={() => setCustomDeductAmount(String(presetVal))}
-                                className="px-1.5 py-0.5 rounded text-[10px] bg-[#27272A] hover:bg-amber-500/20 hover:text-amber-300 text-[#A1A1AA] transition"
+                                className="px-1.5 py-0.5 rounded text-[10px] bg-white/10 hover:bg-amber-500/20 hover:text-amber-300 text-gray-400 transition"
                               >
                                 {pct * 100}% (₹{presetVal})
                               </button>
@@ -5289,13 +5506,13 @@ export function EmployeeManagementPage() {
                         value={customDeductAmount}
                         onChange={(e) => setCustomDeductAmount(e.target.value)}
                         placeholder={`e.g. ${Math.round(thisAmount / 2)}`}
-                        className="w-full px-3.5 py-2.5 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] font-mono text-sm focus:border-amber-500 focus:outline-none transition"
+                        className="w-full px-3.5 py-2.5 bg-[#030213] border border-white/10 rounded-xl text-white font-mono text-sm focus:border-[#7FB706] focus:outline-none transition"
                       />
                       <div className="mt-1.5 flex items-center justify-between text-xs">
-                        <span className="text-[#71717A]">
+                        <span className="text-gray-500">
                           Deducting: <span className="font-mono text-amber-400 font-semibold">{formatINR(parsedCustomAmount)}</span>
                         </span>
-                        <span className="text-[#71717A]">
+                        <span className="text-gray-500">
                           Carry Forward Remainder: <span className="font-mono text-emerald-400 font-semibold">{formatINR(remainingCustomAmount)}</span>
                         </span>
                       </div>
@@ -5303,7 +5520,7 @@ export function EmployeeManagementPage() {
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs text-[#A1A1AA] mb-1 font-medium">
+                        <label className="block text-xs text-gray-400 mb-1 font-medium">
                           Carry Forward Month *
                         </label>
                         <select
@@ -5313,7 +5530,7 @@ export function EmployeeManagementPage() {
                               ? 1
                               : partialDeductAdvanceItem.recoveryMonth + 1
                           }
-                          className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:border-amber-500 focus:outline-none"
+                          className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs focus:border-[#7FB706] focus:outline-none"
                         >
                           {MONTHS.map((m) => (
                             <option key={m.value} value={m.value}>
@@ -5323,7 +5540,7 @@ export function EmployeeManagementPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs text-[#A1A1AA] mb-1 font-medium">
+                        <label className="block text-xs text-gray-400 mb-1 font-medium">
                           Carry Forward Year *
                         </label>
                         <select
@@ -5333,7 +5550,7 @@ export function EmployeeManagementPage() {
                               ? partialDeductAdvanceItem.recoveryYear + 1
                               : partialDeductAdvanceItem.recoveryYear
                           }
-                          className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:border-amber-500 focus:outline-none"
+                          className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs focus:border-[#7FB706] focus:outline-none"
                         >
                           {[2025, 2026, 2027, 2028].map((y) => (
                             <option key={y} value={y}>
@@ -5347,7 +5564,7 @@ export function EmployeeManagementPage() {
                 )}
 
                 <div>
-                  <label className="block text-xs text-[#A1A1AA] mb-1">
+                  <label className="block text-xs text-gray-400 mb-1">
                     Reason / Notes for Recovery
                   </label>
                   <textarea
@@ -5358,23 +5575,23 @@ export function EmployeeManagementPage() {
                         ? 'e.g. Cleared 100% advance in current monthly payroll.'
                         : 'e.g. Deducting ₹2,000 for current month as per worker request; balance carried forward.'
                     }
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:border-amber-500 focus:outline-none"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs focus:border-[#7FB706] focus:outline-none"
                   />
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#27272A]">
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
                   <button
                     type="button"
                     onClick={() => setPartialDeductAdvanceItem(null)}
                     disabled={isSubmittingPartialDeduct}
-                    className="px-3.5 py-2 text-xs text-[#A1A1AA] hover:text-[#FAFAFA] transition disabled:opacity-50"
+                    className="px-3.5 py-2 text-xs text-gray-400 hover:text-white transition disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmittingPartialDeduct}
-                    className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-50 text-white font-semibold text-xs rounded-xl shadow-lg transition flex items-center gap-1.5"
+                    className="px-4 py-2 bg-[#7FB706] hover:bg-[#6fa005] cursor-pointer disabled:opacity-50 text-white font-semibold text-xs rounded-xl shadow-lg transition flex items-center gap-1.5"
                   >
                     {isSubmittingPartialDeduct ? (
                       <>
@@ -5405,11 +5622,11 @@ export function EmployeeManagementPage() {
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       {editingDeduction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-md p-6 space-y-4">
+          <div className="bg-[#0a091e] border border-white/10 rounded-2xl w-full max-w-md p-6 space-y-4">
             <div>
-              <h3 className="text-base font-bold text-[#FAFAFA]">Edit Deduction</h3>
-              <p className="text-xs text-[#A1A1AA] mt-1">
-                Employee: <strong className="text-[#FAFAFA]">{editingDeduction.employee?.name}</strong> ({editingDeduction.employee?.employeeId})
+              <h3 className="text-base font-bold text-white">Edit Deduction</h3>
+              <p className="text-xs text-gray-400 mt-1">
+                Employee: <strong className="text-white">{editingDeduction.employee?.name}</strong> ({editingDeduction.employee?.employeeId})
               </p>
             </div>
 
@@ -5429,24 +5646,24 @@ export function EmployeeManagementPage() {
               className="space-y-3 text-sm"
             >
               <div>
-                <label className="block text-xs text-[#A1A1AA] mb-1">Amount (₹) *</label>
+                <label className="block text-xs text-gray-400 mb-1">Amount (₹) *</label>
                 <input
                   type="number"
                   name="amount"
                   required
                   min="1"
                   defaultValue={Number(editingDeduction.amount)}
-                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] font-mono text-xs"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white font-mono text-xs"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-[#A1A1AA] mb-1">Apply Month</label>
+                  <label className="block text-xs text-gray-400 mb-1">Apply Month</label>
                   <select
                     name="applyMonth"
                     defaultValue={editingDeduction.applyMonth}
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                   >
                     {MONTHS.map((m) => (
                       <option key={m.value} value={m.value}>
@@ -5456,11 +5673,11 @@ export function EmployeeManagementPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-[#A1A1AA] mb-1">Apply Year</label>
+                  <label className="block text-xs text-gray-400 mb-1">Apply Year</label>
                   <select
                     name="applyYear"
                     defaultValue={editingDeduction.applyYear}
-                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                   >
                     {[2025, 2026, 2027].map((y) => (
                       <option key={y} value={y}>
@@ -5472,33 +5689,33 @@ export function EmployeeManagementPage() {
               </div>
 
               <div>
-                <label className="block text-xs text-[#A1A1AA] mb-1">Reason *</label>
+                <label className="block text-xs text-gray-400 mb-1">Reason *</label>
                 <textarea
                   name="reason"
                   required
                   rows={2}
                   defaultValue={editingDeduction.reason}
-                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                 />
               </div>
 
               <div>
-                <label className="block text-xs text-[#A1A1AA] mb-1">Deduction Status</label>
+                <label className="block text-xs text-gray-400 mb-1">Deduction Status</label>
                 <select
                   name="isApplied"
                   defaultValue={editingDeduction.isApplied ? 'true' : 'false'}
-                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
                 >
                   <option value="false">Pending</option>
                   <option value="true">Applied (Deducted from salary)</option>
                 </select>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#27272A]">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setEditingDeduction(null)}
-                  className="px-3 py-1.5 text-xs text-[#A1A1AA] hover:text-[#FAFAFA] transition"
+                  className="px-3 py-1.5 text-xs text-gray-400 hover:text-white transition"
                 >
                   Cancel
                 </button>

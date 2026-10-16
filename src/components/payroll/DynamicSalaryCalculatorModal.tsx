@@ -9,10 +9,7 @@ import {
   ChevronDown,
   ChevronUp,
   Save,
-  Check,
   TrendingUp,
-  Clock,
-  Calendar,
   Sparkles,
 } from 'lucide-react';
 import { employeeService } from '../../api/employeeService';
@@ -23,11 +20,6 @@ import type {
   SalaryCalculationStepHistory,
   SimulateSalaryCalculationPayload,
 } from '../../types/employee';
-
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
 
 export function computeFixedPayableDays(month: number, year: number): number {
   const totalDays = new Date(year, month, 0).getDate();
@@ -149,65 +141,34 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
   const handleEmployeeSelect = async (empId: string, targetMonth = month, targetYear = year) => {
     setSelectedEmpId(empId);
     if (!empId) {
-      setEmployeeName('');
       setEmployeePendingAdvance(0);
       return;
     }
-    const emp = employees.find((e) => e.id === empId);
-    if (emp) {
-      setEmployeeName(emp.name);
-      if (emp.monthlyCtc && Number(emp.monthlyCtc) > 0) {
-        setMonthlyCtc(Number(emp.monthlyCtc));
+
+    const empObj = employees.find((e) => e.id === empId);
+    if (empObj) {
+      setEmployeeName(empObj.name);
+      if (Number(empObj.monthlyCtc || 0) > 0) {
+        setMonthlyCtc(Number(empObj.monthlyCtc));
       }
     }
 
-    const fixedDivisor = computeFixedPayableDays(targetMonth, targetYear);
-    setStandardPayableDays(fixedDivisor);
-
-    // 1. Immediately sync from current month's loaded payrollRuns table (0ms, 100% accurate)
-    const existingRun = payrollRuns.find(
-      (r) => r.employeeId === empId && r.month === targetMonth && r.year === targetYear
-    );
-    if (existingRun) {
-      const presentPart = Number(existingRun.presentDays || 0);
-      const clPart = Number(existingRun.clDays || 0);
-      const elPart = Number(existingRun.elDays || 0);
-      const holPart = Number(existingRun.holidayDays || 0);
-      const halfPart = 0.5 * Number(existingRun.halfDays || 0);
-      const ddPart = Number(existingRun.doubleDutyDays || 0);
-      const runPayableDays = Number(existingRun.payableDays) || fixedDivisor;
-
-      setMonthlyCtc(Number(existingRun.monthlyCtc || emp?.monthlyCtc || 23500));
-      setStandardPayableDays(runPayableDays);
-      setStandardWorkingHours(Number(existingRun.workingHoursPerDay || 8));
-      setRegularPayableDays(presentPart + clPart + elPart + holPart + halfPart + ddPart);
-      setAdditionalSundayDutyCredits(Number(existingRun.approvedSundays || 0));
-      setAdditionalDoubleDutyCredits(ddPart);
-      setApprovedOvertimeHours(Number(existingRun.overtimeHours || 0));
-      setOvertimeMultiplier(Number(existingRun.overtimeMultiplier || 1.0));
-      setPartialDeductions(Number(existingRun.advanceDeduction || 0) + Number(existingRun.otherDeductions || 0));
-      setAdditionalAllowances(Number(existingRun.additionalAllowances || 0));
-      showToast('success', `Synced current ${MONTH_NAMES[targetMonth - 1] || 'month'} payroll data for ${emp?.name || 'Employee'}`);
-    }
-
-    // 2. Fetch server-side defaults & total pending advances in background
     try {
       setIsLoadingDefaults(true);
-      const defaults = await employeeService.getEmployeeSalaryDefaults(empId, targetMonth, targetYear);
+      const defaults = await employeeService.getSalaryCalculationDefaults(empId, targetMonth, targetYear);
       if (defaults) {
-        if (!existingRun) {
-          setMonthlyCtc(defaults.monthlyCtc || 23500);
-          setStandardPayableDays(defaults.standardPayableDays || fixedDivisor);
-          setStandardWorkingHours(defaults.standardWorkingHours || 8);
-          setRegularPayableDays(defaults.regularPayableDays || 0);
-          setAdditionalSundayDutyCredits(defaults.additionalSundayDutyCredits || 0);
-          setAdditionalDoubleDutyCredits(defaults.additionalDoubleDutyCredits || 0);
-          setApprovedOvertimeHours(defaults.approvedOvertimeHours || 0);
-          setOvertimeMultiplier(defaults.overtimeMultiplier || 1.0);
-          setPartialDeductions(defaults.partialDeductions || 0);
-          setAdditionalAllowances(defaults.additionalAllowances || 0);
-          showToast('success', `Loaded recorded payroll inputs for ${defaults.employeeName}`);
-        }
+        if (defaults.monthlyCtc) setMonthlyCtc(defaults.monthlyCtc);
+        const fixedDivisor = computeFixedPayableDays(targetMonth, targetYear);
+        setStandardPayableDays(defaults.standardPayableDays || fixedDivisor);
+        setStandardWorkingHours(defaults.standardWorkingHours || 8);
+        setRegularPayableDays(defaults.regularPayableDays || 0);
+        setAdditionalSundayDutyCredits(defaults.additionalSundayDutyCredits || 0);
+        setAdditionalDoubleDutyCredits(defaults.additionalDoubleDutyCredits || 0);
+        setApprovedOvertimeHours(defaults.approvedOvertimeHours || 0);
+        setOvertimeMultiplier(defaults.overtimeMultiplier || 1.0);
+        setPartialDeductions(defaults.partialDeductions || 0);
+        setAdditionalAllowances(defaults.additionalAllowances || 0);
+        showToast('success', `Loaded recorded payroll inputs for ${defaults.employeeName}`);
         if (defaults.totalPendingAdvance !== undefined) {
           setEmployeePendingAdvance(defaults.totalPendingAdvance);
         }
@@ -436,8 +397,8 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
         <div
           className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border text-sm animate-in slide-in-from-top-4 ${
             feedback.type === 'success'
-              ? 'bg-[#0f172a] text-emerald-400 border-emerald-500/30'
-              : 'bg-[#18181b] text-rose-400 border-rose-500/30'
+              ? 'bg-[#0a091e] text-emerald-400 border-emerald-500/30'
+              : 'bg-[#0a091e] text-rose-400 border-rose-500/30'
           }`}
         >
           {feedback.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
@@ -445,23 +406,23 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
         </div>
       )}
 
-      <div className="bg-[#121214] border border-[#27272A] w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[92vh]">
+      <div className="bg-[#0a091e] border border-white/10 w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[92vh]">
         {/* ── Modal Header ─────────────────────────────────────────────────── */}
-        <div className="px-6 py-4.5 bg-[#18181B] border-b border-[#27272A] flex flex-wrap items-center justify-between gap-3 shrink-0">
+        <div className="px-6 py-4.5 bg-[#0a091e] border-b border-white/10 flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+            <div className="p-2.5 rounded-xl bg-[#7FB706]/15 border border-[#7FB706]/30 text-[#B5F823]">
               <Calculator size={22} />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-[#FAFAFA]">
+                <h2 className="text-lg font-bold text-white">
                   Dynamic Salary, Attendance & Overtime Calculator
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30">
                   REAL-TIME FORMULA ENGINE
                 </span>
               </div>
-              <p className="text-xs text-[#A1A1AA] mt-0.5">
+              <p className="text-xs text-gray-400 mt-0.5">
                 Full-precision wage arithmetic with configurable payable capacity, overtime rates, and partial deductions.
               </p>
             </div>
@@ -472,7 +433,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
             <button
               type="button"
               onClick={applyPreset1}
-              className="px-2.5 py-1.5 bg-[#27272A]/70 hover:bg-[#27272A] text-amber-300 border border-amber-500/30 text-xs font-semibold rounded-lg transition"
+              className="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 text-amber-300 border border-amber-500/30 text-xs font-semibold rounded-lg transition"
               title="Test Case 1: 23,500 CTC, 26d, 1 Sun, 1 DD -> ₹25,307.69"
             >
               Test Case 1 (₹25,307.69)
@@ -480,7 +441,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
             <button
               type="button"
               onClick={applyPreset2}
-              className="px-2.5 py-1.5 bg-[#27272A]/70 hover:bg-[#27272A] text-emerald-300 border border-emerald-500/30 text-xs font-semibold rounded-lg transition"
+              className="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 text-[#B5F823] border border-[#7FB706]/30 text-xs font-semibold rounded-lg transition"
               title="Test Case 2: +4h OT, ₹500 Deduction -> ₹25,259.61"
             >
               Test Case 2 (₹25,259.61)
@@ -488,7 +449,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
             <button
               type="button"
               onClick={onClose}
-              className="p-2 text-[#71717A] hover:text-[#FAFAFA] hover:bg-[#27272A] rounded-xl transition"
+              className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition"
             >
               <X size={18} />
             </button>
@@ -498,7 +459,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
         {/* ── Modal Body (Scrollable Grid) ─────────────────────────────────── */}
         <div className="p-6 overflow-y-auto space-y-6">
           {/* Top Live Result Banner */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-[#18181B] to-amber-950/30 border border-emerald-500/20">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-[#0a091e] to-emerald-950/20 border border-emerald-500/20">
             <div className="md:col-span-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400/90 flex items-center gap-1.5">
                 <Sparkles size={14} /> Final Take-Home Payable Salary
@@ -506,51 +467,51 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
               <div className="text-3xl sm:text-4xl font-extrabold text-emerald-400 mt-1">
                 ₹{calculation.finalPayableSalary.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </div>
-              <div className="text-xs text-[#A1A1AA] mt-1 flex flex-wrap items-center gap-3">
+              <div className="text-xs text-gray-400 mt-1 flex flex-wrap items-center gap-3">
                 <span>Gross: ₹{calculation.grossEarnings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                 <span>•</span>
                 <span>Deductions: -₹{calculation.partialDeductions.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
 
-            <div className="p-3 rounded-lg bg-[#18181B]/80 border border-[#27272A]">
-              <div className="text-[11px] font-medium text-[#A1A1AA]">Per-Day Salary (Formula A)</div>
-              <div className="text-xl font-bold text-[#FAFAFA] mt-0.5">
+            <div className="p-3 rounded-lg bg-[#030213]/80 border border-white/10">
+              <div className="text-[11px] font-medium text-gray-400">Per-Day Salary (Formula A)</div>
+              <div className="text-xl font-bold text-white mt-0.5">
                 ₹{calculation.perDaySalary.toFixed(2)}
               </div>
-              <div className="text-[10px] text-[#71717A] mt-0.5">₹{monthlyCtc} ÷ {standardPayableDays} days</div>
+              <div className="text-[10px] text-gray-500 mt-0.5">₹{monthlyCtc} ÷ {standardPayableDays} days</div>
             </div>
 
-            <div className="p-3 rounded-lg bg-[#18181B]/80 border border-[#27272A]">
-              <div className="text-[11px] font-medium text-[#A1A1AA]">Per-Hour Salary (Formula B)</div>
-              <div className="text-xl font-bold text-[#FAFAFA] mt-0.5">
+            <div className="p-3 rounded-lg bg-[#030213]/80 border border-white/10">
+              <div className="text-[11px] font-medium text-gray-400">Per-Hour Salary (Formula B)</div>
+              <div className="text-xl font-bold text-white mt-0.5">
                 ₹{calculation.perHourSalary.toFixed(2)}
               </div>
-              <div className="text-[10px] text-[#71717A] mt-0.5">Per-Day ÷ {standardWorkingHours} hrs</div>
+              <div className="text-[10px] text-gray-500 mt-0.5">Per-Day ÷ {standardWorkingHours} hrs</div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* ── Left Column: Configurable Inputs (5 Cols) ────────────────── */}
             <div className="lg:col-span-5 space-y-4">
-              <div className="flex items-center justify-between border-b border-[#27272A] pb-2">
-                <h3 className="text-sm font-bold text-[#FAFAFA] uppercase tracking-wider flex items-center gap-2">
-                  <Calculator size={15} className="text-amber-400" />
+              <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <Calculator size={15} className="text-[#B5F823]" />
                   1. Calculation Inputs
                 </h3>
-                <span className="text-[11px] text-[#71717A]">Recalculates instantly</span>
+                <span className="text-[11px] text-gray-500">Recalculates instantly</span>
               </div>
 
               {/* Employee Selection */}
               <div>
-                <label className="block text-xs font-semibold text-[#D4D4D8] mb-1.5">
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
                   Select Employee (Optional for Simulation)
                 </label>
                 <div className="flex gap-2">
                   <select
                     value={selectedEmpId}
                     onChange={(e) => handleEmployeeSelect(e.target.value)}
-                    className="w-full bg-[#18181B] border border-[#27272A] text-sm text-[#FAFAFA] rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-[#030213] border border-white/10 text-sm text-white rounded-xl px-3 py-2 focus:outline-none focus:border-[#7FB706]"
                   >
                     <option value="">-- Generic Staff / Custom Simulation --</option>
                     {employees.map((emp) => (
@@ -564,7 +525,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                       type="button"
                       disabled={isLoadingDefaults}
                       onClick={() => handleEmployeeSelect(selectedEmpId)}
-                      className="px-3 py-2 bg-[#27272A] hover:bg-[#3F3F46] text-xs font-semibold text-[#FAFAFA] rounded-xl transition"
+                      className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-white rounded-xl transition"
                       title="Reload recorded monthly attendance defaults"
                     >
                       {isLoadingDefaults ? 'Loading...' : 'Sync'}
@@ -576,7 +537,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
               {/* Month & Year */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-[#D4D4D8] mb-1.5">Payroll Month</label>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Payroll Month</label>
                   <select
                     value={month}
                     onChange={(e) => {
@@ -588,7 +549,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                         handleEmployeeSelect(selectedEmpId, newMonth, year);
                       }
                     }}
-                    className="w-full bg-[#18181B] border border-[#27272A] text-sm text-[#FAFAFA] rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-[#030213] border border-white/10 text-sm text-white rounded-xl px-3 py-2 focus:outline-none focus:border-[#7FB706]"
                   >
                     {[
                       { value: 1, label: 'January' },
@@ -611,7 +572,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#D4D4D8] mb-1.5">Payroll Year</label>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Payroll Year</label>
                   <select
                     value={year}
                     onChange={(e) => {
@@ -623,7 +584,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                         handleEmployeeSelect(selectedEmpId, month, newYear);
                       }
                     }}
-                    className="w-full bg-[#18181B] border border-[#27272A] text-sm text-[#FAFAFA] rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-[#030213] border border-white/10 text-sm text-white rounded-xl px-3 py-2 focus:outline-none focus:border-[#7FB706]"
                   >
                     {[2024, 2025, 2026, 2027].map((y) => (
                       <option key={y} value={y}>
@@ -636,18 +597,18 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
 
               {/* Base Monthly CTC */}
               <div>
-                <label className="block text-xs font-semibold text-[#D4D4D8] mb-1.5">
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
                   Monthly CTC / Salary Base (₹)
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-sm text-[#71717A]">₹</span>
+                  <span className="absolute left-3 top-2.5 text-sm text-gray-500">₹</span>
                   <input
                     type="number"
                     min="0"
                     step="100"
                     value={monthlyCtc}
                     onChange={(e) => setMonthlyCtc(Math.max(0, Number(e.target.value) || 0))}
-                    className="w-full pl-8 pr-3 py-2 bg-[#18181B] border border-[#27272A] text-sm text-[#FAFAFA] font-semibold rounded-xl focus:outline-none focus:border-emerald-500"
+                    className="w-full pl-8 pr-3 py-2 bg-[#030213] border border-white/10 text-sm text-white font-semibold rounded-xl focus:outline-none focus:border-[#7FB706]"
                     placeholder="23500"
                   />
                 </div>
@@ -656,9 +617,9 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
               {/* Standard Payable Days & Standard Working Hours */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-[#D4D4D8] mb-1.5">
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">
                     Payable Days (Fixed Divisor)
-                    <span className="text-[#71717A] font-normal block text-[10px]">Fixed month capacity (Days in Month - Sundays, e.g. 26 in Sep)</span>
+                    <span className="text-gray-500 font-normal block text-[10px]">Fixed month capacity (Days in Month - Sundays, e.g. 26 in Sep)</span>
                   </label>
                   <input
                     type="number"
@@ -666,14 +627,14 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                     max="31"
                     value={standardPayableDays}
                     onChange={(e) => setStandardPayableDays(Math.max(1, Number(e.target.value) || 1))}
-                    className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] text-sm text-[#FAFAFA] font-semibold rounded-xl focus:outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 text-sm text-white font-semibold rounded-xl focus:outline-none focus:border-[#7FB706]"
                     placeholder="26"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#D4D4D8] mb-1.5">
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">
                     Working Hours / Day
-                    <span className="text-[#71717A] font-normal block text-[10px]">Standard Shift Length</span>
+                    <span className="text-gray-500 font-normal block text-[10px]">Standard Shift Length</span>
                   </label>
                   <input
                     type="number"
@@ -681,7 +642,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                     max="24"
                     value={standardWorkingHours}
                     onChange={(e) => setStandardWorkingHours(Math.max(1, Number(e.target.value) || 1))}
-                    className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] text-sm text-[#FAFAFA] font-semibold rounded-xl focus:outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 text-sm text-white font-semibold rounded-xl focus:outline-none focus:border-[#7FB706]"
                     placeholder="8"
                   />
                 </div>
@@ -689,9 +650,9 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
 
               {/* Regular Payable Days */}
               <div>
-                <label className="block text-xs font-semibold text-[#D4D4D8] mb-1.5">
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
                   Regular Payable Attendance Days
-                  <span className="text-[#71717A] font-normal block text-[10px]">
+                  <span className="text-gray-500 font-normal block text-[10px]">
                     Weekday Present days (CL/EL/Holidays included)
                   </span>
                 </label>
@@ -702,7 +663,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                   step="0.5"
                   value={regularPayableDays}
                   onChange={(e) => setRegularPayableDays(Math.max(0, Number(e.target.value) || 0))}
-                  className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] text-sm text-[#FAFAFA] font-semibold rounded-xl focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 text-sm text-white font-semibold rounded-xl focus:outline-none focus:border-[#7FB706]"
                   placeholder="26"
                 />
               </div>
@@ -710,9 +671,9 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
               {/* Sunday Duty & Double Duty Credits */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-[#D4D4D8] mb-1.5">
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">
                     Sunday Duty Credits
-                    <span className="text-[#71717A] font-normal block text-[10px]">+1 Extra Day Equivalent</span>
+                    <span className="text-gray-500 font-normal block text-[10px]">+1 Extra Day Equivalent</span>
                   </label>
                   <input
                     type="number"
@@ -720,14 +681,14 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                     max="6"
                     value={additionalSundayDutyCredits}
                     onChange={(e) => setAdditionalSundayDutyCredits(Math.max(0, Number(e.target.value) || 0))}
-                    className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] text-sm text-[#FAFAFA] font-semibold rounded-xl focus:outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 text-sm text-white font-semibold rounded-xl focus:outline-none focus:border-[#7FB706]"
                     placeholder="1"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#D4D4D8] mb-1.5">
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">
                     Double-Duty Credits
-                    <span className="text-[#71717A] font-normal block text-[10px]">+1 Extra Day Equivalent</span>
+                    <span className="text-gray-500 font-normal block text-[10px]">+1 Extra Day Equivalent</span>
                   </label>
                   <input
                     type="number"
@@ -735,7 +696,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                     max="31"
                     value={additionalDoubleDutyCredits}
                     onChange={(e) => setAdditionalDoubleDutyCredits(Math.max(0, Number(e.target.value) || 0))}
-                    className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] text-sm text-[#FAFAFA] font-semibold rounded-xl focus:outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 text-sm text-white font-semibold rounded-xl focus:outline-none focus:border-[#7FB706]"
                     placeholder="1"
                   />
                 </div>
@@ -744,9 +705,9 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
               {/* Overtime Hours & Multiplier */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-[#D4D4D8] mb-1.5">
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">
                     Approved Overtime Hours
-                    <span className="text-[#71717A] font-normal block text-[10px]">Total extra hours</span>
+                    <span className="text-gray-500 font-normal block text-[10px]">Total extra hours</span>
                   </label>
                   <input
                     type="number"
@@ -754,19 +715,19 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                     step="0.5"
                     value={approvedOvertimeHours}
                     onChange={(e) => setApprovedOvertimeHours(Math.max(0, Number(e.target.value) || 0))}
-                    className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] text-sm text-[#FAFAFA] font-semibold rounded-xl focus:outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 text-sm text-white font-semibold rounded-xl focus:outline-none focus:border-[#7FB706]"
                     placeholder="0"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#D4D4D8] mb-1.5">
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">
                     Overtime Multiplier
-                    <span className="text-[#71717A] font-normal block text-[10px]">Standard 1.0x (or 1.5x / 2.0x)</span>
+                    <span className="text-gray-500 font-normal block text-[10px]">Standard 1.0x (or 1.5x / 2.0x)</span>
                   </label>
                   <select
                     value={overtimeMultiplier}
                     onChange={(e) => setOvertimeMultiplier(Number(e.target.value))}
-                    className="w-full bg-[#18181B] border border-[#27272A] text-sm text-[#FAFAFA] font-semibold rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-[#030213] border border-white/10 text-sm text-white font-semibold rounded-xl px-3 py-2 focus:outline-none focus:border-[#7FB706]"
                   >
                     <option value={1.0}>1.0x (Standard 1 hr rate)</option>
                     <option value={1.25}>1.25x</option>
@@ -780,7 +741,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-semibold text-[#D4D4D8]">
+                    <label className="text-xs font-semibold text-gray-300">
                       Partial Deductions (₹)
                     </label>
                     {employeePendingAdvance > 0 && (
@@ -790,14 +751,14 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                     )}
                   </div>
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-sm text-[#71717A]">₹</span>
+                    <span className="absolute left-3 top-2.5 text-sm text-gray-500">₹</span>
                     <input
                       type="number"
                       min="0"
                       step="50"
                       value={partialDeductions}
                       onChange={(e) => setPartialDeductions(Math.max(0, Number(e.target.value) || 0))}
-                      className="w-full pl-8 pr-3 py-2 bg-[#18181B] border border-[#27272A] text-sm text-rose-300 font-semibold rounded-xl focus:outline-none focus:border-rose-500"
+                      className="w-full pl-8 pr-3 py-2 bg-[#030213] border border-white/10 text-sm text-rose-300 font-semibold rounded-xl focus:outline-none focus:border-rose-500"
                       placeholder="0"
                     />
                   </div>
@@ -814,7 +775,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                       <button
                         type="button"
                         onClick={() => setPartialDeductions(Math.round(employeePendingAdvance / 2))}
-                        className="px-1.5 py-0.5 bg-[#27272A] hover:bg-[#3F3F46] text-[#A1A1AA] hover:text-[#FAFAFA] rounded text-[10px] transition"
+                        className="px-1.5 py-0.5 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded text-[10px] transition"
                         title="Customize: 50% recovery"
                       >
                         50%
@@ -822,7 +783,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                       <button
                         type="button"
                         onClick={() => setPartialDeductions(0)}
-                        className="px-1.5 py-0.5 bg-[#27272A] hover:bg-[#3F3F46] text-[#71717A] hover:text-[#FAFAFA] rounded text-[10px] transition"
+                        className="px-1.5 py-0.5 bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white rounded text-[10px] transition"
                       >
                         Clear
                       </button>
@@ -830,19 +791,19 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                   )}
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#D4D4D8] mb-1.5">
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">
                     Other Allowances (₹)
-                    <span className="text-[#71717A] font-normal block text-[10px]">Bonus / food / travel</span>
+                    <span className="text-gray-500 font-normal block text-[10px]">Bonus / food / travel</span>
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-sm text-[#71717A]">₹</span>
+                    <span className="absolute left-3 top-2.5 text-sm text-gray-500">₹</span>
                     <input
                       type="number"
                       min="0"
                       step="50"
                       value={additionalAllowances}
                       onChange={(e) => setAdditionalAllowances(Math.max(0, Number(e.target.value) || 0))}
-                      className="w-full pl-8 pr-3 py-2 bg-[#18181B] border border-[#27272A] text-sm text-emerald-300 font-semibold rounded-xl focus:outline-none focus:border-emerald-500"
+                      className="w-full pl-8 pr-3 py-2 bg-[#030213] border border-white/10 text-sm text-[#B5F823] font-semibold rounded-xl focus:outline-none focus:border-[#7FB706]"
                       placeholder="0"
                     />
                   </div>
@@ -852,38 +813,38 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
 
             {/* ── Right Column: 14 Itemized Outputs (7 Cols) ────────────────── */}
             <div className="lg:col-span-7 space-y-4">
-              <div className="flex items-center justify-between border-b border-[#27272A] pb-2">
-                <h3 className="text-sm font-bold text-[#FAFAFA] uppercase tracking-wider flex items-center gap-2">
-                  <TrendingUp size={15} className="text-emerald-400" />
+              <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <TrendingUp size={15} className="text-[#B5F823]" />
                   2. Official 14-Item Payroll Breakdown
                 </h3>
-                <span className="text-[11px] text-emerald-400 font-semibold">Matched to Statutory Rules</span>
+                <span className="text-[11px] text-[#B5F823] font-semibold">Matched to Statutory Rules</span>
               </div>
 
               {/* 14 Rows Itemized Grid */}
-              <div className="bg-[#18181B] border border-[#27272A] rounded-xl overflow-hidden divide-y divide-[#27272A] text-xs">
+              <div className="bg-[#0a091e] border border-white/10 rounded-xl overflow-hidden divide-y divide-white/10 text-xs shadow-lg">
                 {/* 1 */}
-                <div className="p-2.5 flex items-center justify-between hover:bg-[#27272A]/30">
-                  <span className="text-[#A1A1AA] flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-[#27272A] text-[10px] font-bold flex items-center justify-center text-[#FAFAFA]">
+                <div className="p-2.5 flex items-center justify-between hover:bg-white/5">
+                  <span className="text-gray-400 flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-white/10 text-[10px] font-bold flex items-center justify-center text-white">
                       1
                     </span>
                     Monthly Salary Base / CTC
                   </span>
-                  <span className="font-bold text-[#FAFAFA]">
+                  <span className="font-bold text-white">
                     ₹{calculation.monthlySalaryBase.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
 
                 {/* 2 */}
-                <div className="p-2.5 flex items-center justify-between hover:bg-[#27272A]/30">
-                  <span className="text-[#A1A1AA] flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-[#27272A] text-[10px] font-bold flex items-center justify-center text-[#FAFAFA]">
+                <div className="p-2.5 flex items-center justify-between hover:bg-white/5">
+                  <span className="text-gray-400 flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-white/10 text-[10px] font-bold flex items-center justify-center text-white">
                       2
                     </span>
                     Standard Paid Days (Fixed)
                   </span>
-                  <span className="font-bold text-[#FAFAFA]">{calculation.standardPayableDays} days</span>
+                  <span className="font-bold text-white">{calculation.standardPayableDays} days</span>
                 </div>
 
                 {/* 3 */}
@@ -913,68 +874,68 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                 </div>
 
                 {/* 5 */}
-                <div className="p-2.5 flex items-center justify-between hover:bg-[#27272A]/30">
-                  <span className="text-[#A1A1AA] flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-[#27272A] text-[10px] font-bold flex items-center justify-center text-[#FAFAFA]">
+                <div className="p-2.5 flex items-center justify-between hover:bg-white/5">
+                  <span className="text-gray-400 flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-white/10 text-[10px] font-bold flex items-center justify-center text-white">
                       5
                     </span>
                     Regular Payable Attendance
                   </span>
-                  <span className="font-semibold text-[#FAFAFA]">{calculation.regularPayableAttendance} days</span>
+                  <span className="font-semibold text-white">{calculation.regularPayableAttendance} days</span>
                 </div>
 
                 {/* 6 */}
-                <div className="p-2.5 flex items-center justify-between hover:bg-[#27272A]/30">
-                  <span className="text-[#A1A1AA] flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-[#27272A] text-[10px] font-bold flex items-center justify-center text-[#FAFAFA]">
+                <div className="p-2.5 flex items-center justify-between hover:bg-white/5">
+                  <span className="text-gray-400 flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-white/10 text-[10px] font-bold flex items-center justify-center text-white">
                       6
                     </span>
                     Additional Sunday Duty Credit
                   </span>
-                  <span className="font-semibold text-emerald-400">+{calculation.additionalSundayDutyCredit} day</span>
+                  <span className="font-semibold text-[#B5F823]">+{calculation.additionalSundayDutyCredit} day</span>
                 </div>
 
                 {/* 7 */}
-                <div className="p-2.5 flex items-center justify-between hover:bg-[#27272A]/30">
-                  <span className="text-[#A1A1AA] flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-[#27272A] text-[10px] font-bold flex items-center justify-center text-[#FAFAFA]">
+                <div className="p-2.5 flex items-center justify-between hover:bg-white/5">
+                  <span className="text-gray-400 flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-white/10 text-[10px] font-bold flex items-center justify-center text-white">
                       7
                     </span>
                     Additional Double-Duty Credit
                   </span>
-                  <span className="font-semibold text-emerald-400">+{calculation.additionalDoubleDutyCredit} day</span>
+                  <span className="font-semibold text-[#B5F823]">+{calculation.additionalDoubleDutyCredit} day</span>
                 </div>
 
                 {/* 8 */}
-                <div className="p-2.5 flex items-center justify-between bg-[#27272A]/40">
-                  <span className="text-[#FAFAFA] font-bold flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-[10px] font-bold flex items-center justify-center text-emerald-400">
+                <div className="p-2.5 flex items-center justify-between bg-white/5">
+                  <span className="text-white font-bold flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-[#7FB706]/20 text-[10px] font-bold flex items-center justify-center text-[#B5F823]">
                       8
                     </span>
                     Total Payable Days (Total Present Equivalents)
                   </span>
-                  <span className="font-extrabold text-emerald-400 text-sm">
+                  <span className="font-extrabold text-[#B5F823] text-sm">
                     {calculation.totalPayableDayEquivalents} days
                   </span>
                 </div>
 
                 {/* 9 */}
-                <div className="p-2.5 flex items-center justify-between hover:bg-[#27272A]/30">
-                  <span className="text-[#A1A1AA] flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-[#27272A] text-[10px] font-bold flex items-center justify-center text-[#FAFAFA]">
+                <div className="p-2.5 flex items-center justify-between hover:bg-white/5">
+                  <span className="text-gray-400 flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-white/10 text-[10px] font-bold flex items-center justify-center text-white">
                       9
                     </span>
                     Base Payable Salary (Equivalents × Per-Day)
                   </span>
-                  <span className="font-bold text-[#FAFAFA]">
+                  <span className="font-bold text-white">
                     ₹{calculation.basePayableSalary.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
 
                 {/* 10 */}
-                <div className="p-2.5 flex items-center justify-between hover:bg-[#27272A]/30">
-                  <span className="text-[#A1A1AA] flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-[#27272A] text-[10px] font-bold flex items-center justify-center text-[#FAFAFA]">
+                <div className="p-2.5 flex items-center justify-between hover:bg-white/5">
+                  <span className="text-gray-400 flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-white/10 text-[10px] font-bold flex items-center justify-center text-white">
                       10
                     </span>
                     Approved Overtime ({calculation.approvedOvertimeHours} hrs @ {calculation.overtimeMultiplier}x)
@@ -985,14 +946,14 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                 </div>
 
                 {/* 11 */}
-                <div className="p-2.5 flex items-center justify-between hover:bg-[#27272A]/30">
-                  <span className="text-[#A1A1AA] flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-[#27272A] text-[10px] font-bold flex items-center justify-center text-[#FAFAFA]">
+                <div className="p-2.5 flex items-center justify-between hover:bg-white/5">
+                  <span className="text-gray-400 flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-white/10 text-[10px] font-bold flex items-center justify-center text-white">
                       11
                     </span>
                     Additional Earnings & Allowances
                   </span>
-                  <span className="font-semibold text-emerald-400">
+                  <span className="font-semibold text-[#B5F823]">
                     +₹{calculation.additionalEarnings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -1011,27 +972,27 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                 </div>
 
                 {/* 13 */}
-                <div className="p-2.5 flex items-center justify-between bg-[#27272A]/20">
-                  <span className="text-[#FAFAFA] font-bold flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-[#3F3F46] text-[10px] font-bold flex items-center justify-center text-[#FAFAFA]">
+                <div className="p-2.5 flex items-center justify-between bg-white/5">
+                  <span className="text-white font-bold flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-white/15 text-[10px] font-bold flex items-center justify-center text-white">
                       13
                     </span>
                     Gross Earnings (Base + OT + Allowances)
                   </span>
-                  <span className="font-extrabold text-[#FAFAFA] text-sm">
+                  <span className="font-extrabold text-white text-sm">
                     ₹{calculation.grossEarnings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
 
                 {/* 14 */}
-                <div className="p-3 flex items-center justify-between bg-emerald-500/10 border-t-2 border-emerald-500/40">
-                  <span className="text-emerald-300 font-bold flex items-center gap-2 text-sm">
-                    <span className="w-6 h-6 rounded-full bg-emerald-500/30 text-xs font-extrabold flex items-center justify-center text-emerald-300">
+                <div className="p-3 flex items-center justify-between bg-[#7FB706]/15 border-t-2 border-[#7FB706]/40">
+                  <span className="text-[#B5F823] font-bold flex items-center gap-2 text-sm">
+                    <span className="w-6 h-6 rounded-full bg-[#7FB706]/30 text-xs font-extrabold flex items-center justify-center text-[#B5F823]">
                       14
                     </span>
                     FINAL PAYABLE SALARY (Take-Home Net)
                   </span>
-                  <span className="font-black text-emerald-400 text-base sm:text-lg">
+                  <span className="font-black text-[#B5F823] text-base sm:text-lg">
                     ₹{calculation.finalPayableSalary.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -1042,10 +1003,10 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                 <button
                   type="button"
                   onClick={() => setShowHistory(!showHistory)}
-                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#18181B] border border-[#27272A] text-xs font-semibold text-[#D4D4D8] hover:text-[#FAFAFA] transition"
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#0a091e] border border-white/10 text-xs font-semibold text-gray-300 hover:text-white transition"
                 >
                   <span className="flex items-center gap-2">
-                    <HelpCircle size={15} className="text-amber-400" />
+                    <HelpCircle size={15} className="text-[#B5F823]" />
                     Step-by-Step Formula Walkthrough & Audit Trail
                   </span>
                   {showHistory ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -1056,18 +1017,18 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                     {calculation.calculationHistory.map((step) => (
                       <div
                         key={step.step}
-                        className="p-3 rounded-xl bg-[#18181B] border border-[#27272A] space-y-1 text-xs"
+                        className="p-3 rounded-xl bg-[#0a091e] border border-white/10 space-y-1 text-xs"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-[#FAFAFA]">
+                          <span className="font-bold text-white">
                             Step {step.step}: {step.title}
                           </span>
-                          <span className="font-extrabold text-emerald-400">{step.result}</span>
+                          <span className="font-extrabold text-[#B5F823]">{step.result}</span>
                         </div>
-                        <div className="text-[#A1A1AA] font-mono text-[11px] bg-[#121214] p-1.5 rounded border border-[#27272A]">
+                        <div className="text-gray-400 font-mono text-[11px] bg-[#030213] p-1.5 rounded border border-white/10">
                           {step.formula} ➔ {step.calculation}
                         </div>
-                        <div className="text-[11px] text-[#71717A] italic">{step.explanation}</div>
+                        <div className="text-[11px] text-gray-500 italic">{step.explanation}</div>
                       </div>
                     ))}
                   </div>
@@ -1078,8 +1039,8 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
         </div>
 
         {/* ── Modal Footer ─────────────────────────────────────────────────── */}
-        <div className="px-6 py-4 bg-[#18181B] border-t border-[#27272A] flex flex-wrap items-center justify-between gap-3 shrink-0">
-          <div className="text-xs text-[#71717A] flex items-center gap-2">
+        <div className="px-6 py-4 bg-[#0a091e] border-t border-white/10 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="text-xs text-gray-500 flex items-center gap-2">
             <span>Formula standard: 26 payable days divisor (Sept 2026), 8h shift.</span>
           </div>
 
@@ -1087,7 +1048,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
             <button
               type="button"
               onClick={applyPreset1}
-              className="px-3 py-2 bg-[#27272A] hover:bg-[#3F3F46] text-[#D4D4D8] text-xs font-semibold rounded-xl transition flex items-center gap-1.5"
+              className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 text-xs font-semibold rounded-xl transition flex items-center gap-1.5"
             >
               <RotateCcw size={14} />
               Reset to Acceptance 1
@@ -1096,7 +1057,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-[#27272A] hover:bg-[#3F3F46] text-[#FAFAFA] text-xs font-semibold rounded-xl transition"
+              className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-semibold rounded-xl transition"
             >
               Close Studio
             </button>
@@ -1105,7 +1066,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
               type="button"
               disabled={isSaving || !selectedEmpId}
               onClick={handleSaveToPayroll}
-              className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-900/30 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-5 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs font-bold rounded-xl shadow-lg shadow-[#7FB706]/20 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               title={
                 selectedEmpId
                   ? 'Persist this exact dynamic breakdown into the employee payroll run'

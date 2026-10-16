@@ -5761,6 +5761,41 @@ A total of **115 new targeted B-tree indexes** were created across public schema
   - Zero TypeScript errors (`npx tsc --noEmit` exited 0).
   - Passing build (`npm run build` exited 0).
 
+---
+
+## 107. Employee & Compensation Suite — Pacific Brand Theme & Mobile Responsiveness Overhaul
+
+### 107.1 Database Identity & Data Flow Guarantee
+- **Database Engine**: All Employee Management records (directory, attendances, leave ledgers, advances, deductions, payroll runs) are stored directly in the **Pacific Production Database (`bcbswbzbtskvmdqmgrjm`)**.
+- **Backend Architecture**: The frontend (`D:\PACIFIC-Admin`) communicates via `VITE_API_URL="https://pacific-backend-psuw.onrender.com/api/v1"` which connects directly via Prisma to `DATABASE_URL` / `DIRECT_URL` referencing `postgres.bcbswbzbtskvmdqmgrjm:5432/postgres`.
+- **Zero Legacy Connection**: The legacy PRC database (`ktfsxsllbyyjgplitvfe`) is neither referenced nor called. 100% of historical records were migrated to `bcbswbzbtskvmdqmgrjm`.
+
+### 107.2 Pacific Dark Brand Theme Harmonization
+- **Theme Palette Replacement**:
+  - Primary Base Background: `#030213`
+  - Container / Card Panels: `#0a091e` with `border border-white/10` and `rounded-2xl shadow-xl`
+  - Brand Accents: `#7FB706` (Pacific Forest Green) & `#B5F823` (Pacific High-Visibility Lime)
+  - Primary Action Buttons: `bg-[#7FB706] hover:bg-[#6fa005] text-white font-semibold rounded-xl shadow-lg shadow-[#7FB706]/20 transition-all cursor-pointer`
+  - Secondary Buttons: `bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl transition cursor-pointer`
+  - Form Inputs & Selects: `bg-[#030213] border border-white/10 text-white placeholder-gray-500 rounded-xl px-3 py-2 focus:outline-none focus:border-[#7FB706] focus:ring-1 focus:ring-[#7FB706]/30`
+  - Navigation Tabs: Pacific pill buttons (`bg-[#7FB706] text-white shadow-lg shadow-[#7FB706]/20` when active, `text-gray-400 hover:text-white hover:bg-white/5` when inactive).
+  - Legacy Color Tokens Eliminated: 0 instances of `#18181B`, `#27272A`, `#09090B`, `#FAFAFA`, `#A1A1AA`, `#71717A`.
+
+### 107.3 Mobile-First UX & Table-to-Card Transforms
+- **Directory Tab**: Desktop table (`hidden lg:table`) paired with mobile employee cards (`lg:hidden space-y-3`) showing employee ID badge, name, designation, department, contact info, CTC, and leave balances with touch-friendly action buttons.
+- **Attendance Matrix Tab**:
+  - Desktop view features `sticky left-0 z-20 bg-[#0a091e] border-r border-white/10 min-w-[200px]` on the employee name column so horizontal scrolling across days 1-31 preserves worker identity.
+  - Mobile view provides clean daily cards with 1-click status pills (`P`, `DD`, `HD`, `UL`, `CL`, `EL`, `HOL`), inline overtime entry, and Sunday work toggle.
+- **Monthly Payroll Runs Tab**:
+  - Desktop table (`hidden lg:table`) paired with mobile cards (`lg:hidden space-y-3`) featuring large `#B5F823` Net Pay callouts, attendance divisor breakdowns, gross CTC, advance deductions, and action buttons (`Recalculate`, `PDF`, `Email`, `Finalize`, `Mark Paid`).
+- **Advances & Deductions Tab**:
+  - Desktop tables paired with mobile cards showing disbursement amounts, pending recoveries, and 1-click recovery actions.
+- **Modal Dialogs**: Styled with `bg-[#0a091e] border border-white/10 rounded-2xl max-w-xl max-h-[92vh] overflow-y-auto` preventing any screen clipping on mobile viewports.
+
+### 107.4 Verification & Quality Gates
+- `npx tsc --noEmit` exited 0 (Zero TypeScript errors).
+- `npm run build` exited 0 (Vite production bundle generated in 43.52s).
+
 
 
 

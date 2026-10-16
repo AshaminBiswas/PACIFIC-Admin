@@ -288,6 +288,10 @@ export const employeeService = {
     return res.data?.data !== undefined ? res.data.data : res.data;
   },
 
+  async getSalaryCalculationDefaults(employeeId: string, month: number, year: number): Promise<EmployeeSalaryDefaults> {
+    return this.getEmployeeSalaryDefaults(employeeId, month, year);
+  },
+
   async calculatePayroll(payload: CalculatePayrollPayload): Promise<EmployeePayrollRun[]> {
     const res = await apiClient.post<any>('/employees/payroll/calculate', payload);
     const data = res.data?.data !== undefined ? res.data.data : res.data;
