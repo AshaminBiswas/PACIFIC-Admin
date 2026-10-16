@@ -5970,6 +5970,50 @@ A total of **115 new targeted B-tree indexes** were created across public schema
 - **`HardwareInventoryPage.tsx`**:
   - Passes current `items` into `CreateHardwareModal`.
 
+---
+
+## 111. Hardware Inventory Inward & Issue Movement SQL Sanitization — PostgreSQL Error 42601 Fix
+
+### 111.1 Problem & Root Cause Analysis
+1. **User Problem**: "I CAN INWORD ANY ITEM IN THE HARDWARE INVENTORY. Invalid `prisma.$queryRawUnsafe()` invocation: Raw query failed. Code: `42601`. Message: `ERROR: syntax error at or near "s"`. PLEASE IFXED IT"
+2. **Root Cause Identification**:
+   - In `PACIFIC-Backend/src/modules/inventory/hardwareInventory.service.ts` in `inwardStock()` and `issueStock()`:
+     ```ts
+     INSERT INTO hardware_stock_movements (..., unit, ...) VALUES (..., '${item.unit}', ...)
+     ```
+   - Standard hardware units across Pacific Restroom Cubicle inventory include `"No's"` and `"Set's"`.
+   - When interpolating `'${item.unit}'` directly without escaping, the string rendered as `'Set's'` or `'No's'`.
+   - PostgreSQL terminates the string literal at `'Set'` or `'No'`, causing the trailing `'s'` to be interpreted as an invalid SQL token, instantly triggering:
+     `ERROR: syntax error at or near "s"` (PostgreSQL Code `42601`).
+   - Similar vulnerabilities existed for `item.sku`, `item.name`, `item.material`, and `warehouse` if they contained quotes or apostrophes.
+
+### 111.2 Fix & Architectural Hardening (`PACIFIC-Backend`)
+1. **Universal SQL Literal Escaper (`escapeSql`)**:
+   - Defined `escapeSql(val: any): string` helper that safely casts non-null values to strings and escapes single quotes (`replace(/'/g, "''")`).
+2. **Sanitized Inward Movement Query (`inwardStock`)**:
+   - Extracted sanitized variables:
+     - `cleanWarehouse = escapeSql(data.warehouse || item.warehouse || 'DELHI')`
+     - `cleanSku = escapeSql(item.sku)`
+     - `cleanName = escapeSql(item.name)`
+     - `cleanMaterial = escapeSql(item.material || 'STAINLESS_STEEL')`
+     - `cleanUnit = escapeSql(item.unit || "No's")`
+   - Replaced raw unescaped values in `INSERT INTO hardware_stock_movements` with the sanitized strings.
+3. **Sanitized Issue Movement Query (`issueStock`)**:
+   - Applied identical `cleanWarehouse`, `cleanSku`, `cleanName`, `cleanMaterial`, and `cleanUnit` sanitization.
+   - Refactored `issueRef`, `issuedTo`, and `notes` to use `sqlStringOrNull` helper for uniform null and quote handling.
+4. **Sanitized `getItemById` Recent Movement Query**:
+   - Escaped `item.id` and `item.sku` in `WHERE hardware_item_id = '${escapeSql(item.id)}' OR sku = '${escapeSql(item.sku)}'`.
+
+### 111.3 Verification & Quality Gates
+1. **Reproduction & Live Test Verification**:
+   - Executed live test script against database item with `unit = "No's"` (`SS-KNO-SLV-717`).
+   - Before fix: Threw Code `42601` (`ERROR: syntax error at or near "s"`).
+   - After fix: Returned `INWARD SUCCESS`, generated movement number (`INW-...`), cleanly updated stock, and safely cleaned up test record.
+2. **Backend Build & Git Sync**:
+   - `npm run build` in `D:\PACIFIC-Backend`: Exited with code 0 (`prisma generate`, Puppeteer Chrome, `tsc`).
+   - Committed (`3d8a3eb`) and pushed to `origin/main` on `PACIFIC-Backend`.
+
+
 
 
 
