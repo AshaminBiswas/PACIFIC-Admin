@@ -5919,6 +5919,20 @@ A total of **115 new targeted B-tree indexes** were created across public schema
 - `PACIFIC-Backend`: `npm run build` exited 0; pushed to `origin/main` (`d8a5e1c`).
 - `PACIFIC-Admin`: `npx tsc --noEmit` exited 0; `npm run build` built in 30.36s and exited 0.
 
+### 109.6 Purge of Previous Installation Data & Settlement Payments (Preserving Advances)
+- **User Directive**: "REMOVE THE PREVIOUS INSTALLATION DATA AND PAYMET DATA FORM THE DATABASE BUT NOT THE ADVANCE PAYMENT DATA".
+- **Execution & Database Impact**:
+  1. **Unlinked Advances**: All 5 advance records (`isAdvance: true`) were unlinked from `billId` (`billId = null`) to ensure zero cascade impact.
+  2. **Deleted Settlement Payments**: Removed all 11 non-advance payments (`isAdvance: false`) from `installer_bill_payments`.
+  3. **Deleted Bill Line Items**: Removed all 14 line items from `installer_bill_items`.
+  4. **Deleted Historical Installation Bills**: Removed all 9 historical bills (`PPSI-00001` through `PPSI-00009`) from `installer_bills`.
+  5. **Sequence Reset**: Reset `installer_bill_sequences` lastNumber to 0 and PostgreSQL sequence `ppsi_bill_seq` to 1, ensuring fresh bills start numbering cleanly at `PPSI-00001`.
+  6. **100% Advances Preserved (₹2,18,358 total)**:
+     - Mohd Rauf: 4 advances totaling ₹1,68,358 (₹70k on 2026-09-25, ₹50k on 2026-10-03, ₹33.358k on 2026-10-10, ₹15k on 2026-10-15).
+     - Masud: 1 advance totaling ₹50,000 (2026-10-07).
+     - Ashamin Biswas: 0 advances, 0 bills (clean slate).
+  7. **Installer Master Intact**: All registered contractors (`CubicleInstaller`) and cubicle models (`CubicleModel`) preserved intact.
+
 
 
 
