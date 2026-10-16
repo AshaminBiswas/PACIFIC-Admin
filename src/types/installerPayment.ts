@@ -263,6 +263,37 @@ export interface InstallerExportFilter {
   status?: 'ALL' | 'PARTIAL' | 'CLEARED';
 }
 
+export interface LedgerStatementTransaction {
+  id: string;
+  date: string;
+  type: 'BILL' | 'ADVANCE' | 'SETTLEMENT';
+  reference: string;
+  siteAddress?: string | null;
+  description: string;
+  paymentMode?: string | null;
+  debit: number;
+  credit: number;
+  balance: number;
+}
+
+export interface InstallerPaymentRecord {
+  id: string;
+  billId?: string | null;
+  installerId?: string | null;
+  amount: number;
+  paymentDate: string;
+  paymentMode?: string | null;
+  referenceNote?: string | null;
+  isAdvance: boolean;
+  createdAt: string;
+  bill?: {
+    id: string;
+    billNo: string;
+    siteAddress?: string | null;
+    total?: number;
+  } | null;
+}
+
 export interface InstallerLedgerKpis {
   totalBills: number;
   totalCubicleUnits: number;
@@ -273,6 +304,7 @@ export interface InstallerLedgerKpis {
   totalTravel: number;
   totalDeductions: number;
   totalAdvances?: number;
+  totalSettlements?: number;
   netPayable: number;
   totalPaid: number;
   balanceDue: number;
@@ -284,6 +316,9 @@ export interface InstallerLedgerResponse {
   installer: CubicleInstaller;
   kpis: InstallerLedgerKpis;
   bills: InstallerBill[];
+  advances?: InstallerPaymentRecord[];
+  payments?: InstallerPaymentRecord[];
+  statementTransactions?: LedgerStatementTransaction[];
 }
 
 export interface BillAuditLogEntry {

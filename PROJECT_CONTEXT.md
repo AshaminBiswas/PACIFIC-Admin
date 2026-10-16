@@ -5868,6 +5868,57 @@ A total of **115 new targeted B-tree indexes** were created across public schema
   - Added "Inward History (All SKUs)" button in `HardwareInventoryPage.tsx` header, per-row Inward History button in table rows, and mobile card action buttons.
   - Added rows per page selector (`Rows: 25 | 50 | 100 | All`) allowing viewing all 106 items seamlessly on a single page.
 
+---
+
+## 109. Installer-Wise Statement of Account & Ledger Implementation
+
+### 109.1 Problem Statement & Root Cause Analysis
+- **User Issue**: "Installer-Wise Statement of Account & LedgeR IS NOT WORKING POPERLY NOT GENERATION ANY ADVANCE AND PAYMENT HISTORY PLEASE MAKE IT FUNCTIONAL"
+- **Root Causes Discovered**:
+  1. **Historical Bills Soft-Deleted**: In `installer_bills`, all 9 imported bills (`PPSI-00001` through `PPSI-00009`) had historical `deleted_at` timestamps set from September 2026. Because `getInstallerLedger` filtered with `where: { deletedAt: null }`, 0 bills were returned for all installers.
+  2. **Orphan Standalone Advances Ignored**: In `PACIFIC-Backend/src/modules/installer-payments/installer-payments.service.ts`, `getInstallerLedger` only queried `bills.payments`. The 5 standalone advances in `installer_bill_payments` (`billId: null, isAdvance: true`, e.g. ₹70,000, ₹50,000, ₹50,000, ₹15,000, ₹33,358) were never queried or accounted for.
+  3. **Missing Advance History & Settlements in UI**: `InstallerPaymentsPage.tsx` (Tab `ledger`) only rendered a single itemized table of bills with no views for Advance Disbursements or Payment Settlements, and zero chronological running balances.
+  4. **Limited Printable Output**: `handlePrintLedger` only rendered bill rows and failed to print advances, settlements, running balances, or official accounting verification stamps.
+
+### 109.2 Database Restoration & Normalization
+- Executed database restoration: Cleared `deletedAt` timestamps across all active `installer_bills`, restoring all 9 bills (`PPSI-00001` through `PPSI-00009`).
+- Linked unlinked `PPSI-00001` (`installerEmail: ashaminbiswas1@gmail.com`) and its payment records to `installerId: ba8bdce1-b156-4ef5-ad5f-5a34c3f49b29` (Ashamin Biswas).
+- Verified complete dataset:
+  - **Mohd Rauf** (`5fa80f5f-1494-4e73-a7b4-4a8e01d0794d`): 1 bill (`PPSI-00006`, ₹4,800), 4 advances (₹70k, ₹50k, ₹33.358k, ₹15k), 1 settlement (₹4,800).
+  - **Masud** (`30b47be0-cfcc-41ca-b128-52518a46b1a6`): 1 bill (`PPSI-00002`, ₹900), 1 advance (₹50k), 1 settlement (₹900).
+  - **Ashamin Biswas** (`ba8bdce1-b156-4ef5-ad5f-5a34c3f49b29`): 7 bills (₹52,698), 9 settlements (₹40,899).
+
+### 109.3 Backend Ledger Engine Upgrade (`PACIFIC-Backend`)
+- Upgraded `getInstallerLedger` in `src/modules/installer-payments/installer-payments.service.ts`:
+  - Queries all payments for the installer: `{ OR: [{ installerId: installer.id }, ...(billIds.length > 0 ? [{ billId: { in: billIds } }] : [])] }`.
+  - Partitions payments into `advances` (`isAdvance: true`) and `settlements` (`isAdvance: false`).
+  - Calculates accurate `totalAdvances`, `totalSettlements`, `totalPaid` (`totalAdvances + totalSettlements`), and net `balanceDue` (`netPayable - totalPaid`).
+  - Builds chronological `statementTransactions`: Merges all Bills (Debits `+`, work completed) and all Disbursements (Credits `-`, advances and settlements), sorting chronologically and computing a continuous `balance` running balance.
+  - Pushed to `origin/main` (`d8a5e1c`).
+
+### 109.4 Frontend Multi-Tab Statement of Account (`PACIFIC-Admin`)
+- Updated TypeScript types in `src/types/installerPayment.ts` and `src/types/admin.ts`:
+  - Added `LedgerStatementTransaction` and `InstallerPaymentRecord`.
+  - Extended `InstallerLedgerResponse` and `InstallerLedgerKpis` with `totalAdvances`, `totalSettlements`, `advances`, `payments`, and `statementTransactions`.
+- Enhanced `src/pages/InstallerPaymentsPage.tsx` (Tab `ledger`):
+  - **5 Financial Metric Cards**: Total Jobs Billed & Units, Gross & Net Payable, Total Advances Disbursed (Amber), Total Settlements Paid (Emerald), and Net Balance / Excess Advance (Color-coded: Rose if company owes installer, Amber if excess advance held, Emerald if zero balance).
+  - **Sub-View Navigation Pills with Live Counts**:
+    1. **Statement of Account (Running Balance)**: Chronological transaction table with Date, Type badge (`JOB BILL` / `ADVANCE` / `SETTLEMENT`), Document/Ref #, Description/Site, Mode, Debit (+), Credit (-), and continuous Running Balance.
+    2. **Advance History**: Dedicated register of all mobilization and upfront advances with Date, Amount, Mode, Target Job link, Purpose/Notes, and Status badge. Includes "+ Disburse First Advance" empty-state CTA.
+    3. **Payment Settlements**: Dedicated register of clearance payments against installation bills with Date, Bill #, Site, Settled Amount, Mode, and Reference Remarks.
+    4. **Job Bills**: Itemized bills register with Gross Total, Advance Deducted, Amount Paid, Balance Due, Payment Status, and "View Bill" detail drawer modal.
+  - **Upgraded Vector Printable Statement of Account (`handlePrintLedger`)**:
+    - Official Pacific Restroom Cubicles & Solutions letterhead.
+    - Contractor profile & contact header.
+    - Financial KPI summary box.
+    - Complete chronological Statement of Account table (Date, Doc #, Particulars, Type, Mode, Debit, Credit, Running Balance).
+    - Advance disbursements breakdown table.
+    - Authorized signatory and installer acknowledgement signature blocks.
+
+### 109.5 Verification & Quality Gates
+- `PACIFIC-Backend`: `npm run build` exited 0; pushed to `origin/main` (`d8a5e1c`).
+- `PACIFIC-Admin`: `npx tsc --noEmit` exited 0; `npm run build` built in 30.36s and exited 0.
+
 
 
 

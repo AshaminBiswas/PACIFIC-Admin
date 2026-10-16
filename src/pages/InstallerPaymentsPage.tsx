@@ -126,6 +126,7 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
   const [ledgerData, setLedgerData] = useState<InstallerLedgerResponse | null>(null);
   const [isLoadingLedger, setIsLoadingLedger] = useState<boolean>(false);
   const [isExportingLedger, setIsExportingLedger] = useState<boolean>(false);
+  const [ledgerViewMode, setLedgerViewMode] = useState<'statement' | 'advances' | 'settlements' | 'bills'>('statement');
 
   // Payment Recording State
   const [paymentAmount, setPaymentAmount] = useState<string>('');
@@ -552,74 +553,210 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
       return;
     }
 
-    const { installer, kpis: lKpis, bills: lBills } = ledgerData;
-    const formattedDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const {
+      installer,
+      kpis: lKpis,
+      advances: lAdvances = [],
+      payments: lSettlements = [],
+      statementTransactions: lTxns = [],
+    } = ledgerData;
+    const formattedDate = new Date().toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
 
-    const rows = lBills
-      .map(
-        (b, idx) => `
+    const totalAdvancesVal =
+      lKpis.totalAdvances ?? lAdvances.reduce((acc, a) => acc + (a.amount || 0), 0);
+    const totalSettlementsVal =
+      lKpis.totalSettlements ?? lSettlements.reduce((acc, s) => acc + (s.amount || 0), 0);
+    const balanceDueVal = lKpis.balanceDue;
+
+    const statementRows = (lTxns.length > 0 ? lTxns : []).map((tx, idx) => {
+      const typeBadge =
+        tx.type === 'BILL'
+          ? '<span style="background: #e0e7ff; color: #3730a3; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 8.5px;">JOB BILL</span>'
+          : tx.type === 'ADVANCE'
+          ? '<span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 8.5px;">ADVANCE</span>'
+          : '<span style="background: #d1fae5; color: #065f46; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 8.5px;">SETTLEMENT</span>';
+
+      const balanceColor = tx.balance > 0 ? '#b91c1c' : tx.balance < 0 ? '#b45309' : '#15803d';
+
+      return `
+        <tr>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 5px;">${idx + 1}</td>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 5px; white-space: nowrap;">${new Date(tx.date).toLocaleDateString('en-IN')}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px; font-weight: bold; font-family: monospace;">${tx.reference}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px;">${tx.description || tx.siteAddress || 'N/A'}</td>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 5px;">${typeBadge}</td>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 5px; font-size: 8.5px;">${tx.paymentMode || '-'}</td>
+          <td style="text-align: right; border: 1px solid #cbd5e1; padding: 5px; font-family: monospace;">${tx.debit > 0 ? '₹ ' + tx.debit.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '-'}</td>
+          <td style="text-align: right; border: 1px solid #cbd5e1; padding: 5px; font-family: monospace; color: #047857;">${tx.credit > 0 ? '₹ ' + tx.credit.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '-'}</td>
+          <td style="text-align: right; border: 1px solid #cbd5e1; padding: 5px; font-family: monospace; font-weight: bold; color: ${balanceColor};">₹ ${tx.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const advanceRows = lAdvances.map((adv, idx) => `
       <tr>
-        <td style="text-align: center; border: 1px solid #000; padding: 4px;">${idx + 1}</td>
-        <td style="text-align: center; border: 1px solid #000; padding: 4px; white-space: nowrap;">${new Date(b.installDate).toLocaleDateString('en-IN')}</td>
-        <td style="border: 1px solid #000; padding: 4px; font-weight: bold; font-family: monospace;">${b.billNo}</td>
-        <td style="border: 1px solid #000; padding: 4px;">${b.siteAddress || 'N/A'}</td>
-        <td style="text-align: center; border: 1px solid #000; padding: 4px;">${b.items?.length || 0}</td>
-        <td style="text-align: right; border: 1px solid #000; padding: 4px; font-family: monospace;">₹ ${Number(b.total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-        <td style="text-align: right; border: 1px solid #000; padding: 4px; font-family: monospace; color: #b45309;">₹ ${Number(b.advancePaid || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-        <td style="text-align: right; border: 1px solid #000; padding: 4px; font-family: monospace; color: #15803d;">₹ ${Number(b.amountPaid || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-        <td style="text-align: right; border: 1px solid #000; padding: 4px; font-family: monospace; font-weight: bold; color: ${Number(b.balanceDue || 0) > 0 ? '#b91c1c' : '#15803d'};">₹ ${Number(b.balanceDue || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${idx + 1}</td>
+        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px; white-space: nowrap;">${new Date(adv.paymentDate).toLocaleDateString('en-IN')}</td>
+        <td style="text-align: right; border: 1px solid #cbd5e1; padding: 4px; font-family: monospace; font-weight: bold; color: #b45309;">₹ ${Number(adv.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 4px;">${adv.paymentMode || 'BANK_TRANSFER'}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 4px;">${adv.bill?.billNo ? `${adv.bill.billNo} (${adv.bill.siteAddress || ''})` : 'General Upfront Advance'}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 4px;">${adv.referenceNote || '-'}</td>
       </tr>
-    `
-      )
-      .join('');
+    `).join('');
 
     const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Installer Statement — ${installer.name}</title>
+  <title>Installer Statement of Account — ${installer.name}</title>
   <style>
-    @page { size: A4; margin: 10mm; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 10px; color: #000; margin: 0; padding: 10px; background: #fff; }
-    h1 { font-size: 16px; margin: 0 0 4px 0; color: #111; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 9.5px; }
-    th { background: #f4f4f5; border: 1px solid #000; padding: 5px; text-align: left; }
-    td { border: 1px solid #000; padding: 4px; }
-    .kpi-table td { padding: 6px; font-size: 10px; }
+    @page { size: A4; margin: 8mm; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 9.5px; color: #0f172a; margin: 0; padding: 8px; background: #fff; line-height: 1.35; }
+    .header-box { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 12px; }
+    .company-title { font-size: 16px; font-weight: 800; color: #0f172a; margin: 0 0 3px 0; text-transform: uppercase; letter-spacing: 0.5px; }
+    .company-sub { font-size: 9px; color: #475569; margin: 0; }
+    .doc-badge { background: #0f172a; color: #fff; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-align: right; }
+    .grid-info { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; }
+    .info-label { font-size: 8.5px; color: #64748b; text-transform: uppercase; font-weight: bold; }
+    .info-val { font-size: 10px; font-weight: bold; color: #0f172a; }
+    .kpi-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 14px; }
+    .kpi-card { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px; text-align: center; }
+    .kpi-card.adv { background: #fffbeb; border-color: #fde68a; }
+    .kpi-card.settled { background: #f0fdf4; border-color: #bbf7d0; }
+    .kpi-card.balance { background: #fef2f2; border-color: #fecaca; }
+    .kpi-card .k-num { font-size: 12px; font-weight: 800; font-family: monospace; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 9px; }
+    th { background: #e2e8f0; border: 1px solid #cbd5e1; padding: 5px; text-align: left; font-size: 8.5px; text-transform: uppercase; color: #334155; }
+    td { border: 1px solid #cbd5e1; padding: 4px; }
+    .section-title { font-size: 11px; font-weight: 800; margin: 14px 0 4px 0; color: #0f172a; text-transform: uppercase; letter-spacing: 0.3px; display: flex; align-items: center; justify-content: space-between; }
+    .signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 30px; padding-top: 10px; }
+    .sig-block { border-top: 1px solid #94a3b8; padding-top: 5px; text-align: center; font-size: 9px; color: #475569; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
   </style>
 </head>
 <body>
-  <h1>Pacific Products & Solutions — Installer Payment Statement</h1>
-  <div><strong>Installer Name:</strong> ${installer.name} | <strong>Email:</strong> ${installer.email} | <strong>Phone:</strong> ${installer.phone || 'N/A'}</div>
-  <div><strong>Generated Date:</strong> ${formattedDate}</div>
+  <div class="header-box">
+    <div>
+      <div class="company-title">PACIFIC PRODUCTS & SOLUTIONS</div>
+      <div class="company-sub">Commercial Restroom Cubicle Systems & Architectural Hardware Master Contractor</div>
+      <div class="company-sub">Plot No. 44, Sector 7, IMT Manesar, Gurugram, Haryana - 122050 | info@pacificproduct.in</div>
+    </div>
+    <div style="text-align: right;">
+      <div class="doc-badge">STATEMENT OF ACCOUNT</div>
+      <div style="font-size: 9px; color: #64748b; margin-top: 4px;">Statement Date: <strong>${formattedDate}</strong></div>
+    </div>
+  </div>
 
-  <table class="kpi-table" style="margin-top: 12px; background: #fafafa;">
-    <tr>
-      <td><strong>Total Jobs Billed:</strong> ${lKpis.totalBills}</td>
-      <td><strong>Total Gross Billed:</strong> ₹ ${lKpis.grossSubtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-      <td><strong>Total Advances:</strong> ₹ ${(lKpis.totalAdvances || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-      <td><strong>Total Settled:</strong> ₹ ${lKpis.totalPaid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-      <td><strong>Outstanding Due:</strong> ₹ ${lKpis.balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-    </tr>
-  </table>
+  <div class="grid-info">
+    <div>
+      <div class="info-label">Installer / Contractor</div>
+      <div class="info-val">${installer.name}</div>
+      <div style="font-size: 9px; color: #475569;">Email: ${installer.email} | Phone: ${installer.phone || 'N/A'}</div>
+    </div>
+    <div style="text-align: right;">
+      <div class="info-label">Account Status</div>
+      <div class="info-val" style="color: ${balanceDueVal > 0 ? '#b91c1c' : balanceDueVal < 0 ? '#b45309' : '#15803d'};">
+        ${balanceDueVal > 0 ? 'NET PAYABLE OUTSTANDING' : balanceDueVal < 0 ? 'EXCESS ADVANCE HELD' : 'ACCOUNT FULLY SETTLED'}
+      </div>
+      <div style="font-size: 9px; color: #475569;">Total Recorded Jobs: ${lKpis.totalBills} (${lKpis.totalUnits} Units)</div>
+    </div>
+  </div>
 
-  <h3 style="margin: 16px 0 6px 0; font-size: 12px;">Itemized Job History & Disbursements</h3>
+  <div class="kpi-strip">
+    <div class="kpi-card">
+      <div class="info-label">Gross Billed</div>
+      <div class="k-num" style="color: #0f172a;">₹ ${lKpis.grossSubtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="info-label">Net Payable Due</div>
+      <div class="k-num" style="color: #1e293b;">₹ ${lKpis.netPayable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+    </div>
+    <div class="kpi-card adv">
+      <div class="info-label" style="color: #92400e;">Total Advances</div>
+      <div class="k-num" style="color: #b45309;">₹ ${totalAdvancesVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+    </div>
+    <div class="kpi-card settled">
+      <div class="info-label" style="color: #166534;">Settlements Paid</div>
+      <div class="k-num" style="color: #15803d;">₹ ${totalSettlementsVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+    </div>
+    <div class="kpi-card balance">
+      <div class="info-label" style="color: #991b1b;">Net Balance</div>
+      <div class="k-num" style="color: ${balanceDueVal > 0 ? '#b91c1c' : balanceDueVal < 0 ? '#b45309' : '#15803d'};">
+        ₹ ${Math.abs(balanceDueVal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">
+    <span>Chronological Statement of Account (Running Balance)</span>
+    <span style="font-size: 9px; color: #64748b; font-weight: normal;">${lTxns.length} Transactions</span>
+  </div>
   <table>
     <thead>
       <tr>
-        <th style="width: 4%;">#</th>
-        <th style="width: 10%;">Date</th>
-        <th style="width: 16%;">Bill No</th>
-        <th style="width: 26%;">Site Location</th>
-        <th style="width: 6%; text-align: center;">Items</th>
-        <th style="width: 11%; text-align: right;">Gross Billed</th>
-        <th style="width: 9%; text-align: right;">Advance</th>
-        <th style="width: 9%; text-align: right;">Paid</th>
-        <th style="width: 9%; text-align: right;">Balance</th>
+        <th style="width: 3%; text-align: center;">#</th>
+        <th style="width: 9%; text-align: center;">Date</th>
+        <th style="width: 14%;">Doc / Ref #</th>
+        <th style="width: 26%;">Description / Site Particulars</th>
+        <th style="width: 10%; text-align: center;">Type</th>
+        <th style="width: 8%; text-align: center;">Mode</th>
+        <th style="width: 10%; text-align: right;">Billed (+)</th>
+        <th style="width: 10%; text-align: right;">Disbursed (-)</th>
+        <th style="width: 10%; text-align: right;">Balance (₹)</th>
       </tr>
     </thead>
-    <tbody>${rows}</tbody>
+    <tbody>
+      ${statementRows || '<tr><td colspan="9" style="text-align: center; padding: 12px; color: #94a3b8;">No statement transactions recorded.</td></tr>'}
+    </tbody>
   </table>
+
+  ${lAdvances.length > 0 ? `
+  <div class="section-title" style="margin-top: 18px;">
+    <span>Advance Disbursements Breakdown</span>
+    <span style="font-size: 9px; color: #92400e; font-weight: normal;">Total: ₹ ${totalAdvancesVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 4%; text-align: center;">#</th>
+        <th style="width: 12%; text-align: center;">Disbursed Date</th>
+        <th style="width: 14%; text-align: right;">Amount (₹)</th>
+        <th style="width: 15%;">Payment Mode</th>
+        <th style="width: 25%;">Linked Job / Site</th>
+        <th style="width: 30%;">Disbursement Notes / Purpose</th>
+      </tr>
+    </thead>
+    <tbody>${advanceRows}</tbody>
+  </table>` : ''}
+
+  <div class="signatures">
+    <div class="sig-block">
+      <strong>Prepared By</strong><br/>
+      Finance & Accounts Executive<br/>
+      Pacific Products & Solutions
+    </div>
+    <div class="sig-block">
+      <strong>Authorized Signatory</strong><br/>
+      Pacific Commercial Systems<br/>
+      (Seal & Stamp)
+    </div>
+    <div class="sig-block">
+      <strong>Installer Acknowledgement</strong><br/>
+      ${installer.name}<br/>
+      Signature & Date
+    </div>
+  </div>
+
+  <div style="margin-top: 20px; font-size: 8px; color: #94a3b8; text-align: center; border-top: 1px dashed #cbd5e1; padding-top: 8px;">
+    This is an officially verified Statement of Account generated by the Pacific Restroom Cubicle Enterprise ERP System. For reconciliation discrepancies, please email finance@pacificproduct.in.
+  </div>
+
   <script>window.onload = function() { window.print(); };</script>
 </body>
 </html>`;
@@ -1492,15 +1629,15 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                   Installer-Wise Statement of Account & Ledger
                 </h2>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  Complete chronological job ledger with advance tracking, debits, credits, and vector PDF statements.
+                  Complete chronological statement of account with advance history, settlements, debits, credits, and vector PDF statements.
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => openAdvanceModal(selectedLedgerInstallerId)}
                   disabled={!selectedLedgerInstallerId}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-40 transition-all shadow-xs"
                 >
                   <Coins size={15} className="text-amber-400" /> Disburse Advance
                 </button>
@@ -1508,7 +1645,7 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                 <button
                   onClick={handlePrintLedger}
                   disabled={!ledgerData || isLoadingLedger}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-semibold text-gray-300 hover:text-white cursor-pointer disabled:opacity-40"
+                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-semibold text-gray-300 hover:text-white cursor-pointer disabled:opacity-40 transition-all"
                 >
                   <Printer size={15} /> Print Statement
                 </button>
@@ -1520,40 +1657,72 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                     }
                   }}
                   disabled={!ledgerData || isLoadingLedger}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-white rounded-xl text-xs font-semibold shadow-lg shadow-[#7FB706]/20 cursor-pointer disabled:opacity-40"
+                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-white rounded-xl text-xs font-semibold shadow-lg shadow-[#7FB706]/20 cursor-pointer disabled:opacity-40 transition-all"
                 >
                   <Download size={15} /> Export Excel
+                </button>
+
+                <button
+                  onClick={() => {
+                    if (selectedLedgerInstallerId) {
+                      loadInstallerLedger(selectedLedgerInstallerId);
+                    }
+                  }}
+                  disabled={!selectedLedgerInstallerId || isLoadingLedger}
+                  className="inline-flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-semibold text-gray-400 hover:text-white cursor-pointer disabled:opacity-40 transition-all"
+                  title="Refresh Ledger"
+                >
+                  <RefreshCw size={15} className={isLoadingLedger ? 'animate-spin' : ''} />
                 </button>
               </div>
             </div>
 
-            {/* Select Installer */}
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5">
-                Select Installer
-              </label>
-              <select
-                value={selectedLedgerInstallerId}
-                onChange={(e) => setSelectedLedgerInstallerId(e.target.value)}
-                className="w-full sm:w-80 px-3.5 py-2 bg-[#030213] border border-white/10 rounded-xl text-sm text-white focus:outline-hidden focus:border-[#7FB706]"
-              >
-                {installers.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.name} ({i.email})
-                  </option>
-                ))}
-              </select>
+            {/* Select Installer & Quick Stats */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-white/5">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5">
+                  Select Installer
+                </label>
+                <select
+                  value={selectedLedgerInstallerId}
+                  onChange={(e) => setSelectedLedgerInstallerId(e.target.value)}
+                  className="w-full sm:w-80 px-3.5 py-2 bg-[#030213] border border-white/10 rounded-xl text-sm text-white focus:outline-hidden focus:border-[#7FB706]"
+                >
+                  {installers.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.name} ({i.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {ledgerData?.installer && (
+                <div className="text-xs text-gray-400 flex flex-wrap items-center gap-4 bg-[#121226] px-4 py-2.5 rounded-xl border border-white/5">
+                  <div>
+                    <span className="text-gray-500 block text-[10px]">Contractor</span>
+                    <span className="font-semibold text-white">{ledgerData.installer.name}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 block text-[10px]">Email</span>
+                    <span className="font-mono text-gray-300">{ledgerData.installer.email}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 block text-[10px]">Phone</span>
+                    <span className="font-mono text-gray-300">{ledgerData.installer.phone || 'N/A'}</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {isLoadingLedger ? (
             <div className="p-12 text-center text-gray-400 bg-[#0a091e] rounded-2xl border border-white/10">
               <div className="animate-spin w-8 h-8 border-3 border-[#7FB706] border-t-transparent rounded-full mx-auto mb-3" />
-              <p className="text-sm font-medium">Generating installer ledger statement...</p>
+              <p className="text-sm font-medium">Generating installer ledger statement & tracking history...</p>
             </div>
           ) : ledgerData ? (
             <div className="space-y-4">
-              {/* Ledger KPIs */}
+              {/* Ledger KPIs (5 Key Financial Metrics) */}
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 <div className="bg-[#0a091e] border border-white/10 rounded-2xl p-4">
                   <span className="text-xs text-gray-400">Total Jobs</span>
@@ -1568,7 +1737,7 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                   <div className="text-lg font-bold font-mono text-white mt-1">
                     {formatINR(ledgerData.kpis.grossSubtotal)}
                   </div>
-                  <span className="text-[10px] text-gray-500">Travel: {formatINR(ledgerData.kpis.totalTravel)}</span>
+                  <span className="text-[10px] text-gray-500">Net Due: {formatINR(ledgerData.kpis.netPayable)}</span>
                 </div>
 
                 <div className="bg-[#0a091e] border border-amber-500/20 rounded-2xl p-4">
@@ -1576,77 +1745,503 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                   <div className="text-lg font-bold font-mono text-amber-400 mt-1">
                     {formatINR(ledgerData.kpis.totalAdvances || 0)}
                   </div>
-                  <span className="text-[10px] text-amber-500/80">Upfront site funds</span>
+                  <span className="text-[10px] text-amber-500/80">
+                    {(ledgerData.advances?.length || 0)} advance disbursements
+                  </span>
                 </div>
 
-                <div className="bg-[#0a091e] border border-[#7FB706]/20 rounded-2xl p-4">
-                  <span className="text-xs text-[#B5F823]">Total Paid</span>
-                  <div className="text-lg font-bold font-mono text-[#B5F823] mt-1">
-                    {formatINR(ledgerData.kpis.totalPaid)}
+                <div className="bg-[#0a091e] border border-emerald-500/20 rounded-2xl p-4">
+                  <span className="text-xs text-emerald-300">Total Settlements</span>
+                  <div className="text-lg font-bold font-mono text-emerald-400 mt-1">
+                    {formatINR(
+                      ledgerData.kpis.totalSettlements ??
+                        Math.max(0, (ledgerData.kpis.totalPaid || 0) - (ledgerData.kpis.totalAdvances || 0))
+                    )}
                   </div>
-                  <span className="text-[10px] text-[#7FB706]/80">{ledgerData.kpis.clearedCount} Cleared jobs</span>
+                  <span className="text-[10px] text-emerald-500/80">
+                    {(ledgerData.payments?.length || 0)} payments settled
+                  </span>
                 </div>
 
-                <div className="bg-[#0a091e] border border-rose-500/20 rounded-2xl p-4">
-                  <span className="text-xs text-rose-300">Balance Payable</span>
-                  <div className="text-lg font-bold font-mono text-rose-400 mt-1">
-                    {formatINR(ledgerData.kpis.balanceDue)}
+                <div
+                  className={`bg-[#0a091e] border rounded-2xl p-4 ${
+                    ledgerData.kpis.balanceDue > 0
+                      ? 'border-rose-500/30'
+                      : ledgerData.kpis.balanceDue < 0
+                      ? 'border-amber-500/30'
+                      : 'border-emerald-500/30'
+                  }`}
+                >
+                  <span
+                    className={`text-xs ${
+                      ledgerData.kpis.balanceDue > 0
+                        ? 'text-rose-300'
+                        : ledgerData.kpis.balanceDue < 0
+                        ? 'text-amber-300'
+                        : 'text-emerald-300'
+                    }`}
+                  >
+                    {ledgerData.kpis.balanceDue > 0
+                      ? 'Balance Payable'
+                      : ledgerData.kpis.balanceDue < 0
+                      ? 'Excess Advance Held'
+                      : 'Account Cleared'}
+                  </span>
+                  <div
+                    className={`text-lg font-bold font-mono mt-1 ${
+                      ledgerData.kpis.balanceDue > 0
+                        ? 'text-rose-400'
+                        : ledgerData.kpis.balanceDue < 0
+                        ? 'text-amber-400'
+                        : 'text-emerald-400'
+                    }`}
+                  >
+                    {formatINR(Math.abs(ledgerData.kpis.balanceDue))}
                   </div>
-                  <span className="text-[10px] text-rose-400/80">Net liability</span>
+                  <span className="text-[10px] text-gray-500">
+                    {ledgerData.kpis.balanceDue > 0
+                      ? 'Company owes installer'
+                      : ledgerData.kpis.balanceDue < 0
+                      ? 'Installer holds advance balance'
+                      : 'Zero liability'}
+                  </span>
                 </div>
               </div>
 
-              {/* Itemized Table */}
-              <div className="bg-[#0a091e] rounded-2xl border border-white/10 overflow-hidden shadow-xl">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-white/5 border-b border-white/10 text-gray-400 font-semibold uppercase tracking-wider">
-                    <tr>
-                      <th className="py-3 px-4">Date</th>
-                      <th className="py-3 px-4">Bill No</th>
-                      <th className="py-3 px-4">Site Location</th>
-                      <th className="py-3 px-4 text-right">Gross Total</th>
-                      <th className="py-3 px-4 text-right">Advance</th>
-                      <th className="py-3 px-4 text-right">Settled</th>
-                      <th className="py-3 px-4 text-right">Balance Due</th>
-                      <th className="py-3 px-4 text-center">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5 text-gray-300 font-mono">
-                    {ledgerData.bills.map((b) => (
-                      <tr key={b.id} className="hover:bg-white/5">
-                        <td className="py-3 px-4 text-gray-400">{formatDate(b.installDate)}</td>
-                        <td className="py-3 px-4 font-bold text-white">{b.billNo}</td>
-                        <td className="py-3 px-4 font-sans text-gray-300 truncate max-w-[200px]">
-                          {b.siteAddress}
-                        </td>
-                        <td className="py-3 px-4 text-right text-white font-bold">{formatINR(b.total)}</td>
-                        <td className="py-3 px-4 text-right text-amber-400">
-                          {Number(b.advancePaid || 0) > 0 ? formatINR(b.advancePaid) : '-'}
-                        </td>
-                        <td className="py-3 px-4 text-right text-emerald-400">{formatINR(b.amountPaid)}</td>
-                        <td
-                          className={`py-3 px-4 text-right font-bold ${
-                            Number(b.balanceDue) > 0 ? 'text-rose-400' : 'text-[#B5F823]'
-                          }`}
-                        >
-                          {formatINR(b.balanceDue)}
-                        </td>
-                        <td className="py-3 px-4 text-center font-sans">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                              b.paymentStatus === 'CLEARED'
-                                ? 'bg-emerald-500/15 text-emerald-300'
-                                : 'bg-amber-500/15 text-amber-300'
-                            }`}
-                          >
-                            {b.paymentStatus}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {/* View Mode Navigation Pills */}
+              <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-3">
+                <button
+                  type="button"
+                  onClick={() => setLedgerViewMode('statement')}
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    ledgerViewMode === 'statement'
+                      ? 'bg-[#7FB706] text-black shadow-lg shadow-[#7FB706]/20'
+                      : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <FileText size={14} />
+                  <span>Statement of Account (Running Balance)</span>
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+                      ledgerViewMode === 'statement' ? 'bg-black/20 text-black font-bold' : 'bg-white/10 text-gray-300'
+                    }`}
+                  >
+                    {ledgerData.statementTransactions?.length ??
+                      ledgerData.bills.length + (ledgerData.advances?.length || 0) + (ledgerData.payments?.length || 0)}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLedgerViewMode('advances')}
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    ledgerViewMode === 'advances'
+                      ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 font-bold'
+                      : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Coins size={14} />
+                  <span>Advance History</span>
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+                      ledgerViewMode === 'advances' ? 'bg-black/20 text-black font-bold' : 'bg-amber-500/20 text-amber-300'
+                    }`}
+                  >
+                    {ledgerData.advances?.length ?? 0}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLedgerViewMode('settlements')}
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    ledgerViewMode === 'settlements'
+                      ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20 font-bold'
+                      : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <CreditCard size={14} />
+                  <span>Payment Settlements</span>
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+                      ledgerViewMode === 'settlements'
+                        ? 'bg-black/20 text-black font-bold'
+                        : 'bg-emerald-500/20 text-emerald-300'
+                    }`}
+                  >
+                    {ledgerData.payments?.length ?? 0}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLedgerViewMode('bills')}
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    ledgerViewMode === 'bills'
+                      ? 'bg-[#B5F823] text-black shadow-lg font-bold'
+                      : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Receipt size={14} />
+                  <span>Job Bills</span>
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+                      ledgerViewMode === 'bills' ? 'bg-black/20 text-black font-bold' : 'bg-white/10 text-gray-300'
+                    }`}
+                  >
+                    {ledgerData.bills.length}
+                  </span>
+                </button>
               </div>
+
+              {/* ─── VIEW 1: STATEMENT OF ACCOUNT (RUNNING BALANCE) ─── */}
+              {ledgerViewMode === 'statement' && (
+                <div className="bg-[#0a091e] rounded-2xl border border-white/10 overflow-hidden shadow-xl">
+                  <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-white text-sm">Chronological Statement of Account</h3>
+                      <p className="text-xs text-gray-400">
+                        Running balance ledger showing all job charges (Debits) and disbursements (Credits).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-white/5 border-b border-white/10 text-gray-400 font-semibold uppercase tracking-wider">
+                        <tr>
+                          <th className="py-3 px-4">Date</th>
+                          <th className="py-3 px-4 text-center">Type</th>
+                          <th className="py-3 px-4">Doc / Ref #</th>
+                          <th className="py-3 px-4">Particulars / Site Location</th>
+                          <th className="py-3 px-4 text-center">Mode</th>
+                          <th className="py-3 px-4 text-right">Debit (+ Work)</th>
+                          <th className="py-3 px-4 text-right">Credit (- Paid)</th>
+                          <th className="py-3 px-4 text-right">Running Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5 text-gray-300 font-mono">
+                        {(ledgerData.statementTransactions || []).length === 0 ? (
+                          <tr>
+                            <td colSpan={8} className="py-8 text-center text-gray-500 font-sans">
+                              No statement transactions recorded for this installer yet.
+                            </td>
+                          </tr>
+                        ) : (
+                          (ledgerData.statementTransactions || []).map((tx) => (
+                            <tr key={tx.id} className="hover:bg-white/5">
+                              <td className="py-3 px-4 text-gray-400 whitespace-nowrap">
+                                {formatDate(tx.date)}
+                              </td>
+                              <td className="py-3 px-4 text-center font-sans whitespace-nowrap">
+                                {tx.type === 'BILL' ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                                    JOB BILL
+                                  </span>
+                                ) : tx.type === 'ADVANCE' ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                    ADVANCE
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                    SETTLEMENT
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 font-bold text-white whitespace-nowrap">
+                                {tx.reference}
+                              </td>
+                              <td className="py-3 px-4 font-sans text-gray-300 max-w-[280px] truncate" title={tx.description}>
+                                {tx.description}
+                              </td>
+                              <td className="py-3 px-4 text-center text-gray-400 font-sans text-[11px] whitespace-nowrap">
+                                {tx.paymentMode || '-'}
+                              </td>
+                              <td className="py-3 px-4 text-right text-white font-bold whitespace-nowrap">
+                                {tx.debit > 0 ? formatINR(tx.debit) : '-'}
+                              </td>
+                              <td className="py-3 px-4 text-right text-emerald-400 font-bold whitespace-nowrap">
+                                {tx.credit > 0 ? formatINR(tx.credit) : '-'}
+                              </td>
+                              <td
+                                className={`py-3 px-4 text-right font-bold whitespace-nowrap ${
+                                  tx.balance > 0
+                                    ? 'text-rose-400'
+                                    : tx.balance < 0
+                                    ? 'text-amber-400'
+                                    : 'text-emerald-400'
+                                }`}
+                              >
+                                {tx.balance < 0 ? `-${formatINR(Math.abs(tx.balance))}` : formatINR(tx.balance)}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ─── VIEW 2: ADVANCE HISTORY TABLE ─── */}
+              {ledgerViewMode === 'advances' && (
+                <div className="bg-[#0a091e] rounded-2xl border border-white/10 overflow-hidden shadow-xl">
+                  <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                        <Coins className="text-amber-400" size={16} />
+                        Advance Disbursements History
+                      </h3>
+                      <p className="text-xs text-gray-400">
+                        Upfront mobilization and site arrival advances disbursed to {ledgerData.installer.name}.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => openAdvanceModal(selectedLedgerInstallerId)}
+                      className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-black text-xs font-semibold rounded-xl cursor-pointer"
+                    >
+                      + Disburse Advance
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-white/5 border-b border-white/10 text-gray-400 font-semibold uppercase tracking-wider">
+                        <tr>
+                          <th className="py-3 px-4">Date</th>
+                          <th className="py-3 px-4 text-right">Advance Amount</th>
+                          <th className="py-3 px-4 text-center">Payment Mode</th>
+                          <th className="py-3 px-4">Target Job / Bill Link</th>
+                          <th className="py-3 px-4">Disbursement Notes / Purpose</th>
+                          <th className="py-3 px-4 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5 text-gray-300 font-mono">
+                        {(ledgerData.advances || []).length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="py-12 text-center text-gray-500 font-sans">
+                              <Coins size={32} className="mx-auto text-amber-500/40 mb-2" />
+                              <p className="font-medium text-gray-400">No advance disbursements found for this installer.</p>
+                              <button
+                                onClick={() => openAdvanceModal(selectedLedgerInstallerId)}
+                                className="mt-3 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold cursor-pointer"
+                              >
+                                + Disburse First Advance
+                              </button>
+                            </td>
+                          </tr>
+                        ) : (
+                          (ledgerData.advances || []).map((adv) => (
+                            <tr key={adv.id} className="hover:bg-white/5">
+                              <td className="py-3 px-4 text-gray-400 whitespace-nowrap">
+                                {formatDate(adv.paymentDate)}
+                              </td>
+                              <td className="py-3 px-4 text-right text-amber-400 font-bold text-sm whitespace-nowrap">
+                                {formatINR(adv.amount)}
+                              </td>
+                              <td className="py-3 px-4 text-center font-sans text-xs">
+                                <span className="px-2 py-0.5 rounded-lg bg-white/5 text-gray-300 border border-white/5">
+                                  {adv.paymentMode || 'BANK_TRANSFER'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 font-sans text-white">
+                                {adv.bill ? (
+                                  <div>
+                                    <span className="font-mono font-bold text-white">{adv.bill.billNo}</span>
+                                    {adv.bill.siteAddress && (
+                                      <span className="text-gray-400 text-[11px] block truncate max-w-[220px]">
+                                        {adv.bill.siteAddress}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-amber-400/90 text-xs italic">
+                                    General Upfront Advance (Unallocated)
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 font-sans text-gray-300 max-w-[260px] truncate">
+                                {adv.referenceNote || 'Advance disbursement for site transit and mobilization'}
+                              </td>
+                              <td className="py-3 px-4 text-center font-sans">
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                  DISBURSED
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ─── VIEW 3: PAYMENT SETTLEMENTS TABLE ─── */}
+              {ledgerViewMode === 'settlements' && (
+                <div className="bg-[#0a091e] rounded-2xl border border-white/10 overflow-hidden shadow-xl">
+                  <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                        <CreditCard className="text-emerald-400" size={16} />
+                        Job Bill Payment Settlements
+                      </h3>
+                      <p className="text-xs text-gray-400">
+                        Settlements and clearance installments paid against specific installation bills.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-white/5 border-b border-white/10 text-gray-400 font-semibold uppercase tracking-wider">
+                        <tr>
+                          <th className="py-3 px-4">Payment Date</th>
+                          <th className="py-3 px-4">Bill No</th>
+                          <th className="py-3 px-4">Site Location</th>
+                          <th className="py-3 px-4 text-right">Settled Amount</th>
+                          <th className="py-3 px-4 text-center">Payment Mode</th>
+                          <th className="py-3 px-4">Reference / Remarks</th>
+                          <th className="py-3 px-4 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5 text-gray-300 font-mono">
+                        {(ledgerData.payments || []).length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="py-12 text-center text-gray-500 font-sans">
+                              <CreditCard size={32} className="mx-auto text-emerald-500/40 mb-2" />
+                              <p className="font-medium text-gray-400">No payment settlements recorded yet.</p>
+                            </td>
+                          </tr>
+                        ) : (
+                          (ledgerData.payments || []).map((pmt) => (
+                            <tr key={pmt.id} className="hover:bg-white/5">
+                              <td className="py-3 px-4 text-gray-400 whitespace-nowrap">
+                                {formatDate(pmt.paymentDate)}
+                              </td>
+                              <td className="py-3 px-4 font-bold text-white whitespace-nowrap">
+                                {pmt.bill?.billNo || 'DIRECT'}
+                              </td>
+                              <td className="py-3 px-4 font-sans text-gray-300 max-w-[200px] truncate">
+                                {pmt.bill?.siteAddress || 'N/A'}
+                              </td>
+                              <td className="py-3 px-4 text-right text-emerald-400 font-bold text-sm whitespace-nowrap">
+                                {formatINR(pmt.amount)}
+                              </td>
+                              <td className="py-3 px-4 text-center font-sans text-xs">
+                                <span className="px-2 py-0.5 rounded-lg bg-white/5 text-gray-300 border border-white/5">
+                                  {pmt.paymentMode || 'BANK_TRANSFER'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 font-sans text-gray-300 max-w-[260px] truncate">
+                                {pmt.referenceNote || 'Bill clearance settlement payment'}
+                              </td>
+                              <td className="py-3 px-4 text-center font-sans">
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                  SETTLED
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ─── VIEW 4: JOB BILLS TABLE ─── */}
+              {ledgerViewMode === 'bills' && (
+                <div className="bg-[#0a091e] rounded-2xl border border-white/10 overflow-hidden shadow-xl">
+                  <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                        <Receipt className="text-[#B5F823]" size={16} />
+                        Itemized Installation Job Bills
+                      </h3>
+                      <p className="text-xs text-gray-400">
+                        All verified installation bills submitted by {ledgerData.installer.name}.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-white/5 border-b border-white/10 text-gray-400 font-semibold uppercase tracking-wider">
+                        <tr>
+                          <th className="py-3 px-4">Date</th>
+                          <th className="py-3 px-4">Bill No</th>
+                          <th className="py-3 px-4">Site Location</th>
+                          <th className="py-3 px-4 text-right">Gross Total</th>
+                          <th className="py-3 px-4 text-right">Advance</th>
+                          <th className="py-3 px-4 text-right">Settled</th>
+                          <th className="py-3 px-4 text-right">Balance Due</th>
+                          <th className="py-3 px-4 text-center">Status</th>
+                          <th className="py-3 px-4 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5 text-gray-300 font-mono">
+                        {ledgerData.bills.length === 0 ? (
+                          <tr>
+                            <td colSpan={9} className="py-12 text-center text-gray-500 font-sans">
+                              No installation bills recorded for this installer.
+                            </td>
+                          </tr>
+                        ) : (
+                          ledgerData.bills.map((b) => (
+                            <tr key={b.id} className="hover:bg-white/5">
+                              <td className="py-3 px-4 text-gray-400 whitespace-nowrap">
+                                {formatDate(b.installDate)}
+                              </td>
+                              <td className="py-3 px-4 font-bold text-white whitespace-nowrap">{b.billNo}</td>
+                              <td className="py-3 px-4 font-sans text-gray-300 truncate max-w-[200px]">
+                                {b.siteAddress}
+                              </td>
+                              <td className="py-3 px-4 text-right text-white font-bold whitespace-nowrap">
+                                {formatINR(b.total)}
+                              </td>
+                              <td className="py-3 px-4 text-right text-amber-400 whitespace-nowrap">
+                                {Number(b.advancePaid || 0) > 0 ? formatINR(b.advancePaid) : '-'}
+                              </td>
+                              <td className="py-3 px-4 text-right text-emerald-400 whitespace-nowrap">
+                                {formatINR(b.amountPaid)}
+                              </td>
+                              <td
+                                className={`py-3 px-4 text-right font-bold whitespace-nowrap ${
+                                  Number(b.balanceDue) > 0 ? 'text-rose-400' : 'text-[#B5F823]'
+                                }`}
+                              >
+                                {formatINR(b.balanceDue)}
+                              </td>
+                              <td className="py-3 px-4 text-center font-sans whitespace-nowrap">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                                    b.paymentStatus === 'CLEARED'
+                                      ? 'bg-emerald-500/15 text-emerald-300'
+                                      : 'bg-amber-500/15 text-amber-300'
+                                  }`}
+                                >
+                                  {b.paymentStatus}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center font-sans whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedBillForDetails(b)}
+                                  className="px-2.5 py-1 text-xs text-[#B5F823] bg-[#7FB706]/10 hover:bg-[#7FB706]/20 rounded-lg cursor-pointer transition-all"
+                                >
+                                  View Bill
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           ) : null}
         </div>
