@@ -28,6 +28,18 @@ const resolvedKey =
 
 const supabaseKey = resolvedKey;
 
+// Proactively purge legacy Supabase project cache from localStorage
+if (typeof window !== "undefined") {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && (k.includes("kgalsrokdmsrqysyoffm") || k.includes("ydpzlqjnhbcuzmjyylaj"))) {
+        localStorage.removeItem(k);
+      }
+    }
+  } catch {}
+}
+
 export const supabase = createClient<any>(
   supabaseUrl,
   supabaseKey,

@@ -5796,6 +5796,43 @@ A total of **115 new targeted B-tree indexes** were created across public schema
 - `npx tsc --noEmit` exited 0 (Zero TypeScript errors).
 - `npm run build` exited 0 (Vite production bundle generated in 43.52s).
 
+---
+
+## 108. End-to-End Resolution of Hardware 404, Employee Attendance 404, Board Stock Unique Constraint 400, and Legacy Supabase 409
+
+### 108.1 Board Stock Movement Collision Fix (Resolving 400 Bad Request)
+- **Root Cause**: In `D:\PACIFIC-Backend\src\modules\inventory\boardInventory.service.ts`, `tx.boardStockMovement.create()` used deterministic sequential numbers (`BSM-OPN-XXXX`) that collided when creating multiple board SKUs or same-name/different-size items, failing with `Unique constraint failed on the fields: (movementNumber)`.
+- **Implementation**:
+  - Enhanced `createBoard` with random alphanumeric entropy tokens (`${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`) for both `itemCode` and `movementNumber`.
+  - Updated `inwardStock`, `issueStockManual`, `batchInwardStock`, `batchIssueStock`, and `autoDeductBoardsForOrder` with guaranteed collision-free movement number generators.
+
+### 108.2 Employee Management Route Compatibility (Resolving 404 Not Found)
+- **Root Cause**: Frontend `employeeService.ts` requested `/employees/attendance/monthly?month=10&year=2026`, while backend router was mounted strictly at `/attendance`.
+- **Implementation**:
+  - In `D:\PACIFIC-Backend\src\modules\employee-management\employee-management.routes.ts`, added route aliases supporting both URL patterns:
+    - Attendance: `['/attendance', '/attendance/monthly']`, `['/attendance', '/attendance/record']`
+    - Leaves: `['/leave/accrue-monthly', '/leaves/accrue']`, `['/:id/leave-ledger', '/leaves/ledger/:id']`, `['/:id/leave-ledger', '/leaves/adjust/:id']`
+    - Defaults: `['/payroll/defaults', '/payroll/defaults/:id']`
+    - Master Data: `['/detail/:id', '/:id']` (GET, PUT, PATCH, DELETE)
+  - Updated `getEmployeeSalaryDefaultsHandler` in `employee-management.controller.ts` to accept `employeeId` from both `req.params.id` and `req.query.employeeId`.
+
+### 108.3 Authoritative Hardware Inventory Backend API (Resolving 404 Not Found)
+- **Root Cause**: `/api/v1/inventory/hardware` was called by frontend `hardwareInventoryApi.ts` but had no route or controller in PACIFIC-Backend, returning 404 and forcing client-side fallback.
+- **Implementation**:
+  - Implemented `hardwareInventory.service.ts` directly querying PostgreSQL tables (`hardware_inventory_items`, `hardware_stock_movements`, `hardware_branches`, `hardware_vendors`).
+  - Added `hardwareInventory.controller.ts` and `hardwareInventory.routes.ts` providing full CRUD, inward stock, issue stock, movements ledger, branches, and vendors.
+  - Mounted at `/api/v1/inventory/hardware` in `D:\PACIFIC-Backend\src\app.ts`.
+
+### 108.4 Supabase Conflict & Legacy URL Purge (Resolving 409 Conflict)
+- **Root Cause**: Client-side fallback performed `upsert` with `{ onConflict: 'id' }` on items with newly generated IDs whose `sku` already existed in PostgreSQL, causing PostgreSQL unique constraint violations (409 Conflict). Additionally, browser sessions had legacy cached tokens for `kgalsrokdmsrqysyoffm`.
+- **Implementation**:
+  - Added startup localStorage purge in `src/lib/supabase.ts` removing any cached items referencing `kgalsrokdmsrqysyoffm` or `ydpzlqjnhbcuzmjyylaj`.
+  - Updated `ensureSynced`, `persistItem`, and `persistMovement` in `src/api/hardwareInventoryApi.ts` to target `{ onConflict: 'sku' }` and `{ onConflict: 'movement_number' }`, suppressing spurious 409 conflict errors.
+
+### 108.5 Verification & Quality Gates
+- `D:\PACIFIC-Backend`: `npx tsc --noEmit` exited 0; `npm run build` exited 0; pushed to `origin/main` (`5d751ff`).
+- `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0; `npm run build` built in 32.43s and exited 0.
+
 
 
 

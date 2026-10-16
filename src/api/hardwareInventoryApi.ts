@@ -464,11 +464,18 @@ class HardwareStore {
           const localItems = this.getStorage<HardwareInventoryItem[]>(ITEMS_STORAGE_KEY, []).filter((i) => !isDummyHardwareItem(i));
 
           const dbItemIds = new Set(dbItems.map((i) => i.id));
-          const unsyncedItems = localItems.filter((i) => !dbItemIds.has(i.id));
+          const dbSkus = new Set(dbItems.map((i) => (i.sku || '').toUpperCase()));
+          const unsyncedItems = localItems.filter(
+            (i) => !dbItemIds.has(i.id) && !dbSkus.has((i.sku || '').toUpperCase())
+          );
           if (unsyncedItems.length > 0) {
             for (const item of unsyncedItems) {
-              await supabase.from('hardware_inventory_items').upsert(mapItemToDb(item), { onConflict: 'id' });
-              dbItems.unshift(item);
+              try {
+                await supabase.from('hardware_inventory_items').upsert(mapItemToDb(item), { onConflict: 'sku' });
+                dbItems.unshift(item);
+              } catch (upsertErr) {
+                console.warn('[HardwareStore] Sync item notice:', upsertErr);
+              }
             }
           }
 
@@ -481,11 +488,18 @@ class HardwareStore {
           const localMovs = this.getStorage<HardwareStockMovement[]>(MOVEMENTS_STORAGE_KEY, []);
 
           const dbMovIds = new Set(dbMovs.map((m) => m.id));
-          const unsyncedMovs = localMovs.filter((m) => !dbMovIds.has(m.id));
+          const dbMovNums = new Set(dbMovs.map((m) => m.movementNumber));
+          const unsyncedMovs = localMovs.filter(
+            (m) => !dbMovIds.has(m.id) && !dbMovNums.has(m.movementNumber)
+          );
           if (unsyncedMovs.length > 0) {
             for (const mov of unsyncedMovs) {
-              await supabase.from('hardware_stock_movements').upsert(mapMovementToDb(mov), { onConflict: 'id' });
-              dbMovs.unshift(mov);
+              try {
+                await supabase.from('hardware_stock_movements').upsert(mapMovementToDb(mov), { onConflict: 'movement_number' });
+                dbMovs.unshift(mov);
+              } catch (upsertErr) {
+                console.warn('[HardwareStore] Sync movement notice:', upsertErr);
+              }
             }
           }
 
@@ -542,7 +556,7 @@ class HardwareStore {
 
   async persistItem(item: HardwareInventoryItem): Promise<void> {
     try {
-      await supabase.from('hardware_inventory_items').upsert(mapItemToDb(item), { onConflict: 'id' });
+      await supabase.from('hardware_inventory_items').upsert(mapItemToDb(item), { onConflict: 'sku' });
     } catch (err) {
       console.warn('[HardwareStore] Failed to upsert item to DB:', err);
     }
@@ -575,7 +589,7 @@ class HardwareStore {
 
   async persistMovement(movement: HardwareStockMovement): Promise<void> {
     try {
-      await supabase.from('hardware_stock_movements').upsert(mapMovementToDb(movement), { onConflict: 'id' });
+      await supabase.from('hardware_stock_movements').upsert(mapMovementToDb(movement), { onConflict: 'movement_number' });
     } catch (err) {
       console.warn('[HardwareStore] Failed to upsert movement to DB:', err);
     }
