@@ -109,7 +109,7 @@ export async function syncRemindersFromSupabase(): Promise<FollowupReminder[]> {
   try {
     const { data, error } = await supabase
       .from('quotation_followups')
-      .select('id, quotationId, channel, discussionNotes, nextFollowupDate, contactPerson, contactPhone, contactEmail, createdAt, quotation:sales_quotations(referenceNumber)')
+      .select('id, quotationId, channel, discussionNotes, nextFollowupDate, contactPerson, contactPhone, contactEmail, createdAt')
       .not('nextFollowupDate', 'is', null)
       .order('nextFollowupDate', { ascending: true });
 
@@ -122,7 +122,7 @@ export async function syncRemindersFromSupabase(): Promise<FollowupReminder[]> {
         return {
           id: row.id,
           quotationId: row.quotationId,
-          quotationNumber: row.quotation?.referenceNumber || existing?.quotationNumber || 'QUOTATION',
+          quotationNumber: existing?.quotationNumber || 'QUOTATION',
           clientName: row.contactPerson || existing?.clientName || 'Valued Client',
           channel: (row.channel || 'CALL') as any,
           scheduledAt: new Date(row.nextFollowupDate).toISOString(),

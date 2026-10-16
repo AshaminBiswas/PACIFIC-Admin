@@ -10,21 +10,32 @@ function isValidSupabaseKey(key?: string): boolean {
   return true;
 }
 
+const CANONICAL_PACIFIC_SUPABASE_URL = "https://bcbswbzbtskvmdqmgrjm.supabase.co";
+const CANONICAL_PACIFIC_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjYnN3YnpidHNrdm1kcW1ncmptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwMzc3NjUsImV4cCI6MjEwNzYxMzc2NX0.7-xzYBDeqNgRURx62bIJTf8pNA__L-MtT0UVtJxJ--U";
+
 const rawUrl = (import.meta.env.VITE_SUPABASE_URL as string)?.trim();
-const supabaseUrl = rawUrl && !rawUrl.includes("placeholder") ? rawUrl : "https://placeholder.supabase.co";
+// Strictly enforce the active Pacific Supabase instance and reject legacy project URLs
+const supabaseUrl =
+  rawUrl &&
+  !rawUrl.includes("placeholder") &&
+  !rawUrl.includes("kgalsrokdmsrqysyoffm") &&
+  !rawUrl.includes("ydpzlqjnhbcuzmjyylaj")
+    ? rawUrl
+    : CANONICAL_PACIFIC_SUPABASE_URL;
 
 const envCandidates = [
   import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
   import.meta.env.VITE_SUPABASE_SECRET_KEY,
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+  CANONICAL_PACIFIC_ANON_KEY,
 ];
 
 // Prioritize valid JWT keys (starts with eyJ...) over anything else
 const resolvedKey =
   envCandidates.find((k) => isValidSupabaseKey(k) && typeof k === "string" && k.startsWith("eyJ")) ||
   envCandidates.find((k) => isValidSupabaseKey(k)) ||
-  "placeholder-key";
+  CANONICAL_PACIFIC_ANON_KEY;
 
 const supabaseKey = resolvedKey;
 

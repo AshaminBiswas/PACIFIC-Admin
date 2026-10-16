@@ -5833,6 +5833,11 @@ A total of **115 new targeted B-tree indexes** were created across public schema
 - `D:\PACIFIC-Backend`: `npx tsc --noEmit` exited 0; `npm run build` exited 0; pushed to `origin/main` (`5d751ff`).
 - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0; `npm run build` built in 32.43s and exited 0.
 
+### 108.6 Hard Guard on Pacific Canonical Supabase Instance & Follow-up Query Fix
+- **Hard Guard on Canonical Database**: In `src/lib/supabase.ts`, explicitly configured fallback to `https://bcbswbzbtskvmdqmgrjm.supabase.co` and strictly rejected any environment or cache variable containing `kgalsrokdmsrqysyoffm` or `ydpzlqjnhbcuzmjyylaj`. This guarantees all client queries hit the Pacific database.
+- **Follow-up Reminders Fix (Resolving 400 Bad Request)**: In `src/utils/followupReminder.ts`, removed invalid foreign key embed `quotation:sales_quotations(referenceNumber)` that failed with PostgREST PGRST200 because `quotation_followups` did not have an explicit foreign key definition in PostgreSQL. Now queries clean columns and resolves reference numbers safely from cache.
+- **Live Render Status Confirmed**: Verified `https://pacific-backend-psuw.onrender.com/api/v1/inventory/hardware` (200 OK) and `/api/v1/employees/advances` (active auth guard 401).
+
 
 
 
