@@ -6013,6 +6013,55 @@ A total of **115 new targeted B-tree indexes** were created across public schema
    - `npm run build` in `D:\PACIFIC-Backend`: Exited with code 0 (`prisma generate`, Puppeteer Chrome, `tsc`).
    - Committed (`3d8a3eb`) and pushed to `origin/main` on `PACIFIC-Backend`.
 
+---
+
+## 112. First-Class Custom Item Quotation & Proforma Engine
+
+### 112.1 Requirement & Business Need
+- Enable creation and editing of non-standard and custom items (e.g. Vanity Counters, Shower Partitions, SS Grab Bars, Glass Partitions, Site Work / Installation charges, and Custom Size Restroom Cubicles) across both **Sales Quotations** (`DraftQuotationPage.tsx`, `EditSalesQuotationPage.tsx`) and **Proforma Invoices** (`CreateProformaPage.tsx`, `EditProformaInvoicePage.tsx`).
+- Provide rapid 1-click industry preset auto-fills while allowing completely custom titles, descriptions, units, HSN/SAC codes, tax rates, rates, quantities, and technical specifications (dimensions, board material, hardware type, color/finish).
+- Eliminate typing lag and input focus loss by decoupling custom item card forms into isolated `React.memo` components.
+- Ensure 100% mobile responsiveness with touch-friendly controls ($\ge 44\text{px}$) and responsive flex/grid wrappers.
+
+### 112.2 Architectural Components & Implementation Details
+1. **Catalog Preset Engine (`src/components/common/CustomItemPresets.ts`)**:
+   - Centralized catalog of standard custom items:
+     - `vanity_counter` (Vanity Counter / Granite/Solid Surface Basin Counter, HSN 6802, SFT/NOS)
+     - `shower_partition` (Toughened Glass Shower Partition 10mm/12mm, HSN 7007, SFT/NOS)
+     - `ss_grab_bar` (SS 304 Disabled/Elderly Grab Bar & Railing, HSN 7324, NOS/SET)
+     - `glass_partition` (Frameless / Slim Profile Architectural Glass Partition, HSN 7007, SFT)
+     - `site_work` (Site Installation, Dismantling, Modification & Freight, SAC 9954, LOT)
+     - `custom_cubicle` (Custom Dimension Restroom Cubicle Partition, HSN 9403, NOS/SET)
+   - Function `applyCustomItemPreset(presetId)` cleanly auto-populates item names, standard HSN codes, default units, and preset technical specifications.
+
+2. **Isolated High-Performance Custom PI Item Card (`src/components/common/CustomPiItemCard.tsx`)**:
+   - Wrapped with `React.memo` to eliminate parent re-render overhead during keystrokes.
+   - Quick-add chip bar for 1-click preset auto-population.
+   - Core fields: Title / Model Name, Description, HSN/SAC selector, Unit (NOS, SFT, RFT, SET, LOT, SQM, KG, MTR), Quantity, Unit Rate, and GST % (0%, 5%, 12%, 18%, 28%).
+   - Collapsible Technical Specifications Accordion: Dimensions (Width, Depth, Height in mm), Board/Material Type, Hardware/Fitting Type, Color/Finish Shade, and Custom Notes.
+   - Live Line Total indicator with tax breakdown preview.
+
+3. **Isolated High-Performance Custom Quotation Item Card (`src/components/common/CustomQuotationItemCard.tsx`)**:
+   - Wrapped with `React.memo` for smooth 60fps typing without focus reset.
+   - Visual Model Image selector & preview integration (`ModelImageField`).
+   - Quick-add preset chips for instant population.
+   - Core fields: Item Title / Model Name, Description narrative, Unit selector, Quantity, Unit Rate, and live Line Total badge.
+   - Collapsible Technical Specifications: Dimensions, Board Material, Hardware Finish, Color/Shade, and Fabrication Notes.
+
+4. **Quotation Flow Integration (`DraftQuotationPage.tsx` & `EditSalesQuotationPage.tsx`)**:
+   - Extended internal item types with `isCustom?: boolean` and `hsnSac?: string`.
+   - Updated `validateForm` to support custom items where standard catalog model selection is bypassed.
+   - Enriched `handleSubmit` to format item descriptions, serialize dimensions and specs into `customSpecsJson`, and tag `systemCategory: 'custom'`.
+   - In CUBICLE mode, rendered dual action buttons (`+ Add Custom Item` and `+ Add Cubicle System`) and a dedicated Section 4.5 for Custom Architectural Items.
+   - Synchronized with `SalesQuotationDetailPage.tsx` and PDF templates.
+
+5. **Proforma Invoice Flow Integration (`CreateProformaPage.tsx` & `EditProformaInvoicePage.tsx`)**:
+   - Extended `ProformaInvoiceItem` in `src/types/admin.ts` with custom item fields (`customModelName`, `isCustom`, `systemCategory`, `itemType`, dimensions, etc.).
+   - Support across both `CUSTOM` scope and Section 4.5 in `CUBICLE` scope.
+   - Bottom floating action bar and header actions provide instant `+ Add Custom Item` triggers.
+   - Enriched item submission formats custom specs into line item description and preserves HSN/SAC codes for GST calculation.
+
+
 
 
 

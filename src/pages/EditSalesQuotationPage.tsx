@@ -16,6 +16,7 @@ import {
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import BranchSelector from '../components/common/BranchSelector';
 import ModelImageField from '../components/quotations/ModelImageField';
+import { CustomQuotationItemCard } from '../components/common/CustomQuotationItemCard';
 import type { ProductCatalogModel, CompanyProfile } from '../types/admin';
 import { calculateGstSplit, isRestroomCubicleItem } from '../utils/tax';
 import { uploadToImageKit } from '../lib/imagekit';
@@ -35,6 +36,8 @@ interface EditItem {
   customModelName?: string;
   modelName?: string;
   modelImageUrl?: string;
+  isCustom?: boolean;
+  hsnSac?: string;
   systemCategory?: 'cubicle' | 'ump' | 'locker' | 'custom' | string;
   description: string;
   unit: string;
@@ -979,13 +982,21 @@ export default function EditSalesQuotationPage() {
         drawingFileId: form.drawingFileId || undefined,
         items: form.items.map((it, idx) => {
           const resolvedModelName = it.customModelName || (it.modelId && it.modelId !== 'CUSTOM' ? catalogModels.find((m) => m.id === it.modelId)?.title : undefined) || undefined;
+          let finalDesc = it.description;
+          if ((it.systemCategory === 'custom' || it.modelId === 'CUSTOM' || it.isCustom) && it.customModelName) {
+            if (!finalDesc) {
+              finalDesc = it.customModelName;
+            } else if (!finalDesc.includes(it.customModelName)) {
+              finalDesc = `${it.customModelName} - ${finalDesc}`;
+            }
+          }
           return {
             ...it,
             serialNumber: idx + 1,
             customModelName: resolvedModelName,
             modelName: resolvedModelName,
             modelId: it.modelId || undefined,
-            description: it.description,
+            description: finalDesc,
             unit: it.unit,
             quantity: Number(it.quantity),
             rate: Number(it.rate),
@@ -1003,7 +1014,8 @@ export default function EditSalesQuotationPage() {
               customModelName: resolvedModelName,
               modelName: resolvedModelName,
               modelImageUrl: it.modelImageUrl || undefined,
-              systemCategory: it.systemCategory || undefined,
+              systemCategory: it.systemCategory || (it.modelId === 'CUSTOM' ? 'custom' : undefined),
+              isCustom: Boolean(it.isCustom || it.modelId === 'CUSTOM' || it.systemCategory === 'custom'),
               hardwarePackage: it.hardwarePackage || undefined,
               boardType: it.boardType || 'HPL',
               make: it.make || undefined,
@@ -1765,8 +1777,12 @@ export default function EditSalesQuotationPage() {
 
         <div className="space-y-5">
           {(() => {
+            const customItems = form.items.filter(
+              (it, i) => i !== 0 && (it.systemCategory === 'custom' || it.modelId === 'CUSTOM' || (it as any).isCustom)
+            );
+
             const primaryCubicleItem = form.items.find(
-              (it) => it.systemCategory !== 'ump' && it.systemCategory !== 'locker'
+              (it) => it.systemCategory !== 'ump' && it.systemCategory !== 'locker' && it.systemCategory !== 'custom' && it.modelId !== 'CUSTOM' && !(it as any).isCustom
             ) || form.items[0];
             const primaryCubicleIdx = primaryCubicleItem ? form.items.indexOf(primaryCubicleItem) : 0;
 
@@ -1779,7 +1795,7 @@ export default function EditSalesQuotationPage() {
             );
 
             const additionalCubicleItems = form.items.filter(
-              (it, i) => i !== primaryCubicleIdx && it !== umpItem && it !== lockerItem
+              (it, i) => i !== primaryCubicleIdx && it !== umpItem && it !== lockerItem && it.systemCategory !== 'custom' && it.modelId !== 'CUSTOM' && !(it as any).isCustom
             );
 
             return (
@@ -2358,17 +2374,67 @@ export default function EditSalesQuotationPage() {
                   );
                 })}
 
-                {/* Add Another Cubicle System Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    addItem();
-                    clearFieldError('items');
-                  }}
-                  className="w-full py-2.5 bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] border border-dashed border-[#7FB706]/40 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" /> Add Another Cubicle System
-                </button>
+                {/* ── SECTION 4.5: CUSTOM ITEMS & BESPOKE WORKS ── */}
+                {customItems.length > 0 && (
+                  <div className="space-y-3 pt-3 border-t border-amber-500/20">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-amber-400" />
+                        <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                          Custom Items &amp; Bespoke Works ({customItems.length} items)
+                        </h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={addCustomModelItem}
+                        className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> + Add Custom Item
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {customItems.map((item) => {
+                        const realIdx = form.items.indexOf(item);
+                        return (
+                          <CustomQuotationItemCard
+                            key={realIdx}
+                            index={realIdx}
+                            item={item}
+                            fieldErrors={fieldErrors}
+                            onChange={(field, val) => handleItemChange(realIdx, field as keyof EditItem, val)}
+                            onRemove={() => removeItem(realIdx)}
+                            canRemove={true}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Bottom Quick-Action Buttons */}
+                <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-white/5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addCustomModelItem();
+                      clearFieldError('items');
+                    }}
+                    className="flex-1 min-w-[140px] py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-dashed border-amber-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-400" /> + Add Custom Item
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addItem();
+                      clearFieldError('items');
+                    }}
+                    className="flex-1 min-w-[140px] py-2.5 bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] border border-dashed border-[#7FB706]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> + Add Cubicle System
+                  </button>
+                </div>
               </>
             );
           })()}

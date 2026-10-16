@@ -531,6 +531,18 @@ export interface ProformaInvoiceItem {
   igst: number;
   totalAmount: number;
   make?: string;
+  customModelName?: string;
+  modelName?: string;
+  isCustom?: boolean;
+  itemType?: 'cubicle' | 'hardware' | 'custom' | string;
+  systemCategory?: 'cubicle' | 'ump' | 'locker' | 'board' | 'hardware' | 'custom' | string;
+  boardType?: string;
+  boardThickness?: string;
+  boardColor?: string;
+  cubicleSize?: string;
+  doorSize?: string;
+  overallHeight?: string;
+  hardwarePackage?: string;
 }
 
 export interface ProformaInvoiceTaxSummary {

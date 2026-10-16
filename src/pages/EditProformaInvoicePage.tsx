@@ -56,6 +56,7 @@ import {
   syncFreightToPiTerms,
 } from '../utils/quotationInstallation';
 import { DEFAULT_ACCESSORIES_TEXT, type CreateItem, type BillingAddressData, type DeliveryAddressData, type PiScope } from './CreateProformaPage';
+import { CustomPiItemCard } from '../components/common/CustomPiItemCard';
 
 export default function EditProformaInvoicePage() {
   const { id } = useParams<{ id: string }>();
@@ -415,6 +416,38 @@ export default function EditProformaInvoicePage() {
               boardThickness: boardThickness || '12mm',
               boardColor: boardColor || '',
               cubicleSize: cubicleSize || '1220mm × 2440mm (4ft × 8ft)',
+            });
+            return;
+          }
+
+          // 2.5 Custom Item check
+          const isCustomItem =
+            it.itemType === 'custom' ||
+            it.systemCategory === 'custom' ||
+            it.isCustom ||
+            it.modelId === 'CUSTOM';
+
+          if (isCustomItem) {
+            loadedItems.push({
+              id: it.id,
+              itemType: 'custom',
+              systemCategory: 'custom',
+              isCustom: true,
+              customModelName: it.customModelName || (mainDesc.includes(' - ') ? mainDesc.split(' - ')[0] : mainDesc),
+              description: mainDesc,
+              hsnSac: it.hsnSac || '9403',
+              quantity: Number(it.quantity) || 1,
+              unit: it.unit || 'NOS',
+              rate: Number(it.rate) || 0,
+              gstRate: Number(it.gstRate ?? 18),
+              boardType: boardType || '',
+              boardThickness: boardThickness || '',
+              boardColor: boardColor || '',
+              cubicleSize: cubicleSize || '',
+              doorSize: doorSize || '',
+              overallHeight: overallHeight || '',
+              hardwarePackage: hardwarePackage || '',
+              make: it.make || 'Pacific',
             });
             return;
           }
@@ -925,6 +958,32 @@ export default function EditProformaInvoicePage() {
     ]);
   };
 
+  const handleAddCustomItem = () => {
+    setItems((prev) => [
+      ...prev,
+      {
+        itemType: 'custom',
+        isCustom: true,
+        systemCategory: 'custom',
+        customModelName: '',
+        description: '',
+        hsnSac: '9403',
+        unit: 'NOS',
+        quantity: 1,
+        rate: 0,
+        gstRate: 18,
+        boardType: '',
+        boardThickness: '',
+        boardColor: '',
+        cubicleSize: '',
+        doorSize: '',
+        overallHeight: '',
+        hardwarePackage: '',
+        make: 'Pacific',
+      },
+    ]);
+  };
+
   const handleAddInstallationItem = () => {
     const count = effectiveCubicleCount;
     const rate = effectiveInstallRate;
@@ -1091,9 +1150,11 @@ export default function EditProformaInvoicePage() {
       errs.items = 'At least one line item is required.';
     } else {
       items.forEach((it, idx) => {
-        if (!it.description.trim()) {
+        if (!it.description.trim() && !it.customModelName?.trim()) {
           const matchedModel = it.modelId ? catalogModels.find((m) => m.id === it.modelId) : null;
           it.description = matchedModel?.title ? `Pacific ${matchedModel.title}` : 'Pacific Restroom Cubicle System';
+        } else if (!it.description.trim() && it.customModelName?.trim()) {
+          it.description = it.customModelName.trim();
         }
         if (Number(it.quantity) <= 0) {
           errs[`item_${idx}_qty`] = `Item #${idx + 1} quantity must be greater than 0.`;
@@ -1145,8 +1206,15 @@ export default function EditProformaInvoicePage() {
       // Enrich item descriptions with specifications so they persist to DB, PDF, and Detail views
       const enrichedItems = items.map((it) => {
         let desc = it.description;
+        if (it.itemType === 'custom' || it.systemCategory === 'custom' || it.isCustom) {
+          if (!desc && it.customModelName) {
+            desc = it.customModelName;
+          } else if (desc && it.customModelName && !desc.includes(it.customModelName)) {
+            desc = `${it.customModelName} - ${desc}`;
+          }
+        }
         const specParts = [];
-        if (it.customModelName) {
+        if (it.customModelName && it.itemType !== 'custom' && it.systemCategory !== 'custom' && !it.isCustom) {
           specParts.push(`Model: ${it.customModelName}`);
         }
         if (it.boardType || it.boardThickness) {
@@ -1168,7 +1236,7 @@ export default function EditProformaInvoicePage() {
           id: it.id,
           productId: (it.modelId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(it.modelId)) ? it.modelId : undefined,
           description: desc,
-          hsnSac: it.hsnSac || (it.itemType === 'hardware' ? '8302' : it.systemCategory === 'board' ? '4823' : '48239019'),
+          hsnSac: it.hsnSac || (it.itemType === 'custom' ? '9403' : it.itemType === 'hardware' ? '8302' : it.systemCategory === 'board' ? '4823' : '48239019'),
           quantity: Number(it.quantity) || 1,
           unit: it.unit || (it.itemType === 'hardware' ? 'SET' : 'NOS'),
           rate: Number(it.rate) || 0,
@@ -1973,6 +2041,14 @@ export default function EditProformaInvoicePage() {
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
+              onClick={handleAddCustomItem}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-sm"
+              title="Add custom item, bespoke model, or service"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> + Custom Item
+            </button>
+            <button
+              type="button"
               onClick={handleAddBoardItem}
               className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-lg text-xs font-bold cursor-pointer transition-colors"
             >
@@ -2069,23 +2145,30 @@ export default function EditProformaInvoicePage() {
         <div className="space-y-5">
           {piScope === 'CUSTOM' ? (
             <div className="space-y-4">
-              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-300">
+              <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-indigo-300">
                 <span className="flex items-center gap-2 font-medium">
-                  <Boxes className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                  <span><strong>Customized Supply Mode Active:</strong> Configure both board sheets and hardware accessories. No cubicle model is required.</span>
+                  <Sparkles className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+                  <span><strong>Customized Items &amp; Supply Mode Active:</strong> Configure custom items, bespoke models, vanity counters, glass partitions, board sheets, and hardware accessories freely without requiring a standard cubicle model.</span>
                 </span>
-                <div className="flex items-center gap-2 self-start sm:self-auto">
+                <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={handleAddCustomItem}
+                    className="px-2.5 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition shadow-sm"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> + Custom Item
+                  </button>
                   <button
                     type="button"
                     onClick={handleAddBoardItem}
-                    className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition"
+                    className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition"
                   >
                     <Plus className="w-3.5 h-3.5" /> + Board Sheet
                   </button>
                   <button
                     type="button"
                     onClick={handleAddHardwareItem}
-                    className="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition"
+                    className="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition"
                   >
                     <Plus className="w-3.5 h-3.5" /> + Hardware Item
                   </button>
@@ -2094,7 +2177,22 @@ export default function EditProformaInvoicePage() {
 
               {items.map((item, idx) => {
                 const lineTotal = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
-                const isHw = item.itemType === 'hardware' || item.systemCategory === 'hardware';
+                const isCustom = item.itemType === 'custom' || item.systemCategory === 'custom' || item.isCustom;
+                const isHw = !isCustom && (item.itemType === 'hardware' || item.systemCategory === 'hardware');
+
+                if (isCustom) {
+                  return (
+                    <CustomPiItemCard
+                      key={idx}
+                      index={idx}
+                      item={item}
+                      fieldErrors={fieldErrors}
+                      onChange={(f, val) => handleItemChange(idx, f, val)}
+                      onRemove={() => handleRemoveItem(idx)}
+                      canRemove={items.length > 1}
+                    />
+                  );
+                }
 
                 if (isHw) {
                   return (
@@ -2388,6 +2486,13 @@ export default function EditProformaInvoicePage() {
               })}
 
               <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleAddCustomItem}
+                  className="flex-1 min-w-[160px] py-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-dashed border-indigo-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 text-indigo-400" /> Add Custom Item
+                </button>
                 <button
                   type="button"
                   onClick={handleAddBoardItem}
@@ -2762,21 +2867,25 @@ export default function EditProformaInvoicePage() {
             </div>
           ) : (
             (() => {
+              const customItems = items.filter(
+                (it) => it.itemType === 'custom' || it.systemCategory === 'custom' || it.isCustom
+              );
+
               const primaryCubicleItem = items.find(
-                (it) => it.itemType !== 'hardware' && it.systemCategory !== 'ump' && it.systemCategory !== 'locker' && it.systemCategory !== 'board'
+                (it) => it.itemType !== 'hardware' && it.itemType !== 'custom' && it.systemCategory !== 'custom' && !it.isCustom && it.systemCategory !== 'ump' && it.systemCategory !== 'locker' && it.systemCategory !== 'board'
               );
               const primaryCubicleIdx = primaryCubicleItem ? items.indexOf(primaryCubicleItem) : -1;
 
               const umpItem = items.find(
-                (it) => it.systemCategory === 'ump' || (it.itemType !== 'hardware' && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump')))
+                (it) => it.systemCategory === 'ump' || (it.itemType !== 'hardware' && it.itemType !== 'custom' && !it.isCustom && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump')))
               );
 
               const lockerItem = items.find(
-                (it) => it.systemCategory === 'locker' || (it.itemType !== 'hardware' && it.description.toLowerCase().includes('locker'))
+                (it) => it.systemCategory === 'locker' || (it.itemType !== 'hardware' && it.itemType !== 'custom' && !it.isCustom && it.description.toLowerCase().includes('locker'))
               );
 
               const additionalCubicleItems = items.filter(
-                (it, i) => it.itemType !== 'hardware' && it.systemCategory !== 'board' && i !== primaryCubicleIdx && it !== umpItem && it !== lockerItem
+                (it, i) => it.itemType !== 'hardware' && it.itemType !== 'custom' && it.systemCategory !== 'custom' && !it.isCustom && it.systemCategory !== 'board' && i !== primaryCubicleIdx && it !== umpItem && it !== lockerItem
               );
 
               const hardwareItems = items.filter((it) => it.itemType === 'hardware');
@@ -3711,6 +3820,44 @@ export default function EditProformaInvoicePage() {
                   );
                 })}
 
+                {/* ── SECTION 4.5: CUSTOM ITEMS / SPECIFICATIONS (IF ANY IN CUBICLE SCOPE) ── */}
+                {customItems.length > 0 && (
+                  <div className="space-y-3 pt-3 border-t border-indigo-500/20">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-indigo-400" />
+                        <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                          Custom Items &amp; Bespoke Works ({customItems.length} items)
+                        </h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddCustomItem}
+                        className="px-2.5 py-1 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 rounded text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> + Add Custom Item
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {customItems.map((item) => {
+                        const realIdx = items.indexOf(item);
+                        return (
+                          <CustomPiItemCard
+                            key={realIdx}
+                            index={realIdx}
+                            item={item}
+                            fieldErrors={fieldErrors}
+                            onChange={(field, val) => handleItemChange(realIdx, field, val)}
+                            onRemove={() => handleRemoveItem(realIdx)}
+                            canRemove={true}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* ── SECTION 5: ITEMIZED HARDWARE & ACCESSORIES LIST ── */}
                 {hardwareItems.length > 0 && (
                   <div className="space-y-3 pt-3 border-t border-white/10">
@@ -3849,6 +3996,38 @@ export default function EditProformaInvoicePage() {
                     </div>
                   </div>
                 )}
+
+                {/* Bottom Quick-Action Bar */}
+                <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-white/5">
+                  <button
+                    type="button"
+                    onClick={handleAddCustomItem}
+                    className="flex-1 min-w-[140px] py-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-dashed border-indigo-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 text-indigo-400" /> + Add Custom Item
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddCubicleItem}
+                    className="flex-1 min-w-[140px] py-2.5 bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] border border-dashed border-[#7FB706]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> + Add Cubicle Model
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddHardwareItem}
+                    className="flex-1 min-w-[140px] py-2.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-dashed border-cyan-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> + Add Hardware Item
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddBoardItem}
+                    className="flex-1 min-w-[140px] py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-dashed border-amber-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> + Add Board Sheet
+                  </button>
+                </div>
               </>
             );
           })()

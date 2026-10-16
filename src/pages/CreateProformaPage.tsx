@@ -41,6 +41,7 @@ import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import CustomerSearchSelect from '../components/common/CustomerSearchSelect';
 import BranchSelector from '../components/common/BranchSelector';
 import HsnSelectInput from '../components/common/HsnSelectInput';
+import { CustomPiItemCard } from '../components/common/CustomPiItemCard';
 import type { BusinessParty, CompanyProfile, ProductCatalogModel, SalesQuotation } from '../types/admin';
 import { calculateGstSplit, isDelhiState, GST_STATE_CODE_MAP, isRestroomCubicleItem, formatStructuredAddress } from '../utils/tax';
 import {
@@ -70,8 +71,8 @@ export interface CreateItem {
   modelId?: string;
   customModelName?: string;
   modelName?: string;
-  itemType?: 'cubicle' | 'hardware';
-  systemCategory?: 'cubicle' | 'ump' | 'locker' | 'board' | 'hardware';
+  itemType?: 'cubicle' | 'hardware' | 'custom';
+  systemCategory?: 'cubicle' | 'ump' | 'locker' | 'board' | 'hardware' | 'custom';
   isCustom?: boolean;
   parentModelId?: string;
   description: string;
@@ -465,7 +466,28 @@ export default function CreateProformaPage() {
           description: it.description || it.itemDescription,
         });
 
-        if (importedScope === 'BOARD' || it.systemCategory === 'board') {
+        if (it.systemCategory === 'custom' || it.modelId === 'CUSTOM' || it.isCustom) {
+          quoteItems.push({
+            itemType: 'custom',
+            isCustom: true,
+            systemCategory: 'custom',
+            customModelName: it.customModelName || it.modelName || '',
+            description: it.description || it.itemDescription || it.customModelName || 'Custom Item',
+            hsnSac: it.hsnSac || it.hsnCode || '9403',
+            quantity: qty,
+            unit: it.unit || 'NOS',
+            rate: Number(it.rate ?? it.unitPrice ?? 0),
+            gstRate: Number(it.gstRate || q.gstRate || 18),
+            boardType: it.boardType || '',
+            boardThickness: it.boardThickness || '',
+            boardColor: it.boardColor || '',
+            cubicleSize: it.cubicleSize || '',
+            doorSize: it.doorSize || '',
+            overallHeight: it.overallHeight || '',
+            hardwarePackage: it.hardwarePackage || '',
+            make: it.make || 'Pacific',
+          });
+        } else if (importedScope === 'BOARD' || it.systemCategory === 'board') {
           quoteItems.push({
             itemType: 'cubicle',
             systemCategory: 'board',
@@ -1107,6 +1129,35 @@ export default function CreateProformaPage() {
     }));
   };
 
+  const handleAddCustomItem = () => {
+    setFormData((f) => ({
+      ...f,
+      items: [
+        ...f.items,
+        {
+          itemType: 'custom',
+          isCustom: true,
+          systemCategory: 'custom',
+          customModelName: '',
+          description: '',
+          hsnSac: '9403',
+          unit: 'NOS',
+          quantity: 1,
+          rate: 0,
+          gstRate: 18,
+          boardType: '',
+          boardThickness: '',
+          boardColor: '',
+          cubicleSize: '',
+          doorSize: '',
+          overallHeight: '',
+          hardwarePackage: '',
+          make: 'Pacific',
+        },
+      ],
+    }));
+  };
+
   const handleAddInstallationItem = () => {
     const count = effectiveCubicleCount;
     const rate = effectiveInstallRate;
@@ -1313,8 +1364,8 @@ export default function CreateProformaPage() {
       errs.items = 'At least one line item is required.';
     } else {
       formData.items.forEach((it, idx) => {
-        if (!it.description.trim()) {
-          errs[`item_${idx}_desc`] = `Item #${idx + 1} description is required.`;
+        if (!it.description?.trim() && !it.customModelName?.trim()) {
+          errs[`item_${idx}_desc`] = `Item #${idx + 1} description or title is required.`;
         }
         if (Number(it.quantity) <= 0) {
           errs[`item_${idx}_qty`] = `Item #${idx + 1} quantity must be greater than 0.`;
@@ -1374,9 +1425,12 @@ export default function CreateProformaPage() {
 
       // Enrich item descriptions with specifications so they persist to DB, PDF, and Detail views
       const enrichedItems = formData.items.map((it) => {
-        let desc = it.description;
+        let desc = it.description?.trim() || it.customModelName?.trim() || 'Custom Item';
+        if (it.customModelName && it.description && !it.description.includes(it.customModelName)) {
+          desc = `${it.customModelName} — ${it.description}`;
+        }
         const specParts = [];
-        if (it.customModelName) {
+        if (it.customModelName && !desc.includes(it.customModelName)) {
           specParts.push(`Model: ${it.customModelName}`);
         }
         if (it.boardType || it.boardThickness) {
@@ -1397,7 +1451,7 @@ export default function CreateProformaPage() {
         return {
           productId: (it.modelId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(it.modelId)) ? it.modelId : undefined,
           description: desc,
-          hsnSac: it.hsnSac || (it.itemType === 'hardware' ? '8302' : it.systemCategory === 'board' ? '4823' : '48239019'),
+          hsnSac: it.hsnSac || (it.itemType === 'hardware' ? '8302' : it.systemCategory === 'board' ? '4823' : '9403'),
           quantity: Number(it.quantity) || 1,
           unit: it.unit || (it.itemType === 'hardware' ? 'SET' : 'NOS'),
           rate: Number(it.rate) || 0,
@@ -2233,6 +2287,14 @@ export default function CreateProformaPage() {
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
+              onClick={handleAddCustomItem}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-sm"
+              title="Add custom item, bespoke model, or service"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> + Custom Item
+            </button>
+            <button
+              type="button"
               onClick={handleAddBoardItem}
               className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-lg text-xs font-bold cursor-pointer transition-colors"
             >
@@ -2336,12 +2398,19 @@ export default function CreateProformaPage() {
         <div className="space-y-5">
           {formData.piScope === 'CUSTOM' ? (
             <div className="space-y-4">
-              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-300">
+              <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-indigo-300">
                 <span className="flex items-center gap-2 font-medium">
-                  <Boxes className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                  <span><strong>Customized Supply Mode Active (Board & Hardware):</strong> Configure both board sheets and hardware accessories. No cubicle model is required.</span>
+                  <Sparkles className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+                  <span><strong>Customized Items &amp; Supply Mode Active:</strong> Configure custom items, bespoke models, vanity counters, glass partitions, board sheets, and hardware accessories freely without requiring a standard cubicle model.</span>
                 </span>
-                <div className="flex items-center gap-2 self-start sm:self-auto">
+                <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={handleAddCustomItem}
+                    className="px-2.5 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition shadow-sm"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> + Custom Item
+                  </button>
                   <button
                     type="button"
                     onClick={handleAddBoardItem}
@@ -2361,7 +2430,22 @@ export default function CreateProformaPage() {
 
               {formData.items.map((item, idx) => {
                 const lineTotal = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
-                const isHw = item.itemType === 'hardware' || item.systemCategory === 'hardware';
+                const isCustom = item.itemType === 'custom' || item.systemCategory === 'custom' || item.isCustom;
+                const isHw = !isCustom && (item.itemType === 'hardware' || item.systemCategory === 'hardware');
+
+                if (isCustom) {
+                  return (
+                    <CustomPiItemCard
+                      key={idx}
+                      index={idx}
+                      item={item}
+                      fieldErrors={fieldErrors}
+                      onChange={(f, val) => handleItemChange(idx, f, val)}
+                      onRemove={() => handleRemoveItem(idx)}
+                      canRemove={formData.items.length > 1}
+                    />
+                  );
+                }
 
                 if (isHw) {
                   return (
@@ -3028,17 +3112,21 @@ export default function CreateProformaPage() {
             </div>
           ) : (
             (() => {
+            const customItems = formData.items.filter(
+              (it) => it.itemType === 'custom' || it.systemCategory === 'custom' || it.isCustom
+            );
+
             const primaryCubicleItem = formData.items.find(
-              (it) => it.itemType !== 'hardware' && it.systemCategory !== 'ump' && it.systemCategory !== 'locker' && it.systemCategory !== 'board'
+              (it) => it.itemType !== 'hardware' && it.itemType !== 'custom' && it.systemCategory !== 'custom' && !it.isCustom && it.systemCategory !== 'ump' && it.systemCategory !== 'locker' && it.systemCategory !== 'board'
             );
             const primaryCubicleIdx = primaryCubicleItem ? formData.items.indexOf(primaryCubicleItem) : -1;
 
             const umpItem = formData.items.find(
-              (it) => it.systemCategory === 'ump' || (it.itemType !== 'hardware' && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump')))
+              (it) => it.systemCategory === 'ump' || (it.itemType !== 'hardware' && it.itemType !== 'custom' && !it.isCustom && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump')))
             );
 
             const lockerItem = formData.items.find(
-              (it) => it.systemCategory === 'locker' || (it.itemType !== 'hardware' && it.description.toLowerCase().includes('locker'))
+              (it) => it.systemCategory === 'locker' || (it.itemType !== 'hardware' && it.itemType !== 'custom' && !it.isCustom && it.description.toLowerCase().includes('locker'))
             );
 
             const boardItems = formData.items.filter(
@@ -3046,7 +3134,7 @@ export default function CreateProformaPage() {
             );
 
             const additionalCubicleItems = formData.items.filter(
-              (it, i) => it.itemType !== 'hardware' && it.systemCategory !== 'board' && i !== primaryCubicleIdx && it !== umpItem && it !== lockerItem
+              (it, i) => it.itemType !== 'hardware' && it.itemType !== 'custom' && it.systemCategory !== 'custom' && !it.isCustom && it.systemCategory !== 'board' && i !== primaryCubicleIdx && it !== umpItem && it !== lockerItem
             );
 
             const hardwareItems = formData.items.filter((it) => it.itemType === 'hardware');
@@ -3973,6 +4061,44 @@ export default function CreateProformaPage() {
                   );
                 })}
 
+                {/* ── SECTION 4.5: CUSTOM ITEMS / SPECIFICATIONS (IF ANY IN CUBICLE SCOPE) ── */}
+                {customItems.length > 0 && (
+                  <div className="space-y-3 pt-3 border-t border-indigo-500/20">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-indigo-400" />
+                        <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                          Custom Items &amp; Bespoke Works ({customItems.length} items)
+                        </h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddCustomItem}
+                        className="px-2.5 py-1 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 rounded text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> + Add Custom Item
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {customItems.map((item) => {
+                        const realIdx = formData.items.indexOf(item);
+                        return (
+                          <CustomPiItemCard
+                            key={realIdx}
+                            index={realIdx}
+                            item={item}
+                            fieldErrors={fieldErrors}
+                            onChange={(field, val) => handleItemChange(realIdx, field, val)}
+                            onRemove={() => handleRemoveItem(realIdx)}
+                            canRemove={true}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* ── SECTION 5: ITEMIZED HARDWARE & ACCESSORIES LIST ── */}
                 {hardwareItems.length > 0 && (
                   <div className="space-y-3 pt-3 border-t border-white/10">
@@ -4111,6 +4237,38 @@ export default function CreateProformaPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Bottom Quick-Action Bar */}
+                <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-white/5">
+                  <button
+                    type="button"
+                    onClick={handleAddCustomItem}
+                    className="flex-1 min-w-[140px] py-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-dashed border-indigo-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 text-indigo-400" /> + Add Custom Item
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddCubicleItem}
+                    className="flex-1 min-w-[140px] py-2.5 bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] border border-dashed border-[#7FB706]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> + Add Cubicle Model
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddHardwareItem}
+                    className="flex-1 min-w-[140px] py-2.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-dashed border-cyan-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> + Add Hardware Item
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddBoardItem}
+                    className="flex-1 min-w-[140px] py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-dashed border-amber-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> + Add Board Sheet
+                  </button>
+                </div>
               </>
             );
           })())}
