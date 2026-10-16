@@ -5933,6 +5933,43 @@ A total of **115 new targeted B-tree indexes** were created across public schema
      - Ashamin Biswas: 0 advances, 0 bills (clean slate).
   7. **Installer Master Intact**: All registered contractors (`CubicleInstaller`) and cubicle models (`CubicleModel`) preserved intact.
 
+---
+
+## 110. Hardware Inventory Master — SKU Creation Engine, Collision Avoidance & Store Sync
+
+### 110.1 Background & Root Causes
+1. **User Problem**: User has 108 hardware catalog items in PostgreSQL (`hardware_inventory_items`), but attempting to add new items failed or did not appear in the catalog list.
+2. **Nullable Field Sanitization**: In `PACIFIC-Backend/src/modules/inventory/hardwareInventory.service.ts`, optional string fields (`vendorId`, `vendorName`, `locationRack`, `dia`, `length`, `width`, `imageUrl`, `notes`) were inserted without trimming or empty-string checks. Empty strings `""` were inserted into nullable columns, leading to SQL errors or invalid vendor references.
+3. **Swallowed Errors & Local Store Sync Gap**:
+   - `hardwareInventoryApi.create` in `PACIFIC-Admin` caught and swallowed backend 4xx errors (`catch {}`), preventing users from seeing validation errors or duplicate SKU notices.
+   - When backend creation succeeded, the created item was not immediately merged into `store.getItems()`, causing newly created items to disappear if an offline/re-render fallback occurred.
+4. **SKU Collision**: Generic abbreviations previously generated colliding SKUs among the 108 existing catalog items, throwing 400 Bad Request which was silenced on the frontend.
+5. **Supabase 100-Row Truncation**: Default PostgREST select without an explicit limit capped retrieved records at 100, leaving remaining SKUs out of local cache.
+
+### 110.2 Backend Enhancements (`PACIFIC-Backend`)
+- **`sqlStringOrNull` Helper**: Added centralized SQL string sanitizer that maps `undefined`, `null`, and empty/whitespace strings `""` to literal `NULL`, while properly escaping single quotes.
+- **Defensive Validation in `createItem`**: Explicitly checks that `sku` and `name` are provided and non-empty before executing queries.
+- **Refactored `updateItem` and `inwardStock`**: Replaced all inline ternary checks with `sqlStringOrNull` for all optional string fields.
+- **Build & Quality Gates**: `npm run build` passed with exit code 0; committed (`ebdc84b`) and pushed to `origin/main`.
+
+### 110.3 Frontend Enhancements (`PACIFIC-Admin`)
+- **`src/api/hardwareInventoryApi.ts`**:
+  - `suggestHardwareSku`: Extended to accept optional `existingSkus` (Set or Array), performing up to 50 non-colliding candidate iterations to guarantee unique SKU generation.
+  - `ensureSynced`: Added `.limit(2000)` to `hardware_inventory_items` and `hardware_stock_movements` queries to prevent 100-row pagination truncation.
+  - `create`: On 200/201 success, immediately synchronizes the new item into `store.getItems()` local cache. On 4xx HTTP responses, extracts server error messages and rethrows so UI modal/page displays the exact validation or collision message.
+  - `update`, `delete`, `inward`, `issue`: Updated to synchronize local store cache and propagate server errors on backend 4xx responses.
+- **`CreateHardwareModal.tsx`**:
+  - Added `items?: HardwareInventoryItem[]` prop and `isDuplicateSku` memoized validation.
+  - Real-time SKU collision indicator: Highlights input border in amber and displays warning message when the typed SKU already exists in catalog.
+  - Disables submit button (`disabled={isSubmitting || isDuplicateSku}`) with explanatory tooltip.
+  - Sanitizes all optional inputs (`locationRack`, `notes`, `dia`, `length`, `width`, `imageUrl`).
+- **`CreateHardwareSkuPage.tsx`**:
+  - Fetches existing catalog items on mount and performs real-time duplicate SKU collision checks.
+  - Highlights input and disables submit button when SKU collides with existing catalog items.
+  - Sanitizes optional inputs and displays server error messages.
+- **`HardwareInventoryPage.tsx`**:
+  - Passes current `items` into `CreateHardwareModal`.
+
 
 
 

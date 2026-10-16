@@ -24,6 +24,7 @@ import {
 import type {
   HardwareBranch,
   HardwareVendor,
+  HardwareInventoryItem,
   CreateHardwareItemInput,
 } from '../../types/admin';
 
@@ -35,6 +36,7 @@ interface CreateHardwareModalProps {
   onOpenBranchModal?: () => void;
   branches: HardwareBranch[];
   vendors: HardwareVendor[];
+  items?: HardwareInventoryItem[];
 }
 
 const MATERIAL_OPTIONS = [
@@ -78,6 +80,7 @@ export default function CreateHardwareModal({
   onOpenBranchModal,
   branches,
   vendors,
+  items = [],
 }: CreateHardwareModalProps) {
   // Form fields
   const [material, setMaterial] = useState<string>('STAINLESS_STEEL');
@@ -106,6 +109,13 @@ export default function CreateHardwareModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Check if current typed SKU already exists in catalog
+  const isDuplicateSku = React.useMemo(() => {
+    if (!sku.trim() || !items.length) return false;
+    const clean = sku.trim().toUpperCase();
+    return items.some((i) => (i.sku || '').toUpperCase() === clean);
+  }, [sku, items]);
 
   // When material changes, update allowed colors and default HSN
   useEffect(() => {
@@ -137,7 +147,8 @@ export default function CreateHardwareModal({
 
   const handleSuggestSku = () => {
     const activeColor = isCustomColorActive ? customColor || 'Custom' : color;
-    const suggestion = suggestHardwareSku(material, name || 'FITTING', activeColor, warehouse);
+    const existingSkus = items.map((i) => i.sku);
+    const suggestion = suggestHardwareSku(material, name || 'FITTING', activeColor, warehouse, existingSkus);
     setSku(suggestion);
   };
 
@@ -164,8 +175,13 @@ export default function CreateHardwareModal({
     e.preventDefault();
     setError(null);
 
-    if (!sku.trim()) {
-      setError('Please enter a SKU / Part Number manually.');
+    const cleanSku = sku.trim().toUpperCase();
+    if (!cleanSku) {
+      setError('Please enter a SKU / Part Number manually, or click Suggest SKU.');
+      return;
+    }
+    if (isDuplicateSku) {
+      setError(`Hardware item with SKU "${cleanSku}" already exists in your inventory. Please use a unique SKU.`);
       return;
     }
     if (!name.trim()) {
@@ -190,7 +206,7 @@ export default function CreateHardwareModal({
     try {
       setIsSubmitting(true);
       const payload: CreateHardwareItemInput = {
-        sku: sku.trim().toUpperCase(),
+        sku: cleanSku,
         name: name.trim(),
         material,
         color: activeColor,
@@ -202,19 +218,20 @@ export default function CreateHardwareModal({
         openingStock: Number(openingStock) || 0,
         reorderLevel: Number(reorderLevel) || 10,
         unitCost: unitCost ? Number(unitCost) : undefined,
-        locationRack: locationRack.trim(),
+        locationRack: locationRack.trim() || undefined,
         dia: dia.trim() || undefined,
         length: length.trim() || undefined,
         width: width.trim() || undefined,
         imageUrl: imageUrl.trim() || undefined,
-        notes: notes.trim(),
+        notes: notes.trim() || undefined,
       };
 
       await hardwareInventoryApi.create(payload);
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Failed to create hardware SKU');
+      const msg = err.response?.data?.message || err.message || 'Failed to create hardware SKU';
+      setError(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -393,11 +410,22 @@ export default function CreateHardwareModal({
                 placeholder="e.g. SS-HNG-BLK-01, AL-TR-SLV-02"
                 value={sku}
                 onChange={(e) => setSku(e.target.value.toUpperCase())}
-                className="w-full px-3 py-2.5 bg-[#030213] border border-white/15 focus:border-[#7FB706] rounded-xl text-white text-xs font-mono font-bold tracking-wider focus:outline-none"
+                className={`w-full px-3 py-2.5 bg-[#030213] border rounded-xl text-white text-xs font-mono font-bold tracking-wider focus:outline-none transition-colors ${
+                  isDuplicateSku
+                    ? 'border-amber-500 focus:border-amber-400'
+                    : 'border-white/15 focus:border-[#7FB706]'
+                }`}
               />
-              <p className="text-[10px] text-gray-500 mt-1">
-                Type your desired custom SKU manually, or click Suggest SKU.
-              </p>
+              {isDuplicateSku ? (
+                <p className="text-[11px] text-amber-400 font-semibold mt-1 flex items-center gap-1 animate-in fade-in duration-150">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  This SKU already exists in your inventory. Click "Suggest SKU" or enter a unique code.
+                </p>
+              ) : (
+                <p className="text-[10px] text-gray-500 mt-1">
+                  Type your desired custom SKU manually, or click Suggest SKU.
+                </p>
+              )}
             </div>
 
             <div>
@@ -746,8 +774,9 @@ export default function CreateHardwareModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="px-5 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-[#7FB706]/20 transition-all cursor-pointer flex items-center gap-2"
+              disabled={isSubmitting || isDuplicateSku}
+              title={isDuplicateSku ? 'Please enter a unique SKU before saving' : undefined}
+              className="px-5 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-lg shadow-[#7FB706]/20 transition-all cursor-pointer flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
               {isSubmitting ? 'Creating SKU...' : 'Save & Register Hardware SKU'}

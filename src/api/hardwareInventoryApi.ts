@@ -175,7 +175,8 @@ export function suggestHardwareSku(
   material: string,
   itemName: string,
   color: string,
-  warehouse?: string
+  warehouse?: string,
+  existingSkus?: Set<string> | string[]
 ): string {
   const matPrefix =
     material === 'STAINLESS_STEEL' ? 'SS' : material === 'ALUMINIUM' ? 'AL' : material === 'NYLON' ? 'NY' : 'HW';
@@ -199,8 +200,23 @@ export function suggestHardwareSku(
       ? 'ALU'
       : 'STD';
 
-  const suffix = Math.floor(100 + Math.random() * 900);
-  return `${matPrefix}-${cleanName || 'ITEM'}-${colCode}-${suffix}`;
+  const baseSku = `${matPrefix}-${cleanName || 'ITEM'}-${colCode}`;
+
+  const skuSet = existingSkus instanceof Set
+    ? existingSkus
+    : Array.isArray(existingSkus)
+    ? new Set(existingSkus.map((s) => String(s || '').toUpperCase()))
+    : null;
+
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const suffix = Math.floor(100 + Math.random() * 900);
+    const candidate = `${baseSku}-${suffix}`;
+    if (!skuSet || !skuSet.has(candidate.toUpperCase())) {
+      return candidate;
+    }
+  }
+
+  return `${baseSku}-${Date.now().toString().slice(-4)}`;
 }
 
 // ─── Database ↔ Domain Mappers ─────────────────────────────
@@ -452,10 +468,10 @@ class HardwareStore {
     this.syncPromise = (async () => {
       try {
         const [itemsRes, movRes, brRes, vendRes] = await Promise.allSettled([
-          supabase.from('hardware_inventory_items').select('*'),
-          supabase.from('hardware_stock_movements').select('*').order('created_at', { ascending: false }),
+          supabase.from('hardware_inventory_items').select('*').limit(2000),
+          supabase.from('hardware_stock_movements').select('*').order('created_at', { ascending: false }).limit(2000),
           supabase.from('hardware_branches').select('*'),
-          supabase.from('hardware_vendors').select('*'),
+          supabase.from('hardware_vendors').select('*').limit(500),
         ]);
 
         // Process Items
@@ -768,11 +784,34 @@ export const hardwareInventoryApi = {
     try {
       const res = await apiClient.post<ApiResponse<HardwareInventoryItem>>('/inventory/hardware', data);
       if (res.data?.success && res.data.data) {
+        // Immediately sync into local cache store so immediate local transitions and UI are instantaneous
+        const items = store.getItems();
+        const created = res.data.data;
+        const existsIdx = items.findIndex(
+          (i) => i.id === created.id || (i.sku && i.sku.toUpperCase() === created.sku.toUpperCase())
+        );
+        if (existsIdx >= 0) {
+          items[existsIdx] = created;
+        } else {
+          items.unshift(created);
+        }
+        store.saveItems(items);
         return { data: res.data };
       }
-    } catch {}
+    } catch (apiErr: any) {
+      const serverMessage = apiErr?.response?.data?.message || apiErr?.message;
+      if (apiErr?.response?.status && apiErr.response.status >= 400 && apiErr.response.status < 500) {
+        throw new Error(serverMessage || 'Validation failed. Please verify SKU and required fields.');
+      }
+      console.warn('[HardwareApi] Backend unavailable, attempting fallback:', apiErr);
+    }
 
     const items = store.getItems();
+    const cleanSku = (data.sku || '').trim().toUpperCase();
+    if (items.some((i) => (i.sku || '').toUpperCase() === cleanSku)) {
+      throw new Error(`Hardware item with SKU "${cleanSku}" already exists.`);
+    }
+
     const now = new Date().toISOString();
     const openingStock = Number(data.openingStock) || 0;
     const reorderLevel = Number(data.reorderLevel) || 10;
@@ -784,7 +823,7 @@ export const hardwareInventoryApi = {
 
     const newItem: HardwareInventoryItem = {
       id: `hw-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      sku: data.sku.trim().toUpperCase(),
+      sku: cleanSku,
       name: data.name.trim(),
       material: data.material as HardwareInventoryMaterial,
       color: data.color.trim(),
@@ -812,7 +851,7 @@ export const hardwareInventoryApi = {
 
     items.unshift(newItem);
     store.saveItems(items);
-    store.persistItem(newItem);
+    await store.persistItem(newItem);
 
     // If opening stock > 0, log an initial inward movement
     if (openingStock > 0) {
@@ -859,9 +898,20 @@ export const hardwareInventoryApi = {
     try {
       const res = await apiClient.put<ApiResponse<HardwareInventoryItem>>(`/inventory/hardware/${id}`, data);
       if (res.data?.success && res.data.data) {
+        const items = store.getItems();
+        const updated = res.data.data;
+        const idx = items.findIndex((i) => i.id === id);
+        if (idx >= 0) items[idx] = updated;
+        else items.unshift(updated);
+        store.saveItems(items);
         return { data: res.data };
       }
-    } catch {}
+    } catch (apiErr: any) {
+      const serverMessage = apiErr?.response?.data?.message;
+      if (apiErr?.response?.status && apiErr.response.status >= 400 && apiErr.response.status < 500) {
+        throw new Error(serverMessage || 'Failed to update hardware item');
+      }
+    }
 
     const items = store.getItems();
     const index = items.findIndex((i) => i.id === id);
@@ -907,8 +957,18 @@ export const hardwareInventoryApi = {
   delete: async (id: string): Promise<{ data: ApiResponse<{ success: boolean }> }> => {
     try {
       const res = await apiClient.delete<ApiResponse<{ success: boolean }>>(`/inventory/hardware/${id}`);
-      if (res.data?.success) return { data: res.data };
-    } catch {}
+      if (res.data?.success) {
+        let items = store.getItems();
+        items = items.filter((i) => i.id !== id);
+        store.saveItems(items);
+        return { data: res.data };
+      }
+    } catch (apiErr: any) {
+      const serverMessage = apiErr?.response?.data?.message;
+      if (apiErr?.response?.status && apiErr.response.status >= 400 && apiErr.response.status < 500) {
+        throw new Error(serverMessage || 'Failed to delete hardware item');
+      }
+    }
 
     let items = store.getItems();
     items = items.filter((i) => i.id !== id);
@@ -951,8 +1011,28 @@ export const hardwareInventoryApi = {
       const res = await apiClient.post<
         ApiResponse<{ item: HardwareInventoryItem; movement: HardwareStockMovement }>
       >('/inventory/hardware/inward', data);
-      if (res.data?.success) return { data: res.data };
-    } catch {}
+      if (res.data?.success && res.data.data) {
+        const { item: updatedItem, movement: newMov } = res.data.data;
+        if (updatedItem) {
+          const items = store.getItems();
+          const idx = items.findIndex((i) => i.id === updatedItem.id);
+          if (idx >= 0) items[idx] = updatedItem;
+          else items.unshift(updatedItem);
+          store.saveItems(items);
+        }
+        if (newMov) {
+          const movs = store.getMovements();
+          movs.unshift(newMov);
+          store.saveMovements(movs);
+        }
+        return { data: res.data };
+      }
+    } catch (apiErr: any) {
+      const serverMessage = apiErr?.response?.data?.message;
+      if (apiErr?.response?.status && apiErr.response.status >= 400 && apiErr.response.status < 500) {
+        throw new Error(serverMessage || 'Failed to record stock inward');
+      }
+    }
 
     const items = store.getItems();
     const itemIndex = items.findIndex((i) => i.id === data.hardwareItemId);
@@ -1035,8 +1115,28 @@ export const hardwareInventoryApi = {
       const res = await apiClient.post<
         ApiResponse<{ item: HardwareInventoryItem; movement: HardwareStockMovement }>
       >('/inventory/hardware/issue', data);
-      if (res.data?.success) return { data: res.data };
-    } catch {}
+      if (res.data?.success && res.data.data) {
+        const { item: updatedItem, movement: newMov } = res.data.data;
+        if (updatedItem) {
+          const items = store.getItems();
+          const idx = items.findIndex((i) => i.id === updatedItem.id);
+          if (idx >= 0) items[idx] = updatedItem;
+          else items.unshift(updatedItem);
+          store.saveItems(items);
+        }
+        if (newMov) {
+          const movs = store.getMovements();
+          movs.unshift(newMov);
+          store.saveMovements(movs);
+        }
+        return { data: res.data };
+      }
+    } catch (apiErr: any) {
+      const serverMessage = apiErr?.response?.data?.message;
+      if (apiErr?.response?.status && apiErr.response.status >= 400 && apiErr.response.status < 500) {
+        throw new Error(serverMessage || 'Failed to record stock issue');
+      }
+    }
 
     const items = store.getItems();
     const itemIndex = items.findIndex((i) => i.id === data.hardwareItemId);

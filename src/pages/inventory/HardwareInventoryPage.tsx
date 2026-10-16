@@ -1108,6 +1108,7 @@ export default function HardwareInventoryPage() {
         onSuccess={loadData}
         branches={branches}
         vendors={vendors}
+        items={items}
         onOpenVendorModal={() => setIsVendorsModalOpen(true)}
         onOpenBranchModal={() => setIsBranchesModalOpen(true)}
       />
