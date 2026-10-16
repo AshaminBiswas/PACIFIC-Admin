@@ -1,0 +1,5535 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import {
+  Users,
+  Calendar,
+  Clock,
+  DollarSign,
+  FileText,
+  Plus,
+  Search,
+  Filter,
+  RefreshCw,
+  CheckCircle2,
+  AlertCircle,
+  Download,
+  Mail,
+  Edit2,
+  Trash2,
+  ShieldCheck,
+  ChevronRight,
+  TrendingUp,
+  UserCheck,
+  UserX,
+  CreditCard,
+  Building2,
+  Award,
+  ArrowDownRight,
+  ArrowUpRight,
+  X,
+  Check,
+  Percent,
+  RotateCcw,
+  Construction,
+  Scissors,
+  Calculator,
+  History,
+} from 'lucide-react';
+import { employeeService } from '../api/employeeService';
+import { useAdminAuth } from '../context/AdminAuthContext';
+import { DynamicSalaryCalculatorModal, computeFixedPayableDays } from '../components/payroll/DynamicSalaryCalculatorModal';
+import type {
+  Employee,
+  EmployeeAttendance,
+  EmployeeLeaveLedger,
+  EmployeeAdvance,
+  EmployeeDeduction,
+  EmployeePayrollRun,
+  AttendanceStatus,
+  GovernmentIdType,
+  EmployeeStatus,
+  UpdateAdvancePayload,
+  UpdateDeductionPayload,
+  SimulateSalaryCalculationPayload,
+  AdvanceSummary,
+  AdvanceLedgerTransaction,
+} from '../types/employee';
+
+// ─── Constants & Helpers ──────────────────────────────────────────────────────
+const DEPARTMENTS = [
+  'All Departments',
+  'Operations',
+  'Installation & Site Execution',
+  'Sales & Business Development',
+  'Procurement & Inventory',
+  'Finance & Accounts',
+  'Administration & HR',
+  'Engineering & QA',
+];
+
+const COMMON_DESIGNATIONS = [
+  'Workers',
+  'Hardware Technician',
+  'Cubicle Installer',
+  'Site Supervisor',
+  'Operations Executive',
+  'Senior Hardware Engineer',
+  'Sales & Business Development',
+  'Finance & Accounts',
+  'Administration & HR',
+  'Fabricator / Carpenter',
+  'Helper / Support Staff',
+];
+
+const MONTHS = [
+  { value: 1, label: 'January' },
+  { value: 2, label: 'February' },
+  { value: 3, label: 'March' },
+  { value: 4, label: 'April' },
+  { value: 5, label: 'May' },
+  { value: 6, label: 'June' },
+  { value: 7, label: 'July' },
+  { value: 8, label: 'August' },
+  { value: 9, label: 'September' },
+  { value: 10, label: 'October' },
+  { value: 11, label: 'November' },
+  { value: 12, label: 'December' },
+];
+
+const ATTENDANCE_STATUS_LABELS: Record<AttendanceStatus, { label: string; color: string; bg: string }> = {
+  PRESENT: { label: 'Present', color: '#10B981', bg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+  DOUBLE_DUTY: { label: 'Double Duty (2x)', color: '#06B6D4', bg: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30' },
+  CL: { label: 'CL (Casual)', color: '#3B82F6', bg: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+  EL: { label: 'EL (Earned)', color: '#8B5CF6', bg: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
+  HALF_DAY: { label: 'Half Day', color: '#F59E0B', bg: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+  UL: { label: 'UL (Unpaid)', color: '#EF4444', bg: 'bg-rose-500/10 text-rose-400 border-rose-500/20' },
+  HOLIDAY: { label: 'Holiday (Paid)', color: '#818CF8', bg: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30' },
+  LEAVE: { label: 'Leave', color: '#DC2626', bg: 'bg-red-500/10 text-red-400 border-red-500/20' },
+};
+
+function formatINR(val: number | string | null | undefined): string {
+  const n = Number(val || 0);
+  return `\u20B9${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function EmployeeManagementPage() {
+  const { adminUser } = useAdminAuth();
+  const roleUpper = String(adminUser?.role || '').toUpperCase();
+  const isSuperAdmin = roleUpper === 'SUPER_ADMIN' || roleUpper === 'ADMIN' || adminUser?.role === 'super_admin';
+
+  // ─── Active Top Tab ─────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'directory' | 'workers' | 'attendance' | 'leaves' | 'advances' | 'payroll'>('directory');
+
+  // Common Date Selector State (defaults to current month/year)
+  const today = new Date();
+  const [selectedMonth, setSelectedMonth] = useState<number>(today.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState<number>(today.getFullYear());
+
+  // ─── Data States ────────────────────────────────────────────────────────────
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [isLoadingEmployees, setIsLoadingEmployees] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState('All Departments');
+  const [selectedDesignation, setSelectedDesignation] = useState('All Designations');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+
+  // Attendance State
+  const [attendanceRecords, setAttendanceRecords] = useState<EmployeeAttendance[]>([]);
+  const [isLoadingAttendance, setIsLoadingAttendance] = useState(false);
+  const [selectedAttendanceDay, setSelectedAttendanceDay] = useState<number>(today.getDate());
+
+  // Leave Ledger State
+  const [selectedEmployeeForLeave, setSelectedEmployeeForLeave] = useState<string>('');
+  const [leaveHistory, setLeaveHistory] = useState<EmployeeLeaveLedger[]>([]);
+  const [isLoadingLeaveHistory, setIsLoadingLeaveHistory] = useState(false);
+
+  // Advances & Deductions State
+  const [advancesSubTab, setAdvancesSubTab] = useState<'advances' | 'ledger' | 'deductions'>('advances');
+  const [advancesList, setAdvancesList] = useState<EmployeeAdvance[]>([]);
+  const [deductionsList, setDeductionsList] = useState<EmployeeDeduction[]>([]);
+  const [advanceSummary, setAdvanceSummary] = useState<AdvanceSummary | null>(null);
+  const [advanceLedger, setAdvanceLedger] = useState<AdvanceLedgerTransaction[]>([]);
+  const [ledgerScope, setLedgerScope] = useState<'MONTH' | 'ALL'>('MONTH');
+  const [ledgerTypeFilter, setLedgerTypeFilter] = useState<'ALL' | 'CREDIT' | 'DEBIT'>('ALL');
+  const [ledgerSearch, setLedgerSearch] = useState('');
+  const [isLoadingAdvances, setIsLoadingAdvances] = useState(false);
+  const [isLoadingLedger, setIsLoadingLedger] = useState(false);
+
+  // Payroll Runs State
+  const [payrollRuns, setPayrollRuns] = useState<EmployeePayrollRun[]>([]);
+  const [isLoadingPayroll, setIsLoadingPayroll] = useState(false);
+  const [isCalculatingPayroll, setIsCalculatingPayroll] = useState(false);
+
+  // Worker Hub State
+  const [workerSubTab, setWorkerSubTab] = useState<'directory' | 'attendance' | 'advances' | 'payroll'>('directory');
+  const [workerSearchQuery, setWorkerSearchQuery] = useState('');
+  const [workerAttendanceFilter, setWorkerAttendanceFilter] = useState<'WORKERS' | 'ALL'>('WORKERS');
+  const [workerAdvancesFilter, setWorkerAdvancesFilter] = useState<'ALL' | 'WORKERS'>('ALL');
+  const [workerPayrollFilter, setWorkerPayrollFilter] = useState<'ALL' | 'WORKERS'>('ALL');
+
+  // Modals State
+  const [isAddEmployeeModalOpen, setIsAddEmployeeModalOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [modalDesignation, setModalDesignation] = useState<string>('Workers');
+  const [customDesignation, setCustomDesignation] = useState<string>('');
+  const [isLeaveAdjustModalOpen, setIsLeaveAdjustModalOpen] = useState(false);
+  const [isAddAdvanceModalOpen, setIsAddAdvanceModalOpen] = useState(false);
+  const [isAddDeductionModalOpen, setIsAddDeductionModalOpen] = useState(false);
+  const [isMarkPaidModalOpen, setIsMarkPaidModalOpen] = useState(false);
+  const [selectedPayrollForPaid, setSelectedPayrollForPaid] = useState<EmployeePayrollRun | null>(null);
+  const [isSalaryCalculatorOpen, setIsSalaryCalculatorOpen] = useState(false);
+  const [calculatorInitialData, setCalculatorInitialData] = useState<Partial<SimulateSalaryCalculationPayload> | null>(null);
+
+  // Edit Modals State
+  const [editingAttendance, setEditingAttendance] = useState<{
+    employee: Employee;
+    record?: EmployeeAttendance;
+    day: number;
+    dateStr: string;
+  } | null>(null);
+  const [editingAdvance, setEditingAdvance] = useState<EmployeeAdvance | null>(null);
+  const [partialDeductAdvanceItem, setPartialDeductAdvanceItem] = useState<EmployeeAdvance | null>(null);
+  const [advanceRecoveryMode, setAdvanceRecoveryMode] = useState<'FULL' | 'CUSTOM'>('FULL');
+  const [customDeductAmount, setCustomDeductAmount] = useState<string>('');
+  const [isSubmittingPartialDeduct, setIsSubmittingPartialDeduct] = useState(false);
+  const [editingDeduction, setEditingDeduction] = useState<EmployeeDeduction | null>(null);
+
+  // Leave Adjustment Form State
+  const [leaveAdjustEmpId, setLeaveAdjustEmpId] = useState<string>('');
+  const [leaveAdjustType, setLeaveAdjustType] = useState<'CL' | 'EL'>('CL');
+  const [leaveAdjustAction, setLeaveAdjustAction] = useState<'USAGE' | 'ACCRUAL' | 'ADJUSTMENT'>('USAGE');
+  const [leaveAdjustAmount, setLeaveAdjustAmount] = useState<string>('1');
+  const [leaveAdjustReason, setLeaveAdjustReason] = useState<string>('');
+
+  // Toast / Feedback State
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const showFeedback = (type: 'success' | 'error', message: string) => {
+    setFeedback({ type, message });
+    setTimeout(() => setFeedback(null), 4000);
+  };
+
+  // Sync modal designation when adding or editing an employee
+  useEffect(() => {
+    if (editingEmployee) {
+      if (COMMON_DESIGNATIONS.includes(editingEmployee.designation)) {
+        setModalDesignation(editingEmployee.designation);
+        setCustomDesignation('');
+      } else {
+        setModalDesignation('OTHER');
+        setCustomDesignation(editingEmployee.designation);
+      }
+    } else {
+      setModalDesignation('Workers');
+      setCustomDesignation('');
+    }
+  }, [editingEmployee, isAddEmployeeModalOpen]);
+
+  // ─── Data Fetching ──────────────────────────────────────────────────────────
+  const fetchEmployees = useCallback(async () => {
+    setIsLoadingEmployees(true);
+    try {
+      const res = await employeeService.listEmployees({
+        search: searchQuery || undefined,
+        department: selectedDepartment !== 'All Departments' ? selectedDepartment : undefined,
+        designation: selectedDesignation !== 'All Designations' ? selectedDesignation : undefined,
+        status: statusFilter !== 'ALL' ? statusFilter : undefined,
+        limit: 100,
+      });
+      setEmployees(res.items);
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to load employees');
+    } finally {
+      setIsLoadingEmployees(false);
+    }
+  }, [searchQuery, selectedDepartment, selectedDesignation, statusFilter]);
+
+  const fetchAttendance = useCallback(async () => {
+    setIsLoadingAttendance(true);
+    try {
+      const res = await employeeService.listAttendance({
+        month: selectedMonth,
+        year: selectedYear,
+      });
+      setAttendanceRecords(res.records);
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to load attendance records');
+    } finally {
+      setIsLoadingAttendance(false);
+    }
+  }, [selectedMonth, selectedYear]);
+
+  const fetchAdvancesAndDeductions = useCallback(async () => {
+    setIsLoadingAdvances(true);
+    setIsLoadingLedger(true);
+    try {
+      const summaryParams = ledgerScope === 'MONTH' ? { recoveryMonth: selectedMonth, recoveryYear: selectedYear } : {};
+      const [advRes, dedRes, summaryRes, ledgerRes] = await Promise.all([
+        employeeService.listAdvances({ recoveryMonth: selectedMonth, recoveryYear: selectedYear }).catch(() => []),
+        employeeService.listDeductions({ applyMonth: selectedMonth, applyYear: selectedYear }).catch(() => []),
+        employeeService.getAdvanceSummary(summaryParams).catch(() => null),
+        employeeService.getAdvanceLedger(summaryParams).catch(() => null),
+      ]);
+      setAdvancesList(advRes);
+      setDeductionsList(dedRes);
+
+      if (summaryRes) {
+        setAdvanceSummary(summaryRes);
+      } else {
+        // Resilient client-side summary calculation if server endpoint is pending deployment
+        const pending = advRes.filter((a) => !a.isRecovered);
+        const recovered = advRes.filter((a) => a.isRecovered);
+        const empMap = new Map<string, {
+          employeeId: string;
+          employeeCode: string;
+          employeeName: string;
+          department: string;
+          designation: string;
+          totalDisbursed: number;
+          totalRecovered: number;
+          totalPendingRecovery: number;
+          pendingCount: number;
+          recoveredCount: number;
+        }>();
+
+        advRes.forEach((a) => {
+          const empId = a.employeeId;
+          const amt = Number(a.amount || 0);
+          const origAmt = Number(a.originalAmount || a.amount || 0);
+          if (!empMap.has(empId)) {
+            empMap.set(empId, {
+              employeeId: empId,
+              employeeCode: a.employee?.employeeId || empId.slice(0, 8),
+              employeeName: a.employee?.name || 'Employee',
+              department: a.employee?.department || '-',
+              designation: (a.employee as any)?.designation || '-',
+              totalDisbursed: 0,
+              totalRecovered: 0,
+              totalPendingRecovery: 0,
+              pendingCount: 0,
+              recoveredCount: 0,
+            });
+          }
+          const rec = empMap.get(empId)!;
+          rec.totalDisbursed += origAmt;
+          if (a.isRecovered) {
+            rec.totalRecovered += amt;
+            rec.recoveredCount += 1;
+          } else {
+            rec.totalPendingRecovery += amt;
+            rec.pendingCount += 1;
+          }
+        });
+
+        setAdvanceSummary({
+          totalPendingRecovery: pending.reduce((sum, a) => sum + Number(a.amount || 0), 0),
+          pendingAdvancesCount: pending.length,
+          totalDisbursed: advRes.reduce((sum, a) => sum + Number(a.originalAmount || a.amount || 0), 0),
+          totalAdvancesCount: advRes.length,
+          totalRecovered: recovered.reduce((sum, a) => sum + Number(a.amount || 0), 0),
+          recoveredAdvancesCount: recovered.length,
+          byEmployee: Array.from(empMap.values()),
+        });
+      }
+
+      if (ledgerRes && Array.isArray(ledgerRes.transactions)) {
+        setAdvanceLedger(ledgerRes.transactions);
+      } else {
+        // Resilient client-side ledger transactions from advRes
+        const syntheticLedger: AdvanceLedgerTransaction[] = advRes.map((adv) => ({
+          id: adv.id,
+          advanceId: adv.id,
+          date: adv.advanceDate || adv.createdAt || new Date().toISOString(),
+          type: adv.isRecovered ? 'DEBIT' : 'CREDIT',
+          amount: Number(adv.amount || 0),
+          balanceAfter: Number(adv.amount || 0),
+          employeeId: adv.employeeId,
+          employeeCode: adv.employee?.employeeId || adv.employeeId.slice(0, 8),
+          employeeName: adv.employee?.name || 'Employee',
+          department: adv.employee?.department || '-',
+          designation: (adv.employee as any)?.designation || '-',
+          recoveryMonth: adv.recoveryMonth,
+          recoveryYear: adv.recoveryYear,
+          status: adv.isRecovered ? 'RECOVERED' : 'PENDING',
+          reason: adv.reason || 'Salary advance',
+          createdAt: adv.advanceDate || adv.createdAt || new Date().toISOString(),
+          employee: adv.employee,
+        }));
+        setAdvanceLedger(syntheticLedger);
+      }
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to load financial records');
+    } finally {
+      setIsLoadingAdvances(false);
+      setIsLoadingLedger(false);
+    }
+  }, [selectedMonth, selectedYear, ledgerScope]);
+
+  const fetchPayroll = useCallback(async () => {
+    setIsLoadingPayroll(true);
+    try {
+      const res = await employeeService.listPayroll({
+        month: selectedMonth,
+        year: selectedYear,
+      });
+      setPayrollRuns(res);
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to load payroll runs');
+    } finally {
+      setIsLoadingPayroll(false);
+    }
+  }, [selectedMonth, selectedYear]);
+
+  // Silent background sync after backend debounced payroll calculation commits
+  const triggerPayrollSync = useCallback(() => {
+    setTimeout(async () => {
+      try {
+        const res = await employeeService.listPayroll({
+          month: selectedMonth,
+          year: selectedYear,
+        });
+        setPayrollRuns(res);
+      } catch (e) {
+        // Silent catch for background update
+      }
+    }, 700);
+  }, [selectedMonth, selectedYear]);
+
+  // Initial loads
+  useEffect(() => {
+    fetchEmployees();
+  }, [fetchEmployees]);
+
+  useEffect(() => {
+    if (activeTab === 'attendance') fetchAttendance();
+    if (activeTab === 'advances') fetchAdvancesAndDeductions();
+    if (activeTab === 'payroll') fetchPayroll();
+    if (activeTab === 'workers') {
+      fetchAttendance();
+      fetchAdvancesAndDeductions();
+      fetchPayroll();
+    }
+  }, [activeTab, fetchAttendance, fetchAdvancesAndDeductions, fetchPayroll]);
+
+  // When selected employee for leave ledger changes
+  useEffect(() => {
+    if (selectedEmployeeForLeave) {
+      setIsLoadingLeaveHistory(true);
+      employeeService
+        .getLeaveLedger(selectedEmployeeForLeave)
+        .then((res) => setLeaveHistory(res.history))
+        .catch(() => showFeedback('error', 'Failed to load leave history'))
+        .finally(() => setIsLoadingLeaveHistory(false));
+    }
+  }, [selectedEmployeeForLeave]);
+
+  // Days in selected month
+  const totalDaysInMonth = useMemo(() => {
+    return new Date(selectedYear, selectedMonth, 0).getDate();
+  }, [selectedYear, selectedMonth]);
+
+  // KPI Metrics (All Staff)
+  const kpis = useMemo(() => {
+    const activeStaff = employees.filter((e) => e.status === 'ACTIVE').length;
+    const totalMonthlyCtc = employees
+      .filter((e) => e.status === 'ACTIVE')
+      .reduce((sum, e) => sum + Number(e.monthlyCtc || 0), 0);
+    const pendingAdvances = advancesList
+      .filter((a) => !a.isRecovered)
+      .reduce((sum, a) => sum + Number(a.amount || 0), 0);
+    const finalizedNetPayroll = payrollRuns.reduce((sum, p) => sum + Number(p.netSalary || 0), 0);
+
+    return { activeStaff, totalMonthlyCtc, pendingAdvances, finalizedNetPayroll };
+  }, [employees, advancesList, payrollRuns]);
+
+  // Worker Identification & Memoized List
+  const workerEmployees = useMemo(() => {
+    return employees.filter((e) => {
+      const des = (e.designation || '').toLowerCase();
+      const dept = (e.department || '').toLowerCase();
+      return (
+        des === 'workers' ||
+        des.includes('worker') ||
+        des.includes('installer') ||
+        des.includes('fabricator') ||
+        des.includes('carpenter') ||
+        des.includes('helper') ||
+        des.includes('technician') ||
+        des.includes('welder') ||
+        des.includes('packer') ||
+        des.includes('driver') ||
+        des.includes('labor') ||
+        des.includes('labour') ||
+        des.includes('electrician') ||
+        des.includes('fitter') ||
+        des.includes('loader') ||
+        des.includes('support') ||
+        dept.includes('operations') ||
+        dept.includes('installation') ||
+        dept.includes('workshop') ||
+        dept.includes('factory') ||
+        dept.includes('production') ||
+        dept.includes('site')
+      );
+    });
+  }, [employees]);
+
+  // Worker KPI Metrics
+  const workerKpis = useMemo(() => {
+    const activeWorkers = workerEmployees.filter((e) => e.status === 'ACTIVE');
+    const workerIds = new Set(activeWorkers.map((w) => w.id));
+
+    // Attendance for target selected day
+    const padDay = String(selectedAttendanceDay).padStart(2, '0');
+    const padMonth = String(selectedMonth).padStart(2, '0');
+    const targetDateStr = `${selectedYear}-${padMonth}-${padDay}`;
+    const presentWorkersCount = attendanceRecords.filter((r) => {
+      const rDate = new Date(r.date).toISOString().slice(0, 10);
+      return (
+        workerIds.has(r.employeeId) &&
+        rDate === targetDateStr &&
+        (r.status === 'PRESENT' || r.status === 'DOUBLE_DUTY' || r.status === 'HALF_DAY')
+      );
+    }).length;
+
+    // Worker advances for selected month/year
+    const workerAdvancesTotal = advancesList
+      .filter((a) => workerIds.has(a.employeeId) && !a.isRecovered)
+      .reduce((sum, a) => sum + Number(a.amount || 0), 0);
+
+    // Worker payroll runs for selected month/year
+    const workerPayrolls = payrollRuns.filter((p) => workerIds.has(p.employeeId));
+    const workerNetPayrollTotal = workerPayrolls.reduce((sum, p) => sum + Number(p.netSalary || 0), 0);
+    const workerPaidCount = workerPayrolls.filter((p) => p.status === 'PAID').length;
+
+    return {
+      totalWorkers: activeWorkers.length,
+      presentToday: presentWorkersCount,
+      pendingAdvances: workerAdvancesTotal,
+      netPayroll: workerNetPayrollTotal,
+      paidCount: workerPaidCount,
+      totalPayrollCount: workerPayrolls.length,
+    };
+  }, [workerEmployees, attendanceRecords, advancesList, payrollRuns, selectedAttendanceDay, selectedMonth, selectedYear]);
+
+  // ─── Handlers ───────────────────────────────────────────────────────────────
+  const handleSaveEmployee = async (formData: any) => {
+    try {
+      let savedEmployee: Employee;
+      if (editingEmployee) {
+        savedEmployee = await employeeService.updateEmployee(editingEmployee.id, formData);
+        showFeedback('success', `Employee "${savedEmployee?.name || 'Staff'}" updated successfully`);
+        setEmployees((prev) => prev.map((e) => (e.id === savedEmployee.id ? { ...e, ...savedEmployee } : e)));
+      } else {
+        savedEmployee = await employeeService.createEmployee(formData);
+        showFeedback(
+          'success',
+          `Worker / Employee "${savedEmployee?.name || 'Staff'}" (${savedEmployee?.employeeId || ''}) added successfully!`
+        );
+        // Optimistically prepend to employees list immediately
+        if (savedEmployee && savedEmployee.id) {
+          setEmployees((prev) => [savedEmployee, ...prev.filter((e) => e.id !== savedEmployee.id)]);
+        }
+      }
+      setIsAddEmployeeModalOpen(false);
+      setEditingEmployee(null);
+      // Reset search query and filters so newly created employee is immediately visible
+      setSearchQuery('');
+      setSelectedDepartment('All Departments');
+      setSelectedDesignation('All Designations');
+      setStatusFilter('ALL');
+      await fetchEmployees();
+    } catch (err: any) {
+      // Keep modal open so user doesn't lose their form values, and display the exact error
+      showFeedback('error', err?.message || 'Failed to save employee');
+    }
+  };
+
+  const handleDeactivateEmployee = async (id: string) => {
+    if (!confirm('Are you sure you want to deactivate this employee?')) return;
+    try {
+      await employeeService.deactivateEmployee(id);
+      showFeedback('success', 'Employee deactivated');
+      fetchEmployees();
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to deactivate employee');
+    }
+  };
+
+  const handleToggleSundayOverride = (record: EmployeeAttendance) => {
+    const newOverride = !record.isSundayOverride;
+    const dateStr = new Date(record.date).toISOString().slice(0, 10);
+
+    // Optimistic instant state update
+    setAttendanceRecords((prev) =>
+      prev.map((r) => (r.id === record.id ? { ...r, isSundayOverride: newOverride } : r))
+    );
+
+    employeeService
+      .recordAttendance({
+        employeeId: record.employeeId,
+        date: dateStr,
+        status: record.status,
+        isSundayOverride: newOverride,
+        overtimeHours: Number(record.overtimeHours || 0),
+        notes: record.notes || undefined,
+      })
+      .then(() => {
+        showFeedback('success', `Sunday work status updated: ${newOverride ? 'Approved (Paid)' : 'Off'}`);
+        triggerPayrollSync();
+      })
+      .catch((err: any) => {
+        showFeedback('error', err?.message || 'Failed to update Sunday status');
+        fetchAttendance();
+      });
+  };
+
+  const handleQuickStatusChange = (employeeId: string, day: number, status: AttendanceStatus) => {
+    const padDay = String(day).padStart(2, '0');
+    const padMonth = String(selectedMonth).padStart(2, '0');
+    const dateStr = `${selectedYear}-${padMonth}-${padDay}`;
+    const isSunday = new Date(selectedYear, selectedMonth - 1, day).getDay() === 0;
+
+    // Check if this status is already active for this employee and day
+    const existingRecord = attendanceRecords.find(
+      (r) => r.employeeId === employeeId && new Date(r.date).toISOString().slice(0, 10) === dateStr
+    );
+
+    const targetEmp = employees.find((e) => e.id === employeeId);
+
+    // TOGGLE-OFF: If user clicks the already active status, toggle it off back to "simple" (Not Recorded)
+    if (existingRecord?.status === status) {
+      const wasCl = existingRecord.status === 'CL';
+      const wasEl = existingRecord.status === 'EL';
+
+      if (wasCl || wasEl) {
+        setEmployees((prev) =>
+          prev.map((e) =>
+            e.id === employeeId
+              ? {
+                  ...e,
+                  clBalance: wasCl ? Number(e.clBalance) + 1 : e.clBalance,
+                  elBalance: wasEl ? Number(e.elBalance) + 1 : e.elBalance,
+                }
+              : e
+          )
+        );
+      }
+
+      setAttendanceRecords((prev) =>
+        prev.filter(
+          (r) => !(r.employeeId === employeeId && new Date(r.date).toISOString().slice(0, 10) === dateStr)
+        )
+      );
+
+      employeeService
+        .deleteAttendance({ employeeId, date: dateStr })
+        .then(() => {
+          triggerPayrollSync();
+        })
+        .catch((err: any) => {
+          showFeedback('error', err?.message || 'Failed to clear attendance');
+          fetchAttendance();
+          fetchEmployees();
+        });
+      return;
+    }
+
+    // STRICT CHECK: Verify leave balance availability for CL and EL
+    if (status === 'CL') {
+      const availableCl = Number(targetEmp?.clBalance || 0);
+      if (availableCl < 1) {
+        showFeedback(
+          'error',
+          `Cannot apply Casual Leave (CL): ${targetEmp?.name || 'Employee'} has 0 CL balance available.`
+        );
+        return;
+      }
+    }
+    if (status === 'EL') {
+      const availableEl = Number(targetEmp?.elBalance || 0);
+      if (availableEl < 1) {
+        showFeedback(
+          'error',
+          `Cannot apply Earned Leave (EL): ${targetEmp?.name || 'Employee'} has 0 EL balance available.`
+        );
+        return;
+      }
+    }
+
+    const wasCl = existingRecord?.status === 'CL';
+    const wasEl = existingRecord?.status === 'EL';
+    const isNowCl = status === 'CL';
+    const isNowEl = status === 'EL';
+
+    if (wasCl || wasEl || isNowCl || isNowEl) {
+      setEmployees((prev) =>
+        prev.map((e) => {
+          if (e.id !== employeeId) return e;
+          let cl = Number(e.clBalance);
+          let el = Number(e.elBalance);
+          if (wasCl) cl += 1;
+          if (wasEl) el += 1;
+          if (isNowCl) cl -= 1;
+          if (isNowEl) el -= 1;
+          return { ...e, clBalance: Math.max(0, cl), elBalance: Math.max(0, el) };
+        })
+      );
+    }
+
+    // 1. Optimistic 0ms UI update
+    setAttendanceRecords((prev) => {
+      const existingIndex = prev.findIndex(
+        (r) => r.employeeId === employeeId && new Date(r.date).toISOString().slice(0, 10) === dateStr
+      );
+      if (existingIndex >= 0) {
+        const next = [...prev];
+        next[existingIndex] = { ...next[existingIndex], status };
+        return next;
+      }
+      return [
+        ...prev,
+        {
+          id: 'temp-' + Date.now(),
+          employeeId,
+          date: dateStr,
+          status,
+          isSunday,
+          isSundayOverride: false,
+          overtimeHours: 0,
+        },
+      ];
+    });
+
+    if (status === 'CL') {
+      showFeedback('success', `Applied Casual Leave (CL) for ${targetEmp?.name || 'Employee'} (1 CL deducted, counted as Paid Day)`);
+    } else if (status === 'EL') {
+      showFeedback('success', `Applied Earned Leave (EL) for ${targetEmp?.name || 'Employee'} (1 EL deducted, counted as Paid Day)`);
+    }
+
+    // 2. Silent background network call without blocking or refetching
+    employeeService
+      .recordAttendance({
+        employeeId,
+        date: dateStr,
+        status,
+      })
+      .then(() => {
+        triggerPayrollSync();
+      })
+      .catch((err: any) => {
+        showFeedback('error', err?.message || 'Failed to update status');
+        fetchAttendance();
+        fetchEmployees();
+      });
+  };
+
+  const handleOvertimeChange = (employeeId: string, day: number, hours: number) => {
+    const padDay = String(day).padStart(2, '0');
+    const padMonth = String(selectedMonth).padStart(2, '0');
+    const dateStr = `${selectedYear}-${padMonth}-${padDay}`;
+    const isSunday = new Date(selectedYear, selectedMonth - 1, day).getDay() === 0;
+
+    setAttendanceRecords((prev) => {
+      const existingIndex = prev.findIndex(
+        (r) => r.employeeId === employeeId && new Date(r.date).toISOString().slice(0, 10) === dateStr
+      );
+      if (existingIndex >= 0) {
+        const next = [...prev];
+        next[existingIndex] = { ...next[existingIndex], overtimeHours: hours };
+        return next;
+      }
+      return [
+        ...prev,
+        {
+          id: 'temp-' + Date.now(),
+          employeeId,
+          date: dateStr,
+          status: 'PRESENT',
+          isSunday,
+          isSundayOverride: false,
+          overtimeHours: hours,
+        },
+      ];
+    });
+
+    const record = attendanceRecords.find(
+      (r) => r.employeeId === employeeId && new Date(r.date).toISOString().slice(0, 10) === dateStr
+    );
+
+    employeeService
+      .recordAttendance({
+        employeeId,
+        date: dateStr,
+        status: record?.status || 'PRESENT',
+        overtimeHours: hours,
+        isSundayOverride: record?.isSundayOverride || false,
+        notes: record?.notes || undefined,
+      })
+      .then(() => {
+        triggerPayrollSync();
+      })
+      .catch((err: any) => {
+        showFeedback('error', err?.message || 'Failed to update overtime hours');
+        fetchAttendance();
+      });
+  };
+
+  const handleMarkAllPresentForDay = async (day: number) => {
+    const padDay = String(day).padStart(2, '0');
+    const padMonth = String(selectedMonth).padStart(2, '0');
+    const dateStr = `${selectedYear}-${padMonth}-${padDay}`;
+    const activeStaff = employees.filter((e) => e.status === 'ACTIVE');
+    const isSunday = new Date(selectedYear, selectedMonth - 1, day).getDay() === 0;
+
+    if (!confirm(`Mark all ${activeStaff.length} active employees as PRESENT for ${dateStr}?`)) return;
+
+    // 1. Optimistic 0ms UI update for all active staff
+    setAttendanceRecords((prev) => {
+      const copy = [...prev];
+      activeStaff.forEach((emp) => {
+        const idx = copy.findIndex(
+          (r) => r.employeeId === emp.id && new Date(r.date).toISOString().slice(0, 10) === dateStr
+        );
+        if (idx >= 0) {
+          copy[idx] = { ...copy[idx], status: 'PRESENT' };
+        } else {
+          copy.push({
+            id: 'temp-' + emp.id + '-' + Date.now(),
+            employeeId: emp.id,
+            date: dateStr,
+            status: 'PRESENT',
+            isSunday,
+            isSundayOverride: false,
+            overtimeHours: 0,
+          });
+        }
+      });
+      return copy;
+    });
+
+    showFeedback('success', `Marked all ${activeStaff.length} active employees as PRESENT`);
+
+    // 2. Parallelized background batch update
+    try {
+      await employeeService.batchRecordAttendance({
+        date: dateStr,
+        records: activeStaff.map((e) => ({
+          employeeId: e.id,
+          status: 'PRESENT',
+        })),
+      });
+      triggerPayrollSync();
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to batch mark attendance');
+      fetchAttendance();
+    }
+  };
+
+  const handleMarkAllWorkersPresentForDay = async (day: number) => {
+    const padDay = String(day).padStart(2, '0');
+    const padMonth = String(selectedMonth).padStart(2, '0');
+    const dateStr = `${selectedYear}-${padMonth}-${padDay}`;
+    const activeWorkers = workerEmployees.filter((e) => e.status === 'ACTIVE');
+    const isSunday = new Date(selectedYear, selectedMonth - 1, day).getDay() === 0;
+
+    if (!confirm(`Mark all ${activeWorkers.length} active WORKERS as PRESENT for ${dateStr}?`)) return;
+
+    // 1. Optimistic 0ms UI update for all active workers
+    setAttendanceRecords((prev) => {
+      const copy = [...prev];
+      activeWorkers.forEach((emp) => {
+        const idx = copy.findIndex(
+          (r) => r.employeeId === emp.id && new Date(r.date).toISOString().slice(0, 10) === dateStr
+        );
+        if (idx >= 0) {
+          copy[idx] = { ...copy[idx], status: 'PRESENT' };
+        } else {
+          copy.push({
+            id: 'temp-' + emp.id + '-' + Date.now(),
+            employeeId: emp.id,
+            date: dateStr,
+            status: 'PRESENT',
+            isSunday,
+            isSundayOverride: false,
+            overtimeHours: 0,
+          });
+        }
+      });
+      return copy;
+    });
+
+    showFeedback('success', `Marked all ${activeWorkers.length} active workers as PRESENT`);
+
+    // 2. Parallelized background batch update
+    try {
+      await employeeService.batchRecordAttendance({
+        date: dateStr,
+        records: activeWorkers.map((e) => ({
+          employeeId: e.id,
+          status: 'PRESENT',
+        })),
+      });
+      triggerPayrollSync();
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to batch mark worker attendance');
+      fetchAttendance();
+    }
+  };
+
+  const handleMarkAllHolidayForDay = async (day: number) => {
+    const padDay = String(day).padStart(2, '0');
+    const padMonth = String(selectedMonth).padStart(2, '0');
+    const dateStr = `${selectedYear}-${padMonth}-${padDay}`;
+    const activeStaff = employees.filter((e) => e.status === 'ACTIVE');
+    const isSunday = new Date(selectedYear, selectedMonth - 1, day).getDay() === 0;
+
+    if (!confirm(`Mark all ${activeStaff.length} active employees as HOLIDAY (Paid) for ${dateStr}?`)) return;
+
+    // 1. Optimistic 0ms UI update for all active staff
+    setAttendanceRecords((prev) => {
+      const copy = [...prev];
+      activeStaff.forEach((emp) => {
+        const idx = copy.findIndex(
+          (r) => r.employeeId === emp.id && new Date(r.date).toISOString().slice(0, 10) === dateStr
+        );
+        if (idx >= 0) {
+          copy[idx] = { ...copy[idx], status: 'HOLIDAY' };
+        } else {
+          copy.push({
+            id: 'temp-' + emp.id + '-' + Date.now(),
+            employeeId: emp.id,
+            date: dateStr,
+            status: 'HOLIDAY',
+            isSunday,
+            isSundayOverride: false,
+            overtimeHours: 0,
+          });
+        }
+      });
+      return copy;
+    });
+
+    showFeedback('success', `Marked all ${activeStaff.length} active employees as HOLIDAY`);
+
+    // 2. Parallelized background batch update
+    try {
+      await employeeService.batchRecordAttendance({
+        date: dateStr,
+        records: activeStaff.map((e) => ({
+          employeeId: e.id,
+          status: 'HOLIDAY',
+        })),
+      });
+      triggerPayrollSync();
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to batch mark holiday attendance');
+      fetchAttendance();
+    }
+  };
+
+  const handleMarkAllWorkersHolidayForDay = async (day: number) => {
+    const padDay = String(day).padStart(2, '0');
+    const padMonth = String(selectedMonth).padStart(2, '0');
+    const dateStr = `${selectedYear}-${padMonth}-${padDay}`;
+    const activeWorkers = workerEmployees.filter((e) => e.status === 'ACTIVE');
+    const isSunday = new Date(selectedYear, selectedMonth - 1, day).getDay() === 0;
+
+    if (!confirm(`Mark all ${activeWorkers.length} active WORKERS as HOLIDAY (Paid) for ${dateStr}?`)) return;
+
+    // 1. Optimistic 0ms UI update for all active workers
+    setAttendanceRecords((prev) => {
+      const copy = [...prev];
+      activeWorkers.forEach((emp) => {
+        const idx = copy.findIndex(
+          (r) => r.employeeId === emp.id && new Date(r.date).toISOString().slice(0, 10) === dateStr
+        );
+        if (idx >= 0) {
+          copy[idx] = { ...copy[idx], status: 'HOLIDAY' };
+        } else {
+          copy.push({
+            id: 'temp-' + emp.id + '-' + Date.now(),
+            employeeId: emp.id,
+            date: dateStr,
+            status: 'HOLIDAY',
+            isSunday,
+            isSundayOverride: false,
+            overtimeHours: 0,
+          });
+        }
+      });
+      return copy;
+    });
+
+    showFeedback('success', `Marked all ${activeWorkers.length} active workers as HOLIDAY`);
+
+    // 2. Parallelized background batch update
+    try {
+      await employeeService.batchRecordAttendance({
+        date: dateStr,
+        records: activeWorkers.map((e) => ({
+          employeeId: e.id,
+          status: 'HOLIDAY',
+        })),
+      });
+      triggerPayrollSync();
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to batch mark worker holiday attendance');
+      fetchAttendance();
+    }
+  };
+
+  const [isDownloadingAttendancePdf, setIsDownloadingAttendancePdf] = useState(false);
+
+  const handleDownloadMonthlyAttendancePdf = async (workerOnly = false) => {
+    try {
+      setIsDownloadingAttendancePdf(true);
+      await employeeService.downloadMonthlyAttendancePdf({
+        month: selectedMonth,
+        year: selectedYear,
+        workerOnly,
+      });
+      showFeedback('success', `Monthly attendance & payroll register PDF downloaded successfully!`);
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to download monthly attendance PDF');
+    } finally {
+      setIsDownloadingAttendancePdf(false);
+    }
+  };
+
+  const handleSaveEditedAttendance = async (formData: {
+    status: AttendanceStatus;
+    overtimeHours: number;
+    isSundayOverride: boolean;
+    notes?: string;
+  }) => {
+    if (!editingAttendance) return;
+    const { employee, dateStr, day, record } = editingAttendance;
+    const isSunday = new Date(selectedYear, selectedMonth - 1, day).getDay() === 0;
+
+    // Strict balance check when setting CL or EL from modal
+    if (formData.status === 'CL' && Number(employee.clBalance) < 1 && record?.status !== 'CL') {
+      showFeedback('error', `Cannot apply Casual Leave (CL): ${employee.name} has 0 CL balance available.`);
+      return;
+    }
+    if (formData.status === 'EL' && Number(employee.elBalance) < 1 && record?.status !== 'EL') {
+      showFeedback('error', `Cannot apply Earned Leave (EL): ${employee.name} has 0 EL balance available.`);
+      return;
+    }
+
+    const wasLeave = record?.status === 'CL' || record?.status === 'EL';
+    const isNowLeave = formData.status === 'CL' || formData.status === 'EL';
+
+    // Optimistic state update
+    setAttendanceRecords((prev) => {
+      const idx = prev.findIndex(
+        (r) => r.employeeId === employee.id && new Date(r.date).toISOString().slice(0, 10) === dateStr
+      );
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = {
+          ...next[idx],
+          status: formData.status,
+          overtimeHours: formData.overtimeHours,
+          isSundayOverride: formData.isSundayOverride,
+          notes: formData.notes || null,
+        };
+        return next;
+      }
+      return [
+        ...prev,
+        {
+          id: 'temp-' + Date.now(),
+          employeeId: employee.id,
+          date: dateStr,
+          status: formData.status,
+          isSunday,
+          isSundayOverride: formData.isSundayOverride,
+          overtimeHours: formData.overtimeHours,
+          notes: formData.notes || null,
+        },
+      ];
+    });
+
+    const targetEmpName = employee.name;
+    setEditingAttendance(null);
+    showFeedback('success', `Attendance updated for ${targetEmpName}`);
+
+    try {
+      await employeeService.recordAttendance({
+        employeeId: employee.id,
+        date: dateStr,
+        status: formData.status,
+        overtimeHours: formData.overtimeHours,
+        isSundayOverride: formData.isSundayOverride,
+        notes: formData.notes,
+      });
+      triggerPayrollSync();
+      if (wasLeave || isNowLeave) {
+        fetchEmployees();
+      }
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to save attendance record');
+      fetchAttendance();
+      fetchEmployees();
+    }
+  };
+
+  const handleSaveEditedAdvance = async (formData: UpdateAdvancePayload) => {
+    if (!editingAdvance) return;
+    try {
+      await employeeService.updateAdvance(editingAdvance.id, formData);
+      showFeedback('success', 'Advance record updated successfully');
+      setEditingAdvance(null);
+      fetchAdvancesAndDeductions();
+      triggerPayrollSync();
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to update advance');
+    }
+  };
+
+  const handleSavePartialDeductAdvance = async (payload: {
+    recoveryType: 'FULL' | 'CUSTOM';
+    deductAmount?: number;
+    nextRecoveryMonth?: number;
+    nextRecoveryYear?: number;
+    notes?: string;
+  }) => {
+    if (!partialDeductAdvanceItem) return;
+    try {
+      setIsSubmittingPartialDeduct(true);
+      await employeeService.recoverAdvance(partialDeductAdvanceItem.id, payload);
+      showFeedback(
+        'success',
+        payload.recoveryType === 'FULL'
+          ? `Successfully recovered advance in FULL (${formatINR(partialDeductAdvanceItem.amount)}).`
+          : `Successfully deducted ₹${(payload.deductAmount || 0).toLocaleString('en-IN')}. Remaining balance scheduled for recovery.`
+      );
+      setPartialDeductAdvanceItem(null);
+      await Promise.all([fetchAdvancesAndDeductions(), fetchPayroll()]);
+      triggerPayrollSync();
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to recover advance');
+    } finally {
+      setIsSubmittingPartialDeduct(false);
+    }
+  };
+
+  const handleSaveEditedDeduction = async (formData: UpdateDeductionPayload) => {
+    if (!editingDeduction) return;
+    try {
+      await employeeService.updateDeduction(editingDeduction.id, formData);
+      showFeedback('success', 'Deduction record updated successfully');
+      setEditingDeduction(null);
+      fetchAdvancesAndDeductions();
+      triggerPayrollSync();
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to update deduction');
+    }
+  };
+
+  const handleRunMonthlyAccrual = async () => {
+    if (!confirm(`Run automated leave accrual (+1.00 CL, +0.25 EL) for ${selectedMonth}/${selectedYear}?`)) return;
+    try {
+      const res = await employeeService.accrueMonthlyLeave({ month: selectedMonth, year: selectedYear });
+      showFeedback('success', res.message || 'Leave accrual completed successfully');
+      fetchEmployees();
+      if (selectedEmployeeForLeave) {
+        employeeService.getLeaveLedger(selectedEmployeeForLeave).then((r) => setLeaveHistory(r.history));
+      }
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to run leave accrual');
+    }
+  };
+
+  const handleOpenCalculatorForRun = (run: EmployeePayrollRun) => {
+    const presentPart = Number(run.presentDays || 0);
+    const clPart = Number(run.clDays || 0);
+    const elPart = Number(run.elDays || 0);
+    const holPart = Number(run.holidayDays || 0);
+    const halfPart = 0.5 * Number(run.halfDays || 0);
+    const ddPart = Number(run.doubleDutyDays || 0);
+
+    setCalculatorInitialData({
+      employeeId: run.employeeId,
+      employeeName: run.employee?.name || '',
+      month: run.month,
+      year: run.year,
+      monthlyCtc: Number(run.monthlyCtc || 0),
+      standardPayableDays: Number(run.payableDays || (run.totalCalendarDays - run.sundaysCount) || computeFixedPayableDays(run.month, run.year)),
+      standardWorkingHours: Number(run.workingHoursPerDay || 8),
+      regularPayableDays: presentPart + clPart + elPart + holPart + halfPart + ddPart,
+      additionalSundayDutyCredits: Number(run.approvedSundays || 0),
+      additionalDoubleDutyCredits: ddPart,
+      approvedOvertimeHours: Number(run.overtimeHours || 0),
+      overtimeMultiplier: Number(run.overtimeMultiplier || 1.0),
+      partialDeductions: Number(run.advanceDeduction || 0) + Number(run.otherDeductions || 0),
+      additionalAllowances: Number(run.additionalAllowances || 0),
+    });
+    setIsSalaryCalculatorOpen(true);
+  };
+
+  const handleCalculatePayroll = async () => {
+    setIsCalculatingPayroll(true);
+    try {
+      await employeeService.calculatePayroll({
+        month: selectedMonth,
+        year: selectedYear,
+        previewOnly: false,
+      });
+      showFeedback('success', `Calculated payroll for ${selectedMonth}/${selectedYear}`);
+      fetchPayroll();
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to calculate payroll');
+    } finally {
+      setIsCalculatingPayroll(false);
+    }
+  };
+
+  const handleFinalizePayroll = async (id: string) => {
+    try {
+      await employeeService.finalizePayroll(id);
+      showFeedback('success', 'Payroll run finalized and deductions locked');
+      fetchPayroll();
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to finalize payroll');
+    }
+  };
+
+  const handleRevertPayrollToDraft = async (runId: string) => {
+    if (!confirm('Are you sure you want to revert this payroll run back to DRAFT? Any recovered advances and applied deductions will be reopened.')) return;
+    try {
+      await employeeService.revertPayrollToDraft(runId);
+      showFeedback('success', 'Payroll run reverted to DRAFT');
+      fetchPayroll();
+      fetchAdvancesAndDeductions();
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to revert payroll run to draft');
+    }
+  };
+
+  const handleMarkPaid = async (formData: { paymentMode: string; paymentReference?: string; paymentNotes?: string }) => {
+    if (!selectedPayrollForPaid) return;
+    try {
+      await employeeService.markPayrollPaid(selectedPayrollForPaid.id, formData);
+      showFeedback('success', 'Disbursement recorded and payslip emailed to employee');
+      setIsMarkPaidModalOpen(false);
+      setSelectedPayrollForPaid(null);
+      fetchPayroll();
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to mark as paid');
+    }
+  };
+
+  const handleDownloadPdf = async (run: EmployeePayrollRun) => {
+    try {
+      const filename = `Payslip-${run.employee?.employeeId || 'PRC'}-${selectedMonth}-${selectedYear}.pdf`;
+      await employeeService.downloadPayslipPdf(run.id, filename);
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to download payslip PDF');
+    }
+  };
+
+  const handleResendEmail = async (id: string) => {
+    try {
+      await employeeService.resendPayslipEmail(id);
+      showFeedback('success', 'Payslip advice re-dispatched via email');
+      fetchPayroll();
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to email payslip');
+    }
+  };
+
+  return (
+    <div className="space-y-6 max-w-[1700px] mx-auto pb-12 font-sans">
+      {/* ── Feedback Alert ──────────────────────────────────────────────────── */}
+      {feedback && (
+        <div
+          className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border text-sm animate-in fade-in slide-in-from-top-4 ${
+            feedback.type === 'success'
+              ? 'bg-[#0f172a] text-emerald-400 border-emerald-500/30'
+              : 'bg-[#18181b] text-rose-400 border-rose-500/30'
+          }`}
+        >
+          {feedback.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+          <span>{feedback.message}</span>
+        </div>
+      )}
+
+      {/* ── Top Header & Global Controls ───────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#27272A] pb-5">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              HR & Payroll
+            </span>
+            <span className="text-xs text-[#71717A]">• Pacific Restroom Cubicle Enterprise</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#FAFAFA] mt-1">
+            Employee & Compensation Suite
+          </h1>
+          <p className="text-sm text-[#A1A1AA] mt-1">
+            Master directory, daily attendance tracking, leave ledgers, advances & automated payroll disbursement.
+          </p>
+        </div>
+
+        {/* Global Month / Year Selector & Actions */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(Number(e.target.value))}
+            className="bg-[#18181B] border border-[#27272A] text-sm text-[#FAFAFA] rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+          >
+            {MONTHS.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            className="bg-[#18181B] border border-[#27272A] text-sm text-[#FAFAFA] rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+          >
+            {[2024, 2025, 2026, 2027].map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            disabled={isDownloadingAttendancePdf}
+            onClick={() => handleDownloadMonthlyAttendancePdf(false)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#18181B] hover:bg-[#27272A] text-amber-400 border border-amber-500/30 text-xs font-semibold rounded-xl transition shadow-sm disabled:opacity-50"
+            title={`Download Master Attendance & Payroll Register PDF (${MONTHS[selectedMonth - 1]?.label} ${selectedYear})`}
+          >
+            {isDownloadingAttendancePdf ? (
+              <RefreshCw size={15} className="animate-spin text-amber-400" />
+            ) : (
+              <Download size={15} />
+            )}
+            <span>Download Register PDF</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const currentRuns = payrollRuns.filter(
+                (r) => r.month === selectedMonth && r.year === selectedYear
+              );
+              if (currentRuns.length > 0) {
+                handleOpenCalculatorForRun(currentRuns[0]);
+              } else {
+                setCalculatorInitialData({
+                  month: selectedMonth,
+                  year: selectedYear,
+                  standardPayableDays: computeFixedPayableDays(selectedMonth, selectedYear),
+                });
+                setIsSalaryCalculatorOpen(true);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#18181B] hover:bg-[#27272A] text-emerald-400 border border-emerald-500/30 text-xs font-semibold rounded-xl transition shadow-sm"
+            title="Open Dynamic Salary, Attendance & Overtime Calculation Studio"
+          >
+            <Calculator size={15} />
+            <span>Salary Calculator</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (activeTab === 'directory') fetchEmployees();
+              if (activeTab === 'attendance') fetchAttendance();
+              if (activeTab === 'advances') fetchAdvancesAndDeductions();
+              if (activeTab === 'payroll') fetchPayroll();
+              if (activeTab === 'workers') {
+                fetchEmployees();
+                fetchAttendance();
+                fetchAdvancesAndDeductions();
+                fetchPayroll();
+              }
+            }}
+            className="p-2 bg-[#18181B] hover:bg-[#27272A] text-[#A1A1AA] hover:text-[#FAFAFA] border border-[#27272A] rounded-xl transition"
+            title="Refresh Data"
+          >
+            <RefreshCw size={16} />
+          </button>
+
+          <button
+            onClick={() => {
+              setEditingEmployee(null);
+              setIsAddEmployeeModalOpen(true);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-sm font-semibold rounded-xl shadow-lg shadow-amber-900/20 transition"
+          >
+            <Plus size={16} />
+            <span>Add Employee</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── KPI Metric Cards ────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl space-y-1.5">
+          <div className="flex items-center justify-between text-[#A1A1AA]">
+            <span className="text-xs font-medium uppercase tracking-wider">Active Staff</span>
+            <Users size={18} className="text-amber-400" />
+          </div>
+          <div className="text-2xl font-bold text-[#FAFAFA]">{kpis.activeStaff}</div>
+          <p className="text-xs text-[#71717A]">{employees.length} total registered</p>
+        </div>
+
+        <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl space-y-1.5">
+          <div className="flex items-center justify-between text-[#A1A1AA]">
+            <span className="text-xs font-medium uppercase tracking-wider">Total Monthly CTC</span>
+            <TrendingUp size={18} className="text-emerald-400" />
+          </div>
+          <div className="text-2xl font-bold text-[#FAFAFA]">{formatINR(kpis.totalMonthlyCtc)}</div>
+          <p className="text-xs text-[#71717A]">Active payroll commitment</p>
+        </div>
+
+        <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl space-y-1.5">
+          <div className="flex items-center justify-between text-[#A1A1AA]">
+            <span className="text-xs font-medium uppercase tracking-wider">Pending Advances</span>
+            <CreditCard size={18} className="text-blue-400" />
+          </div>
+          <div className="text-2xl font-bold text-[#FAFAFA]">{formatINR(kpis.pendingAdvances)}</div>
+          <p className="text-xs text-[#71717A]">Recovery in {MONTHS[selectedMonth - 1]?.label}</p>
+        </div>
+
+        <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl space-y-1.5">
+          <div className="flex items-center justify-between text-[#A1A1AA]">
+            <span className="text-xs font-medium uppercase tracking-wider">Disbursed Net Pay</span>
+            <DollarSign size={18} className="text-purple-400" />
+          </div>
+          <div className="text-2xl font-bold text-[#FAFAFA]">{formatINR(kpis.finalizedNetPayroll)}</div>
+          <p className="text-xs text-[#71717A]">{payrollRuns.length} calculated records</p>
+        </div>
+      </div>
+
+      {/* ── Navigation Tabs ─────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-2 overflow-x-auto border-b border-[#27272A] pb-px no-scrollbar">
+        {[
+          { id: 'directory', label: 'Employee Directory', icon: <Users size={16} />, badge: employees.length },
+          {
+            id: 'workers',
+            label: 'Worker Operations Hub',
+            icon: <Construction size={16} />,
+            badge: workerEmployees.length,
+          },
+          { id: 'attendance', label: 'Attendance Matrix', icon: <Calendar size={16} /> },
+          { id: 'advances', label: 'Advances & Deductions', icon: <DollarSign size={16} /> },
+          { id: 'payroll', label: 'Monthly Payroll Runs', icon: <FileText size={16} />, badge: payrollRuns.length },
+          { id: 'leaves', label: 'Leave Ledger (CL / EL)', icon: <Award size={16} /> },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition ${
+              activeTab === tab.id
+                ? 'border-amber-500 text-amber-400 bg-amber-500/5'
+                : 'border-transparent text-[#A1A1AA] hover:text-[#FAFAFA] hover:border-[#3F3F46]'
+            }`}
+          >
+            {tab.icon}
+            <span>{tab.label}</span>
+            {tab.badge !== undefined && (
+              <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-[#27272A] text-[#FAFAFA]">
+                {tab.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* TAB 1: EMPLOYEE DIRECTORY                                             */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'directory' && (
+        <div className="space-y-4">
+          {/* Filters Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3 rounded-2xl border border-[#27272A]">
+            <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]" />
+                <input
+                  type="text"
+                  placeholder="Search by name, ID (PPSE...), email, phone..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-sm text-[#FAFAFA] placeholder-[#71717A] focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <select
+                value={selectedDepartment}
+                onChange={(e) => setSelectedDepartment(e.target.value)}
+                className="bg-[#09090B] border border-[#27272A] text-sm text-[#FAFAFA] rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+              >
+                {DEPARTMENTS.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={selectedDesignation}
+                onChange={(e) => setSelectedDesignation(e.target.value)}
+                className="bg-[#09090B] border border-[#27272A] text-sm text-[#FAFAFA] rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+              >
+                <option value="All Designations">All Designations</option>
+                {COMMON_DESIGNATIONS.map((desig) => (
+                  <option key={desig} value={desig}>
+                    {desig}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="bg-[#09090B] border border-[#27272A] text-sm text-[#FAFAFA] rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+              >
+                <option value="ALL">All Status</option>
+                <option value="ACTIVE">Active Staff</option>
+                <option value="INACTIVE">Inactive</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Directory Table */}
+          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                  <tr>
+                    <th className="px-4 py-3.5">Employee ID</th>
+                    <th className="px-4 py-3.5">Name & Contact</th>
+                    <th className="px-4 py-3.5">Designation / Dept</th>
+                    <th className="px-4 py-3.5">Government ID</th>
+                    <th className="px-4 py-3.5">Bank Details</th>
+                    <th className="px-4 py-3.5">Monthly CTC</th>
+                    <th className="px-4 py-3.5">Leave Balances</th>
+                    <th className="px-4 py-3.5">Status</th>
+                    <th className="px-4 py-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#27272A]">
+                  {isLoadingEmployees ? (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-12 text-center text-[#71717A]">
+                        <RefreshCw className="animate-spin inline-block mr-2" size={18} />
+                        Loading employee directory...
+                      </td>
+                    </tr>
+                  ) : employees.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-12 text-center text-[#71717A]">
+                        No employees found matching the criteria. Click &quot;Add Employee&quot; to register staff.
+                      </td>
+                    </tr>
+                  ) : (
+                    employees.map((emp) => (
+                      <tr key={emp.id} className="hover:bg-[#27272A]/40 transition">
+                        <td className="px-4 py-3.5 font-mono text-xs font-semibold text-amber-400">
+                          {emp.employeeId}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <div className="font-medium text-[#FAFAFA]">{emp.name}</div>
+                          <div className="text-xs text-[#71717A]">{emp.email} • {emp.phone}</div>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[#FAFAFA] font-medium">{emp.designation}</span>
+                            {emp.designation.toLowerCase() === 'workers' && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
+                                Worker
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-[#71717A]">{emp.department}</div>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className="text-xs font-mono px-2 py-0.5 rounded bg-[#09090B] border border-[#27272A] text-[#FAFAFA]">
+                            {emp.governmentIdType}: {emp.governmentIdNumber}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-[#A1A1AA]">
+                          {emp.bankName || emp.bankAccountNumber ? (
+                            <>
+                              <div className="font-medium text-[#FAFAFA]">{emp.bankName || 'Disbursement Account'}</div>
+                              <div className="font-mono text-[11px] text-[#71717A]">
+                                {emp.bankAccountNumber || '—'} {emp.bankIfsc ? `(${emp.bankIfsc})` : ''}
+                              </div>
+                            </>
+                          ) : (
+                            <span className="inline-flex items-center text-[11px] text-[#71717A] italic px-1.5 py-0.5 rounded bg-zinc-800/40 border border-zinc-700/30">
+                              Optional (Not Provided)
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5 font-semibold text-[#FAFAFA]">
+                          {formatINR(emp.monthlyCtc)}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs">
+                          <div className="text-blue-400">CL: {Number(emp.clBalance).toFixed(2)}</div>
+                          <div className="text-purple-400">EL: {Number(emp.elBalance).toFixed(2)}</div>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span
+                            className={`px-2 py-0.5 text-xs rounded-full border ${
+                              emp.status === 'ACTIVE'
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                            }`}
+                          >
+                            {emp.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-right space-x-2">
+                          <button
+                            onClick={() => {
+                              setEditingEmployee(emp);
+                              setIsAddEmployeeModalOpen(true);
+                            }}
+                            className="p-1.5 text-[#A1A1AA] hover:text-amber-400 transition"
+                            title="Edit Employee"
+                          >
+                            <Edit2 size={15} />
+                          </button>
+                          {isSuperAdmin && emp.status === 'ACTIVE' && (
+                            <button
+                              onClick={() => handleDeactivateEmployee(emp.id)}
+                              className="p-1.5 text-[#A1A1AA] hover:text-rose-400 transition"
+                              title="Deactivate Employee"
+                            >
+                              <UserX size={15} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* TAB: WORKER OPERATIONS HUB (Attendance, Advances & Monthly Payroll)     */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'workers' && (
+        <div className="space-y-5">
+          {/* Worker Hub Top Banner & Quick Actions */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#18181B] p-4 rounded-2xl border border-[#27272A]">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5">
+                  <Construction size={13} />
+                  <span>Workshop & Site Operations</span>
+                </span>
+                <span className="text-xs text-[#71717A]">
+                  • {workerEmployees.filter((e) => e.status === 'ACTIVE').length} Active Workers
+                </span>
+              </div>
+              <h2 className="text-lg sm:text-xl font-bold text-[#FAFAFA] mt-1">
+                Worker Operations: Attendance, Advances & Payroll Runs
+              </h2>
+              <p className="text-xs text-[#A1A1AA] mt-0.5">
+                Streamlined execution portal for factory workers, carpenters, fabricators, installers, and helpers.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingEmployee(null);
+                  setModalDesignation('Workers');
+                  setIsAddEmployeeModalOpen(true);
+                }}
+                className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-semibold rounded-xl shadow-lg transition flex items-center gap-1.5"
+              >
+                <Plus size={14} />
+                <span>Register Worker</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Worker KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl space-y-1">
+              <div className="flex items-center justify-between text-[#A1A1AA]">
+                <span className="text-xs font-medium uppercase tracking-wider">Active Workers</span>
+                <Users size={16} className="text-amber-400" />
+              </div>
+              <div className="text-2xl font-bold text-[#FAFAFA]">{workerKpis.totalWorkers}</div>
+              <p className="text-xs text-[#71717A]">Workshop & site crew</p>
+            </div>
+
+            <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl space-y-1">
+              <div className="flex items-center justify-between text-[#A1A1AA]">
+                <span className="text-xs font-medium uppercase tracking-wider">Today&apos;s Attendance</span>
+                <Calendar size={16} className="text-emerald-400" />
+              </div>
+              <div className="text-2xl font-bold text-[#FAFAFA]">
+                {workerKpis.presentToday} / {workerKpis.totalWorkers}
+              </div>
+              <p className="text-xs text-emerald-400 font-medium">
+                {workerKpis.totalWorkers > 0
+                  ? `${Math.round((workerKpis.presentToday / workerKpis.totalWorkers) * 100)}% Present Today`
+                  : 'No active workers'}
+              </p>
+            </div>
+
+            <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl space-y-1">
+              <div className="flex items-center justify-between text-[#A1A1AA]">
+                <span className="text-xs font-medium uppercase tracking-wider">Worker Advances</span>
+                <DollarSign size={16} className="text-blue-400" />
+              </div>
+              <div className="text-2xl font-bold text-[#FAFAFA]">{formatINR(workerKpis.pendingAdvances)}</div>
+              <p className="text-xs text-[#71717A]">Recovery in {MONTHS[selectedMonth - 1]?.label}</p>
+            </div>
+
+            <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl space-y-1">
+              <div className="flex items-center justify-between text-[#A1A1AA]">
+                <span className="text-xs font-medium uppercase tracking-wider">Net Worker Payroll</span>
+                <TrendingUp size={16} className="text-purple-400" />
+              </div>
+              <div className="text-2xl font-bold text-[#FAFAFA]">{formatINR(workerKpis.netPayroll)}</div>
+              <p className="text-xs text-[#71717A]">
+                {workerKpis.paidCount} of {workerKpis.totalPayrollCount} runs disbursed
+              </p>
+            </div>
+          </div>
+
+          {/* Sub-Tabs Selector */}
+          <div className="flex items-center gap-2 border-b border-[#27272A] pb-2 overflow-x-auto no-scrollbar">
+            {[
+              { id: 'directory', label: '1. Worker Directory', icon: <Users size={15} />, badge: workerEmployees.length },
+              { id: 'attendance', label: '2. Worker Attendance Matrix', icon: <Calendar size={15} /> },
+              {
+                id: 'advances',
+                label: '3. Worker Advances & Recovery',
+                icon: <DollarSign size={15} />,
+                badge: advancesList.filter((a) =>
+                  workerEmployees.some((w) => w.id === a.employeeId)
+                ).length,
+              },
+              {
+                id: 'payroll',
+                label: '4. Worker Monthly Payroll Runs',
+                icon: <FileText size={15} />,
+                badge: payrollRuns.filter((p) =>
+                  workerEmployees.some((w) => w.id === p.employeeId)
+                ).length,
+              },
+            ].map((st) => (
+              <button
+                key={st.id}
+                type="button"
+                onClick={() => setWorkerSubTab(st.id as any)}
+                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-xl border transition whitespace-nowrap ${
+                  workerSubTab === st.id
+                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 shadow-sm'
+                    : 'bg-[#18181B] text-[#A1A1AA] border-[#27272A] hover:text-[#FAFAFA]'
+                }`}
+              >
+                {st.icon}
+                <span>{st.label}</span>
+                {st.badge !== undefined && st.badge > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 rounded-full bg-[#09090B] text-amber-400 text-[10px] font-mono border border-amber-500/20">
+                    {st.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* ── SUB-VIEW 0: WORKER DIRECTORY ─────────────────────────────────── */}
+          {workerSubTab === 'directory' && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3.5 rounded-2xl border border-[#27272A]">
+                <div className="relative flex-1 min-w-[240px]">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]" />
+                  <input
+                    type="text"
+                    placeholder="Search worker by name, ID (PPSE...), phone, or designation..."
+                    value={workerSearchQuery}
+                    onChange={(e) => setWorkerSearchQuery(e.target.value)}
+                    className="w-full bg-[#09090B] border border-[#27272A] text-xs text-[#FAFAFA] rounded-xl pl-8 pr-3 py-2 focus:outline-none focus:border-amber-500 placeholder:text-[#71717A]"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-[#71717A]">
+                    Showing{' '}
+                    {
+                      workerEmployees.filter(
+                        (e) =>
+                          !workerSearchQuery ||
+                          e.name.toLowerCase().includes(workerSearchQuery.toLowerCase()) ||
+                          e.employeeId.toLowerCase().includes(workerSearchQuery.toLowerCase()) ||
+                          e.phone.includes(workerSearchQuery) ||
+                          (e.designation || '').toLowerCase().includes(workerSearchQuery.toLowerCase())
+                      ).length
+                    }{' '}
+                    of {workerEmployees.length} Workers
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingEmployee(null);
+                      setModalDesignation('Workers');
+                      setIsAddEmployeeModalOpen(true);
+                    }}
+                    className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded-xl transition flex items-center gap-1.5 shadow-md"
+                  >
+                    <Plus size={13} />
+                    <span>Add Worker</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Workers Table */}
+              <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                      <tr>
+                        <th className="px-4 py-3.5">Worker ID</th>
+                        <th className="px-4 py-3.5">Name & Contact</th>
+                        <th className="px-4 py-3.5">Designation / Dept</th>
+                        <th className="px-4 py-3.5">Joining Date</th>
+                        <th className="px-4 py-3.5">Monthly / Wage</th>
+                        <th className="px-4 py-3.5">Govt ID</th>
+                        <th className="px-4 py-3.5">Status</th>
+                        <th className="px-4 py-3.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#27272A]">
+                      {workerEmployees.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="px-4 py-12 text-center text-[#71717A]">
+                            No workers registered yet. Click &quot;Add Worker&quot; above to register workshop staff.
+                          </td>
+                        </tr>
+                      ) : (
+                        workerEmployees
+                          .filter(
+                            (e) =>
+                              !workerSearchQuery ||
+                              e.name.toLowerCase().includes(workerSearchQuery.toLowerCase()) ||
+                              e.employeeId.toLowerCase().includes(workerSearchQuery.toLowerCase()) ||
+                              e.phone.includes(workerSearchQuery) ||
+                              (e.designation || '').toLowerCase().includes(workerSearchQuery.toLowerCase())
+                          )
+                          .map((worker) => (
+                            <tr key={worker.id} className="hover:bg-[#27272A]/40 transition">
+                              <td className="px-4 py-3.5 font-mono text-xs font-semibold text-amber-400">
+                                {worker.employeeId}
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <div className="font-medium text-[#FAFAFA]">{worker.name}</div>
+                                <div className="text-xs text-[#71717A]">
+                                  {worker.phone}
+                                  {worker.email && !worker.email.includes('@internal.prc') ? ` • ${worker.email}` : ''}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <span className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
+                                  {worker.designation}
+                                </span>
+                                <div className="text-xs text-[#71717A] mt-0.5">{worker.department}</div>
+                              </td>
+                              <td className="px-4 py-3.5 text-xs text-[#A1A1AA]">
+                                {worker.joiningDate ? new Date(worker.joiningDate).toLocaleDateString('en-IN') : '—'}
+                              </td>
+                              <td className="px-4 py-3.5 text-xs font-mono font-medium text-[#FAFAFA]">
+                                {Number(worker.monthlyCtc) > 0 ? formatINR(worker.monthlyCtc) : 'Daily-wage / Variable'}
+                              </td>
+                              <td className="px-4 py-3.5 text-xs font-mono text-[#71717A]">
+                                {worker.governmentIdType}: {worker.governmentIdNumber}
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <span
+                                  className={`px-2 py-0.5 text-xs rounded-full border ${
+                                    worker.status === 'ACTIVE'
+                                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                      : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                  }`}
+                                >
+                                  {worker.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3.5 text-right">
+                                <button
+                                  onClick={() => {
+                                    setEditingEmployee(worker);
+                                    setIsAddEmployeeModalOpen(true);
+                                  }}
+                                  className="p-1.5 text-[#A1A1AA] hover:text-amber-400 transition"
+                                  title="Edit Worker Details"
+                                >
+                                  <Edit2 size={15} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── SUB-VIEW 1: WORKER ATTENDANCE MATRIX ─────────────────────────── */}
+          {workerSubTab === 'attendance' && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3.5 rounded-2xl border border-[#27272A]">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-sm font-semibold text-[#FAFAFA]">Target Day:</span>
+                  <select
+                    value={selectedAttendanceDay}
+                    onChange={(e) => setSelectedAttendanceDay(Number(e.target.value))}
+                    className="bg-[#09090B] border border-[#27272A] text-sm text-[#FAFAFA] rounded-xl px-3 py-1.5 focus:outline-none focus:border-amber-500"
+                  >
+                    {Array.from({ length: totalDaysInMonth }).map((_, i) => {
+                      const dayNum = i + 1;
+                      const d = new Date(selectedYear, selectedMonth - 1, dayNum);
+                      const isSun = d.getDay() === 0;
+                      return (
+                        <option key={dayNum} value={dayNum}>
+                          Day {dayNum} ({d.toLocaleDateString('en-US', { weekday: 'short' })}){isSun ? ' - Sunday' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => handleMarkAllWorkersPresentForDay(selectedAttendanceDay)}
+                    className="px-3.5 py-1.5 bg-[#09090B] hover:bg-[#27272A] text-emerald-400 text-xs font-semibold rounded-xl border border-emerald-500/30 transition flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Check size={14} />
+                    <span>Mark All Workers Present (Day {selectedAttendanceDay})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleMarkAllWorkersHolidayForDay(selectedAttendanceDay)}
+                    className="px-3.5 py-1.5 bg-[#09090B] hover:bg-[#27272A] text-indigo-400 text-xs font-semibold rounded-xl border border-indigo-500/30 transition flex items-center gap-1.5 shadow-sm"
+                    title={`Mark all active workers as Holiday for Day ${selectedAttendanceDay}`}
+                  >
+                    <Calendar size={14} />
+                    <span>Mark Holiday (Day {selectedAttendanceDay})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isDownloadingAttendancePdf}
+                    onClick={() => handleDownloadMonthlyAttendancePdf(true)}
+                    className="px-3.5 py-1.5 bg-[#09090B] hover:bg-[#27272A] text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                    title={`Download Month-Wise Attendance & Payroll Register PDF for Workers (${MONTHS[selectedMonth - 1]?.label} ${selectedYear})`}
+                  >
+                    {isDownloadingAttendancePdf ? (
+                      <RefreshCw size={14} className="animate-spin text-amber-400" />
+                    ) : (
+                      <Download size={14} />
+                    )}
+                    <span>Download Month PDF</span>
+                  </button>
+                </div>
+
+                <div className="relative min-w-[220px]">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]" />
+                  <input
+                    type="text"
+                    placeholder="Search worker by name or ID..."
+                    value={workerSearchQuery}
+                    onChange={(e) => setWorkerSearchQuery(e.target.value)}
+                    className="w-full bg-[#09090B] border border-[#27272A] text-xs text-[#FAFAFA] rounded-xl pl-8 pr-3 py-1.5 focus:outline-none focus:border-amber-500 placeholder:text-[#71717A]"
+                  />
+                </div>
+              </div>
+
+              {/* Worker Attendance Table */}
+              <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                      <tr>
+                        <th className="px-4 py-3.5">Worker Profile</th>
+                        <th className="px-4 py-3.5">Status (Day {selectedAttendanceDay})</th>
+                        <th className="px-4 py-3.5">1-Click Mark</th>
+                        <th className="px-4 py-3.5">Overtime (Hrs)</th>
+                        <th className="px-4 py-3.5">Sunday Shift Override</th>
+                        <th className="px-4 py-3.5">Month Summary</th>
+                        <th className="px-4 py-3.5 text-right">Edit</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#27272A]">
+                      {workerEmployees
+                        .filter(
+                          (e) =>
+                            e.status === 'ACTIVE' &&
+                            (!workerSearchQuery ||
+                              e.name.toLowerCase().includes(workerSearchQuery.toLowerCase()) ||
+                              e.employeeId.toLowerCase().includes(workerSearchQuery.toLowerCase()))
+                        )
+                        .map((emp) => {
+                          const padDay = String(selectedAttendanceDay).padStart(2, '0');
+                          const padMonth = String(selectedMonth).padStart(2, '0');
+                          const targetDateStr = `${selectedYear}-${padMonth}-${padDay}`;
+
+                          const record = attendanceRecords.find(
+                            (r) =>
+                              r.employeeId === emp.id &&
+                              new Date(r.date).toISOString().slice(0, 10) === targetDateStr
+                          );
+
+                          const isTargetSunday =
+                            new Date(selectedYear, selectedMonth - 1, selectedAttendanceDay).getDay() === 0;
+
+                          // Compute monthly summary counts for this worker
+                          const workerMonthRecords = attendanceRecords.filter((r) => r.employeeId === emp.id);
+                          const monthPresent = workerMonthRecords.filter((r) => r.status === 'PRESENT').length;
+                          const monthDoubleDuty = workerMonthRecords.filter((r) => r.status === 'DOUBLE_DUTY').length;
+                          const monthHalf = workerMonthRecords.filter((r) => r.status === 'HALF_DAY').length;
+                          const monthHoliday = workerMonthRecords.filter((r) => r.status === 'HOLIDAY').length;
+                          const monthOtHours = workerMonthRecords.reduce(
+                            (sum, r) => sum + Number(r.overtimeHours || 0),
+                            0
+                          );
+
+                          return (
+                            <tr key={emp.id} className="hover:bg-[#27272A]/40 transition">
+                              <td className="px-4 py-3.5">
+                                <div className="font-semibold text-[#FAFAFA]">{emp.name}</div>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-xs font-mono text-amber-400">{emp.employeeId}</span>
+                                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
+                                    {emp.designation}
+                                  </span>
+                                  <span className="text-[10px] text-zinc-400 ml-1">
+                                    CL: <span className={Number(emp.clBalance) > 0 ? 'text-blue-400 font-semibold' : 'text-zinc-500'}>{Number(emp.clBalance || 0).toFixed(1)}</span>
+                                    {' '}•{' '}
+                                    EL: <span className={Number(emp.elBalance) > 0 ? 'text-purple-400 font-semibold' : 'text-zinc-500'}>{Number(emp.elBalance || 0).toFixed(1)}</span>
+                                  </span>
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-3.5">
+                                {record ? (
+                                  <div>
+                                    <span
+                                      className={`px-2.5 py-1 rounded-full text-xs font-medium border inline-block ${
+                                        ATTENDANCE_STATUS_LABELS[record.status]?.bg || 'bg-zinc-800 text-zinc-300'
+                                      }`}
+                                    >
+                                      {ATTENDANCE_STATUS_LABELS[record.status]?.label || record.status}
+                                    </span>
+                                    {record.notes && (
+                                      <div
+                                        className="text-[11px] text-[#71717A] italic mt-1 max-w-[150px] truncate"
+                                        title={record.notes}
+                                      >
+                                        Note: {record.notes}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-[#71717A] italic">Not Recorded</span>
+                                )}
+                              </td>
+
+                              <td className="px-4 py-3.5">
+                                <div className="flex flex-wrap items-center gap-1">
+                                  {(['PRESENT', 'DOUBLE_DUTY', 'HALF_DAY', 'UL', 'CL', 'EL', 'HOLIDAY'] as AttendanceStatus[]).map((st) => (
+                                    <button
+                                      key={st}
+                                      type="button"
+                                      onClick={() => handleQuickStatusChange(emp.id, selectedAttendanceDay, st)}
+                                      className={`px-2 py-1 text-xs rounded-lg border transition ${
+                                        record?.status === st
+                                          ? (ATTENDANCE_STATUS_LABELS[st]?.bg || 'bg-zinc-800 text-zinc-200') + ' font-bold shadow-sm'
+                                          : 'bg-[#09090B] text-[#A1A1AA] border-[#27272A] hover:bg-[#27272A] hover:text-[#FAFAFA]'
+                                      }`}
+                                      title={
+                                        st === 'DOUBLE_DUTY'
+                                          ? 'Mark as Double Duty (2x Shifts)'
+                                          : st === 'HOLIDAY'
+                                          ? 'Mark as Holiday (Paid)'
+                                          : st === 'CL'
+                                          ? `Mark as Casual Leave (Paid Day - 1 CL balance deducted)`
+                                          : st === 'EL'
+                                          ? `Mark as Earned Leave (Paid Day - 1 EL balance deducted)`
+                                          : `Mark as ${st}`
+                                      }
+                                    >
+                                      {st === 'PRESENT'
+                                        ? 'P'
+                                        : st === 'DOUBLE_DUTY'
+                                        ? 'DD'
+                                        : st === 'HALF_DAY'
+                                        ? 'HD'
+                                        : st === 'UL'
+                                        ? 'UL'
+                                        : st === 'HOLIDAY'
+                                        ? 'HOL'
+                                        : st === 'EL'
+                                        ? 'EL'
+                                        : 'CL'}
+                                    </button>
+                                  ))}
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-3.5">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="24"
+                                  step="0.5"
+                                  defaultValue={record ? Number(record.overtimeHours) : 0}
+                                  key={`${emp.id}-${targetDateStr}-${record?.overtimeHours || 0}`}
+                                  onBlur={(e) => {
+                                    const val = Number(e.target.value || 0);
+                                    if (Number(record?.overtimeHours || 0) !== val) {
+                                      handleOvertimeChange(emp.id, selectedAttendanceDay, val);
+                                    }
+                                  }}
+                                  className="w-20 px-2 py-1 bg-[#09090B] border border-[#27272A] rounded-lg text-xs text-[#FAFAFA] focus:outline-none focus:border-amber-500 font-mono"
+                                />
+                              </td>
+
+                              <td className="px-4 py-3.5">
+                                {isTargetSunday ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => record && handleToggleSundayOverride(record)}
+                                    className={`px-2.5 py-1 text-xs rounded-xl border transition ${
+                                      record?.isSundayOverride
+                                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 font-semibold'
+                                        : 'bg-[#09090B] text-[#71717A] border-[#27272A] hover:text-[#FAFAFA]'
+                                    }`}
+                                  >
+                                    {record?.isSundayOverride ? 'Approved (Paid)' : 'Off Day'}
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-[#71717A]">—</span>
+                                )}
+                              </td>
+
+                              <td className="px-4 py-3.5 text-xs text-[#A1A1AA]">
+                                <div className="font-medium text-[#FAFAFA]">
+                                  {monthPresent} P {monthDoubleDuty > 0 && <span className="text-cyan-400 font-semibold">| {monthDoubleDuty} DD</span>} | {monthHalf} Half {monthHoliday > 0 && <span className="text-indigo-400 font-semibold">| {monthHoliday} Hol</span>}
+                                </div>
+                                <div className="text-[11px] text-emerald-400">
+                                  {monthOtHours > 0 ? `+${monthOtHours} hrs OT` : '0 OT hrs'}
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-3.5 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEditingAttendance({
+                                      employee: emp,
+                                      record,
+                                      day: selectedAttendanceDay,
+                                      dateStr: targetDateStr,
+                                    })
+                                  }
+                                  className="p-1.5 text-[#A1A1AA] hover:text-amber-400 hover:bg-[#27272A] rounded-lg transition"
+                                  title="Edit detailed attendance"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── SUB-VIEW 2: WORKER ADVANCES & RECOVERY ───────────────────────── */}
+          {workerSubTab === 'advances' && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3.5 rounded-2xl border border-[#27272A]">
+                <div>
+                  <h3 className="text-base font-semibold text-[#FAFAFA]">
+                    Worker Salary Advances: {MONTHS[selectedMonth - 1]?.label} {selectedYear}
+                  </h3>
+                  <p className="text-xs text-[#A1A1AA]">
+                    Cash and digital advances issued to workshop/site workers. Automatically deducted during monthly payroll run.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="px-3 py-1.5 bg-[#09090B] border border-amber-500/30 rounded-xl flex items-center gap-2">
+                    <span className="text-[11px] text-[#A1A1AA]">Workers Pending Recovery:</span>
+                    <span className="text-sm font-bold text-amber-400 font-mono">
+                      {formatINR(
+                        advancesList
+                          .filter((a) => !a.isRecovered && workerEmployees.some((w) => w.id === a.employeeId))
+                          .reduce((sum, a) => sum + Number(a.amount || 0), 0)
+                      )}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('advances');
+                      setAdvancesSubTab('ledger');
+                    }}
+                    className="px-3 py-1.5 bg-[#09090B] hover:bg-[#27272A] border border-[#27272A] rounded-xl text-xs text-[#FAFAFA] font-medium transition flex items-center gap-1.5"
+                  >
+                    <History size={13} className="text-amber-400" />
+                    <span>Credit & Debit Ledger</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddAdvanceModalOpen(true)}
+                    className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-semibold rounded-xl shadow transition flex items-center gap-1.5"
+                  >
+                    <Plus size={14} />
+                    <span>Issue Worker Advance</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Worker Advances Table */}
+              <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                      <tr>
+                        <th className="px-4 py-3.5">Worker</th>
+                        <th className="px-4 py-3.5">Amount Disbursed</th>
+                        <th className="px-4 py-3.5">Pending Recovery</th>
+                        <th className="px-4 py-3.5">Advance Date</th>
+                        <th className="px-4 py-3.5">Reason</th>
+                        <th className="px-4 py-3.5">Recovery Month</th>
+                        <th className="px-4 py-3.5">Recovery Status</th>
+                        <th className="px-4 py-3.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#27272A]">
+                      {isLoadingAdvances ? (
+                        <tr>
+                          <td colSpan={8} className="px-4 py-8 text-center text-[#71717A]">
+                            Loading worker advances...
+                          </td>
+                        </tr>
+                      ) : advancesList.filter((a) => workerEmployees.some((w) => w.id === a.employeeId)).length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="px-4 py-8 text-center text-[#71717A]">
+                            No worker advances scheduled for {MONTHS[selectedMonth - 1]?.label} {selectedYear}.
+                          </td>
+                        </tr>
+                      ) : (
+                        advancesList
+                          .filter((a) => workerEmployees.some((w) => w.id === a.employeeId))
+                          .map((adv) => (
+                            <tr key={adv.id} className="hover:bg-[#27272A]/40 transition">
+                              <td className="px-4 py-3.5">
+                                <div className="font-semibold text-[#FAFAFA]">{adv.employee?.name}</div>
+                                <div className="text-xs font-mono text-amber-400">{adv.employee?.employeeId}</div>
+                              </td>
+                              <td className="px-4 py-3.5 font-bold text-[#FAFAFA] font-mono">
+                                {formatINR(adv.amount)}
+                                {adv.originalAmount && Number(adv.originalAmount) > Number(adv.amount) && (
+                                  <div className="text-[10px] text-[#71717A] font-normal">
+                                    Orig: {formatINR(adv.originalAmount)}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-4 py-3.5 text-xs">
+                                {!adv.isRecovered ? (
+                                  <div>
+                                    <span className="font-bold text-amber-400 font-mono text-sm">
+                                      {formatINR(adv.amount)}
+                                    </span>
+                                    <div className="text-[10px] text-amber-400/80 font-medium">Pending Recovery</div>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <span className="font-semibold text-emerald-400 font-mono">
+                                      ₹0.00
+                                    </span>
+                                    <div className="text-[10px] text-emerald-400/80">Fully Cleared</div>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-4 py-3.5 text-xs text-[#FAFAFA]">
+                                {adv.advanceDate
+                                  ? new Date(adv.advanceDate).toLocaleDateString('en-IN', {
+                                      day: '2-digit',
+                                      month: 'short',
+                                      year: 'numeric',
+                                    })
+                                  : adv.createdAt
+                                  ? new Date(adv.createdAt).toLocaleDateString('en-IN', {
+                                      day: '2-digit',
+                                      month: 'short',
+                                      year: 'numeric',
+                                    })
+                                  : '—'}
+                              </td>
+                              <td className="px-4 py-3.5 text-xs text-[#A1A1AA]">{adv.reason}</td>
+                              <td className="px-4 py-3.5 text-xs text-[#FAFAFA]">
+                                {MONTHS[adv.recoveryMonth - 1]?.label} {adv.recoveryYear}
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <span
+                                  className={`px-2.5 py-0.5 text-xs rounded-full border ${
+                                    adv.isRecovered
+                                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                      : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                  }`}
+                                >
+                                  {adv.isRecovered ? '✓ Recovered' : 'Pending Recovery'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3.5 text-right space-x-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingAdvance(adv)}
+                                  className="p-1.5 text-[#A1A1AA] hover:text-amber-400 hover:bg-[#27272A] rounded-lg transition"
+                                  title="Edit Advance"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                {!adv.isRecovered && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPartialDeductAdvanceItem(adv);
+                                      setAdvanceRecoveryMode('FULL');
+                                      setCustomDeductAmount(String(Math.round(Number(adv.amount) / 2)));
+                                    }}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-lg transition shadow-sm"
+                                    title="Recover Advance (Full Recovery or Customize Amount)"
+                                  >
+                                    <RotateCcw size={12} />
+                                    <span>Recover</span>
+                                  </button>
+                                )}
+                                {!adv.isRecovered && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      if (!confirm('Cancel/Delete this worker advance record?')) return;
+                                      await employeeService.deleteAdvance(adv.id);
+                                      fetchAdvancesAndDeductions();
+                                    }}
+                                    className="p-1.5 text-[#71717A] hover:text-rose-400 hover:bg-[#27272A] rounded-lg transition"
+                                    title="Delete Advance"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── SUB-VIEW 3: WORKER MONTHLY PAYROLL RUNS ──────────────────────── */}
+          {workerSubTab === 'payroll' && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3.5 rounded-2xl border border-[#27272A]">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-semibold text-[#FAFAFA]">
+                      Worker Wage Computation: {MONTHS[selectedMonth - 1]?.label} {selectedYear}
+                    </h3>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Live Auto-Sync
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#A1A1AA]">
+                    Net Pay = (Days Worked × Daily Rate) + Overtime Pay - Advances Auto-Recovered - Deductions.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isDownloadingAttendancePdf}
+                    onClick={() => handleDownloadMonthlyAttendancePdf(true)}
+                    className="px-3.5 py-2 bg-[#09090B] hover:bg-[#27272A] text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                    title={`Download Month-Wise Worker Attendance & Payroll Register PDF (${MONTHS[selectedMonth - 1]?.label} ${selectedYear})`}
+                  >
+                    {isDownloadingAttendancePdf ? (
+                      <RefreshCw size={14} className="animate-spin text-amber-400" />
+                    ) : (
+                      <Download size={14} />
+                    )}
+                    <span>Download Worker Register PDF</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleCalculatePayroll}
+                    disabled={isCalculatingPayroll}
+                    className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-lg transition flex items-center gap-2"
+                  >
+                    {isCalculatingPayroll ? <RefreshCw className="animate-spin" size={15} /> : <TrendingUp size={15} />}
+                    <span>{isCalculatingPayroll ? 'Calculating Wages...' : 'Calculate Worker Payroll'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Worker Payroll Table */}
+              <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                      <tr>
+                        <th className="px-4 py-3.5">Worker</th>
+                        <th className="px-4 py-3.5">Daily Rate / Monthly CTC</th>
+                        <th className="px-4 py-3.5">Paid (Fixed) / Payable</th>
+                        <th className="px-4 py-3.5">OT Hours & Pay</th>
+                        <th className="px-4 py-3.5">Gross Wage</th>
+                        <th className="px-4 py-3.5">Advances Deducted</th>
+                        <th className="px-4 py-3.5">Net Salary to Pay</th>
+                        <th className="px-4 py-3.5">Status</th>
+                        <th className="px-4 py-3.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#27272A]">
+                      {isLoadingPayroll ? (
+                        <tr>
+                          <td colSpan={9} className="px-4 py-12 text-center text-[#71717A]">
+                            Loading worker payroll runs...
+                          </td>
+                        </tr>
+                      ) : payrollRuns.filter((r) => workerEmployees.some((w) => w.id === r.employeeId)).length === 0 ? (
+                        <tr>
+                          <td colSpan={9} className="px-4 py-12 text-center text-[#71717A]">
+                            No payroll calculated yet for workers in {MONTHS[selectedMonth - 1]?.label} {selectedYear}. Click &quot;Calculate Worker Payroll&quot; above.
+                          </td>
+                        </tr>
+                      ) : (
+                        payrollRuns
+                          .filter((r) => workerEmployees.some((w) => w.id === r.employeeId))
+                          .map((run) => (
+                            <tr key={run.id} className="hover:bg-[#27272A]/40 transition">
+                              <td className="px-4 py-3.5">
+                                <div className="font-semibold text-[#FAFAFA]">{run.employee?.name}</div>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-xs font-mono text-amber-400">{run.employee?.employeeId}</span>
+                                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
+                                    {run.employee?.designation}
+                                  </span>
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-3.5 text-xs text-[#FAFAFA]">
+                                <div className="font-semibold">{formatINR(run.perDayRate)}/day</div>
+                                <div className="text-[11px] text-[#71717A]">{formatINR(run.monthlyCtc)}/mo</div>
+                              </td>
+
+                              <td className="px-4 py-3.5 text-xs">
+                                <div className="font-bold text-[#FAFAFA]">
+                                  {run.payableDays} Fixed Divisor / <span className="text-emerald-400">{run.paidDays} Paid Days</span>
+                                </div>
+                                <div className="text-[11px] text-[#71717A]">
+                                  P: {run.presentDays} | Half: {run.halfDays} {Number(run.holidayDays || 0) > 0 && <span className="text-indigo-400">| Hol: {run.holidayDays}</span>} | Sun: {run.approvedSundays}
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-3.5 text-xs">
+                                <div>{run.overtimeHours} hrs</div>
+                                <div className="text-emerald-400 font-medium">+{formatINR(run.overtimePay)}</div>
+                              </td>
+
+                              <td className="px-4 py-3.5 font-semibold text-[#FAFAFA]">{formatINR(run.grossSalary)}</td>
+
+                              <td className="px-4 py-3.5 text-xs">
+                                <div className="text-rose-400 font-medium flex items-center gap-1.5">
+                                  <span>Adv: -{formatINR(run.advanceDeduction)}</span>
+                                  {Number(run.advanceDeduction || 0) > 0 && run.status === 'DRAFT' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const match = advancesList.find(
+                                          (a) => a.employeeId === run.employeeId && !a.isRecovered && a.recoveryMonth === run.month && a.recoveryYear === run.year
+                                        );
+                                        if (match) {
+                                          setPartialDeductAdvanceItem(match);
+                                        } else {
+                                          employeeService
+                                            .listAdvances({ employeeId: run.employeeId, recoveryMonth: run.month, recoveryYear: run.year, isRecovered: false })
+                                            .then((res) => {
+                                              if (res && res[0]) setPartialDeductAdvanceItem(res[0]);
+                                              else alert('No pending advance found for this worker in this period.');
+                                            });
+                                        }
+                                      }}
+                                      className="p-0.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded transition"
+                                      title="Partially Deduct Advance (Carry forward balance)"
+                                    >
+                                      <Scissors size={11} />
+                                    </button>
+                                  )}
+                                </div>
+                                {Number(run.otherDeductions || 0) > 0 && (
+                                  <div className="text-rose-400">Other: -{formatINR(run.otherDeductions)}</div>
+                                )}
+                              </td>
+
+                              <td className="px-4 py-3.5">
+                                <div className="text-base font-bold text-emerald-400">{formatINR(run.netSalary)}</div>
+                              </td>
+
+                              <td className="px-4 py-3.5">
+                                <span
+                                  className={`px-2.5 py-0.5 text-xs rounded-full border ${
+                                    run.status === 'PAID'
+                                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                      : run.status === 'FINALIZED'
+                                      ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                      : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                  }`}
+                                >
+                                  {run.status}
+                                </span>
+                              </td>
+
+                              <td className="px-4 py-3.5 text-right space-x-1.5 whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenCalculatorForRun(run)}
+                                  className="p-1.5 text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-lg transition"
+                                  title="Inspect & Recalculate Dynamic Formula"
+                                >
+                                  <Calculator size={14} />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadPdf(run)}
+                                  className="p-1.5 text-[#A1A1AA] hover:text-[#FAFAFA] bg-[#09090B] border border-[#27272A] rounded-lg transition"
+                                  title="Download Payslip PDF"
+                                >
+                                  <Download size={14} />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleResendEmail(run.id)}
+                                  className="p-1.5 text-[#A1A1AA] hover:text-amber-400 bg-[#09090B] border border-[#27272A] rounded-lg transition"
+                                  title="Email Payslip to Worker"
+                                >
+                                  <Mail size={14} />
+                                </button>
+
+                                {run.status === 'DRAFT' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFinalizePayroll(run.id)}
+                                    className="px-2.5 py-1 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/30 text-xs font-semibold rounded-lg transition"
+                                  >
+                                    Finalize
+                                  </button>
+                                )}
+
+                                {isSuperAdmin && (run.status === 'FINALIZED' || run.status === 'PAID') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRevertPayrollToDraft(run.id)}
+                                    className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-semibold rounded-lg transition inline-flex items-center gap-1"
+                                    title="Revert to Draft"
+                                  >
+                                    <RotateCcw size={12} />
+                                    <span>Make Draft</span>
+                                  </button>
+                                )}
+
+                                {isSuperAdmin && run.status !== 'PAID' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedPayrollForPaid(run);
+                                      setIsMarkPaidModalOpen(true);
+                                    }}
+                                    className="px-2.5 py-1 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold rounded-lg transition"
+                                  >
+                                    Mark Paid
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* TAB 2: ATTENDANCE MATRIX                                              */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'attendance' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3 rounded-2xl border border-[#27272A]">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm font-semibold text-[#FAFAFA]">
+                Target Day:
+              </span>
+              <select
+                value={selectedAttendanceDay}
+                onChange={(e) => setSelectedAttendanceDay(Number(e.target.value))}
+                className="bg-[#09090B] border border-[#27272A] text-sm text-[#FAFAFA] rounded-xl px-3 py-1.5 focus:outline-none focus:border-amber-500"
+              >
+                {Array.from({ length: totalDaysInMonth }).map((_, i) => {
+                  const dayNum = i + 1;
+                  const d = new Date(selectedYear, selectedMonth - 1, dayNum);
+                  const isSun = d.getDay() === 0;
+                  return (
+                    <option key={dayNum} value={dayNum}>
+                      Day {dayNum} ({d.toLocaleDateString('en-US', { weekday: 'short' })}){isSun ? ' - Sunday' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+
+              {/* Filter Pills: All Staff vs Workers Only */}
+              <div className="flex items-center bg-[#09090B] p-0.5 rounded-xl border border-[#27272A]">
+                <button
+                  type="button"
+                  onClick={() => setWorkerAttendanceFilter('ALL')}
+                  className={`px-2.5 py-1 text-xs rounded-lg font-medium transition ${
+                    workerAttendanceFilter === 'ALL'
+                      ? 'bg-[#27272A] text-[#FAFAFA]'
+                      : 'text-[#71717A] hover:text-[#FAFAFA]'
+                  }`}
+                >
+                  All Staff ({employees.filter((e) => e.status === 'ACTIVE').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWorkerAttendanceFilter('WORKERS')}
+                  className={`px-2.5 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1 ${
+                    workerAttendanceFilter === 'WORKERS'
+                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold'
+                      : 'text-[#71717A] hover:text-[#FAFAFA]'
+                  }`}
+                >
+                  <Construction size={12} />
+                  <span>Only Workers ({workerEmployees.filter((e) => e.status === 'ACTIVE').length})</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  workerAttendanceFilter === 'WORKERS'
+                    ? handleMarkAllWorkersPresentForDay(selectedAttendanceDay)
+                    : handleMarkAllPresentForDay(selectedAttendanceDay)
+                }
+                className="px-3 py-1.5 bg-[#09090B] hover:bg-[#27272A] text-emerald-400 text-xs font-semibold rounded-xl border border-emerald-500/30 transition flex items-center gap-1.5"
+              >
+                <Check size={14} />
+                <span>
+                  {workerAttendanceFilter === 'WORKERS'
+                    ? `Mark Workers Present (Day ${selectedAttendanceDay})`
+                    : `Mark All Present (Day ${selectedAttendanceDay})`}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  workerAttendanceFilter === 'WORKERS'
+                    ? handleMarkAllWorkersHolidayForDay(selectedAttendanceDay)
+                    : handleMarkAllHolidayForDay(selectedAttendanceDay)
+                }
+                className="px-3 py-1.5 bg-[#09090B] hover:bg-[#27272A] text-indigo-400 text-xs font-semibold rounded-xl border border-indigo-500/30 transition flex items-center gap-1.5"
+                title={`Mark all ${workerAttendanceFilter === 'WORKERS' ? 'workers' : 'employees'} as Holiday for Day ${selectedAttendanceDay}`}
+              >
+                <Calendar size={14} />
+                <span>
+                  {workerAttendanceFilter === 'WORKERS'
+                    ? `Mark Workers Holiday (Day ${selectedAttendanceDay})`
+                    : `Mark All Holiday (Day ${selectedAttendanceDay})`}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isDownloadingAttendancePdf}
+                onClick={() => handleDownloadMonthlyAttendancePdf(workerAttendanceFilter === 'WORKERS')}
+                className="px-3 py-1.5 bg-[#09090B] hover:bg-[#27272A] text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                title={`Download Month-Wise Master Attendance & Payroll Register PDF (${MONTHS[selectedMonth - 1]?.label} ${selectedYear})`}
+              >
+                {isDownloadingAttendancePdf ? (
+                  <RefreshCw size={14} className="animate-spin text-amber-400" />
+                ) : (
+                  <Download size={14} />
+                )}
+                <span>
+                  Download {MONTHS[selectedMonth - 1]?.label} Register PDF
+                </span>
+              </button>
+            </div>
+
+            <div className="text-xs text-[#71717A]">
+              Sundays are off by default. Use &quot;Sunday Work Approved&quot; to credit approved Sunday shifts.
+            </div>
+          </div>
+
+          {/* Attendance Daily Sheet Table */}
+          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                  <tr>
+                    <th className="px-4 py-3.5">Employee</th>
+                    <th className="px-4 py-3.5">Department</th>
+                    <th className="px-4 py-3.5">Current Status</th>
+                    <th className="px-4 py-3.5">Mark Attendance</th>
+                    <th className="px-4 py-3.5">Overtime (Hrs)</th>
+                    <th className="px-4 py-3.5">Sunday Shift Override</th>
+                    <th className="px-4 py-3.5 text-right">Edit</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#27272A]">
+                  {(workerAttendanceFilter === 'WORKERS' ? workerEmployees : employees)
+                    .filter((e) => e.status === 'ACTIVE')
+                    .map((emp) => {
+                      const padDay = String(selectedAttendanceDay).padStart(2, '0');
+                      const padMonth = String(selectedMonth).padStart(2, '0');
+                      const targetDateStr = `${selectedYear}-${padMonth}-${padDay}`;
+
+                      const record = attendanceRecords.find(
+                        (r) =>
+                          r.employeeId === emp.id &&
+                          new Date(r.date).toISOString().slice(0, 10) === targetDateStr
+                      );
+
+                      const isTargetSunday = new Date(selectedYear, selectedMonth - 1, selectedAttendanceDay).getDay() === 0;
+
+                      return (
+                        <tr key={emp.id} className="hover:bg-[#27272A]/40 transition">
+                          <td className="px-4 py-3.5">
+                            <div className="font-medium text-[#FAFAFA]">{emp.name}</div>
+                            <div className="flex items-center gap-2 text-xs mt-0.5">
+                              <span className="font-mono text-amber-400">{emp.employeeId}</span>
+                              <span className="text-[10px] text-zinc-400">
+                                CL: <span className={Number(emp.clBalance) > 0 ? 'text-blue-400 font-semibold' : 'text-zinc-500'}>{Number(emp.clBalance || 0).toFixed(1)}</span>
+                                {' '}•{' '}
+                                EL: <span className={Number(emp.elBalance) > 0 ? 'text-purple-400 font-semibold' : 'text-zinc-500'}>{Number(emp.elBalance || 0).toFixed(1)}</span>
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5 text-xs text-[#A1A1AA]">{emp.department}</td>
+                          <td className="px-4 py-3.5">
+                            {record ? (
+                              <div>
+                                <span
+                                  className={`px-2.5 py-1 rounded-full text-xs font-medium border inline-block ${
+                                    ATTENDANCE_STATUS_LABELS[record.status]?.bg || 'bg-zinc-800 text-zinc-300'
+                                  }`}
+                                >
+                                  {ATTENDANCE_STATUS_LABELS[record.status]?.label || record.status}
+                                </span>
+                                {record.notes && (
+                                  <div className="text-[11px] text-[#71717A] italic mt-1 max-w-[150px] truncate" title={record.notes}>
+                                    Note: {record.notes}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-[#71717A] italic">Not Recorded</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="flex flex-wrap items-center gap-1">
+                              {(['PRESENT', 'DOUBLE_DUTY', 'CL', 'EL', 'HALF_DAY', 'UL', 'HOLIDAY'] as AttendanceStatus[]).map((st) => (
+                                <button
+                                  key={st}
+                                  type="button"
+                                  onClick={() => handleQuickStatusChange(emp.id, selectedAttendanceDay, st)}
+                                  className={`px-2 py-1 text-xs rounded-lg border transition ${
+                                    record?.status === st
+                                      ? ATTENDANCE_STATUS_LABELS[st].bg + ' font-semibold shadow-sm'
+                                      : 'bg-[#09090B] text-[#A1A1AA] border-[#27272A] hover:bg-[#27272A] hover:text-[#FAFAFA]'
+                                  }`}
+                                  title={st === 'DOUBLE_DUTY' ? 'Mark as Double Duty (2x Shifts)' : st === 'HOLIDAY' ? 'Mark as Holiday (Paid)' : `Mark as ${st}`}
+                                >
+                                  {st === 'PRESENT' ? 'P' : st === 'DOUBLE_DUTY' ? 'DD' : st === 'HALF_DAY' ? 'HD' : st === 'HOLIDAY' ? 'HOL' : st}
+                                </button>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <input
+                              type="number"
+                              min="0"
+                              max="24"
+                              step="0.5"
+                              defaultValue={record ? Number(record.overtimeHours) : 0}
+                              key={`${emp.id}-${targetDateStr}-${record?.overtimeHours || 0}`}
+                              onBlur={(e) => {
+                                const val = Number(e.target.value || 0);
+                                if (Number(record?.overtimeHours || 0) !== val) {
+                                  handleOvertimeChange(emp.id, selectedAttendanceDay, val);
+                                }
+                              }}
+                              className="w-20 px-2 py-1 bg-[#09090B] border border-[#27272A] rounded-lg text-xs text-[#FAFAFA] focus:outline-none focus:border-amber-500 font-mono"
+                            />
+                          </td>
+                          <td className="px-4 py-3.5">
+                            {isTargetSunday ? (
+                              <button
+                                onClick={() => record && handleToggleSundayOverride(record)}
+                                className={`px-2.5 py-1 text-xs rounded-xl border transition ${
+                                  record?.isSundayOverride
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 font-semibold'
+                                    : 'bg-[#09090B] text-[#71717A] border-[#27272A] hover:text-[#FAFAFA]'
+                                }`}
+                              >
+                                {record?.isSundayOverride ? 'Approved Sunday Work (Paid)' : 'Off (Default)'}
+                              </button>
+                            ) : (
+                              <span className="text-xs text-[#71717A]">— Weekday —</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5 text-right">
+                            <button
+                              onClick={() =>
+                                setEditingAttendance({
+                                  employee: emp,
+                                  record,
+                                  day: selectedAttendanceDay,
+                                  dateStr: targetDateStr,
+                                })
+                              }
+                              className="p-1.5 text-[#A1A1AA] hover:text-amber-400 hover:bg-[#27272A] rounded-lg transition inline-flex items-center gap-1"
+                              title="Edit Details & Notes"
+                            >
+                              <Edit2 size={13} />
+                              <span className="text-xs">Edit</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* TAB 3: LEAVE LEDGER                                                   */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'leaves' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3.5 rounded-2xl border border-[#27272A]">
+            <div>
+              <h3 className="text-base font-semibold text-[#FAFAFA]">Leave Accrual & Ledger Rules</h3>
+              <p className="text-xs text-[#A1A1AA]">
+                Casual Leave (CL) accrues +1 per month. Earned Leave (EL) accrues +0.25 per month (1 every 4 months).
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <button
+                onClick={handleRunMonthlyAccrual}
+                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white text-xs font-semibold rounded-xl shadow transition flex items-center gap-1.5"
+              >
+                <Award size={15} />
+                <span>Run Monthly Accrual (+1 CL, +0.25 EL)</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const defaultEmp = selectedEmployeeForLeave || employees.find((e) => e.status === 'ACTIVE')?.id || '';
+                  setLeaveAdjustEmpId(defaultEmp);
+                  setLeaveAdjustType('CL');
+                  setLeaveAdjustAction('USAGE');
+                  setLeaveAdjustAmount('1');
+                  setLeaveAdjustReason('');
+                  setIsLeaveAdjustModalOpen(true);
+                }}
+                className="px-4 py-2 bg-[#09090B] hover:bg-[#27272A] text-[#FAFAFA] text-xs font-semibold rounded-xl border border-[#27272A] transition"
+              >
+                Manual Leave Adjustment
+              </button>
+            </div>
+          </div>
+
+          {/* Employee Balances Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {employees
+              .filter((e) => e.status === 'ACTIVE')
+              .map((emp) => (
+                <div
+                  key={emp.id}
+                  onClick={() => setSelectedEmployeeForLeave(emp.id)}
+                  className={`p-4 rounded-2xl border cursor-pointer transition ${
+                    selectedEmployeeForLeave === emp.id
+                      ? 'bg-[#18181B] border-amber-500/50 ring-1 ring-amber-500'
+                      : 'bg-[#18181B] border-[#27272A] hover:border-[#3F3F46]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="font-semibold text-[#FAFAFA]">{emp.name}</div>
+                      <div className="text-xs text-[#71717A] font-mono">{emp.employeeId}</div>
+                    </div>
+                    <span className="text-xs px-2 py-0.5 rounded bg-[#09090B] text-[#A1A1AA]">
+                      {emp.department}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 pt-3 border-t border-[#27272A]">
+                    <div className="p-2 rounded-xl bg-blue-500/5 border border-blue-500/10">
+                      <span className="text-[11px] text-blue-400 uppercase font-semibold">CL Balance</span>
+                      <div className="text-lg font-bold text-blue-300">{Number(emp.clBalance).toFixed(2)}</div>
+                    </div>
+                    <div className="p-2 rounded-xl bg-purple-500/5 border border-purple-500/10">
+                      <span className="text-[11px] text-purple-400 uppercase font-semibold">EL Balance</span>
+                      <div className="text-lg font-bold text-purple-300">{Number(emp.elBalance).toFixed(2)}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+          </div>
+
+          {/* Selected Employee History */}
+          {selectedEmployeeForLeave && (
+            <div className="bg-[#18181B] border border-[#27272A] rounded-2xl p-4 space-y-3">
+              <h4 className="text-sm font-semibold text-[#FAFAFA]">
+                Detailed Leave History: {employees.find((e) => e.id === selectedEmployeeForLeave)?.name}
+              </h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#09090B] text-[#71717A] uppercase border-b border-[#27272A]">
+                    <tr>
+                      <th className="px-3 py-2">Date</th>
+                      <th className="px-3 py-2">Leave Type</th>
+                      <th className="px-3 py-2">Action</th>
+                      <th className="px-3 py-2">Amount</th>
+                      <th className="px-3 py-2">Balance After</th>
+                      <th className="px-3 py-2">Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#27272A]">
+                    {isLoadingLeaveHistory ? (
+                      <tr>
+                        <td colSpan={6} className="px-3 py-6 text-center text-[#71717A]">
+                          Loading history...
+                        </td>
+                      </tr>
+                    ) : leaveHistory.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-3 py-6 text-center text-[#71717A]">
+                          No leave transactions logged yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      leaveHistory.map((item) => (
+                        <tr key={item.id} className="hover:bg-[#27272A]/30">
+                          <td className="px-3 py-2 text-[#A1A1AA]">
+                            {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
+                          </td>
+                          <td className="px-3 py-2 font-semibold">
+                            <span className={item.leaveType === 'CL' ? 'text-blue-400' : 'text-purple-400'}>
+                              {item.leaveType}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className="px-2 py-0.5 rounded bg-[#09090B] text-[10px] text-[#A1A1AA]">
+                              {item.transactionType}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 font-mono font-bold">
+                            <span className={Number(item.amount) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                              {Number(item.amount) > 0 ? `+${Number(item.amount)}` : item.amount}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 font-mono text-[#FAFAFA]">{Number(item.balanceAfter).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-[#71717A]">{item.reason || '—'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* TAB 4: ADVANCES & DEDUCTIONS                                          */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'advances' && (
+        <div className="space-y-4">
+          {/* ── Advance Recovery KPI Summary Cards ────────────────────────────── */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            {/* 1. Total Amount Pending for Recovery (Primary Requirement) */}
+            <div className="p-4 bg-gradient-to-br from-[#1c1917] via-[#18181B] to-[#18181B] border-2 border-amber-500/50 rounded-2xl shadow-xl relative overflow-hidden">
+              <div className="flex items-center justify-between text-[#A1A1AA]">
+                <span className="text-xs font-semibold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  Total Pending For Recovery
+                </span>
+                <DollarSign size={18} className="text-amber-400" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-extrabold text-[#FAFAFA] mt-2 font-mono tracking-tight">
+                {formatINR(
+                  advanceSummary?.totalPendingRecovery ??
+                    advancesList.filter((a) => !a.isRecovered).reduce((sum, a) => sum + Number(a.amount || 0), 0)
+                )}
+              </div>
+              <div className="flex items-center justify-between text-xs text-[#A1A1AA] mt-1.5 pt-1.5 border-t border-[#27272A]/80">
+                <span>
+                  {advanceSummary?.pendingAdvancesCount ?? advancesList.filter((a) => !a.isRecovered).length} active advance(s) awaiting deduction
+                </span>
+                <span className="text-[11px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                  Active Outstanding
+                </span>
+              </div>
+            </div>
+
+            {/* 2. Total Advances Disbursed (Credits) */}
+            <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl shadow-sm">
+              <div className="flex items-center justify-between text-[#A1A1AA]">
+                <span className="text-xs font-semibold uppercase tracking-wider text-blue-400 flex items-center gap-1">
+                  <ArrowDownRight size={14} className="text-blue-400" />
+                  Total Disbursed (Credits)
+                </span>
+                <CreditCard size={18} className="text-blue-400" />
+              </div>
+              <div className="text-2xl font-bold text-[#FAFAFA] mt-2 font-mono">
+                {formatINR(
+                  advanceSummary?.totalDisbursed ??
+                    advancesList.reduce((sum, a) => sum + Number(a.originalAmount || a.amount || 0), 0)
+                )}
+              </div>
+              <div className="text-xs text-[#71717A] mt-1.5 pt-1.5 border-t border-[#27272A]/50">
+                {advanceSummary?.totalAdvancesCount ?? advancesList.length} total advance disbursement records
+              </div>
+            </div>
+
+            {/* 3. Total Recovered (Debits) */}
+            <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-2xl shadow-sm">
+              <div className="flex items-center justify-between text-[#A1A1AA]">
+                <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
+                  <ArrowUpRight size={14} className="text-emerald-400" />
+                  Total Recovered (Debits)
+                </span>
+                <CheckCircle2 size={18} className="text-emerald-400" />
+              </div>
+              <div className="text-2xl font-bold text-emerald-400 mt-2 font-mono">
+                {formatINR(
+                  advanceSummary?.totalRecovered ??
+                    advancesList.filter((a) => a.isRecovered).reduce((sum, a) => sum + Number(a.amount || 0), 0)
+                )}
+              </div>
+              <div className="text-xs text-[#71717A] mt-1.5 pt-1.5 border-t border-[#27272A]/50">
+                {advanceSummary?.recoveredAdvancesCount ?? advancesList.filter((a) => a.isRecovered).length} cleared via payroll / deductions
+              </div>
+            </div>
+          </div>
+
+          {/* Sub-Tabs and Action Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3 rounded-2xl border border-[#27272A]">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setAdvancesSubTab('advances')}
+                className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl border transition ${
+                  advancesSubTab === 'advances'
+                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                    : 'bg-[#09090B] text-[#A1A1AA] border-[#27272A] hover:text-[#FAFAFA]'
+                }`}
+              >
+                Salary Advances ({advancesList.length})
+              </button>
+              <button
+                onClick={() => setAdvancesSubTab('ledger')}
+                className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl border transition flex items-center gap-1.5 ${
+                  advancesSubTab === 'ledger'
+                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 shadow-sm'
+                    : 'bg-[#09090B] text-[#A1A1AA] border-[#27272A] hover:text-[#FAFAFA]'
+                }`}
+              >
+                <History size={13} />
+                <span>Credit & Debit Ledger History ({advanceLedger.length})</span>
+              </button>
+              <button
+                onClick={() => setAdvancesSubTab('deductions')}
+                className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl border transition ${
+                  advancesSubTab === 'deductions'
+                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                    : 'bg-[#09090B] text-[#A1A1AA] border-[#27272A] hover:text-[#FAFAFA]'
+                }`}
+              >
+                Other Deductions & Penalties ({deductionsList.length})
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {advancesSubTab === 'advances' && (
+                <div className="flex items-center bg-[#09090B] p-0.5 rounded-xl border border-[#27272A]">
+                  <button
+                    type="button"
+                    onClick={() => setWorkerAdvancesFilter('ALL')}
+                    className={`px-2.5 py-1 text-xs rounded-lg font-medium transition ${
+                      workerAdvancesFilter === 'ALL'
+                        ? 'bg-[#27272A] text-[#FAFAFA]'
+                        : 'text-[#71717A] hover:text-[#FAFAFA]'
+                    }`}
+                  >
+                    All Staff
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWorkerAdvancesFilter('WORKERS')}
+                    className={`px-2.5 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1 ${
+                      workerAdvancesFilter === 'WORKERS'
+                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold'
+                        : 'text-[#71717A] hover:text-[#FAFAFA]'
+                    }`}
+                  >
+                    <Construction size={12} />
+                    <span>Workers Only</span>
+                  </button>
+                </div>
+              )}
+
+              {advancesSubTab === 'deductions' ? (
+                <button
+                  onClick={() => setIsAddDeductionModalOpen(true)}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-rose-600 to-rose-700 text-white text-xs font-semibold rounded-xl shadow transition flex items-center gap-1.5"
+                >
+                  <Plus size={14} />
+                  <span>Add Deduction</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsAddAdvanceModalOpen(true)}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 text-white text-xs font-semibold rounded-xl shadow transition flex items-center gap-1.5"
+                >
+                  <Plus size={14} />
+                  <span>Give Advance</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ── View 1: Advances Table ────────────────────────────────────────── */}
+          {advancesSubTab === 'advances' && (
+            <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                    <tr>
+                      <th className="px-4 py-3.5">Employee</th>
+                      <th className="px-4 py-3.5">Amount Disbursed</th>
+                      <th className="px-4 py-3.5">Pending Recovery</th>
+                      <th className="px-4 py-3.5">Advance Date</th>
+                      <th className="px-4 py-3.5">Reason</th>
+                      <th className="px-4 py-3.5">Recovery Scheduled</th>
+                      <th className="px-4 py-3.5">Status</th>
+                      <th className="px-4 py-3.5 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#27272A]">
+                    {isLoadingAdvances ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-8 text-center text-[#71717A]">
+                          Loading advances...
+                        </td>
+                      </tr>
+                    ) : (workerAdvancesFilter === 'WORKERS'
+                        ? advancesList.filter((a) => workerEmployees.some((w) => w.id === a.employeeId))
+                        : advancesList
+                      ).length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-8 text-center text-[#71717A]">
+                          No advances scheduled for {MONTHS[selectedMonth - 1]?.label} {selectedYear}.
+                        </td>
+                      </tr>
+                    ) : (
+                      (workerAdvancesFilter === 'WORKERS'
+                        ? advancesList.filter((a) => workerEmployees.some((w) => w.id === a.employeeId))
+                        : advancesList
+                      ).map((adv) => (
+                        <tr key={adv.id} className="hover:bg-[#27272A]/40 transition">
+                          <td className="px-4 py-3.5">
+                            <div className="font-medium text-[#FAFAFA]">{adv.employee?.name}</div>
+                            <div className="text-xs font-mono text-amber-400">{adv.employee?.employeeId}</div>
+                          </td>
+                          <td className="px-4 py-3.5 font-bold text-[#FAFAFA] font-mono">
+                            {formatINR(adv.amount)}
+                            {adv.originalAmount && Number(adv.originalAmount) > Number(adv.amount) && (
+                              <div className="text-[10px] text-[#71717A] font-normal">
+                                Orig: {formatINR(adv.originalAmount)}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5 text-xs">
+                            {!adv.isRecovered ? (
+                              <div>
+                                <span className="font-bold text-amber-400 font-mono text-sm">
+                                  {formatINR(adv.amount)}
+                                </span>
+                                <div className="text-[10px] text-amber-400/80 font-medium">Pending Recovery</div>
+                              </div>
+                            ) : (
+                              <div>
+                                <span className="font-semibold text-emerald-400 font-mono">
+                                  ₹0.00
+                                </span>
+                                <div className="text-[10px] text-emerald-400/80">Fully Cleared</div>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5 text-xs text-[#FAFAFA]">
+                            {adv.advanceDate
+                              ? new Date(adv.advanceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                              : adv.createdAt
+                              ? new Date(adv.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                              : '—'}
+                          </td>
+                          <td className="px-4 py-3.5 text-xs text-[#A1A1AA]">{adv.reason}</td>
+                          <td className="px-4 py-3.5 text-xs text-[#FAFAFA]">
+                            {MONTHS[adv.recoveryMonth - 1]?.label} {adv.recoveryYear}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span
+                              className={`px-2 py-0.5 text-xs rounded-full border ${
+                                adv.isRecovered
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                  : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              }`}
+                            >
+                              {adv.isRecovered ? '✓ Recovered' : 'Pending Recovery'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-right space-x-1">
+                            <button
+                              onClick={() => setEditingAdvance(adv)}
+                              className="p-1.5 text-[#A1A1AA] hover:text-amber-400 hover:bg-[#27272A] rounded-lg transition"
+                              title="Edit Advance"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            {!adv.isRecovered && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPartialDeductAdvanceItem(adv);
+                                  setAdvanceRecoveryMode('FULL');
+                                  setCustomDeductAmount(String(Math.round(Number(adv.amount) / 2)));
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-lg transition shadow-sm"
+                                title="Recover Advance (Full Recovery or Customize Amount)"
+                              >
+                                <RotateCcw size={12} />
+                                <span>Recover</span>
+                              </button>
+                            )}
+                            {!adv.isRecovered && (
+                              <button
+                                onClick={async () => {
+                                  if (!confirm('Cancel/Delete this advance record?')) return;
+                                  await employeeService.deleteAdvance(adv.id);
+                                  fetchAdvancesAndDeductions();
+                                }}
+                                className="p-1.5 text-[#71717A] hover:text-rose-400 hover:bg-[#27272A] rounded-lg transition"
+                                title="Delete Advance"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ── View 2: Credit & Debit Ledger History ──────────────────────────── */}
+          {advancesSubTab === 'ledger' && (
+            <div className="space-y-3">
+              {/* Ledger Controls Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3 rounded-2xl border border-[#27272A]">
+                <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+                  <div className="relative flex-1">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]" />
+                    <input
+                      type="text"
+                      value={ledgerSearch}
+                      onChange={(e) => setLedgerSearch(e.target.value)}
+                      placeholder="Search ledger by employee name, code, reason..."
+                      className="w-full pl-9 pr-3 py-1.5 bg-[#09090B] border border-[#27272A] rounded-xl text-xs text-[#FAFAFA] placeholder-[#71717A] focus:outline-none focus:border-amber-500/50"
+                    />
+                  </div>
+                  {ledgerSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setLedgerSearch('')}
+                      className="p-1.5 text-[#71717A] hover:text-[#FAFAFA] bg-[#09090B] rounded-lg border border-[#27272A]"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Scope filter */}
+                  <div className="flex items-center bg-[#09090B] p-0.5 rounded-xl border border-[#27272A]">
+                    <button
+                      type="button"
+                      onClick={() => setLedgerScope('MONTH')}
+                      className={`px-2.5 py-1 text-xs rounded-lg font-medium transition ${
+                        ledgerScope === 'MONTH'
+                          ? 'bg-[#27272A] text-[#FAFAFA]'
+                          : 'text-[#71717A] hover:text-[#FAFAFA]'
+                      }`}
+                    >
+                      {MONTHS[selectedMonth - 1]?.label} {selectedYear}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLedgerScope('ALL')}
+                      className={`px-2.5 py-1 text-xs rounded-lg font-medium transition ${
+                        ledgerScope === 'ALL'
+                          ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold'
+                          : 'text-[#71717A] hover:text-[#FAFAFA]'
+                      }`}
+                    >
+                      All-Time History
+                    </button>
+                  </div>
+
+                  {/* Type Filter */}
+                  <div className="flex items-center bg-[#09090B] p-0.5 rounded-xl border border-[#27272A]">
+                    <button
+                      type="button"
+                      onClick={() => setLedgerTypeFilter('ALL')}
+                      className={`px-2 py-1 text-xs rounded-lg font-medium transition ${
+                        ledgerTypeFilter === 'ALL'
+                          ? 'bg-[#27272A] text-[#FAFAFA]'
+                          : 'text-[#71717A] hover:text-[#FAFAFA]'
+                      }`}
+                    >
+                      All ({advanceLedger.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLedgerTypeFilter('CREDIT')}
+                      className={`px-2 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1 ${
+                        ledgerTypeFilter === 'CREDIT'
+                          ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                          : 'text-[#71717A] hover:text-[#FAFAFA]'
+                      }`}
+                    >
+                      Credits ({advanceLedger.filter((t) => t.type === 'CREDIT').length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLedgerTypeFilter('DEBIT')}
+                      className={`px-2 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1 ${
+                        ledgerTypeFilter === 'DEBIT'
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : 'text-[#71717A] hover:text-[#FAFAFA]'
+                      }`}
+                    >
+                      Debits ({advanceLedger.filter((t) => t.type === 'DEBIT').length})
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ledger Table */}
+              <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                      <tr>
+                        <th className="px-4 py-3.5">Date & Time</th>
+                        <th className="px-4 py-3.5">Employee</th>
+                        <th className="px-4 py-3.5">Transaction Type</th>
+                        <th className="px-4 py-3.5">Amount</th>
+                        <th className="px-4 py-3.5">Scheduled Period</th>
+                        <th className="px-4 py-3.5">Status</th>
+                        <th className="px-4 py-3.5">Reason / Description</th>
+                        <th className="px-4 py-3.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#27272A]">
+                      {isLoadingLedger ? (
+                        <tr>
+                          <td colSpan={8} className="px-4 py-8 text-center text-[#71717A]">
+                            Loading advance ledger history...
+                          </td>
+                        </tr>
+                      ) : advanceLedger
+                          .filter((t) => {
+                            if (ledgerTypeFilter !== 'ALL' && t.type !== ledgerTypeFilter) return false;
+                            if (ledgerSearch.trim()) {
+                              const q = ledgerSearch.toLowerCase();
+                              return (
+                                t.employeeName.toLowerCase().includes(q) ||
+                                t.employeeCode.toLowerCase().includes(q) ||
+                                t.reason.toLowerCase().includes(q)
+                              );
+                            }
+                            return true;
+                          }).length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="px-4 py-8 text-center text-[#71717A]">
+                            No credit/debit transactions found for current filter.
+                          </td>
+                        </tr>
+                      ) : (
+                        advanceLedger
+                          .filter((t) => {
+                            if (ledgerTypeFilter !== 'ALL' && t.type !== ledgerTypeFilter) return false;
+                            if (ledgerSearch.trim()) {
+                              const q = ledgerSearch.toLowerCase();
+                              return (
+                                t.employeeName.toLowerCase().includes(q) ||
+                                t.employeeCode.toLowerCase().includes(q) ||
+                                t.reason.toLowerCase().includes(q)
+                              );
+                            }
+                            return true;
+                          })
+                          .map((tx) => (
+                            <tr key={tx.id} className="hover:bg-[#27272A]/40 transition">
+                              <td className="px-4 py-3 text-xs text-[#FAFAFA]">
+                                <div className="font-medium">
+                                  {new Date(tx.date).toLocaleDateString('en-IN', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                  })}
+                                </div>
+                                <div className="text-[10px] text-[#71717A]">
+                                  {new Date(tx.date).toLocaleTimeString('en-IN', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="font-semibold text-[#FAFAFA]">{tx.employeeName}</div>
+                                <div className="text-xs font-mono text-amber-400">{tx.employeeCode}</div>
+                              </td>
+                              <td className="px-4 py-3">
+                                {tx.type === 'CREDIT' ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-full font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                    <ArrowDownRight size={13} />
+                                    <span>CREDIT (Disbursed)</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-full font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                    <ArrowUpRight size={13} />
+                                    <span>DEBIT (Recovered)</span>
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 font-mono font-bold text-sm">
+                                {tx.type === 'CREDIT' ? (
+                                  <span className="text-blue-400">+{formatINR(tx.amount)}</span>
+                                ) : (
+                                  <span className="text-emerald-400">-{formatINR(tx.amount)}</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-xs text-[#FAFAFA]">
+                                {MONTHS[tx.recoveryMonth - 1]?.label} {tx.recoveryYear}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span
+                                  className={`px-2 py-0.5 text-xs rounded-full border ${
+                                    tx.status === 'RECOVERED'
+                                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                      : tx.status === 'CARRIED_FORWARD'
+                                      ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                                      : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                  }`}
+                                >
+                                  {tx.status === 'RECOVERED'
+                                    ? '✓ Fully Cleared'
+                                    : tx.status === 'CARRIED_FORWARD'
+                                    ? 'Carried Forward'
+                                    : 'Pending Recovery'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-xs text-[#A1A1AA] max-w-xs truncate" title={tx.reason}>
+                                {tx.reason}
+                              </td>
+                              <td className="px-4 py-3 text-right space-x-1">
+                                {tx.status === 'PENDING' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const match = advancesList.find((a) => a.id === tx.advanceId);
+                                        if (match) setPartialDeductAdvanceItem(match);
+                                      }}
+                                      className="p-1.5 text-[#A1A1AA] hover:text-amber-400 hover:bg-[#27272A] rounded-lg transition"
+                                      title="Partially Deduct Advance (Carry forward balance)"
+                                    >
+                                      <Scissors size={14} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const match = advancesList.find((a) => a.id === tx.advanceId);
+                                        if (match) setEditingAdvance(match);
+                                      }}
+                                      className="p-1.5 text-[#A1A1AA] hover:text-amber-400 hover:bg-[#27272A] rounded-lg transition"
+                                      title="Edit Advance"
+                                    >
+                                      <Edit2 size={14} />
+                                    </button>
+                                  </>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── View 3: Deductions Table ──────────────────────────────────────── */}
+          {advancesSubTab === 'deductions' && (
+            <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                    <tr>
+                      <th className="px-4 py-3.5">Employee</th>
+                      <th className="px-4 py-3.5">Amount</th>
+                      <th className="px-4 py-3.5">Reason</th>
+                      <th className="px-4 py-3.5">Apply Period</th>
+                      <th className="px-4 py-3.5">Status</th>
+                      <th className="px-4 py-3.5 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#27272A]">
+                    {isLoadingAdvances ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-[#71717A]">
+                          Loading deductions...
+                        </td>
+                      </tr>
+                    ) : deductionsList.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-[#71717A]">
+                          No deductions scheduled for {MONTHS[selectedMonth - 1]?.label} {selectedYear}.
+                        </td>
+                      </tr>
+                    ) : (
+                      deductionsList.map((ded) => (
+                        <tr key={ded.id} className="hover:bg-[#27272A]/40 transition">
+                          <td className="px-4 py-3.5">
+                            <div className="font-medium text-[#FAFAFA]">{ded.employee?.name}</div>
+                            <div className="text-xs font-mono text-amber-400">{ded.employee?.employeeId}</div>
+                          </td>
+                          <td className="px-4 py-3.5 font-bold text-rose-400">{formatINR(ded.amount)}</td>
+                          <td className="px-4 py-3.5 text-xs text-[#A1A1AA]">{ded.reason}</td>
+                          <td className="px-4 py-3.5 text-xs text-[#FAFAFA]">
+                            {MONTHS[ded.applyMonth - 1]?.label} {ded.applyYear}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span
+                              className={`px-2 py-0.5 text-xs rounded-full border ${
+                                ded.isApplied
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                  : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                              }`}
+                            >
+                              {ded.isApplied ? 'Applied' : 'Pending'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-right space-x-1">
+                            <button
+                              onClick={() => setEditingDeduction(ded)}
+                              className="p-1.5 text-[#A1A1AA] hover:text-amber-400 hover:bg-[#27272A] rounded-lg transition"
+                              title="Edit Deduction"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            {!ded.isApplied && (
+                              <button
+                                onClick={async () => {
+                                  if (!confirm('Delete this deduction record?')) return;
+                                  await employeeService.deleteDeduction(ded.id);
+                                  fetchAdvancesAndDeductions();
+                                }}
+                                className="p-1.5 text-[#71717A] hover:text-rose-400 hover:bg-[#27272A] rounded-lg transition"
+                                title="Delete Deduction"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* TAB 5: MONTHLY PAYROLL RUNS                                           */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'payroll' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3.5 rounded-2xl border border-[#27272A]">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-semibold text-[#FAFAFA]">
+                  Payroll Computation: {MONTHS[selectedMonth - 1]?.label} {selectedYear}
+                </h3>
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live Auto-Sync
+                </span>
+              </div>
+              <p className="text-xs text-[#A1A1AA]">
+                Formula: Payable Days (Fixed) = Days in Month - Sundays (e.g. 26 in Sep, 27 in Oct). Paid Days = Total Present Days (e.g. 28). Per-Day Rate = CTC / Payable Days (Fixed). Base Salary = Paid Days × Per-Day Rate. Overtime Rate = Per-Day Rate / 8. Net = Gross - Advance - Deductions.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center bg-[#09090B] p-0.5 rounded-xl border border-[#27272A]">
+                <button
+                  type="button"
+                  onClick={() => setWorkerPayrollFilter('ALL')}
+                  className={`px-2.5 py-1 text-xs rounded-lg font-medium transition ${
+                    workerPayrollFilter === 'ALL'
+                      ? 'bg-[#27272A] text-[#FAFAFA]'
+                      : 'text-[#71717A] hover:text-[#FAFAFA]'
+                  }`}
+                >
+                  All Staff ({payrollRuns.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWorkerPayrollFilter('WORKERS')}
+                  className={`px-2.5 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1 ${
+                    workerPayrollFilter === 'WORKERS'
+                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold'
+                      : 'text-[#71717A] hover:text-[#FAFAFA]'
+                  }`}
+                >
+                  <Construction size={12} />
+                  <span>
+                    Workers Only ({payrollRuns.filter((p) => workerEmployees.some((w) => w.id === p.employeeId)).length})
+                  </span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                disabled={isDownloadingAttendancePdf}
+                onClick={() => handleDownloadMonthlyAttendancePdf(workerPayrollFilter === 'WORKERS')}
+                className="px-3.5 py-2 bg-[#09090B] hover:bg-[#27272A] text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                title={`Download Month-Wise Master Attendance & Payroll Register PDF (${MONTHS[selectedMonth - 1]?.label} ${selectedYear})`}
+              >
+                {isDownloadingAttendancePdf ? (
+                  <RefreshCw size={14} className="animate-spin text-amber-400" />
+                ) : (
+                  <Download size={14} />
+                )}
+                <span>Download Register PDF</span>
+              </button>
+
+              <button
+                onClick={handleCalculatePayroll}
+                disabled={isCalculatingPayroll}
+                className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-lg transition flex items-center gap-2"
+              >
+                {isCalculatingPayroll ? <RefreshCw className="animate-spin" size={15} /> : <TrendingUp size={15} />}
+                <span>{isCalculatingPayroll ? 'Computing Formulas...' : 'Calculate Monthly Payroll'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Payroll Sheet */}
+          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-[#09090B] text-[#71717A] text-xs uppercase tracking-wider border-b border-[#27272A]">
+                  <tr>
+                    <th className="px-4 py-3.5">Employee</th>
+                    <th className="px-4 py-3.5">Monthly CTC</th>
+                    <th className="px-4 py-3.5">Payable Days (Fixed)</th>
+                    <th className="px-4 py-3.5">Paid Days (Present)</th>
+                    <th className="px-4 py-3.5">OT Hours & Pay</th>
+                    <th className="px-4 py-3.5">Gross Salary</th>
+                    <th className="px-4 py-3.5">Deductions</th>
+                    <th className="px-4 py-3.5">Net Salary</th>
+                    <th className="px-4 py-3.5">Status</th>
+                    <th className="px-4 py-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#27272A]">
+                  {isLoadingPayroll ? (
+                    <tr>
+                      <td colSpan={10} className="px-4 py-12 text-center text-[#71717A]">
+                        Loading payroll run...
+                      </td>
+                    </tr>
+                  ) : (workerPayrollFilter === 'WORKERS'
+                      ? payrollRuns.filter((p) => workerEmployees.some((w) => w.id === p.employeeId))
+                      : payrollRuns
+                    ).length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="px-4 py-12 text-center text-[#71717A]">
+                        No payroll calculated yet for current filter in {MONTHS[selectedMonth - 1]?.label} {selectedYear}. Click &quot;Calculate Monthly Payroll&quot; above.
+                      </td>
+                    </tr>
+                  ) : (
+                    (workerPayrollFilter === 'WORKERS'
+                      ? payrollRuns.filter((p) => workerEmployees.some((w) => w.id === p.employeeId))
+                      : payrollRuns
+                    ).map((run) => (
+                      <tr key={run.id} className="hover:bg-[#27272A]/40 transition">
+                        <td className="px-4 py-3.5">
+                          <div className="font-semibold text-[#FAFAFA]">{run.employee?.name}</div>
+                          <div className="text-xs font-mono text-amber-400">{run.employee?.employeeId}</div>
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-[#FAFAFA]">{formatINR(run.monthlyCtc)}</td>
+                        <td className="px-4 py-3.5 text-xs">
+                          <div className="font-bold text-[#FAFAFA]">
+                            {run.payableDays} Days
+                          </div>
+                          <div className="text-[11px] text-[#71717A]">
+                            Fixed ({run.totalCalendarDays ?? 30} - {run.sundaysCount ?? 4})
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5 text-xs">
+                          <div className="font-bold text-emerald-400">
+                            {run.paidDays} Days
+                          </div>
+                          <div className="text-[11px] text-[#71717A]">
+                            P: {run.presentDays} | Sun: {run.approvedSundays} | DD: {run.doubleDutyDays} {Number(run.holidayDays || 0) > 0 && <span className="text-indigo-400">| Hol: {run.holidayDays}</span>}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5 text-xs">
+                          <div>{run.overtimeHours} hrs</div>
+                          <div className="text-emerald-400 font-medium">+{formatINR(run.overtimePay)}</div>
+                        </td>
+                        <td className="px-4 py-3.5 font-semibold text-[#FAFAFA]">{formatINR(run.grossSalary)}</td>
+                        <td className="px-4 py-3.5 text-xs">
+                          <div className="flex items-center gap-1.5 text-rose-400 font-medium">
+                            <span>Adv: -{formatINR(run.advanceDeduction)}</span>
+                            {Number(run.advanceDeduction || 0) > 0 && run.status === 'DRAFT' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const match = advancesList.find(
+                                    (a) => a.employeeId === run.employeeId && !a.isRecovered && a.recoveryMonth === run.month && a.recoveryYear === run.year
+                                  );
+                                  if (match) {
+                                    setPartialDeductAdvanceItem(match);
+                                  } else {
+                                    employeeService
+                                      .listAdvances({ employeeId: run.employeeId, recoveryMonth: run.month, recoveryYear: run.year, isRecovered: false })
+                                      .then((res) => {
+                                        if (res && res[0]) setPartialDeductAdvanceItem(res[0]);
+                                        else alert('No pending advance found for this employee in this period.');
+                                      });
+                                  }
+                                }}
+                                className="p-0.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded transition"
+                                title="Partially Deduct Advance (Carry forward balance)"
+                              >
+                                <Scissors size={11} />
+                              </button>
+                            )}
+                          </div>
+                          {Number(run.otherDeductions || 0) > 0 && (
+                            <div className="text-rose-400">Other: -{formatINR(run.otherDeductions)}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <div className="text-base font-bold text-emerald-400">{formatINR(run.netSalary)}</div>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span
+                            className={`px-2.5 py-0.5 text-xs rounded-full border ${
+                              run.status === 'PAID'
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                : run.status === 'FINALIZED'
+                                ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                            }`}
+                          >
+                            {run.status}
+                          </span>
+                          {run.emailSent && (
+                            <span className="block text-[10px] text-emerald-400 mt-1">Emailed</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5 text-right space-x-1.5 whitespace-nowrap">
+                          {/* Inspect & Recalculate Dynamic Formula button */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenCalculatorForRun(run)}
+                            className="p-1.5 text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-lg transition"
+                            title="Inspect & Recalculate Dynamic Formula"
+                          >
+                            <Calculator size={14} />
+                          </button>
+
+                          {/* Download PDF button */}
+                          <button
+                            onClick={() => handleDownloadPdf(run)}
+                            className="p-1.5 text-[#A1A1AA] hover:text-[#FAFAFA] bg-[#09090B] border border-[#27272A] rounded-lg transition"
+                            title="Download Official Payslip PDF"
+                          >
+                            <Download size={14} />
+                          </button>
+
+                          {/* Email Payslip button */}
+                          <button
+                            onClick={() => handleResendEmail(run.id)}
+                            className="p-1.5 text-[#A1A1AA] hover:text-amber-400 bg-[#09090B] border border-[#27272A] rounded-lg transition"
+                            title="Email Payslip to Employee"
+                          >
+                            <Mail size={14} />
+                          </button>
+
+                          {/* Finalize Button */}
+                          {run.status === 'DRAFT' && (
+                            <button
+                              onClick={() => handleFinalizePayroll(run.id)}
+                              className="px-2.5 py-1 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/30 text-xs font-semibold rounded-lg transition"
+                            >
+                              Finalize
+                            </button>
+                          )}
+
+                          {/* Super Admin Revert to Draft */}
+                          {isSuperAdmin && (run.status === 'FINALIZED' || run.status === 'PAID') && (
+                            <button
+                              onClick={() => handleRevertPayrollToDraft(run.id)}
+                              className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-semibold rounded-lg transition inline-flex items-center gap-1"
+                              title="Revert to Draft (Super Admin only)"
+                            >
+                              <RotateCcw size={12} />
+                              <span>Make Draft</span>
+                            </button>
+                          )}
+
+                          {/* Super Admin Mark as Paid */}
+                          {isSuperAdmin && run.status !== 'PAID' && (
+                            <button
+                              onClick={() => {
+                                setSelectedPayrollForPaid(run);
+                                setIsMarkPaidModalOpen(true);
+                              }}
+                              className="px-2.5 py-1 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold rounded-lg transition"
+                            >
+                              Mark Paid
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: ADD / EDIT EMPLOYEE                                            */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {isAddEmployeeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#27272A] pb-3">
+              <h3 className="text-lg font-bold text-[#FAFAFA]">
+                {editingEmployee ? `Edit Employee: ${editingEmployee.name}` : 'Register New Employee'}
+              </h3>
+              <button
+                onClick={() => {
+                  setIsAddEmployeeModalOpen(false);
+                  setEditingEmployee(null);
+                }}
+                className="text-[#71717A] hover:text-[#FAFAFA]"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.target as HTMLFormElement;
+                const formData = new FormData(form);
+                const rawBankAcct = ((formData.get('bankAccountNumber') as string) || '').trim();
+                const rawBankIfsc = ((formData.get('bankIfsc') as string) || '').trim().toUpperCase();
+                const rawBankName = ((formData.get('bankName') as string) || '').trim();
+                const rawBankHolder = ((formData.get('bankAccountHolder') as string) || '').trim();
+
+                const rawEmail = ((formData.get('email') as string) || '').trim().toLowerCase();
+                const rawPhone = ((formData.get('phone') as string) || '').replace(/[\s-]/g, '').trim();
+                const rawGovId = ((formData.get('governmentIdNumber') as string) || '').replace(/[\s-]/g, '').trim().toUpperCase();
+                const rawAddress = ((formData.get('address') as string) || '').trim();
+
+                const computedDesignation =
+                  (modalDesignation === 'OTHER' ? customDesignation : modalDesignation).trim() || 'Workers';
+
+                const payload = {
+                  name: (formData.get('name') as string).trim(),
+                  email: rawEmail && rawEmail !== 'none' && rawEmail !== 'na' && rawEmail !== 'nil' ? rawEmail : undefined,
+                  phone: rawPhone,
+                  address: rawAddress || 'N/A',
+                  governmentIdType: (formData.get('governmentIdType') as GovernmentIdType) || 'AADHAAR',
+                  governmentIdNumber: rawGovId || 'PENDING',
+                  bankAccountNumber: rawBankAcct || undefined,
+                  bankIfsc: rawBankIfsc || undefined,
+                  bankName: rawBankName || undefined,
+                  bankAccountHolder: rawBankHolder || undefined,
+                  designation: computedDesignation,
+                  department: (formData.get('department') as string).trim() || 'Operations',
+                  responsibilities: ((formData.get('responsibilities') as string) || '').trim() || undefined,
+                  monthlyCtc: Number(formData.get('monthlyCtc') || 0),
+                  joiningDate: formData.get('joiningDate') as string,
+                  status: (formData.get('status') as EmployeeStatus) || 'ACTIVE',
+                };
+                handleSaveEmployee(payload);
+              }}
+              className="space-y-4 text-sm"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-[#A1A1AA] mb-1">Full Name *</label>
+                  <input
+                    name="name"
+                    required
+                    defaultValue={editingEmployee?.name || ''}
+                    placeholder="e.g. Ramesh Kumar"
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-[#A1A1AA]">Email Address</label>
+                    <span className="text-[10px] text-amber-400 font-medium">Optional for workers</span>
+                  </div>
+                  <input
+                    type="email"
+                    name="email"
+                    defaultValue={
+                      editingEmployee?.email && !editingEmployee.email.includes('@internal.prc')
+                        ? editingEmployee.email
+                        : ''
+                    }
+                    placeholder="e.g. worker@example.com (or leave blank)"
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500"
+                  />
+                  <p className="text-[10px] text-[#71717A] mt-1">
+                    Leave blank if worker has no email (system generates auto-ID email).
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#A1A1AA] mb-1">Phone Number *</label>
+                  <input
+                    name="phone"
+                    required
+                    defaultValue={editingEmployee?.phone || ''}
+                    placeholder="10-digit mobile number"
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#A1A1AA] mb-1">
+                    Designation * <span className="text-amber-400 font-normal">(Default: Workers)</span>
+                  </label>
+                  <select
+                    value={modalDesignation}
+                    onChange={(e) => {
+                      setModalDesignation(e.target.value);
+                      if (e.target.value !== 'OTHER') {
+                        setCustomDesignation('');
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500 font-medium text-xs"
+                  >
+                    {COMMON_DESIGNATIONS.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                    <option value="OTHER">+ Other (Custom Designation)</option>
+                  </select>
+
+                  {modalDesignation === 'OTHER' && (
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter custom designation (e.g. CNC Operator)"
+                      value={customDesignation}
+                      onChange={(e) => setCustomDesignation(e.target.value)}
+                      className="w-full mt-2 px-3 py-2 bg-[#09090B] border border-amber-500/60 rounded-xl text-[#FAFAFA] text-xs focus:outline-none focus:border-amber-500 placeholder-[#71717A]"
+                    />
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span className="text-[11px] text-[#71717A]">Quick pick:</span>
+                    {['Workers', 'Hardware Technician', 'Cubicle Installer', 'Site Supervisor'].map((role) => (
+                      <button
+                        type="button"
+                        key={role}
+                        onClick={() => {
+                          setModalDesignation(role);
+                          setCustomDesignation('');
+                        }}
+                        className={`text-[11px] px-2 py-0.5 rounded-md border transition ${
+                          modalDesignation === role
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-semibold'
+                            : 'bg-[#27272A]/50 text-[#A1A1AA] border-[#27272A] hover:bg-[#27272A] hover:text-[#FAFAFA]'
+                        }`}
+                      >
+                        {role}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#A1A1AA] mb-1">Department *</label>
+                  <select
+                    name="department"
+                    defaultValue={editingEmployee?.department || 'Operations'}
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500"
+                  >
+                    {DEPARTMENTS.filter((d) => d !== 'All Departments').map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#A1A1AA] mb-1">
+                    Monthly CTC (₹)
+                    <span className="ml-1.5 text-[10px] font-normal text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded-md">Optional</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    name="monthlyCtc"
+                    min="0"
+                    defaultValue={editingEmployee ? Number(editingEmployee.monthlyCtc) : ''}
+                    placeholder="Leave blank for daily-wage workers"
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#A1A1AA] mb-1">Joining Date *</label>
+                  <input
+                    type="date"
+                    name="joiningDate"
+                    required
+                    defaultValue={
+                      editingEmployee?.joiningDate
+                        ? new Date(editingEmployee.joiningDate).toISOString().slice(0, 10)
+                        : new Date().toISOString().slice(0, 10)
+                    }
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#A1A1AA] mb-1">Employment Status</label>
+                  <select
+                    name="status"
+                    defaultValue={editingEmployee?.status || 'ACTIVE'}
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Address */}
+              <div>
+                <label className="block text-xs font-semibold text-[#A1A1AA] mb-1">Residential / Site Address</label>
+                <textarea
+                  name="address"
+                  rows={2}
+                  defaultValue={editingEmployee?.address || ''}
+                  placeholder="Street, City, State, or workshop location"
+                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500 text-xs"
+                />
+              </div>
+
+              {/* Government ID Section */}
+              <div className="p-3.5 bg-[#09090B] border border-[#27272A] rounded-xl space-y-2">
+                <span className="text-xs font-bold text-amber-400 uppercase tracking-wide">
+                  Government Identification
+                </span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-[#71717A] mb-1">ID Type</label>
+                    <select
+                      name="governmentIdType"
+                      defaultValue={editingEmployee?.governmentIdType || 'AADHAAR'}
+                      className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500 text-xs"
+                    >
+                      <option value="AADHAAR">Aadhaar (12 digits)</option>
+                      <option value="PAN">PAN (ABCDE1234F)</option>
+                      <option value="VOTER_ID">Voter ID (ABC1234567)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs text-[#71717A]">ID Number</label>
+                      <span className="text-[10px] text-zinc-500">Spaces auto-removed</span>
+                    </div>
+                    <input
+                      name="governmentIdNumber"
+                      defaultValue={editingEmployee?.governmentIdNumber || ''}
+                      placeholder="e.g. 1234 5678 9012 or PENDING"
+                      className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] rounded-xl text-[#FAFAFA] focus:outline-none focus:border-amber-500 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Bank Account Section (Optional) */}
+              <div className="p-3.5 bg-[#09090B] border border-[#27272A] rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CreditCard size={14} className="text-emerald-400" />
+                    <span className="text-xs font-bold text-emerald-400 uppercase tracking-wide">
+                      Bank Disbursement Account
+                    </span>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+                    Optional / Can be added later
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#71717A]">
+                  Bank details are entirely optional (e.g. for cash workers or daily wage staff). You can leave all bank fields blank or update them anytime.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-[#71717A] mb-1">
+                      Bank Name <span className="text-[#52525B] font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      name="bankName"
+                      defaultValue={editingEmployee?.bankName || ''}
+                      placeholder="e.g. State Bank of India"
+                      className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:outline-none focus:border-emerald-500/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-[#71717A] mb-1">
+                      Account Holder Name <span className="text-[#52525B] font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      name="bankAccountHolder"
+                      defaultValue={editingEmployee?.bankAccountHolder || ''}
+                      placeholder="as per bank passbook"
+                      className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:outline-none focus:border-emerald-500/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-[#71717A] mb-1">
+                      Account Number <span className="text-[#52525B] font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      name="bankAccountNumber"
+                      defaultValue={editingEmployee?.bankAccountNumber || ''}
+                      placeholder="e.g. 123456789012"
+                      className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs font-mono focus:outline-none focus:border-emerald-500/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-[#71717A] mb-1">
+                      IFSC Code <span className="text-[#52525B] font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      name="bankIfsc"
+                      defaultValue={editingEmployee?.bankIfsc || ''}
+                      placeholder="e.g. SBIN0001234"
+                      className="w-full px-3 py-2 bg-[#18181B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs font-mono uppercase focus:outline-none focus:border-emerald-500/50"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#27272A]">
+                <button
+                  type="button"
+                  onClick={() => setIsAddEmployeeModalOpen(false)}
+                  className="px-4 py-2 text-xs text-[#A1A1AA] hover:text-[#FAFAFA]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-semibold text-xs rounded-xl shadow-lg transition"
+                >
+                  Save Employee
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: MANUAL LEAVE ADJUSTMENT                                        */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {isLeaveAdjustModalOpen && (() => {
+        const activeStaff = employees.filter((e) => e.status === 'ACTIVE');
+        const selectedEmp =
+          activeStaff.find((e) => e.id === leaveAdjustEmpId) ||
+          activeStaff.find((e) => e.id === selectedEmployeeForLeave) ||
+          activeStaff[0];
+
+        const currentBal = selectedEmp
+          ? Number(leaveAdjustType === 'CL' ? selectedEmp.clBalance : selectedEmp.elBalance)
+          : 0;
+
+        const numAmount = Math.max(0, Number(leaveAdjustAmount) || 0);
+        const delta =
+          leaveAdjustAction === 'USAGE'
+            ? -numAmount
+            : leaveAdjustAction === 'ACCRUAL'
+            ? numAmount
+            : Number(leaveAdjustAmount) || 0;
+
+        const rawRemaining = currentBal + delta;
+        const remainingBal = Math.max(0, rawRemaining);
+        const isNegativeRemaining = rawRemaining < 0;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-md p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-[#FAFAFA]">Manual Leave Adjustment</h3>
+                  <p className="text-xs text-[#A1A1AA] mt-0.5">
+                    Credit, debit (usage), or adjust employee leave balances
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsLeaveAdjustModalOpen(false)}
+                  className="p-1 text-[#71717A] hover:text-[#FAFAFA] rounded-lg transition"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!selectedEmp) {
+                    showFeedback('error', 'Please select an employee');
+                    return;
+                  }
+                  if (numAmount <= 0) {
+                    showFeedback('error', 'Please enter a valid leave amount');
+                    return;
+                  }
+
+                  const payload = {
+                    leaveType: leaveAdjustType,
+                    transactionType: leaveAdjustAction,
+                    amount: numAmount,
+                    month: selectedMonth,
+                    year: selectedYear,
+                    reason: leaveAdjustReason.trim(),
+                  };
+
+                  try {
+                    const res = await employeeService.adjustLeave(selectedEmp.id, payload);
+                    const newBal = res?.currentBalance !== undefined ? Number(res.currentBalance) : remainingBal;
+
+                    // Optimistic update of local employees list
+                    setEmployees((prev) =>
+                      prev.map((emp) =>
+                        emp.id === selectedEmp.id
+                          ? {
+                              ...emp,
+                              clBalance: leaveAdjustType === 'CL' ? newBal : emp.clBalance,
+                              elBalance: leaveAdjustType === 'EL' ? newBal : emp.elBalance,
+                            }
+                          : emp
+                      )
+                    );
+
+                    const actionVerb =
+                      leaveAdjustAction === 'USAGE'
+                        ? 'Deducted'
+                        : leaveAdjustAction === 'ACCRUAL'
+                        ? 'Added'
+                        : 'Adjusted';
+
+                    showFeedback(
+                      'success',
+                      `${actionVerb} ${numAmount} ${leaveAdjustType} for ${selectedEmp.name}. Remaining Balance: ${newBal.toFixed(2)} days.`
+                    );
+
+                    setIsLeaveAdjustModalOpen(false);
+                    fetchEmployees();
+
+                    if (selectedEmployeeForLeave === selectedEmp.id) {
+                      employeeService.getLeaveLedger(selectedEmp.id).then((r) => setLeaveHistory(r.history));
+                    }
+                  } catch (err: any) {
+                    showFeedback('error', err?.message || 'Leave adjustment failed');
+                  }
+                }}
+                className="space-y-3.5 text-sm"
+              >
+                <div>
+                  <label className="block text-xs text-[#A1A1AA] mb-1">Select Employee *</label>
+                  <select
+                    value={selectedEmp?.id || ''}
+                    onChange={(e) => setLeaveAdjustEmpId(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:outline-none focus:border-amber-500"
+                  >
+                    {activeStaff.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name} ({emp.employeeId}) • CL: {Number(emp.clBalance).toFixed(2)}, EL: {Number(emp.elBalance).toFixed(2)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-[#A1A1AA] mb-1">Leave Type *</label>
+                    <select
+                      value={leaveAdjustType}
+                      onChange={(e) => setLeaveAdjustType(e.target.value as 'CL' | 'EL')}
+                      className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="CL">Casual Leave (CL)</option>
+                      <option value="EL">Earned Leave (EL)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-[#A1A1AA] mb-1">Action Type *</label>
+                    <select
+                      value={leaveAdjustAction}
+                      onChange={(e) => setLeaveAdjustAction(e.target.value as any)}
+                      className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="USAGE">CL/EL Debit (Used / Deduct)</option>
+                      <option value="ACCRUAL">Credit (Accrual / Add)</option>
+                      <option value="ADJUSTMENT">Custom Adjustment</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs text-[#A1A1AA]">
+                      {leaveAdjustAction === 'USAGE'
+                        ? 'Days to Deduct (Debit) *'
+                        : leaveAdjustAction === 'ACCRUAL'
+                        ? 'Days to Credit (Accrual) *'
+                        : 'Days to Adjust *'}
+                    </label>
+                    <span className="text-[11px] text-[#71717A]">Step: 0.25 / 0.5 / 1.0 day</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.25"
+                    min="0.25"
+                    value={leaveAdjustAmount}
+                    onChange={(e) => setLeaveAdjustAmount(e.target.value)}
+                    required
+                    placeholder="e.g. 1.0"
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs font-mono focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* ─── Real-Time Balance & Remaining Calculation Card ────────────── */}
+                <div className="p-3.5 bg-[#09090B] border border-[#27272A] rounded-xl space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[#A1A1AA]">Current {leaveAdjustType} Balance:</span>
+                    <span className="font-mono font-semibold text-[#FAFAFA]">{currentBal.toFixed(2)} days</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[#A1A1AA]">
+                      {leaveAdjustAction === 'USAGE'
+                        ? `Debit (${leaveAdjustType} Used):`
+                        : leaveAdjustAction === 'ACCRUAL'
+                        ? `Credit (${leaveAdjustType} Added):`
+                        : `Adjustment (${leaveAdjustType}):`}
+                    </span>
+                    <span
+                      className={`font-mono font-bold ${
+                        delta < 0 ? 'text-rose-400' : delta > 0 ? 'text-emerald-400' : 'text-[#71717A]'
+                      }`}
+                    >
+                      {delta < 0 ? `-${Math.abs(delta).toFixed(2)}` : `+${delta.toFixed(2)}`} days
+                    </span>
+                  </div>
+
+                  <div className="pt-2 border-t border-[#27272A] flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-semibold text-[#FAFAFA]">
+                        Remaining {leaveAdjustType} Balance:
+                      </span>
+                      {isNegativeRemaining && (
+                        <span className="block text-[10px] text-rose-400 font-medium">
+                          Note: Exceeds balance by {Math.abs(rawRemaining).toFixed(2)} days (clamped to 0.00)
+                        </span>
+                      )}
+                    </div>
+                    <span
+                      className={`text-sm font-mono font-bold ${
+                        isNegativeRemaining ? 'text-rose-400' : 'text-amber-400'
+                      }`}
+                    >
+                      {remainingBal.toFixed(2)} days
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-[#A1A1AA] mb-1">Reason for Adjustment *</label>
+                  <input
+                    type="text"
+                    value={leaveAdjustReason}
+                    onChange={(e) => setLeaveAdjustReason(e.target.value)}
+                    required
+                    placeholder="e.g. Leave taken on 10th Sep / Compensatory off granted"
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#27272A]">
+                  <button
+                    type="button"
+                    onClick={() => setIsLeaveAdjustModalOpen(false)}
+                    className="px-3 py-1.5 text-xs text-[#A1A1AA] hover:text-[#FAFAFA] transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className={`px-4 py-1.5 font-semibold text-xs rounded-xl shadow transition text-white ${
+                      leaveAdjustAction === 'USAGE'
+                        ? 'bg-rose-600 hover:bg-rose-500'
+                        : 'bg-amber-600 hover:bg-amber-500'
+                    }`}
+                  >
+                    {leaveAdjustAction === 'USAGE' ? 'Deduct Leave (Debit)' : 'Confirm Adjustment'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: GIVE SALARY ADVANCE                                            */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {isAddAdvanceModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-base font-bold text-[#FAFAFA]">Issue Salary Advance</h3>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const form = e.target as HTMLFormElement;
+                const formData = new FormData(form);
+                const payload = {
+                  employeeId: formData.get('employeeId') as string,
+                  amount: Number(formData.get('amount')),
+                  advanceDate: (formData.get('advanceDate') as string) || new Date().toISOString().slice(0, 10),
+                  reason: formData.get('reason') as string,
+                  recoveryMonth: Number(formData.get('recoveryMonth')),
+                  recoveryYear: Number(formData.get('recoveryYear')),
+                };
+                try {
+                  await employeeService.createAdvance(payload);
+                  showFeedback('success', 'Salary advance registered');
+                  setIsAddAdvanceModalOpen(false);
+                  fetchAdvancesAndDeductions();
+                } catch (err: any) {
+                  showFeedback('error', err?.message || 'Failed to issue advance');
+                }
+              }}
+              className="space-y-3 text-sm"
+            >
+              <div>
+                <label className="block text-xs text-[#A1A1AA] mb-1">Employee *</label>
+                <select
+                  name="employeeId"
+                  required
+                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                >
+                  <option value="" disabled selected>
+                    -- Select Employee --
+                  </option>
+                  {employees
+                    .filter((e) => e.status === 'ACTIVE')
+                    .map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name} ({emp.employeeId})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-[#A1A1AA] mb-1">Advance Taken Date *</label>
+                  <input
+                    type="date"
+                    name="advanceDate"
+                    required
+                    defaultValue={new Date().toISOString().slice(0, 10)}
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#A1A1AA] mb-1">Advance Amount (₹) *</label>
+                  <input
+                    type="number"
+                    name="amount"
+                    required
+                    min="1"
+                    placeholder="e.g. 5000"
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] font-mono text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-[#A1A1AA] mb-1">Recovery Month</label>
+                  <select
+                    name="recoveryMonth"
+                    defaultValue={selectedMonth}
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  >
+                    {MONTHS.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-[#A1A1AA] mb-1">Recovery Year</label>
+                  <select
+                    name="recoveryYear"
+                    defaultValue={selectedYear}
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  >
+                    {[2025, 2026, 2027].map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-[#A1A1AA] mb-1">Reason for Advance *</label>
+                <textarea
+                  name="reason"
+                  required
+                  rows={2}
+                  placeholder="e.g. Medical emergency / Festival advance"
+                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#27272A]">
+                <button
+                  type="button"
+                  onClick={() => setIsAddAdvanceModalOpen(false)}
+                  className="px-3 py-1.5 text-xs text-[#A1A1AA]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded-xl transition"
+                >
+                  Issue Advance
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: ADD DEDUCTION / PENALTY                                        */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {isAddDeductionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-base font-bold text-[#FAFAFA]">Record Other Deduction</h3>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const form = e.target as HTMLFormElement;
+                const formData = new FormData(form);
+                const payload = {
+                  employeeId: formData.get('employeeId') as string,
+                  amount: Number(formData.get('amount')),
+                  reason: formData.get('reason') as string,
+                  applyMonth: Number(formData.get('applyMonth')),
+                  applyYear: Number(formData.get('applyYear')),
+                };
+                try {
+                  await employeeService.createDeduction(payload);
+                  showFeedback('success', 'Deduction registered');
+                  setIsAddDeductionModalOpen(false);
+                  fetchAdvancesAndDeductions();
+                } catch (err: any) {
+                  showFeedback('error', err?.message || 'Failed to add deduction');
+                }
+              }}
+              className="space-y-3 text-sm"
+            >
+              <div>
+                <label className="block text-xs text-[#A1A1AA] mb-1">Employee *</label>
+                <select
+                  name="employeeId"
+                  required
+                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                >
+                  <option value="" disabled selected>
+                    -- Select Employee --
+                  </option>
+                  {employees
+                    .filter((e) => e.status === 'ACTIVE')
+                    .map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name} ({emp.employeeId})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs text-[#A1A1AA] mb-1">Deduction Amount (₹) *</label>
+                <input
+                  type="number"
+                  name="amount"
+                  required
+                  min="1"
+                  placeholder="e.g. 500"
+                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] font-mono text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-[#A1A1AA] mb-1">Apply Month</label>
+                  <select
+                    name="applyMonth"
+                    defaultValue={selectedMonth}
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  >
+                    {MONTHS.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-[#A1A1AA] mb-1">Apply Year</label>
+                  <select
+                    name="applyYear"
+                    defaultValue={selectedYear}
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  >
+                    {[2025, 2026, 2027].map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-[#A1A1AA] mb-1">Reason *</label>
+                <textarea
+                  name="reason"
+                  required
+                  rows={2}
+                  placeholder="e.g. Penalty / Tool damage / Statutory deduction"
+                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#27272A]">
+                <button
+                  type="button"
+                  onClick={() => setIsAddDeductionModalOpen(false)}
+                  className="px-3 py-1.5 text-xs text-[#A1A1AA]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs rounded-xl transition"
+                >
+                  Record Deduction
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: SUPER ADMIN MARK PAID                                          */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {isMarkPaidModalOpen && selectedPayrollForPaid && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center gap-2 text-emerald-400">
+              <ShieldCheck size={20} />
+              <h3 className="text-base font-bold text-[#FAFAFA]">Authorize Salary Disbursement</h3>
+            </div>
+            <p className="text-xs text-[#A1A1AA]">
+              Confirming payment for <strong>{selectedPayrollForPaid.employee?.name}</strong> (
+              {selectedPayrollForPaid.employee?.employeeId}) for amount{' '}
+              <strong className="text-emerald-400">{formatINR(selectedPayrollForPaid.netSalary)}</strong>.
+            </p>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.target as HTMLFormElement;
+                const formData = new FormData(form);
+                handleMarkPaid({
+                  paymentMode: formData.get('paymentMode') as string,
+                  paymentReference: formData.get('paymentReference') as string,
+                  paymentNotes: formData.get('paymentNotes') as string,
+                });
+              }}
+              className="space-y-3 text-sm"
+            >
+              <div>
+                <label className="block text-xs text-[#A1A1AA] mb-1">Payment Mode *</label>
+                <select
+                  name="paymentMode"
+                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                >
+                  <option value="Bank Transfer (NEFT/RTGS)">Bank Transfer (NEFT/RTGS)</option>
+                  <option value="IMPS / Instant Transfer">IMPS / Instant Transfer</option>
+                  <option value="UPI">UPI</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Cash">Cash</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs text-[#A1A1AA] mb-1">UTR / Transaction Reference</label>
+                <input
+                  type="text"
+                  name="paymentReference"
+                  placeholder="e.g. UTR123456789"
+                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-[#A1A1AA] mb-1">Internal Notes</label>
+                <input
+                  type="text"
+                  name="paymentNotes"
+                  placeholder="e.g. Disbursed via SBI corporate netbanking"
+                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#27272A]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMarkPaidModalOpen(false);
+                    setSelectedPayrollForPaid(null);
+                  }}
+                  className="px-3 py-1.5 text-xs text-[#A1A1AA]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl shadow transition"
+                >
+                  Confirm & Auto-Email Payslip
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: EDIT ATTENDANCE RECORD                                         */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {editingAttendance && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-md p-6 space-y-4">
+            <div>
+              <h3 className="text-base font-bold text-[#FAFAFA]">Edit Attendance Record</h3>
+              <p className="text-xs text-[#A1A1AA] mt-1">
+                Editing attendance for <strong className="text-amber-400">{editingAttendance.employee.name}</strong> on{' '}
+                <span className="font-mono text-[#FAFAFA]">{editingAttendance.dateStr}</span> (Day {editingAttendance.day})
+              </p>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.target as HTMLFormElement;
+                const formData = new FormData(form);
+                handleSaveEditedAttendance({
+                  status: formData.get('status') as AttendanceStatus,
+                  overtimeHours: Number(formData.get('overtimeHours') || 0),
+                  isSundayOverride: formData.get('isSundayOverride') === 'true',
+                  notes: (formData.get('notes') as string)?.trim() || undefined,
+                });
+              }}
+              className="space-y-3.5 text-sm"
+            >
+              <div>
+                <label className="block text-xs text-[#A1A1AA] mb-1">Attendance Status *</label>
+                <select
+                  name="status"
+                  defaultValue={editingAttendance.record?.status || 'PRESENT'}
+                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                >
+                  <option value="PRESENT">Present (Full Day)</option>
+                  <option value="DOUBLE_DUTY">Double Duty (2x Shifts / 2 Duties)</option>
+                  <option value="CL">CL (Casual Leave)</option>
+                  <option value="EL">EL (Earned Leave)</option>
+                  <option value="HALF_DAY">Half Day</option>
+                  <option value="UL">UL (Unpaid Leave)</option>
+                  <option value="HOLIDAY">Holiday (Company / Public Holiday - Paid)</option>
+                  <option value="LEAVE">Leave</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-[#A1A1AA] mb-1">Overtime Hours</label>
+                  <input
+                    type="number"
+                    name="overtimeHours"
+                    min="0"
+                    max="24"
+                    step="0.5"
+                    defaultValue={editingAttendance.record ? Number(editingAttendance.record.overtimeHours) : 0}
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] font-mono text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#A1A1AA] mb-1">Sunday Shift</label>
+                  <select
+                    name="isSundayOverride"
+                    defaultValue={editingAttendance.record?.isSundayOverride ? 'true' : 'false'}
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  >
+                    <option value="false">Standard / Off</option>
+                    <option value="true">Approved Sunday Work (Paid)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-[#A1A1AA] mb-1">Remarks / Reason / Notes</label>
+                <input
+                  type="text"
+                  name="notes"
+                  defaultValue={editingAttendance.record?.notes || ''}
+                  placeholder="e.g. Late reporting by 30 mins, client visit"
+                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#27272A]">
+                <button
+                  type="button"
+                  onClick={() => setEditingAttendance(null)}
+                  className="px-3 py-1.5 text-xs text-[#A1A1AA] hover:text-[#FAFAFA] transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded-xl transition"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: EDIT SALARY ADVANCE                                            */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {editingAdvance && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-md p-6 space-y-4">
+            <div>
+              <h3 className="text-base font-bold text-[#FAFAFA]">Edit Salary Advance</h3>
+              <p className="text-xs text-[#A1A1AA] mt-1">
+                Employee: <strong className="text-[#FAFAFA]">{editingAdvance.employee?.name}</strong> ({editingAdvance.employee?.employeeId})
+              </p>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.target as HTMLFormElement;
+                const formData = new FormData(form);
+                handleSaveEditedAdvance({
+                  amount: Number(formData.get('amount')),
+                  advanceDate: (formData.get('advanceDate') as string) || new Date().toISOString().slice(0, 10),
+                  recoveryMonth: Number(formData.get('recoveryMonth')),
+                  recoveryYear: Number(formData.get('recoveryYear')),
+                  reason: formData.get('reason') as string,
+                  isRecovered: formData.get('isRecovered') === 'true',
+                });
+              }}
+              className="space-y-3 text-sm"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-[#A1A1AA] mb-1">Advance Taken Date *</label>
+                  <input
+                    type="date"
+                    name="advanceDate"
+                    required
+                    defaultValue={
+                      editingAdvance.advanceDate
+                        ? new Date(editingAdvance.advanceDate).toISOString().slice(0, 10)
+                        : editingAdvance.createdAt
+                        ? new Date(editingAdvance.createdAt).toISOString().slice(0, 10)
+                        : new Date().toISOString().slice(0, 10)
+                    }
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#A1A1AA] mb-1">Amount (₹) *</label>
+                  <input
+                    type="number"
+                    name="amount"
+                    required
+                    min="1"
+                    defaultValue={Number(editingAdvance.amount)}
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] font-mono text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-[#A1A1AA] mb-1">Recovery Month</label>
+                  <select
+                    name="recoveryMonth"
+                    defaultValue={editingAdvance.recoveryMonth}
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  >
+                    {MONTHS.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-[#A1A1AA] mb-1">Recovery Year</label>
+                  <select
+                    name="recoveryYear"
+                    defaultValue={editingAdvance.recoveryYear}
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  >
+                    {[2025, 2026, 2027].map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-[#A1A1AA] mb-1">Reason for Advance *</label>
+                <textarea
+                  name="reason"
+                  required
+                  rows={2}
+                  defaultValue={editingAdvance.reason}
+                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-[#A1A1AA] mb-1">Recovery Status</label>
+                <select
+                  name="isRecovered"
+                  defaultValue={editingAdvance.isRecovered ? 'true' : 'false'}
+                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                >
+                  <option value="false">Pending Recovery</option>
+                  <option value="true">Recovered (Deducted from salary)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#27272A]">
+                <button
+                  type="button"
+                  onClick={() => setEditingAdvance(null)}
+                  className="px-3 py-1.5 text-xs text-[#A1A1AA] hover:text-[#FAFAFA] transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded-xl transition"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: RECOVER SALARY ADVANCE (FULL OR CUSTOM RECOVERY)               */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {partialDeductAdvanceItem && (() => {
+        const thisAmount = Number(partialDeductAdvanceItem.amount || 0);
+        const empPendingAdvances = advancesList.filter(
+          (a) => a.employeeId === partialDeductAdvanceItem.employeeId && !a.isRecovered
+        );
+        const totalEmpPending = empPendingAdvances.reduce(
+          (sum, a) => sum + Number(a.amount || 0),
+          0
+        );
+        const otherPendingList = empPendingAdvances.filter((a) => a.id !== partialDeductAdvanceItem.id);
+        const parsedCustomAmount = Number(customDeductAmount || 0);
+        const remainingCustomAmount = Math.max(0, thisAmount - parsedCustomAmount);
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+            <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      <RotateCcw size={18} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-[#FAFAFA]">Recover Salary Advance</h3>
+                      <p className="text-xs text-[#A1A1AA]">
+                        Select Full Recovery or Customize Amount with carry-forward balance.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPartialDeductAdvanceItem(null)}
+                  className="text-[#71717A] hover:text-[#FAFAFA] p-1 rounded-lg transition"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Employee & Outstanding Advances Context Card */}
+              <div className="p-3.5 bg-[#09090B] border border-[#27272A] rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-[#71717A]">Employee:</span>
+                  <span className="font-semibold text-[#FAFAFA]">
+                    {partialDeductAdvanceItem.employee?.name}{' '}
+                    <span className="font-mono text-amber-400">({partialDeductAdvanceItem.employee?.employeeId})</span>
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-[#71717A]">Scheduled Period:</span>
+                  <span className="font-medium text-[#FAFAFA]">
+                    {MONTHS[partialDeductAdvanceItem.recoveryMonth - 1]?.label} {partialDeductAdvanceItem.recoveryYear}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#27272A]/70">
+                  <div className="p-2 rounded-lg bg-[#18181B] border border-[#27272A]">
+                    <span className="text-[10px] text-[#A1A1AA] uppercase font-semibold block">This Advance Pending</span>
+                    <span className="text-sm font-bold text-amber-400 font-mono">{formatINR(thisAmount)}</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-[#18181B] border border-amber-500/20">
+                    <span className="text-[10px] text-amber-400 uppercase font-semibold block">Total Pending (Employee)</span>
+                    <span className="text-sm font-bold text-[#FAFAFA] font-mono">{formatINR(totalEmpPending)}</span>
+                    <span className="text-[10px] text-[#71717A] block">{empPendingAdvances.length} advance record(s)</span>
+                  </div>
+                </div>
+                {otherPendingList.length > 0 && (
+                  <div className="text-[11px] text-amber-400/90 bg-amber-500/5 border border-amber-500/10 rounded-lg p-2">
+                    Notice: Employee has {otherPendingList.length} other pending advance(s) totalling {formatINR(totalEmpPending - thisAmount)} scheduled across other months.
+                  </div>
+                )}
+                {partialDeductAdvanceItem.reason && (
+                  <div className="text-[11px] text-[#71717A] italic">
+                    Reason logged: {partialDeductAdvanceItem.reason}
+                  </div>
+                )}
+              </div>
+
+              {/* Mode Selection Cards */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-[#A1A1AA] uppercase tracking-wider">
+                  Choose Recovery Mode:
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setAdvanceRecoveryMode('FULL')}
+                    className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
+                      advanceRecoveryMode === 'FULL'
+                        ? 'bg-amber-500/10 border-amber-500/50 shadow-md ring-1 ring-amber-500/30'
+                        : 'bg-[#09090B] border-[#27272A] hover:border-[#3F3F46]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#FAFAFA]">Full Recovery</span>
+                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                        advanceRecoveryMode === 'FULL' ? 'border-amber-400 bg-amber-400' : 'border-[#52525B]'
+                      }`}>
+                        {advanceRecoveryMode === 'FULL' && <span className="w-1.5 h-1.5 rounded-full bg-black" />}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#A1A1AA] mt-1.5">
+                      Deduct 100% ({formatINR(thisAmount)}) from current salary. Fully clears this advance.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdvanceRecoveryMode('CUSTOM');
+                      if (!customDeductAmount || Number(customDeductAmount) >= thisAmount) {
+                        setCustomDeductAmount(String(Math.round(thisAmount / 2)));
+                      }
+                    }}
+                    className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
+                      advanceRecoveryMode === 'CUSTOM'
+                        ? 'bg-amber-500/10 border-amber-500/50 shadow-md ring-1 ring-amber-500/30'
+                        : 'bg-[#09090B] border-[#27272A] hover:border-[#3F3F46]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#FAFAFA]">Customize Amount</span>
+                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                        advanceRecoveryMode === 'CUSTOM' ? 'border-amber-400 bg-amber-400' : 'border-[#52525B]'
+                      }`}>
+                        {advanceRecoveryMode === 'CUSTOM' && <span className="w-1.5 h-1.5 rounded-full bg-black" />}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#A1A1AA] mt-1.5">
+                      Deduct custom partial amount now; carry forward remaining balance.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.target as HTMLFormElement;
+                  const formData = new FormData(form);
+                  const notes = (formData.get('notes') as string) || '';
+
+                  if (advanceRecoveryMode === 'FULL') {
+                    handleSavePartialDeductAdvance({
+                      recoveryType: 'FULL',
+                      notes,
+                    });
+                  } else {
+                    const deductAmount = Number(customDeductAmount);
+                    const nextRecoveryMonth = Number(formData.get('nextRecoveryMonth'));
+                    const nextRecoveryYear = Number(formData.get('nextRecoveryYear'));
+
+                    if (isNaN(deductAmount) || deductAmount <= 0) {
+                      alert('Please enter a valid deduction amount greater than 0');
+                      return;
+                    }
+                    if (deductAmount >= thisAmount) {
+                      alert(`Custom deduction amount must be less than the total advance (${formatINR(thisAmount)}). For 100% full recovery, please select the "Full Recovery" option above.`);
+                      return;
+                    }
+
+                    handleSavePartialDeductAdvance({
+                      recoveryType: 'CUSTOM',
+                      deductAmount,
+                      nextRecoveryMonth,
+                      nextRecoveryYear,
+                      notes,
+                    });
+                  }
+                }}
+                className="space-y-3.5 text-sm"
+              >
+                {advanceRecoveryMode === 'FULL' ? (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[#A1A1AA]">Deducting from Current Payroll:</span>
+                      <span className="text-emerald-400 font-bold font-mono text-sm">{formatINR(thisAmount)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[#A1A1AA]">Remaining Balance:</span>
+                      <span className="text-[#FAFAFA] font-bold font-mono">₹0.00 (Fully Settled)</span>
+                    </div>
+                    <div className="text-[11px] text-emerald-400/90 pt-1 border-t border-emerald-500/20">
+                      ✓ No carry-forward advance will be created. Advance status will update to Recovered.
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs text-[#A1A1AA] font-medium">
+                          Amount to Deduct This Month (₹) *
+                        </label>
+                        {/* Quick Percentage Presets */}
+                        <div className="flex items-center gap-1">
+                          {[0.25, 0.5, 0.75].map((pct) => {
+                            const presetVal = Math.round(thisAmount * pct);
+                            return (
+                              <button
+                                key={pct}
+                                type="button"
+                                onClick={() => setCustomDeductAmount(String(presetVal))}
+                                className="px-1.5 py-0.5 rounded text-[10px] bg-[#27272A] hover:bg-amber-500/20 hover:text-amber-300 text-[#A1A1AA] transition"
+                              >
+                                {pct * 100}% (₹{presetVal})
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <input
+                        type="number"
+                        name="deductAmount"
+                        required
+                        min="1"
+                        max={thisAmount - 1}
+                        step="any"
+                        value={customDeductAmount}
+                        onChange={(e) => setCustomDeductAmount(e.target.value)}
+                        placeholder={`e.g. ${Math.round(thisAmount / 2)}`}
+                        className="w-full px-3.5 py-2.5 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] font-mono text-sm focus:border-amber-500 focus:outline-none transition"
+                      />
+                      <div className="mt-1.5 flex items-center justify-between text-xs">
+                        <span className="text-[#71717A]">
+                          Deducting: <span className="font-mono text-amber-400 font-semibold">{formatINR(parsedCustomAmount)}</span>
+                        </span>
+                        <span className="text-[#71717A]">
+                          Carry Forward Remainder: <span className="font-mono text-emerald-400 font-semibold">{formatINR(remainingCustomAmount)}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-[#A1A1AA] mb-1 font-medium">
+                          Carry Forward Month *
+                        </label>
+                        <select
+                          name="nextRecoveryMonth"
+                          defaultValue={
+                            partialDeductAdvanceItem.recoveryMonth === 12
+                              ? 1
+                              : partialDeductAdvanceItem.recoveryMonth + 1
+                          }
+                          className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:border-amber-500 focus:outline-none"
+                        >
+                          {MONTHS.map((m) => (
+                            <option key={m.value} value={m.value}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-[#A1A1AA] mb-1 font-medium">
+                          Carry Forward Year *
+                        </label>
+                        <select
+                          name="nextRecoveryYear"
+                          defaultValue={
+                            partialDeductAdvanceItem.recoveryMonth === 12
+                              ? partialDeductAdvanceItem.recoveryYear + 1
+                              : partialDeductAdvanceItem.recoveryYear
+                          }
+                          className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:border-amber-500 focus:outline-none"
+                        >
+                          {[2025, 2026, 2027, 2028].map((y) => (
+                            <option key={y} value={y}>
+                              {y}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div>
+                  <label className="block text-xs text-[#A1A1AA] mb-1">
+                    Reason / Notes for Recovery
+                  </label>
+                  <textarea
+                    name="notes"
+                    rows={2}
+                    placeholder={
+                      advanceRecoveryMode === 'FULL'
+                        ? 'e.g. Cleared 100% advance in current monthly payroll.'
+                        : 'e.g. Deducting ₹2,000 for current month as per worker request; balance carried forward.'
+                    }
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#27272A]">
+                  <button
+                    type="button"
+                    onClick={() => setPartialDeductAdvanceItem(null)}
+                    disabled={isSubmittingPartialDeduct}
+                    className="px-3.5 py-2 text-xs text-[#A1A1AA] hover:text-[#FAFAFA] transition disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingPartialDeduct}
+                    className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-50 text-white font-semibold text-xs rounded-xl shadow-lg transition flex items-center gap-1.5"
+                  >
+                    {isSubmittingPartialDeduct ? (
+                      <>
+                        <RefreshCw size={13} className="animate-spin" />
+                        <span>Processing...</span>
+                      </>
+                    ) : advanceRecoveryMode === 'FULL' ? (
+                      <>
+                        <CheckCircle2 size={13} />
+                        <span>Confirm Full Recovery ({formatINR(thisAmount)})</span>
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw size={13} />
+                        <span>Confirm Custom Recovery ({formatINR(parsedCustomAmount)})</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: EDIT DEDUCTION / PENALTY                                       */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {editingDeduction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#18181B] border border-[#27272A] rounded-2xl w-full max-w-md p-6 space-y-4">
+            <div>
+              <h3 className="text-base font-bold text-[#FAFAFA]">Edit Deduction</h3>
+              <p className="text-xs text-[#A1A1AA] mt-1">
+                Employee: <strong className="text-[#FAFAFA]">{editingDeduction.employee?.name}</strong> ({editingDeduction.employee?.employeeId})
+              </p>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.target as HTMLFormElement;
+                const formData = new FormData(form);
+                handleSaveEditedDeduction({
+                  amount: Number(formData.get('amount')),
+                  applyMonth: Number(formData.get('applyMonth')),
+                  applyYear: Number(formData.get('applyYear')),
+                  reason: formData.get('reason') as string,
+                  isApplied: formData.get('isApplied') === 'true',
+                });
+              }}
+              className="space-y-3 text-sm"
+            >
+              <div>
+                <label className="block text-xs text-[#A1A1AA] mb-1">Amount (₹) *</label>
+                <input
+                  type="number"
+                  name="amount"
+                  required
+                  min="1"
+                  defaultValue={Number(editingDeduction.amount)}
+                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] font-mono text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-[#A1A1AA] mb-1">Apply Month</label>
+                  <select
+                    name="applyMonth"
+                    defaultValue={editingDeduction.applyMonth}
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  >
+                    {MONTHS.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-[#A1A1AA] mb-1">Apply Year</label>
+                  <select
+                    name="applyYear"
+                    defaultValue={editingDeduction.applyYear}
+                    className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                  >
+                    {[2025, 2026, 2027].map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-[#A1A1AA] mb-1">Reason *</label>
+                <textarea
+                  name="reason"
+                  required
+                  rows={2}
+                  defaultValue={editingDeduction.reason}
+                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-[#A1A1AA] mb-1">Deduction Status</label>
+                <select
+                  name="isApplied"
+                  defaultValue={editingDeduction.isApplied ? 'true' : 'false'}
+                  className="w-full px-3 py-2 bg-[#09090B] border border-[#27272A] rounded-xl text-[#FAFAFA] text-xs"
+                >
+                  <option value="false">Pending</option>
+                  <option value="true">Applied (Deducted from salary)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#27272A]">
+                <button
+                  type="button"
+                  onClick={() => setEditingDeduction(null)}
+                  className="px-3 py-1.5 text-xs text-[#A1A1AA] hover:text-[#FAFAFA] transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs rounded-xl transition"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Dynamic Salary & Overtime Calculation Studio Modal ───────────────── */}
+      <DynamicSalaryCalculatorModal
+        isOpen={isSalaryCalculatorOpen}
+        onClose={() => setIsSalaryCalculatorOpen(false)}
+        employees={employees}
+        selectedMonth={selectedMonth}
+        selectedYear={selectedYear}
+        payrollRuns={payrollRuns}
+        initialData={calculatorInitialData}
+        onSaveSuccess={() => {
+          fetchPayroll();
+          showFeedback('success', 'Payroll calculation saved to monthly records!');
+        }}
+      />
+    </div>
+  );
+}
+
+export default EmployeeManagementPage;

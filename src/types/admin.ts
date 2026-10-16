@@ -2975,6 +2975,7 @@ export interface LocationPageRecord {
 }
 
 export * from './installerPayment';
+export * from './employee';
 
 
 
