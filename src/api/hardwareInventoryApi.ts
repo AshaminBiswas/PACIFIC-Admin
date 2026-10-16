@@ -1299,10 +1299,147 @@ export const hardwareInventoryApi = {
     };
   },
 
+  // ── Dedicated Stock Inward History (All SKUs or filtered) ──
+  getInwardHistory: async (params?: {
+    hardwareItemId?: string;
+    sku?: string;
+    warehouse?: string;
+    material?: string;
+    search?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+  }): Promise<{
+    data: ApiResponse<{
+      inwards: HardwareStockMovement[];
+      totalUnitsInward: number;
+      totalInwardValuation: number;
+      totalTransactions: number;
+      uniqueSkusCount: number;
+    }>;
+  }> => {
+    // Try backend API first
+    try {
+      const res = await apiClient.get<ApiResponse<{ items: HardwareStockMovement[]; total: number }>>(
+        '/inventory/hardware/movements',
+        {
+          params: {
+            movementType: 'INWARD',
+            hardwareItemId: params?.hardwareItemId !== 'ALL' ? params?.hardwareItemId : undefined,
+            sku: params?.sku !== 'ALL' ? params?.sku : undefined,
+            warehouse: params?.warehouse !== 'ALL' ? params?.warehouse : undefined,
+            limit: params?.limit || 300,
+          },
+        }
+      );
+      if (res.data?.success && Array.isArray(res.data.data?.items)) {
+        let movements = res.data.data.items;
+        if (params?.startDate) movements = movements.filter((m) => m.movementDate >= params.startDate!);
+        if (params?.endDate) movements = movements.filter((m) => m.movementDate <= params.endDate!);
+        if (params?.search && params.search.trim()) {
+          const q = params.search.toLowerCase().trim();
+          movements = movements.filter(
+            (m) =>
+              m.sku.toLowerCase().includes(q) ||
+              m.hardwareName.toLowerCase().includes(q) ||
+              m.movementNumber.toLowerCase().includes(q) ||
+              (m.supplierInvoiceNo && m.supplierInvoiceNo.toLowerCase().includes(q)) ||
+              (m.batchLotNo && m.batchLotNo.toLowerCase().includes(q)) ||
+              (m.notes && m.notes.toLowerCase().includes(q))
+          );
+        }
+
+        const totalTransactions = movements.length;
+        const totalUnitsInward = movements.reduce((acc, m) => acc + (Number(m.quantity) || 0), 0);
+        const totalInwardValuation = movements.reduce((acc, m) => acc + (Number(m.totalValue) || 0), 0);
+        const uniqueSkusCount = new Set(movements.map((m) => m.sku)).size;
+
+        return {
+          data: {
+            success: true,
+            data: {
+              inwards: movements,
+              totalUnitsInward,
+              totalInwardValuation,
+              totalTransactions,
+              uniqueSkusCount,
+            },
+          },
+        };
+      }
+    } catch {}
+
+    await store.ensureSynced();
+    let movements = store.getMovements().filter((m) => m.movementType === 'INWARD');
+
+    if (params?.hardwareItemId && params.hardwareItemId !== 'ALL') {
+      movements = movements.filter((m) => m.hardwareItemId === params.hardwareItemId);
+    }
+    if (params?.sku && params.sku !== 'ALL') {
+      movements = movements.filter((m) => m.sku.toUpperCase() === params.sku!.toUpperCase());
+    }
+    if (params?.warehouse && params.warehouse !== 'ALL') {
+      movements = movements.filter((m) => m.warehouse.toUpperCase() === params.warehouse!.toUpperCase());
+    }
+    if (params?.material && params.material !== 'ALL') {
+      movements = movements.filter((m) => m.material.toUpperCase() === params.material!.toUpperCase());
+    }
+    if (params?.startDate) {
+      movements = movements.filter((m) => m.movementDate >= params.startDate!);
+    }
+    if (params?.endDate) {
+      movements = movements.filter((m) => m.movementDate <= params.endDate!);
+    }
+    if (params?.search && params.search.trim()) {
+      const q = params.search.toLowerCase().trim();
+      movements = movements.filter(
+        (m) =>
+          m.sku.toLowerCase().includes(q) ||
+          m.hardwareName.toLowerCase().includes(q) ||
+          m.movementNumber.toLowerCase().includes(q) ||
+          (m.supplierInvoiceNo && m.supplierInvoiceNo.toLowerCase().includes(q)) ||
+          (m.batchLotNo && m.batchLotNo.toLowerCase().includes(q)) ||
+          (m.notes && m.notes.toLowerCase().includes(q))
+      );
+    }
+
+    const totalTransactions = movements.length;
+    const totalUnitsInward = movements.reduce((acc, m) => acc + (Number(m.quantity) || 0), 0);
+    const totalInwardValuation = movements.reduce((acc, m) => acc + (Number(m.totalValue) || 0), 0);
+    const uniqueSkusCount = new Set(movements.map((m) => m.sku)).size;
+
+    if (params?.limit) {
+      movements = movements.slice(0, params.limit);
+    }
+
+    return {
+      data: {
+        success: true,
+        data: {
+          inwards: movements,
+          totalUnitsInward,
+          totalInwardValuation,
+          totalTransactions,
+          uniqueSkusCount,
+        },
+      },
+    };
+  },
+
   // ── Analytics & Live Metrics ──────────────────────────────
   getAnalytics: async (params?: {
     warehouse?: string;
   }): Promise<{ data: ApiResponse<HardwareAnalyticsSummary> }> => {
+    // Try backend API first
+    try {
+      const res = await apiClient.get<ApiResponse<HardwareAnalyticsSummary>>('/inventory/hardware/analytics', {
+        params: { warehouse: params?.warehouse !== 'ALL' ? params?.warehouse : undefined },
+      });
+      if (res.data?.success && res.data.data) {
+        return { data: res.data };
+      }
+    } catch {}
+
     await store.ensureSynced();
     let items = store.getItems();
     let movements = store.getMovements();

@@ -49,6 +49,7 @@ import HardwareVendorsModal from '../../components/hardware/HardwareVendorsModal
 import BranchManagerModal from '../../components/hardware/BranchManagerModal';
 import EditHardwareModal from '../../components/hardware/EditHardwareModal';
 import HardwareIssueHistoryModal from '../../components/hardware/HardwareIssueHistoryModal';
+import HardwareInwardHistoryModal from '../../components/hardware/HardwareInwardHistoryModal';
 
 export default function HardwareInventoryPage() {
   const navigate = useNavigate();
@@ -96,6 +97,8 @@ export default function HardwareInventoryPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isIssueHistoryModalOpen, setIsIssueHistoryModalOpen] = useState(false);
   const [selectedHistorySkuId, setSelectedHistorySkuId] = useState<string | null>(null);
+  const [isInwardHistoryModalOpen, setIsInwardHistoryModalOpen] = useState(false);
+  const [selectedInwardHistorySkuId, setSelectedInwardHistorySkuId] = useState<string | null>(null);
 
   // Active item for targeted modals
   const [activeItem, setActiveItem] = useState<HardwareInventoryItem | null>(null);
@@ -307,6 +310,19 @@ export default function HardwareInventoryPage() {
           >
             <ArrowDownRight className="w-3.5 h-3.5" />
             Stock Inward
+          </button>
+
+          {/* Inward History (All SKUs) */}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedInwardHistorySkuId(null);
+              setIsInwardHistoryModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-[#B5F823] text-xs font-bold rounded-xl border border-emerald-500/30 transition-colors cursor-pointer"
+          >
+            <ArrowDownRight className="w-3.5 h-3.5 text-[#B5F823]" />
+            Inward History (All SKUs)
           </button>
 
           {/* Issue Hardware */}
@@ -785,6 +801,19 @@ export default function HardwareInventoryPage() {
                               <ArrowDownRight className="w-3.5 h-3.5" />
                             </button>
 
+                            {/* Inward History for this SKU */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedInwardHistorySkuId(item.id);
+                                setIsInwardHistoryModalOpen(true);
+                              }}
+                              title={`View Inward History & GRN Slips for ${item.sku}`}
+                              className="p-1.5 bg-emerald-500/10 hover:bg-emerald-500/25 text-[#B5F823] rounded-lg transition-colors cursor-pointer"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-[#B5F823]" />
+                            </button>
+
                             {/* Issue Button */}
                             <button
                               type="button"
@@ -943,7 +972,7 @@ export default function HardwareInventoryPage() {
                     </div>
 
                     {/* Touch Action Buttons (targets >= 44px) */}
-                    <div className="grid grid-cols-5 gap-1.5 pt-1">
+                    <div className="grid grid-cols-6 gap-1 pt-1">
                       <button
                         type="button"
                         onClick={() => handleOpenInwardForItem(item)}
@@ -951,6 +980,18 @@ export default function HardwareInventoryPage() {
                       >
                         <ArrowDownRight className="w-3.5 h-3.5" />
                         Inward
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedInwardHistorySkuId(item.id);
+                          setIsInwardHistoryModalOpen(true);
+                        }}
+                        className="min-h-[44px] flex flex-col items-center justify-center bg-emerald-500/10 hover:bg-emerald-500/20 text-[#B5F823] border border-emerald-500/20 rounded-xl text-[10px] font-bold transition-all cursor-pointer"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        Inw Log
                       </button>
 
                       <button
@@ -970,8 +1011,8 @@ export default function HardwareInventoryPage() {
                         }}
                         className="min-h-[44px] flex flex-col items-center justify-center bg-amber-500/10 hover:bg-amber-500/20 text-amber-200 border border-amber-500/20 rounded-xl text-[10px] font-bold transition-all cursor-pointer"
                       >
-                        <FileText className="w-3.5 h-3.5" />
-                        History
+                        <ClipboardList className="w-3.5 h-3.5" />
+                        Iss Log
                       </button>
 
                       <button
@@ -1011,30 +1052,49 @@ export default function HardwareInventoryPage() {
                 of <strong className="text-white">{totalRecords}</strong> hardware items
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                  className="px-3 py-1.5 bg-white/5 hover:bg-white/10 disabled:opacity-30 text-white rounded-lg border border-white/10 transition-colors cursor-pointer flex items-center gap-1"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                  Prev
-                </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                  <span>Rows:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="py-1 px-2 bg-white/5 border border-white/10 rounded-lg text-white font-mono text-xs focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value={25} className="bg-[#0a091e] text-white">25</option>
+                    <option value={50} className="bg-[#0a091e] text-white">50</option>
+                    <option value={100} className="bg-[#0a091e] text-white">100</option>
+                    <option value={250} className="bg-[#0a091e] text-white">All ({totalRecords})</option>
+                  </select>
+                </div>
 
-                <span className="px-2 text-gray-300 font-mono">
-                  {page} / {totalPages}
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="px-3 py-1.5 bg-white/5 hover:bg-white/10 disabled:opacity-30 text-white rounded-lg border border-white/10 transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    Prev
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  className="px-3 py-1.5 bg-white/5 hover:bg-white/10 disabled:opacity-30 text-white rounded-lg border border-white/10 transition-colors cursor-pointer flex items-center gap-1"
-                >
-                  Next
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+                  <span className="px-2 text-gray-300 font-mono">
+                    {page} / {totalPages}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    className="px-3 py-1.5 bg-white/5 hover:bg-white/10 disabled:opacity-30 text-white rounded-lg border border-white/10 transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    Next
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
           </>
@@ -1123,6 +1183,18 @@ export default function HardwareInventoryPage() {
         onOpenNewIssue={(item) => {
           setActiveItem(item || null);
           setIsIssueModalOpen(true);
+        }}
+      />
+
+      <HardwareInwardHistoryModal
+        isOpen={isInwardHistoryModalOpen}
+        onClose={() => setIsInwardHistoryModalOpen(false)}
+        items={items}
+        branches={branches}
+        initialSkuId={selectedInwardHistorySkuId}
+        onOpenNewInward={(item) => {
+          setActiveItem(item || null);
+          setIsInwardModalOpen(true);
         }}
       />
     </div>

@@ -5838,6 +5838,38 @@ A total of **115 new targeted B-tree indexes** were created across public schema
 - **Follow-up Reminders Fix (Resolving 400 Bad Request)**: In `src/utils/followupReminder.ts`, removed invalid foreign key embed `quotation:sales_quotations(referenceNumber)` that failed with PostgREST PGRST200 because `quotation_followups` did not have an explicit foreign key definition in PostgreSQL. Now queries clean columns and resolves reference numbers safely from cache.
 - **Live Render Status Confirmed**: Verified `https://pacific-backend-psuw.onrender.com/api/v1/inventory/hardware` (200 OK) and `/api/v1/employees/advances` (active auth guard 401).
 
+### 108.7 Express Wildcard Route Shadowing Fix for Employee Advances, Deductions, and Payroll (Resolving 404 Not Found)
+- **Root Cause**:
+  In `D:\PACIFIC-Backend\src\modules\employee-management\employee-management.routes.ts`, `router.get(['/detail/:id', '/:id'], ...)` was registered above `/advances`, `/deductions`, and `/payroll`. In Express top-down route matching, calls to `/employees/advances`, `/employees/deductions`, and `/employees/payroll` were captured by `/:id` (interpreting `'advances'`, `'deductions'`, and `'payroll'` as employee IDs). `employeeService.getEmployee('advances')` returned null, triggering line 57: `sendError(res, { code: 'NOT_FOUND', message: 'Employee not found' }, 404)`.
+- **Implementation**:
+  - Reordered `employee-management.routes.ts`: Moved wildcard `router.get(['/detail/:id', '/:id'], ...)` and individual employee mutation routes (`PUT`, `PATCH`, `DELETE`) to the bottom of the router after all collection endpoints (`/attendance`, `/leaves`, `/advances`, `/deductions`, `/payroll`).
+  - Added safety guard in `getEmployeeHandler` (`employee-management.controller.ts`) using `RESERVED_EMPLOYEE_SUBPATHS` (`attendance`, `advances`, `deductions`, `payroll`, `leave`, `leaves`, `detail`, `all`, `summary`, `ledger`), calling `next()` if matched to permanently eliminate any potential sub-route shadowing.
+  - Rebuilt `PACIFIC-Backend` (`npm run build` exited 0) and pushed to `origin/main` (`eabef39`).
+
+### 108.8 Hardware Inventory SKU Discrepancy Resolution & Stock Inward History Subsystem
+- **Root Cause of SKU Count Discrepancy (98 vs 55)**:
+  - Pacific Production Database (`bcbswbzbtskvmdqmgrjm.supabase.co`) initially had only 55 hardware item rows because only 40 items were transferred during baseline backup, while 51 active hardware SKUs remained in the previous database (`kgalsrokdmsrqysyoffm`).
+  - Frontend client cached items in localStorage (`pacific_hardware_inventory_items_v2`), which computed `analytics.totalSkus = 98` (or 106 across all sets).
+  - The catalog list queried the backend `/api/v1/inventory/hardware` which returned only the 55 PostgreSQL items, causing the KPI counter to show 98 while the table showed only 55.
+- **Data Migration Implemented**:
+  - Migrated all 51 missing hardware SKUs, 56 stock movements, and missing vendors from `kgalsrokdmsrqysyoffm` into Pacific Production Database (`bcbswbzbtskvmdqmgrjm`).
+  - Total Hardware SKUs in Pacific DB is now **106** (100% data integrity with zero loss).
+  - Total Stock Movements in Pacific DB is now **127**.
+- **Backend Analytics & Metrics Engine (`PACIFIC-Backend`)**:
+  - Implemented `getAnalyticsSummary` in `hardwareInventory.service.ts` directly querying PostgreSQL for exact SKU counts, total stock units, inventory valuation, low stock, and out of stock counts.
+  - Mounted `GET /api/v1/inventory/hardware/analytics` in `hardwareInventory.routes.ts`.
+- **Stock Inward History Subsystem (`PACIFIC-Admin`)**:
+  - Created `src/components/hardware/HardwareInwardHistoryModal.tsx`:
+    - Full Goods Receipt Note (GRN) ledger with supplier invoice numbers, invoice dates, batch/lot tracking, inward quantities, and stock progression (`stockBefore → stockAfter`).
+    - Filter by SKU, warehouse branch, and date range ('ALL', 'TODAY', 'WEEK', 'MONTH').
+    - Print Goods Receipt Note (GRN) voucher with Pacific Restroom Cubicle company header and verification stamps.
+    - Export Inward Register to CSV.
+  - Added `getInwardHistory` to `src/api/hardwareInventoryApi.ts` querying backend `/inventory/hardware/movements?movementType=INWARD` first with local fallback.
+  - Added "Inward History (All SKUs)" button in `HardwareInventoryPage.tsx` header, per-row Inward History button in table rows, and mobile card action buttons.
+  - Added rows per page selector (`Rows: 25 | 50 | 100 | All`) allowing viewing all 106 items seamlessly on a single page.
+
+
+
 
 
 
