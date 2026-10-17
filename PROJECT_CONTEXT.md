@@ -6061,6 +6061,48 @@ A total of **115 new targeted B-tree indexes** were created across public schema
    - Bottom floating action bar and header actions provide instant `+ Add Custom Item` triggers.
    - Enriched item submission formats custom specs into line item description and preserves HSN/SAC codes for GST calculation.
 
+---
+
+## 113. Optional Primary Cubicle System & Custom Item PDF Engine
+
+### 113.1 Requirement & Decoupling of Primary Cubicle System
+- **Context**: In previous versions, Sales Quotations (`DraftQuotationPage.tsx`, `EditSalesQuotationPage.tsx`) and Proforma Invoices (`CreateProformaPage.tsx`, `EditProformaInvoicePage.tsx`) strictly enforced that item index `0` had to be a Primary Cubicle System. If a client needed a quotation or proforma invoice solely for custom items (e.g., Vanity Counters, Glass Shower Partitions, SS Grab Bars, Urinal Modesty Screens, or Turnkey Site Installation charges), the user was unable to remove the cubicle system without breaking form state or having dummy cubicle items appear on documents.
+- **Architectural Overhaul**:
+  1. The Primary Cubicle System is now **100% optional** across both creation and edit views for Quotations and Proforma Invoices.
+  2. If the user removes the cubicle system (allowed whenever total items > 1), the cubicle card is removed and replaced by an intuitive omitted-state banner:
+     `"Primary Cubicle System omitted — this quotation/invoice currently contains only custom architectural items."`
+  3. A 1-click **`+ Add Primary Cubicle System`** button is rendered directly in the banner, allowing users to restore the cubicle system at any time without losing custom items.
+  4. The arbitrary `i !== 0` filter restriction in `customItems` was removed, allowing custom items to safely occupy index 0.
+
+### 113.2 Frontend Implementation Details
+1. **Sales Quotations (`DraftQuotationPage.tsx` & `EditSalesQuotationPage.tsx`)**:
+   - Extended `CreateItem` / `EditItem` with dimension fields (`width`, `depth`, `height`), materials (`boardMaterial`, `hardwareType`, `colorFinish`), and `notes`.
+   - Added `addPrimaryCubicleItem` callback to reconstruct a default cubicle system at index 0.
+   - Added a `Remove Cubicle System` button on the primary cubicle card when `items.length > 1`.
+   - Added omitted-state alert banner with `+ Add Primary Cubicle System` button when `!primaryCubicleItem`.
+   - Updated `customItems` selector to `items.filter(it => it.isCustom || it.systemCategory === 'custom')` without requiring `i !== 0`.
+   - Full technical specs serialized cleanly into `customSpecsJson` during submission.
+2. **Proforma Invoices (`CreateProformaPage.tsx` & `EditProformaInvoicePage.tsx`)**:
+   - Added `handleAddPrimaryCubicleItem` callback to dynamically restore the cubicle item.
+   - Added Remove button for primary cubicle item when `items.length > 1`.
+   - Added omitted-state alert banner with `+ Add Primary Cubicle System` button.
+   - Serializes custom dimensions, board material, hardware type, color/shade, and custom notes cleanly.
+
+### 113.3 Backend PDF Engine Modernization (`D:\PACIFIC-Backend`)
+1. **Dynamic Custom Item PDF Rendering (`src/modules/pdf/pdf.service.ts`)**:
+   - Extended `QuotationPdfData.items` and `PiPdfData.items` interfaces with `customModelName`, `modelName`, `modelImageUrl`, `isCustom`, `hsnSac`, `customSpecsJson`, and `notes`.
+   - In `generateQuotationPdfHtml`:
+     - Dimensions dynamically resolved from `customSpecs.width`, `depth`, `height` (e.g. `1200 mm (W) x 1500 mm (D) x 2100 mm (H)`) if standard `cubicleSize` is empty.
+     - Dynamic `sizeLabel`: automatically displays `'Dimensions'` instead of `'Cubicle / Depth Size'` for custom items.
+     - Displays `displayBoardType`, `displayBoardThickness`, `displayBoardColor`, `displayHardware`, `displayHsn`, and fabrication `notes`.
+     - Page 2 Annexure Adaptation: When no cubicles are quoted (`hasCubicles === false`), header automatically changes from *"Standard Inclusions & Hardware Accessories"* to *"System Inclusions & Technical Specifications"*, and dynamically displays custom fabrication, edge treatment, and hardware standards instead of irrelevant cubicle gravity hinges or door indicator locks.
+   - In `generatePiHtml`:
+     - Dynamic custom specifications, auto-composed dimensions, and custom fabrication notes.
+     - Dynamic `sizeLabel` (`'Dimensions'` for custom items) and suppresses door size when N/A.
+2. **Service Layer Synchronization**:
+   - In `src/modules/quotations/quotations.service.ts` and `src/modules/sales/pi.service.ts`:
+     - Enriched item mapping in `getPdfHtml` to forward `customModelName`, `customSpecsJson`, `isCustom`, and `hsnSac` to the PDF renderer.
+
 
 
 

@@ -984,6 +984,31 @@ export default function EditProformaInvoicePage() {
     ]);
   };
 
+  const handleAddPrimaryCubicleItem = () => {
+    setItems((prev) => [
+      {
+        modelId: '',
+        itemType: 'cubicle',
+        systemCategory: 'cubicle',
+        description: 'Pacific Restroom Cubicle System (12mm Compact Laminate)',
+        hsnSac: '9403',
+        quantity: 1,
+        unit: 'NOS',
+        rate: 18500,
+        gstRate: 18,
+        boardType: 'HPL',
+        boardThickness: '12mm',
+        boardColor: '',
+        cubicleSize: '1000mm W × 1500mm D',
+        doorSize: '600mm × 1785mm',
+        overallHeight: '1980mm (incl. 100mm ground clearance)',
+        hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
+        make: 'Pacific',
+      },
+      ...prev,
+    ]);
+  };
+
   const handleAddInstallationItem = () => {
     const count = effectiveCubicleCount;
     const rate = effectiveInstallRate;
@@ -2983,33 +3008,54 @@ export default function EditProformaInvoicePage() {
                     </div>
                   )}
 
-                  {!primaryCubicleItem && additionalCubicleItems.length === 0 && hardwareItems.length === 0 && boardItems.length === 0 && (
-                    <div className="text-center py-6 border border-dashed border-[#7FB706]/30 rounded-xl bg-[#7FB706]/5">
-                      <p className="text-xs text-gray-400 mb-2">No cubicle items configured.</p>
+                  {/* ── OPTIONAL CUBICLE SYSTEM (PRIMARY) ── */}
+                  {!primaryCubicleItem && (
+                    <div className="bg-[#0a0a1a] border border-dashed border-[#7FB706]/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+                          <Layers className="w-3.5 h-3.5 text-[#7FB706]" />
+                          Primary Cubicle System (Optional — Currently Omitted)
+                        </div>
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          This Proforma Invoice can consist purely of Custom Items or Custom Models. Click below if you need a standard cubicle system.
+                        </p>
+                      </div>
                       <button
                         type="button"
-                        onClick={handleAddCubicleItem}
-                        className="px-3 py-1.5 bg-[#7FB706]/20 hover:bg-[#7FB706]/30 text-[#7FB706] rounded-lg text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                        onClick={handleAddPrimaryCubicleItem}
+                        className="px-3 py-1.5 bg-[#7FB706]/20 hover:bg-[#7FB706]/30 text-[#7FB706] border border-[#7FB706]/40 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap cursor-pointer transition-colors"
                       >
-                        <Plus className="w-3.5 h-3.5" /> Add Cubicle Model
+                        <Plus className="w-3.5 h-3.5" /> + Add Primary Cubicle System
                       </button>
                     </div>
                   )}
 
                   {/* ── SECTION 1: CUBICLE MODEL SYSTEM (PRIMARY) ── */}
-                {primaryCubicleItem && (
-                  <div className="bg-[#0a0a1a] border border-[#7FB706]/40 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-bold text-[#7FB706]">Item #1 (Primary System)</span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/30 flex items-center gap-1">
-                          <Layers className="w-3 h-3 text-[#7FB706]" /> Cubicle Model System
-                        </span>
+                  {primaryCubicleItem && (
+                    <div className="bg-[#0a0a1a] border border-[#7FB706]/40 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-bold text-[#7FB706]">Item #{primaryCubicleIdx + 1} (Primary System)</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/30 flex items-center gap-1">
+                            <Layers className="w-3 h-3 text-[#7FB706]" /> Cubicle Model System
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-[#7FB706]/20 text-[#7FB706] border border-[#7FB706]/40">
+                            Primary System (Optional)
+                          </span>
+                          {items.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(primaryCubicleIdx)}
+                              className="px-2 py-0.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Remove Primary Cubicle System (Item is Optional)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Remove
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-[#7FB706]/20 text-[#7FB706] border border-[#7FB706]/40">
-                        Primary System
-                      </span>
-                    </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                       <div className="sm:col-span-4 space-y-1.5">

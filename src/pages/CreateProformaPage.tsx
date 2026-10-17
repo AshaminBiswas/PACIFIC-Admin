@@ -1180,6 +1180,29 @@ export default function CreateProformaPage() {
     }));
   };
 
+  const handleAddPrimaryCubicleItem = () => {
+    const newItem: CreateItem = {
+      modelId: '',
+      itemType: 'cubicle',
+      systemCategory: 'cubicle',
+      description: 'Pacific Restroom Cubicle System (12mm Compact Laminate)',
+      hsnSac: '9403',
+      quantity: 1,
+      unit: 'NOS',
+      rate: 18500,
+      gstRate: 18,
+      boardType: 'HPL',
+      boardThickness: '12mm',
+      boardColor: '',
+      cubicleSize: '1000mm W × 1500mm D',
+      doorSize: '600mm × 1785mm',
+      overallHeight: '1980mm (incl. 100mm ground clearance)',
+      hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
+      make: 'Pacific',
+    };
+    setFormData((prev) => ({ ...prev, items: [newItem, ...prev.items] }));
+  };
+
   const handleAddItem = () => {
     if (formData.piScope === 'BOARD') {
       handleAddBoardItem();
@@ -3231,19 +3254,53 @@ export default function CreateProformaPage() {
                     })}
                   </div>
                 )}
+                {/* ── OPTIONAL CUBICLE SYSTEM (PRIMARY) ── */}
+                {!primaryCubicleItem && (
+                  <div className="bg-[#0a0a1a] border border-dashed border-[#7FB706]/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-[#7FB706]" />
+                        Primary Cubicle System (Optional — Currently Omitted)
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        This Proforma Invoice can consist purely of Custom Items or Custom Models. Click below if you need a standard cubicle system.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddPrimaryCubicleItem}
+                      className="px-3 py-1.5 bg-[#7FB706]/20 hover:bg-[#7FB706]/30 text-[#7FB706] border border-[#7FB706]/40 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap cursor-pointer transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> + Add Primary Cubicle System
+                    </button>
+                  </div>
+                )}
+
                 {/* ── SECTION 1: CUBICLE MODEL SYSTEM (PRIMARY) ── */}
                 {primaryCubicleItem && (
                   <div className="bg-[#0a0a1a] border border-[#7FB706]/40 rounded-xl p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-bold text-[#7FB706]">Item #1 (Primary System)</span>
+                        <span className="text-xs font-mono font-bold text-[#7FB706]">Item #{primaryCubicleIdx + 1} (Primary System)</span>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/30 flex items-center gap-1">
                           <Layers className="w-3 h-3 text-[#7FB706]" /> Cubicle Model System
                         </span>
                       </div>
-                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-[#7FB706]/20 text-[#7FB706] border border-[#7FB706]/40">
-                        Primary System
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-[#7FB706]/20 text-[#7FB706] border border-[#7FB706]/40">
+                          Primary System (Optional)
+                        </span>
+                        {formData.items.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(primaryCubicleIdx)}
+                            className="px-2 py-0.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded flex items-center gap-1 transition-colors cursor-pointer"
+                            title="Remove Primary Cubicle System (Item is Optional)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Remove
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
