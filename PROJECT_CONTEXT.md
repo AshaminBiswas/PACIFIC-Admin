@@ -6155,6 +6155,48 @@ PostgreSQL tables provisioned in Supabase via Prisma and baseline DDL:
   - `CategoryManagerModal.tsx`: Color badge selection, description, CRUD.
   - `UPPresentationModal.tsx`: Executive board presentation, velocity trend chart, standalone HTML download.
 
+---
+
+## 115. WhatsApp CRM (WACRM) Omnichannel Commercial Deal Hub
+
+### 115.1 Architectural Overhaul & Context
+- **Commercial Leads Replacement**: Replaced the legacy `00 Commercial Leads` navigation item and route (`/admin/dashboard/crm-leads`) with **WhatsApp CRM (WACRM)** at `/admin/dashboard/wacrm` (with backward-compatible routing for `/admin/dashboard/crm-leads`).
+- **Authentication Decoupling**: Completely removed the standalone Next.js cookie/SSR/membership authentication system from WACRM (`D:\wacrm\wacrm`). All WACRM features directly inherit the logged-in Pacific Admin CRM session via `useAdminAuth()` and backend JWT token (`requireAuth`).
+- **Brand Palette Unification**: Standardized on Pacific Admin's dark obsidian theme (`#030213` canvas, `#0f0e26`/`#121226` cards, `#7FB706` Pacific Forest Green, `#B5F823` Electric Lime). Zero light mode or legacy zinc styling.
+
+### 115.2 Database Provisioning (Supabase PostgreSQL)
+Provisioned 12 dedicated tables with `wacrm_` prefix:
+1. `wacrm_config`: Meta WhatsApp Business Cloud API credentials (phone number ID, WABA ID, access token, verify token, webhook URL).
+2. `wacrm_tags`: Customer classification badges (Architect, Contractor, High Value BoQ, Urgent Project, HPL Cubicles, Modular Lockers).
+3. `wacrm_contacts`: WhatsApp leads with phone, normalized phone, company, email, notes, and status.
+4. `wacrm_contact_tags`: Many-to-many relationship linking contacts and tags.
+5. `wacrm_conversations`: Live chat threads with unread count, status (`open`, `pending`, `closed`), and assigned agent.
+6. `wacrm_messages`: Message history (text, media, template) with delivery statuses (`sending`, `sent`, `delivered`, `read`, `failed`).
+7. `wacrm_pipelines`: Commercial sales pipelines.
+8. `wacrm_pipeline_stages`: Pipeline stages with color codes and sequential positions (New Lead, Requirement / BoQ, Quotation Shared, Negotiation, Won, Lost).
+9. `wacrm_deals`: Kanban deals with contact FK, conversation FK, deal title, value in ₹ INR, and expected close date.
+10. `wacrm_templates`: Meta approved WhatsApp message templates.
+11. `wacrm_broadcasts`: Bulk campaign manager with recipient counts, sent/delivered/read metrics.
+12. `wacrm_broadcast_recipients`: Granular recipient delivery audit log.
+
+### 115.3 Backend API Implementation (`D:\PACIFIC-Backend`)
+- **Schema & Validation**: `src/modules/wacrm/wacrm.schema.ts` (Zod schemas with dual-container validation support).
+- **Service Layer**: `src/modules/wacrm/wacrm.service.ts` (Prisma queries, conversation thread management, Meta Cloud API live dispatch proxy, Kanban deal stage updates).
+- **Controller & Routes**: `src/modules/wacrm/wacrm.controller.ts` & `src/modules/wacrm/wacrm.routes.ts` mounted at `/api/v1/wacrm` in `src/app.ts`.
+
+### 115.4 Frontend Implementation (`d:\PACIFIC-Admin`)
+- **Types**: `src/types/admin.ts` (`WacrmContact`, `WacrmConversation`, `WacrmMessage`, `WacrmDeal`, `WacrmBroadcast`, `WacrmConfig`, etc.).
+- **API Client**: `src/api/wacrmApi.ts` re-exported in `src/api/index.ts` and `src/api/services.ts`.
+- **Sidebar**: Step 00 in `salesPipelineItems` in `AdminSidebar.tsx` mapped to `WhatsApp CRM (WACRM)`.
+- **Routing**: Registered `/admin/dashboard/wacrm` and `/admin/dashboard/crm-leads` in `App.tsx` mapped to `<WACRMPage />`.
+- **View Suite (`src/pages/wacrm/WACRMPage.tsx`)**:
+  - **Shared Inbox**: WhatsApp Web layout with conversation filter chips, thread search, dark wallpaper message bubbles, Meta template selector, and contact intelligence drawer.
+  - **Contacts & Leads**: Data table with tag pills, company info, and 1-click chat triggers.
+  - **Sales Pipelines (Kanban)**: 6-stage deal board with drag/advance buttons and stage totals in ₹ INR.
+  - **Broadcasts**: Campaign manager with delivery/read statistics.
+  - **Meta API Config**: Cloud API credential manager and webhook setup.
+
+
 
 
 

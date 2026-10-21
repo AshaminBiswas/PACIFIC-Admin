@@ -36,6 +36,7 @@ export type AdminView =
   | 'installer-payments'
   | 'installer-payments-new'
   | 'up-expenses'
+  | 'wacrm'
   | 'settings';
 
 export type UserRole =
@@ -3139,3 +3140,188 @@ export interface ReconcileCashInput {
   notes?: string | null;
   closed?: boolean;
 }
+
+// ─── WhatsApp CRM (WACRM) Models ──────────────────────────────────────────────
+
+export interface WacrmTag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface WacrmContact {
+  id: string;
+  phone: string;
+  phone_normalized?: string;
+  name: string;
+  email?: string | null;
+  company?: string | null;
+  avatarUrl?: string | null;
+  notes?: string | null;
+  status: 'lead' | 'customer' | 'archived';
+  createdAt: string;
+  updatedAt: string;
+  conversationId?: string | null;
+  conversationStatus?: 'open' | 'pending' | 'closed' | null;
+  lastMessageText?: string | null;
+  lastMessageAt?: string | null;
+  tags?: WacrmTag[];
+  deals?: {
+    id: string;
+    title: string;
+    value: number;
+    stageName: string;
+    stageColor: string;
+  }[];
+}
+
+export interface WacrmConversation {
+  id: string;
+  contactId: string;
+  status: 'open' | 'pending' | 'closed';
+  assignedAgentName?: string | null;
+  lastMessageText?: string | null;
+  lastMessageAt?: string | null;
+  unreadCount: number;
+  createdAt: string;
+  updatedAt: string;
+  contactName: string;
+  contactPhone: string;
+  contactCompany?: string | null;
+  contactAvatar?: string | null;
+  tags?: WacrmTag[];
+}
+
+export interface WacrmMessage {
+  id: string;
+  conversationId: string;
+  senderType: 'customer' | 'agent' | 'bot';
+  senderName?: string | null;
+  contentType: 'text' | 'image' | 'document' | 'audio' | 'template' | 'location';
+  contentText?: string | null;
+  mediaUrl?: string | null;
+  templateName?: string | null;
+  messageId?: string | null;
+  status: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+  createdAt: string;
+}
+
+export interface WacrmPipelineStage {
+  id: string;
+  pipelineId: string;
+  name: string;
+  position: number;
+  color: string;
+}
+
+export interface WacrmDeal {
+  id: string;
+  pipelineId: string;
+  stageId: string;
+  contactId?: string | null;
+  conversationId?: string | null;
+  title: string;
+  value: number;
+  currency: string;
+  notes?: string | null;
+  expectedCloseDate?: string | null;
+  status: string;
+  createdAt: string;
+  contactName?: string | null;
+  contactPhone?: string | null;
+  contactCompany?: string | null;
+}
+
+export interface WacrmPipeline {
+  id: string;
+  name: string;
+}
+
+export interface WacrmTemplate {
+  id: string;
+  name: string;
+  category: string;
+  language: string;
+  bodyText: string;
+  buttons?: any;
+  status: string;
+}
+
+export interface WacrmBroadcast {
+  id: string;
+  name: string;
+  templateName: string;
+  templateLanguage: string;
+  status: string;
+  totalRecipients: number;
+  sentCount: number;
+  deliveredCount: number;
+  readCount: number;
+  repliedCount: number;
+  failedCount: number;
+  scheduledAt?: string | null;
+  createdAt: string;
+}
+
+export interface WacrmConfig {
+  status: string;
+  phoneNumberId?: string | null;
+  wabaId?: string | null;
+  verifyToken?: string | null;
+  webhookUrl?: string | null;
+  connectedAt?: string | null;
+}
+
+export interface WacrmDashboardData {
+  totalContacts: number;
+  activeConversations: number;
+  unreadMessages: number;
+  activeDeals: number;
+  pipelineValue: number;
+  totalBroadcasts: number;
+  whatsappStatus: string;
+  connectedPhoneId?: string | null;
+  connectedAt?: string | null;
+  recentMessages?: {
+    id: string;
+    sender_type: string;
+    content_text: string;
+    created_at: string;
+    contact_name: string;
+    phone: string;
+  }[];
+}
+
+export interface CreateWacrmContactInput {
+  phone: string;
+  name: string;
+  email?: string | null;
+  company?: string | null;
+  notes?: string | null;
+  status?: 'lead' | 'customer' | 'archived';
+  tags?: string[];
+}
+
+export interface SendWacrmMessageInput {
+  conversationId?: string;
+  contactId?: string;
+  phone?: string;
+  contentType?: 'text' | 'image' | 'document' | 'audio' | 'template' | 'location';
+  contentText?: string | null;
+  mediaUrl?: string | null;
+  templateName?: string | null;
+}
+
+export interface CreateWacrmDealInput {
+  pipelineId: string;
+  stageId: string;
+  contactId?: string | null;
+  conversationId?: string | null;
+  title: string;
+  value?: number;
+  currency?: string;
+  notes?: string | null;
+  expectedCloseDate?: string | null;
+  status?: string;
+}
+

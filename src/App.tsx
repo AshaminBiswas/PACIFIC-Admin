@@ -72,6 +72,7 @@ const InstallerPaymentsPage = lazyWithRetry(() => import('./pages/InstallerPayme
 const CreateInstallerBillPage = lazyWithRetry(() => import('./pages/CreateInstallerBillPage'));
 const EmployeeManagementPage = lazyWithRetry(() => import('./pages/EmployeeManagementPage'));
 const UPExpensesPage = lazyWithRetry(() => import('./pages/up/UPExpensesPage'));
+const WACRMPage = lazyWithRetry(() => import('./pages/wacrm/WACRMPage'));
 const QrCenterPage = lazyWithRetry(() => import('./pages/QrCenterPage'));
 const CompanySettingsPage = lazyWithRetry(() => import('./pages/CompanySettingsPage'));
 const AdminManagementPage = lazyWithRetry(() => import('./pages/AdminManagementPage'));
@@ -571,6 +572,14 @@ export default function App() {
               }
             />
             <Route
+              path="wacrm"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <WACRMPage />
+                </Suspense>
+              }
+            />
+            <Route
               path="employee-management"
               element={
                 <Suspense fallback={<PageLoader />}>
@@ -900,7 +909,7 @@ export default function App() {
               path="crm-leads"
               element={
                 <Suspense fallback={<PageLoader />}>
-                  <LeadManagementPage />
+                  <WACRMPage />
                 </Suspense>
               }
             />
