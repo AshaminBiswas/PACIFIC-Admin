@@ -42,6 +42,7 @@ import {
   Target,
   MapPin,
   UserCheck,
+  Wallet,
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -77,6 +78,7 @@ export const procurementNavItems = [
 export const crmFinanceNavItems = [
   { name: 'B2B Customers', path: '/admin/dashboard/customers', icon: Users },
   { name: 'Payments & Ledger', path: '/admin/dashboard/payments', icon: CreditCard },
+  { name: 'UP Daily Expense', path: '/admin/dashboard/up-expenses', icon: Wallet },
   { name: 'Installer Payments', path: '/admin/dashboard/installer-payments', icon: Wrench },
   { name: 'Employees & Payroll', path: '/admin/dashboard/employees', icon: UserCheck },
 ];

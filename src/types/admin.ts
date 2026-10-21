@@ -35,6 +35,7 @@ export type AdminView =
   | 'hardware-inventory'
   | 'installer-payments'
   | 'installer-payments-new'
+  | 'up-expenses'
   | 'settings';
 
 export type UserRole =
@@ -2991,3 +2992,150 @@ export * from './employee';
 
 
 
+
+
+/* ─── UP Daily Cash Expense Module Interfaces ────────────────────────────── */
+
+export interface UPExpense {
+  id: string;
+  expenseDate: string;
+  amount: number;
+  categoryId: string;
+  categoryName: string;
+  paymentMode: string;
+  paidTo: string;
+  note?: string | null;
+  receiptPath?: string | null;
+  verified: boolean;
+  verifiedBy?: string | null;
+  verifiedByName?: string | null;
+  verifiedAt?: string | null;
+  createdBy: string;
+  createdByName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UPCategory {
+  id: string;
+  name: string;
+  active: boolean;
+  sortOrder: number;
+  expenseCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UPCashDay {
+  id?: string;
+  cashDate: string;
+  openingBalance: number;
+  cashExpenses: number;
+  floatReceived?: number;
+  expectedClosingBalance: number;
+  actualClosing: number | null;
+  closingBalance?: number | null;
+  difference: number | null;
+  notes?: string | null;
+  closed: boolean;
+  closedBy?: string | null;
+  closedByName?: string | null;
+  closedAt?: string | null;
+}
+
+export interface UPAuditRecord {
+  id: string;
+  expenseId: string;
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'VERIFY' | 'UNVERIFY' | string;
+  changedBy: string;
+  changedByName?: string;
+  beforeJson?: any;
+  afterJson?: any;
+  createdAt: string;
+}
+
+export interface UPDashboardData {
+  kpis: {
+    currentMonthTotal: number;
+    todayTotal: number;
+    previousMonthTotal: number;
+    previousPeriodTotal: number;
+    verifiedTotal: number;
+    unverifiedTotal: number;
+    rangeTotal: number;
+    transactionCount: number;
+    highestExpense: number;
+    highestExpenseDate?: string | null;
+    highestExpensePaidTo?: string | null;
+    highestExpenseCategory?: string | null;
+    averageDailyExpense: number;
+    topCategory: string;
+  };
+  categoryBreakdown: Array<{
+    id: string;
+    name: string;
+    total: number;
+    count: number;
+    percentage: number;
+  }>;
+  trend: Array<{
+    date: string;
+    total: number;
+    count: number;
+  }>;
+  topExpenses: Array<{
+    id: string;
+    amount: number;
+    expenseDate: string;
+    paidTo: string;
+    note?: string | null;
+    paymentMode: string;
+    verified: boolean;
+    categoryName: string;
+  }>;
+  range: {
+    type: string;
+    startDate: string;
+    endDate: string;
+    diffDays: number;
+  };
+}
+
+export interface CreateUpExpenseInput {
+  expenseDate: string;
+  amount: number;
+  categoryId: string;
+  paymentMode?: string;
+  paidTo: string;
+  note?: string | null;
+  receiptPath?: string | null;
+}
+
+export interface UpdateUpExpenseInput {
+  expenseDate?: string;
+  amount?: number;
+  categoryId?: string;
+  paymentMode?: string;
+  paidTo?: string;
+  note?: string | null;
+  receiptPath?: string | null;
+}
+
+export interface CreateUpCategoryInput {
+  name: string;
+  sortOrder?: number;
+}
+
+export interface UpdateUpCategoryInput {
+  name?: string;
+  active?: boolean;
+  sortOrder?: number;
+}
+
+export interface ReconcileCashInput {
+  cashDate: string;
+  openingBalance?: number;
+  actualClosing?: number | null;
+  notes?: string | null;
+  closed?: boolean;
+}

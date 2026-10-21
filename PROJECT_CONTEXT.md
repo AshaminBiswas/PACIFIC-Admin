@@ -6103,6 +6103,59 @@ A total of **115 new targeted B-tree indexes** were created across public schema
    - In `src/modules/quotations/quotations.service.ts` and `src/modules/sales/pi.service.ts`:
      - Enriched item mapping in `getPdfHtml` to forward `customModelName`, `customSpecsJson`, `isCustom`, and `hsnSac` to the PDF renderer.
 
+---
+
+## 114. UP Daily Cash Expense Module (Petty Cash Ledger, Vouchers & Reconciliations)
+
+### 114.1 Objective & Security Model
+- **Zero Data Loss Guarantee**: Complete migration of historical Uttar Pradesh / site petty cash expense records from legacy PRC (`D:\admin` / `D:\PRC-Backend`) into Pacific Admin (`D:\PACIFIC-Admin`) and Pacific Backend (`D:\PACIFIC-Backend`).
+- **Super Admin Only Access**: Strictly enforced role-based access for `SUPER_ADMIN`. Other administrative and operations roles receive HTTP 403 Forbidden on backend routes, and navigation items / routes are inaccessible in the frontend.
+- **Mobile-First UX / Native Mobile App Feel**:
+  - Fully responsive table-to-card layout transitions for screens $<768\text{px}$.
+  - Compliant touch targets ($\ge 48\text{px}$) with tactile interaction feedback.
+  - Floating Action Button (FAB) on mobile for instant 1-tap voucher creation.
+  - Quick action bottom sheet and elevated center bottom dock icon in `AdminLayout.tsx`.
+- **Pacific Dark Enterprise Palette**:
+  - Obsidian Dark Canvas: `#030213`
+  - Container & Modal Surfaces: `#0f0e26` / `#121226`
+  - Brand Green: `#7FB706`
+  - Vibrant Lime Neon Accents: `#B5F823`
+  - Zero leftover indigo or slate blue from legacy PRC admin.
+
+### 114.2 Database Schema & Verified Migration Counts
+PostgreSQL tables provisioned in Supabase via Prisma and baseline DDL:
+1. `up_expense_categories`: Master expense classifications.
+2. `up_expenses`: Daily expense transaction records with amount, category FK, payment mode, vendor/recipient, date, voucher number, attachment URL, verification status, and timestamps.
+3. `up_cash_days`: Daily petty cash float management and cash-in-hand end-of-day physical reconciliation with automated surplus/deficit tracking.
+4. `up_expense_audit`: Immutable audit log recording every create, update, delete, verify, and reconcile action with client IP and user agent.
+5. `up_expense_access`: Explicit user access permissions.
+
+**Verified Historical Migration Metrics**:
+- **8 Categories**: 100% preserved.
+- **76 Expense Records**: Total amount **₹3,21,235.00** migrated with zero discrepancy.
+- **1 Cash Day Reconciliation**: Preserved intact.
+- **80 Historical Audit Records**: Preserved with foreign key alignment to Super Admin Ashamin Biswas (`5c4569f6-c6e8-484f-bf6b-c4fd3cf85d21`).
+
+### 114.3 Backend Implementation (`D:\PACIFIC-Backend`)
+- **Schema & Validation**: `src/modules/up/up.schema.ts` (Zod schemas for queries, expense creation, category management, and cash reconciliation).
+- **Security Middleware**: `src/modules/up/up.middleware.ts` (`requireUPSuperAdmin` enforcing `user.role === 'SUPER_ADMIN'`).
+- **Service Layer**: `src/modules/up/up.service.ts` (Transactions, KPI aggregation, velocity trend, immutable audit logging).
+- **Export Engine**: `src/modules/up/up-export.service.ts` (ExcelJS styled with Pacific `#030213` canvas, `#7FB706` headers, and `#B5F823` total badges).
+- **Controller & Routes**: `src/modules/up/up.controller.ts` & `src/modules/up/up.routes.ts` mounted at `/api/v1/up`.
+
+### 114.4 Frontend Implementation (`d:\PACIFIC-Admin`)
+- **Types**: `src/types/admin.ts` (`UPExpense`, `UPCategory`, `UPCashDay`, `UPAuditRecord`, `UPDashboardData`, `AdminView: 'up-expenses'`).
+- **API Client**: `src/api/upApi.ts` re-exported in `src/api/index.ts` and `src/api/services.ts`.
+- **RBAC**: `src/utils/rbacNavigation.ts` mapping `'/admin/dashboard/up-expenses': ['SUPER_ADMIN']`.
+- **Sidebar & Layout**: `src/components/layout/AdminSidebar.tsx` (Finance section) and `src/components/layout/AdminLayout.tsx` (elevated bottom dock button for mobile Super Admin).
+- **Main View & Modals**: `src/pages/up/UPExpensesPage.tsx` with:
+  - `AddEditExpenseModal.tsx`: Currency input, category picker, instant image attachment preview.
+  - `ExpenseDetailModal.tsx`: Voucher inspect, verification toggle, print voucher, delete prompt.
+  - `ReconcileCashModal.tsx`: Opening float, total cash outflow, actual physical count, live surplus/deficit calculation.
+  - `CategoryManagerModal.tsx`: Color badge selection, description, CRUD.
+  - `UPPresentationModal.tsx`: Executive board presentation, velocity trend chart, standalone HTML download.
+
+
 
 
 

@@ -21,4 +21,5 @@ export * from './leadManagementApi';
 export * from './hardwareInventoryApi';
 export * from './installerPaymentsService';
 export * from './employeeService';
+export * from './upApi';
 

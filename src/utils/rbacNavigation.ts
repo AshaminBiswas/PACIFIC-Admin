@@ -44,6 +44,8 @@ export const PATH_PERMISSIONS: Record<string, UserRole[]> = {
   '/admin/dashboard/installer-payments': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'SALES_MANAGER', 'VIEWER'],
   '/admin/dashboard/installer-payments/new': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'SALES_MANAGER'],
   '/admin/dashboard/employees': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'SALES_MANAGER', 'VIEWER'],
+  '/admin/dashboard/up-expenses': ['SUPER_ADMIN'],
+  '/admin/dashboard/up-expenses/new': ['SUPER_ADMIN'],
 
   // ─── Export & Global Trade Suite ──────────────────────────────────────────
   '/admin/dashboard/export': ['SUPER_ADMIN', 'ADMIN', 'EXPORT_MANAGER', 'VIEWER'],

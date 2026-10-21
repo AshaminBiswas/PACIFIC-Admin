@@ -13,6 +13,7 @@ import {
   CreditCard,
   Clock,
   BellRing,
+  Wallet,
   X,
 } from 'lucide-react';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
@@ -194,6 +195,14 @@ export const AdminLayout: React.FC = () => {
         {(() => {
           const dockItems = (() => {
             switch (user?.role) {
+              case 'SUPER_ADMIN':
+                return [
+                  { name: 'Overview', path: '/admin/dashboard', icon: LayoutDashboard },
+                  { name: 'CRM', path: '/admin/dashboard/customers', icon: Users },
+                  { name: 'UP Expense', path: '/admin/dashboard/up-expenses', icon: Wallet, elevated: true },
+                  { name: 'Invoices', path: '/admin/dashboard/proforma-invoices', icon: Receipt },
+                  { name: 'Dues', path: '/admin/dashboard/payments', icon: CreditCard },
+                ];
               case 'SALES_MANAGER':
                 return [
                   { name: 'Overview', path: '/admin/dashboard', icon: LayoutDashboard },
