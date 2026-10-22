@@ -14,6 +14,11 @@ import type {
   CreateWacrmContactInput,
   SendWacrmMessageInput,
   CreateWacrmDealInput,
+  WacrmAutomation,
+  WacrmAutomationLog,
+  WacrmFlow,
+  WacrmQuickReply,
+  WacrmAiConfig,
 } from '../types/admin';
 
 export const wacrmApi = {
@@ -93,7 +98,7 @@ export const wacrmApi = {
     return res.data;
   },
 
-  updateDeal: async (id: string, data: { stageId?: string; title?: string; value?: number; status?: string; notes?: string }) => {
+  updateDeal: async (id: string, data: { stageId?: string; title?: string; value?: number; status?: string; notes?: string; expectedCloseDate?: string }) => {
     const res = await apiClient.patch<{ success: boolean; data: any }>(`/wacrm/deals/${id}`, data);
     return res.data;
   },
@@ -130,6 +135,97 @@ export const wacrmApi = {
 
   saveConfig: async (data: { phoneNumberId: string; wabaId?: string; accessToken: string; verifyToken?: string }) => {
     const res = await apiClient.post<{ success: boolean; data: any }>('/wacrm/config', data);
+    return res.data;
+  },
+
+  testConnection: async () => {
+    const res = await apiClient.post<{ success: boolean; data: any }>('/wacrm/config/test');
+    return res.data;
+  },
+
+  createTemplate: async (data: { name: string; category: string; language?: string; bodyText: string; buttons?: any }) => {
+    const res = await apiClient.post<{ success: boolean; data: WacrmTemplate }>('/wacrm/templates', data);
+    return res.data;
+  },
+
+  reactToMessage: async (messageId: string, emoji: string | null) => {
+    const res = await apiClient.patch<{ success: boolean; data: any }>(`/wacrm/messages/${messageId}/react`, { emoji });
+    return res.data;
+  },
+
+  getAutomations: async () => {
+    const res = await apiClient.get<{ success: boolean; data: WacrmAutomation[] }>('/wacrm/automations');
+    return res.data;
+  },
+
+  createAutomation: async (data: { name: string; description?: string; triggerType: string; triggerConfig?: any; isActive?: boolean }) => {
+    const res = await apiClient.post<{ success: boolean; data: WacrmAutomation }>('/wacrm/automations', data);
+    return res.data;
+  },
+
+  updateAutomation: async (id: string, data: { name?: string; description?: string; triggerType?: string; triggerConfig?: any; isActive?: boolean }) => {
+    const res = await apiClient.patch<{ success: boolean; data: any }>(`/wacrm/automations/${id}`, data);
+    return res.data;
+  },
+
+  deleteAutomation: async (id: string) => {
+    const res = await apiClient.delete<{ success: boolean; data: any }>(`/wacrm/automations/${id}`);
+    return res.data;
+  },
+
+  getAutomationLogs: async (automationId?: string) => {
+    const query = automationId ? `?automationId=${encodeURIComponent(automationId)}` : '';
+    const res = await apiClient.get<{ success: boolean; data: WacrmAutomationLog[] }>(`/wacrm/automations/logs${query}`);
+    return res.data;
+  },
+
+  getFlows: async () => {
+    const res = await apiClient.get<{ success: boolean; data: WacrmFlow[] }>('/wacrm/flows');
+    return res.data;
+  },
+
+  getFlow: async (id: string) => {
+    const res = await apiClient.get<{ success: boolean; data: WacrmFlow }>(`/wacrm/flows/${id}`);
+    return res.data;
+  },
+
+  saveFlow: async (data: { id?: string; name: string; description?: string; status?: string; triggerType?: string; nodes: any[]; edges: any[] }) => {
+    const res = await apiClient.post<{ success: boolean; data: any }>('/wacrm/flows', data);
+    return res.data;
+  },
+
+  deleteFlow: async (id: string) => {
+    const res = await apiClient.delete<{ success: boolean; data: any }>(`/wacrm/flows/${id}`);
+    return res.data;
+  },
+
+  getQuickReplies: async () => {
+    const res = await apiClient.get<{ success: boolean; data: WacrmQuickReply[] }>('/wacrm/quick-replies');
+    return res.data;
+  },
+
+  createQuickReply: async (data: { shortcut: string; title: string; kind?: string; contentText?: string; interactivePayload?: any }) => {
+    const res = await apiClient.post<{ success: boolean; data: WacrmQuickReply }>('/wacrm/quick-replies', data);
+    return res.data;
+  },
+
+  deleteQuickReply: async (id: string) => {
+    const res = await apiClient.delete<{ success: boolean; data: any }>(`/wacrm/quick-replies/${id}`);
+    return res.data;
+  },
+
+  getAiConfig: async () => {
+    const res = await apiClient.get<{ success: boolean; data: WacrmAiConfig }>('/wacrm/ai/config');
+    return res.data;
+  },
+
+  saveAiConfig: async (data: Partial<WacrmAiConfig> & { apiKey?: string }) => {
+    const res = await apiClient.post<{ success: boolean; data: any }>('/wacrm/ai/config', data);
+    return res.data;
+  },
+
+  generateAiDraft: async (conversationId: string) => {
+    const res = await apiClient.post<{ success: boolean; data: { draft: string; provider: string; model: string } }>('/wacrm/ai/draft', { conversationId });
     return res.data;
   },
 };

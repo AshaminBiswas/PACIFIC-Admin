@@ -3197,12 +3197,15 @@ export interface WacrmMessage {
   conversationId: string;
   senderType: 'customer' | 'agent' | 'bot';
   senderName?: string | null;
-  contentType: 'text' | 'image' | 'document' | 'audio' | 'template' | 'location';
+  contentType: 'text' | 'image' | 'document' | 'audio' | 'template' | 'location' | 'interactive';
   contentText?: string | null;
   mediaUrl?: string | null;
   templateName?: string | null;
   messageId?: string | null;
   status: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+  reaction?: string | null;
+  interactivePayload?: any;
+  aiGenerated?: boolean;
   createdAt: string;
 }
 
@@ -3324,4 +3327,66 @@ export interface CreateWacrmDealInput {
   expectedCloseDate?: string | null;
   status?: string;
 }
+
+export interface WacrmAutomation {
+  id: string;
+  name: string;
+  description?: string | null;
+  triggerType: string;
+  triggerConfig: any;
+  isActive: boolean;
+  executionCount: number;
+  lastExecutedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WacrmAutomationLog {
+  id: string;
+  automationId: string;
+  contactId?: string | null;
+  triggerEvent: string;
+  stepsExecuted: any[];
+  status: string;
+  errorMessage?: string | null;
+  createdAt: string;
+  contactName?: string | null;
+  contactPhone?: string | null;
+}
+
+export interface WacrmFlow {
+  id: string;
+  name: string;
+  description?: string | null;
+  status: string;
+  triggerType: string;
+  runsCount: number;
+  nodes: any[];
+  edges: any[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WacrmQuickReply {
+  id: string;
+  shortcut: string;
+  title: string;
+  kind: 'text' | 'interactive';
+  contentText?: string | null;
+  interactivePayload?: any;
+  createdAt: string;
+}
+
+export interface WacrmAiConfig {
+  id?: string;
+  provider: string;
+  model: string;
+  systemPrompt: string;
+  temperature: number;
+  autoReplyEnabled: boolean;
+  maxAutoRepliesPerThread: number;
+  knowledgeBase: { title: string; content: string }[];
+  updatedAt?: string;
+}
+
 

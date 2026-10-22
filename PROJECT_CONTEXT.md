@@ -60,6 +60,7 @@ D:\PACIFIC-Admin\
 │   │   ├── cmsApi.ts                 # CMS suite: services, blogs, gallery, banners, catalogs, testimonials
 │   │   ├── exportApi.ts              # Global Trade & Export API client: Orders, Shipments, Forex, CRM, Realization, Email Hub
 │   │   ├── boardInventoryApi.ts      # Board Inventory API client: 4 suppliers, inwards, auto-deductions, adjustments, reports
+│   │   ├── wacrmApi.ts               # WhatsApp CRM API client: Shared Inbox, Contacts, Pipelines, Broadcasts, Automations, Flows, AI Assistant
 │   │   ├── index.ts                  # Master API index re-exporting all domain services
 │   │   └── services.ts               # Backward-compatible facade re-exporting all APIs
 │   ├── types/
@@ -91,11 +92,19 @@ D:\PACIFIC-Admin\
 │   │       │   ├── CreateBoardModal.tsx   # New SKU master creation wizard
 │   │       │   ├── BoardLedgerModal.tsx   # Movement audit ledger with filter & adjust actions
 │   │       │   └── BoardReportsModal.tsx  # Visual analytics, vector PDF print, and Excel (.xlsx) export
-│   │       └── finance/              # Customer Ledger, Payments & Recovery Modals:
-│   │           ├── RecordPaymentModal.tsx    # Live payment recording modal with Bank A/C copy & ledger reflection
-│   │           ├── ManualLedgerEntryModal.tsx# Pre-ERP historical transaction modal (Past Invoice/Opening Balance/Advance)
-│   │           ├── SendLedgerEmailModal.tsx  # Manual statement & reminder notice email dispatch
-│   │           └── LogFollowupModal.tsx      # Omnichannel touchpoint logger (Phone, WhatsApp, Visit, Email)
+│   │       ├── finance/              # Customer Ledger, Payments & Recovery Modals:
+│   │       │   ├── RecordPaymentModal.tsx    # Live payment recording modal with Bank A/C copy & ledger reflection
+│   │       │   ├── ManualLedgerEntryModal.tsx# Pre-ERP historical transaction modal (Past Invoice/Opening Balance/Advance)
+│   │       │   ├── SendLedgerEmailModal.tsx  # Manual statement & reminder notice email dispatch
+│   │       │   └── LogFollowupModal.tsx      # Omnichannel touchpoint logger (Phone, WhatsApp, Visit, Email)
+│   │       └── wacrm/                # WhatsApp CRM (WACRM) Production Subsystem:
+│   │           ├── WacrmInbox.tsx    # Shared WhatsApp inbox, voice note recorder, reactions, AI reply draft, contact 360 drawer
+│   │           ├── WacrmContacts.tsx # Audience directory, E.164 normalization, tag pills, CSV import/export
+│   │           ├── WacrmPipelines.tsx# Kanban sales pipeline stages, deal cards, ₹ INR sums & stage transitions
+│   │           ├── WacrmBroadcasts.tsx# 4-step broadcast campaign wizard, audience filtering, variable personalizer, telemetry
+│   │           ├── WacrmAutomations.tsx# No-code automation rules, keyword triggers, instant greetings, audit logs
+│   │           ├── WacrmFlows.tsx    # Interactive visual WhatsApp flows canvas, question nodes, buttons, simulation tester
+│   │           └── WacrmSettings.tsx # Meta WhatsApp Cloud API credentials, test connection, template manager, AI knowledge base
 │   ├── lib/
 │   │   ├── supabase.ts               # Supabase client & storage utilities
 │   │   ├── database.types.ts         # Supabase table definitions
@@ -179,6 +188,7 @@ D:\PACIFIC-Admin\
 | `/admin` / `/login` | `AdminLogin` | **Public** | Admin authentication gateway |
 | `/admin/dashboard` | `AdminOverview` | Protected | KPI cards, quick actions, recent activity |
 | `/admin/dashboard/profile` | `AdminProfilePage` | Protected | Dedicated Admin Profile Hub: User details, 2FA status, backup codes recovery, active session management & remote device revocation, password change, Verify QR shortcut, PWA native install, and security sign-out |
+| `/admin/dashboard/wacrm` | `WACRMPage` | Protected | Stage 00 WhatsApp CRM Console: Shared Inbox, Audience Directory, Sales Pipelines & Kanban, Broadcast Campaigns, No-Code Automations, Visual Flows, and Meta Cloud & AI Settings |
 | `/admin/dashboard/sales-quotations` | `SalesQuotationsPage` | Protected | Formal Sales Quotation Letter (`PPS/D/26-27/817`), narrative specs, SEZ validator, 1-click order convert |
 | `/admin/dashboard/sales-quotations/new` | `DraftQuotationPage` | Protected | Dedicated 4-step Quotation Letter Draft Wizard with full `localStorage` persistence |
 | `/admin/dashboard/sales-quotations/:id` | `SalesQuotationDetailPage` | Protected | Quotation 360 overview, action bar, line items & follow-up status |
