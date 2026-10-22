@@ -6206,6 +6206,40 @@ Provisioned 12 dedicated tables with `wacrm_` prefix:
   - **Broadcasts**: Campaign manager with delivery/read statistics.
   - **Meta API Config**: Cloud API credential manager and webhook setup.
 
+---
+
+## 115. Installer Payment & Advance Record Deletion & Balance Restoration Engine
+
+### 115.1 Architectural Overview & Problem Solved
+- **Problem**: When an advance payment was mistakenly recorded against an installer (or linked to a job bill), there was no capability to delete or reverse the payment record. Users were unable to correct wrongly entered disbursement sums or general upfront advances.
+- **Solution**: Implemented an atomic deletion and balance restoration system across `PACIFIC-Backend` and `PACIFIC-Admin`.
+
+### 115.2 Backend Deletion & Reversal Protocol (`PACIFIC-Backend`)
+- **Service (`installer-payments.service.ts`)**:
+  - Created `deleteInstallerPayment` (aliased as `deleteInstallerAdvance`).
+  - **Atomic Balance & Status Restoration**:
+    - If payment was linked to an `installerBill`, the bill's `advancePaid` and `amountPaid` are automatically reduced by `payment.amount`.
+    - `balanceDue` is recalculated (`Math.max(0, billTotal - newPaid)`).
+    - `paymentStatus` is recalculated (`CLEARED` vs `PARTIAL`).
+    - If no other advances remain, `advanceDate` and `advanceNote` are safely cleared.
+    - If unlinked (general upfront advance), the advance record is safely deleted.
+  - **Audit Logging**: Recorded in `audit_logs` (`module: 'InstallerPayments'`, `entityType: 'InstallerBillPayment'`, `action: 'DELETE'`).
+- **Controller & Routes (`installer-payments.controller.ts`, `installer-payments.routes.ts`)**:
+  - `DELETE /api/v1/installer-payments/advances/:id`
+  - `DELETE /api/v1/installer-payments/payments/:id`
+  - Protected with `authenticate` and `authorize('installer_payments.delete', ...)`.
+
+### 115.3 Frontend UI Integration (`PACIFIC-Admin`)
+- **API Client (`src/api/installerPaymentsService.ts`)**:
+  - Added `deleteAdvance(paymentId: string)` and `deletePayment(paymentId: string)`.
+- **View Suite (`src/pages/InstallerPaymentsPage.tsx`)**:
+  - **Advances Tab (Section A - Advance Disbursements Register)**: Added a delete button with `Trash2` icon in the `Action` column alongside "Settle Due".
+  - **Ledger Tab (Advance History Subtab)**: Added `Action` column with a direct delete button.
+  - **Ledger Tab (Payment Settlements Subtab)**: Added `Action` column with a direct delete button.
+  - **Bill 360 Details Drawer**: Added a "Payments & Advances" sub-section displaying each linked transaction with a trash icon for 1-click mistake correction.
+  - **Delete Confirmation Modal**: Contextual warning modal displaying amount in ₹ INR, contractor name, voucher note, and explanation that linked bill balances will be automatically restored. Immediate state refresh on success without full page reload.
+
+
 
 
 

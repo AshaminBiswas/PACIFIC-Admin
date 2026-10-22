@@ -158,6 +158,18 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
   const [billToDelete, setBillToDelete] = useState<InstallerBill | null>(null);
   const [isDeletingBill, setIsDeletingBill] = useState<boolean>(false);
 
+  // Advance & Payment Deletion State
+  const [paymentToDelete, setPaymentToDelete] = useState<{
+    id: string;
+    amount: number;
+    date: string;
+    installerName?: string;
+    billNo?: string | null;
+    isAdvance?: boolean;
+    note?: string | null;
+  } | null>(null);
+  const [isDeletingPayment, setIsDeletingPayment] = useState<boolean>(false);
+
   // Email Modal State
   const [billForEmail, setBillForEmail] = useState<InstallerBill | null>(null);
   const [emailRecipientInput, setEmailRecipientInput] = useState<string>('');
@@ -420,6 +432,42 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
       setActionNotice({ type: 'error', message: err.message || 'Failed to delete installer bill' });
     } finally {
       setIsDeletingBill(false);
+    }
+  };
+
+  // ─── Advance & Payment Record Deletion Handler ─────────────────────────────
+  const handleDeletePayment = async () => {
+    if (!paymentToDelete) return;
+    try {
+      setIsDeletingPayment(true);
+      await installerPaymentsService.deleteAdvance(paymentToDelete.id);
+      setActionNotice({
+        type: 'success',
+        message: `${paymentToDelete.isAdvance ? 'Advance disbursement' : 'Payment record'} of ${formatINR(paymentToDelete.amount)} deleted successfully. Restored balance on linked bill/ledger.`,
+      });
+      setPaymentToDelete(null);
+
+      // Refresh all dependent views
+      await loadAdvances(advancesInstallerFilter);
+      await loadBills(currentPage);
+      if (selectedLedgerInstallerId) {
+        await loadInstallerLedger(selectedLedgerInstallerId);
+      }
+      if (selectedBillForDetails) {
+        try {
+          const updated = await installerPaymentsService.getBill(selectedBillForDetails.id);
+          setSelectedBillForDetails(updated);
+        } catch {
+          // Handled gracefully
+        }
+      }
+    } catch (err: any) {
+      setActionNotice({
+        type: 'error',
+        message: err.message || 'Failed to delete payment/advance record',
+      });
+    } finally {
+      setIsDeletingPayment(false);
     }
   };
 
@@ -1503,22 +1551,42 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                           {adv.referenceNote || '-'}
                         </td>
                         <td className="py-3 px-4 text-right">
-                          {adv.bill && Number(adv.bill.balanceDue) > 0 ? (
+                          <div className="flex items-center justify-end gap-2">
+                            {adv.bill && Number(adv.bill.balanceDue) > 0 ? (
+                              <button
+                                onClick={() => {
+                                  const found = bills.find((b) => b.id === adv.billId);
+                                  if (found) {
+                                    setBillForPayment(found);
+                                    setPaymentAmount(String(found.balanceDue));
+                                  }
+                                }}
+                                className="px-2.5 py-1 bg-[#7FB706]/15 hover:bg-[#7FB706]/25 border border-[#7FB706]/30 text-[#B5F823] text-xs font-semibold rounded-lg cursor-pointer"
+                              >
+                                Settle Due
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-emerald-400 font-sans">Reconciled</span>
+                            )}
                             <button
-                              onClick={() => {
-                                const found = bills.find((b) => b.id === adv.billId);
-                                if (found) {
-                                  setBillForPayment(found);
-                                  setPaymentAmount(String(found.balanceDue));
-                                }
-                              }}
-                              className="px-2.5 py-1 bg-[#7FB706]/15 hover:bg-[#7FB706]/25 border border-[#7FB706]/30 text-[#B5F823] text-xs font-semibold rounded-lg cursor-pointer"
+                              type="button"
+                              onClick={() =>
+                                setPaymentToDelete({
+                                  id: adv.id,
+                                  amount: Number(adv.amount),
+                                  date: adv.paymentDate,
+                                  installerName: adv.installer?.name || adv.bill?.installerName || 'Installer',
+                                  billNo: adv.bill?.billNo || null,
+                                  isAdvance: true,
+                                  note: adv.referenceNote,
+                                })
+                              }
+                              title="Delete / Cancel Advance Record"
+                              className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
                             >
-                              Settle Due
+                              <Trash2 size={14} />
                             </button>
-                          ) : (
-                            <span className="text-[11px] text-emerald-400 font-sans">Reconciled</span>
-                          )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -2015,12 +2083,13 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                           <th className="py-3 px-4">Target Job / Bill Link</th>
                           <th className="py-3 px-4">Disbursement Notes / Purpose</th>
                           <th className="py-3 px-4 text-center">Status</th>
+                          <th className="py-3 px-4 text-right">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/5 text-gray-300 font-mono">
                         {(ledgerData.advances || []).length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="py-12 text-center text-gray-500 font-sans">
+                            <td colSpan={7} className="py-12 text-center text-gray-500 font-sans">
                               <Coins size={32} className="mx-auto text-amber-500/40 mb-2" />
                               <p className="font-medium text-gray-400">No advance disbursements found for this installer.</p>
                               <button
@@ -2069,6 +2138,27 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                                   DISBURSED
                                 </span>
                               </td>
+                              <td className="py-3 px-4 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setPaymentToDelete({
+                                      id: adv.id,
+                                      amount: Number(adv.amount),
+                                      date: adv.paymentDate,
+                                      installerName: ledgerData.installer.name,
+                                      billNo: adv.bill?.billNo || null,
+                                      isAdvance: true,
+                                      note: adv.referenceNote,
+                                    })
+                                  }
+                                  title="Delete / Cancel Advance Record"
+                                  className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 text-xs"
+                                >
+                                  <Trash2 size={13} />
+                                  <span className="hidden sm:inline">Delete</span>
+                                </button>
+                              </td>
                             </tr>
                           ))
                         )}
@@ -2104,12 +2194,13 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                           <th className="py-3 px-4 text-center">Payment Mode</th>
                           <th className="py-3 px-4">Reference / Remarks</th>
                           <th className="py-3 px-4 text-center">Status</th>
+                          <th className="py-3 px-4 text-right">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/5 text-gray-300 font-mono">
                         {(ledgerData.payments || []).length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="py-12 text-center text-gray-500 font-sans">
+                            <td colSpan={8} className="py-12 text-center text-gray-500 font-sans">
                               <CreditCard size={32} className="mx-auto text-emerald-500/40 mb-2" />
                               <p className="font-medium text-gray-400">No payment settlements recorded yet.</p>
                             </td>
@@ -2141,6 +2232,27 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                                 <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                                   SETTLED
                                 </span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setPaymentToDelete({
+                                      id: pmt.id,
+                                      amount: Number(pmt.amount),
+                                      date: pmt.paymentDate,
+                                      installerName: ledgerData.installer.name,
+                                      billNo: pmt.bill?.billNo || null,
+                                      isAdvance: false,
+                                      note: pmt.referenceNote,
+                                    })
+                                  }
+                                  title="Delete / Cancel Settlement Record"
+                                  className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 text-xs"
+                                >
+                                  <Trash2 size={13} />
+                                  <span className="hidden sm:inline">Delete</span>
+                                </button>
                               </td>
                             </tr>
                           ))
@@ -2904,6 +3016,69 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
               </div>
             </div>
 
+            {/* Payment & Advance Transactions History on this Bill */}
+            {selectedBillForDetails.payments && selectedBillForDetails.payments.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                    <CreditCard size={14} className="text-[#7FB706]" />
+                    Payments & Advances ({selectedBillForDetails.payments.length})
+                  </h4>
+                  <span className="text-[10px] text-gray-500">Trash icon deletes wrongly recorded vouchers</span>
+                </div>
+                <div className="divide-y divide-white/5 border border-white/5 rounded-xl overflow-hidden bg-[#121226]">
+                  {selectedBillForDetails.payments.map((pmt) => (
+                    <div key={pmt.id} className="p-3 flex items-center justify-between text-xs font-mono">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-sans ${
+                              pmt.isAdvance
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            }`}
+                          >
+                            {pmt.isAdvance ? 'ADVANCE' : 'SETTLEMENT'}
+                          </span>
+                          <span className="text-gray-400">{formatDate(pmt.paymentDate)}</span>
+                          <span className="text-gray-500">•</span>
+                          <span className="text-gray-400 font-sans">{pmt.paymentMode ? pmt.paymentMode.replace('_', ' ') : 'BANK TRANSFER'}</span>
+                        </div>
+                        {pmt.referenceNote && (
+                          <span className="text-[11px] text-gray-500 block truncate max-w-[240px] mt-0.5 font-sans">
+                            {pmt.referenceNote}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`font-bold ${pmt.isAdvance ? 'text-amber-400' : 'text-emerald-400'}`}>
+                          {formatINR(pmt.amount)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPaymentToDelete({
+                              id: pmt.id,
+                              amount: Number(pmt.amount),
+                              date: pmt.paymentDate,
+                              installerName: selectedBillForDetails.installerName,
+                              billNo: selectedBillForDetails.billNo,
+                              isAdvance: pmt.isAdvance,
+                              note: pmt.referenceNote,
+                            })
+                          }
+                          title="Delete / Cancel Record"
+                          className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Internal Audit Notes */}
             {selectedBillForDetails.notes && (
               <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-xs space-y-1">
@@ -3220,6 +3395,89 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: DELETE ADVANCE / PAYMENT RECORD ─────────────────────────── */}
+      {paymentToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4">
+          <div className="bg-[#0a091e] border border-rose-500/30 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                  <Trash2 size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-base">
+                    Delete {paymentToDelete.isAdvance ? 'Advance Disbursement' : 'Payment Record'}
+                  </h3>
+                  <p className="text-[11px] text-gray-400">Reversal & Balance Restoration Protocol</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPaymentToDelete(null)}
+                className="p-1 text-gray-400 hover:text-white cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl space-y-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-400">Amount to Remove:</span>
+                <span className="font-mono font-bold text-rose-400 text-sm">
+                  {formatINR(paymentToDelete.amount)}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-400">Installer:</span>
+                <span className="font-semibold text-white">{paymentToDelete.installerName || 'Certified Contractor'}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-400">Payment Date:</span>
+                <span className="text-gray-300 font-mono">{formatDate(paymentToDelete.date)}</span>
+              </div>
+              {paymentToDelete.billNo && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-400">Linked Job Bill:</span>
+                  <span className="font-mono font-bold text-[#B5F823]">{paymentToDelete.billNo}</span>
+                </div>
+              )}
+              {paymentToDelete.note && (
+                <div className="text-[11px] text-gray-400 pt-1 border-t border-rose-500/20 italic">
+                  Note: &quot;{paymentToDelete.note}&quot;
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-gray-300 leading-relaxed">
+              Are you sure you want to delete this {paymentToDelete.isAdvance ? 'advance payment' : 'payment record'}?
+              {paymentToDelete.billNo ? (
+                <> This will remove the recorded advance amount from Bill <strong className="text-white font-mono">{paymentToDelete.billNo}</strong> and automatically restore its balance due in full.</>
+              ) : (
+                <> This will permanently remove this advance voucher and reconcile the installer&apos;s statement balance.</>
+              )}
+            </p>
+
+            <div className="pt-2 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPaymentToDelete(null)}
+                className="px-4 py-2 text-xs font-medium text-gray-400 hover:text-white cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingPayment}
+                onClick={handleDeletePayment}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-lg shadow-rose-600/20 transition-all cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
+              >
+                <Trash2 size={14} />
+                {isDeletingPayment ? 'Deleting...' : 'Confirm & Delete'}
+              </button>
+            </div>
           </div>
         </div>
       )}

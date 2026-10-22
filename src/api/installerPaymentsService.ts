@@ -79,6 +79,16 @@ export const installerPaymentsService = {
     return res.data?.data || res.data;
   },
 
+  async deleteAdvance(paymentId: string): Promise<{ success: boolean; message?: string }> {
+    const res = await apiClient.delete<any>(`/installer-payments/advances/${encodeURIComponent(paymentId)}`);
+    return res.data?.data || res.data;
+  },
+
+  async deletePayment(paymentId: string): Promise<{ success: boolean; message?: string }> {
+    const res = await apiClient.delete<any>(`/installer-payments/payments/${encodeURIComponent(paymentId)}`);
+    return res.data?.data || res.data;
+  },
+
   async listAdvances(installerId?: string): Promise<InstallerAdvanceRecord[]> {
     try {
       const query = new URLSearchParams();
