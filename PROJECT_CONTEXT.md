@@ -6272,4 +6272,24 @@ Documented and synced `.env.example` templates across both frontend and backend:
      3. Non-blocking `unread_count` reset.
    - Initialized database performance composite indexes: `idx_wacrm_messages_conv_created (conversation_id, created_at ASC)`, `idx_wacrm_conversations_contact`, and `idx_wacrm_conversations_updated`.
 
+### 116.5 WhatsApp CRM Fixed-Window Layout & Scroll-Preservation Engine
+1. **Fixed Full-Height CRM Window Shell**:
+   - `AdminLayout.tsx`: Configured `isFlushPage` on `<main>` with `overflow-hidden flex flex-col h-full min-h-0` (and `pb-16 lg:pb-0` for mobile dock clearance), completely preventing outer browser window scrolling. The master top bar and mobile navigation dock remain permanently anchored.
+   - `WACRMPage.tsx`: Styled root container as `h-full w-full overflow-hidden flex flex-col`. Master top header and 7-tab sub-module strip are pinned with `flex-shrink-0 z-40`.
+   - Cleaned top bar: Removed `"Zero-Auth Core"`, `"Direct Simulator Mode"`, and `"Full-featured WhatsApp Business Suite"`, leaving a clean enterprise heading `CRM` with operator name and Meta Cloud connection status.
+2. **Independent Dual-Pane Scrolling (`src/components/wacrm/WacrmInbox.tsx`)**:
+   - **Left Contacts Column**: Search and status filter chips are pinned (`flex-shrink-0 z-10`), while the conversation list scrolls independently (`flex-1 min-h-0 overflow-y-auto divide-y divide-white/5 overscroll-contain`).
+   - **Right Chat Column**: Thread header is pinned (`flex-shrink-0 z-20`), bottom message composer is pinned (`flex-shrink-0 z-20`), and the message canvas scrolls independently (`flex-1 min-h-0 overflow-y-auto overscroll-contain relative`).
+   - **Contact 360 Drawer**: Bounded scroll container (`h-full min-h-0 overflow-y-auto`) preserving outer viewport bounds.
+3. **Scroll-Preservation & Unforced Scrolling Engine**:
+   - Eliminated unconstrained `scrollIntoView({ behavior: 'smooth' })` that triggered unconditionally on every message array change, which previously interrupted users reading message history by repeatedly snapping to the bottom on background revalidation / 10-second polling ticks.
+   - Built dual-mode scroll controller:
+     - `messagesContainerRef` with scroll listener `handleMessagesScroll` dynamically computing `distanceFromBottom` (`scrollHeight - scrollTop - clientHeight`).
+     - Tracks `isNearBottomRef` (`distanceFromBottom < 100px`).
+     - On conversation switch (`activeConversationId`), performs instantaneous jump to bottom (`container.scrollTop = container.scrollHeight`).
+     - When `messages` updates (background sync, delivery ticks, reaction badges): auto-scrolls **only** if `isNearBottomRef.current === true`. If the user is inspecting previous messages (`distanceFromBottom >= 100px`), the scroll position is strictly preserved.
+     - When the operator sends an outbound message (`handleSendMessage`): sets `isNearBottomRef.current = true` and smooth scrolls to the bottom.
+     - Added floating WhatsApp-style scroll-to-bottom action button with `ChevronDown` icon, visible whenever `distanceFromBottom > 150px`.
+
+
 

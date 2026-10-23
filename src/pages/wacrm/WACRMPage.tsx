@@ -206,11 +206,11 @@ export default function WACRMPage() {
   };
 
   return (
-    <div className="min-h-full bg-[#030213] text-white flex flex-col font-sans">
+    <div className="h-full w-full bg-[#030213] text-white flex flex-col font-sans overflow-hidden">
       {/* ─── Master Enterprise Top Header ─────────────────────────────────── */}
-      <div className="border-b border-white/10 bg-[#0c0a24]/95 backdrop-blur-md px-4 sm:px-6 py-3 sticky top-0 z-40">
+      <div className="border-b border-white/10 bg-[#0c0a24]/95 backdrop-blur-md px-4 sm:px-6 py-2.5 flex-shrink-0 z-40">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Brand & Badge */}
+          {/* Brand & Clean Title */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#7FB706] to-[#B5F823] p-0.5 shadow-lg shadow-[#7FB706]/20">
               <div className="w-full h-full bg-[#07051f] rounded-[10px] flex items-center justify-center text-[#B5F823]">
@@ -222,24 +222,15 @@ export default function WACRMPage() {
                 <h1 className="text-base sm:text-lg font-black text-white tracking-tight">
                   CRM
                 </h1>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#7FB706]/20 text-[#B5F823] border border-[#7FB706]/40 uppercase tracking-widest">
-                  Zero-Auth Core
-                </span>
-                {config?.status === 'connected' ? (
+                {config?.status === 'connected' && (
                   <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     Meta Cloud Active
                   </span>
-                ) : (
-                  <span className="flex items-center gap-1 text-[11px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                    Direct Simulator Mode
-                  </span>
                 )}
               </div>
               <p className="text-xs text-gray-400 mt-0.5">
-                Full-featured WhatsApp Business Suite &bull; Signed In Operator:{' '}
-                <strong className="text-white">{operatorName}</strong>
+                Operator: <strong className="text-white">{operatorName}</strong>
               </p>
             </div>
           </div>
@@ -305,7 +296,7 @@ export default function WACRMPage() {
       </div>
 
       {/* ─── Main Tab Body ─────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {activeTab === 'inbox' && (
           <WacrmInbox
             conversations={conversations}

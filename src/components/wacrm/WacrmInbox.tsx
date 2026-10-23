@@ -126,12 +126,65 @@ export default function WacrmInbox({
   const [isSavingNotes, setIsSavingNotes] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // ─── Auto-scroll Messages to bottom ─────────────────────────────────────────
+  const isNearBottomRef = useRef<boolean>(true);
+  const isInitialLoadRef = useRef<boolean>(true);
+  const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
+
+  // ─── Scroll to bottom helper ────────────────────────────────────────────────
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    if (behavior === 'smooth') {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth',
+      });
+    } else {
+      container.scrollTop = container.scrollHeight;
+    }
+    isNearBottomRef.current = true;
+    setShowScrollBottomBtn(false);
+  }, []);
+
+  // ─── Track user scroll in messages canvas ────────────────────────────────────
+  const handleMessagesScroll = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    // Consider near bottom if within 100px
+    const nearBottom = distanceFromBottom < 100;
+    isNearBottomRef.current = nearBottom;
+    setShowScrollBottomBtn(distanceFromBottom > 150);
+  }, []);
+
+  // ─── Reset scroll state on conversation switch ──────────────────────────────
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    isInitialLoadRef.current = true;
+    isNearBottomRef.current = true;
+    setShowScrollBottomBtn(false);
+  }, [activeConversationId]);
+
+  // ─── Auto-scroll Messages to bottom (preserves position when reading history) ─
+  useEffect(() => {
+    if (messages.length === 0) return;
+
+    if (isInitialLoadRef.current) {
+      // First render of messages for this conversation: jump to bottom instantly
+      const timer = setTimeout(() => {
+        scrollToBottom('auto');
+        isInitialLoadRef.current = false;
+      }, 50);
+      return () => clearTimeout(timer);
+    } else if (isNearBottomRef.current) {
+      // User is actively reading at the bottom: smooth scroll for incoming message
+      scrollToBottom('smooth');
+    }
+    // If isNearBottomRef.current is false, user has scrolled up to view previous messages:
+    // DO NOT TOUCH the scroll position!
+  }, [messages, scrollToBottom]);
 
   // ─── Sync active conversation object ────────────────────────────────────────
   useEffect(() => {
@@ -226,6 +279,8 @@ export default function WacrmInbox({
         // Optimistic UI & Cache append (0ms latency)
         setMessages((prev) => [...prev, newMsg]);
         wacrmCache.appendCachedMessage(activeConversationId, newMsg);
+        isNearBottomRef.current = true;
+        setTimeout(() => scrollToBottom('smooth'), 50);
       }
 
       setMessageInput('');
@@ -392,7 +447,7 @@ export default function WacrmInbox({
   };
 
   return (
-    <div className="flex-1 flex w-full h-[calc(100dvh-195px)] lg:h-[calc(100vh-135px)] overflow-hidden bg-[#030213] relative">
+    <div className="flex-1 flex w-full h-full min-h-0 overflow-hidden bg-[#030213] relative">
       {/* ──────────────────────────────────────────────────────────────────────────
           COLUMN 1: Conversation List
           - On Mobile (< md): Hidden when a conversation is active (activeConversationId != null)
@@ -401,10 +456,10 @@ export default function WacrmInbox({
       <div
         className={`${
           activeConversationId ? 'hidden md:flex' : 'flex'
-        } w-full md:w-80 lg:w-96 flex-shrink-0 border-r border-white/10 flex-col bg-[#07051f]/80 backdrop-blur-md h-full min-h-0`}
+        } w-full md:w-80 lg:w-96 flex-shrink-0 border-r border-white/10 flex-col bg-[#07051f]/80 backdrop-blur-md h-full min-h-0 overflow-hidden`}
       >
-        {/* Search & Filter Header */}
-        <div className="p-3 border-b border-white/10 space-y-2 bg-[#0a0826]/90">
+        {/* Search & Filter Header (Fixed at top of contacts panel) */}
+        <div className="p-3 border-b border-white/10 space-y-2 bg-[#0a0826]/90 flex-shrink-0 z-10">
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
             <input
@@ -442,8 +497,8 @@ export default function WacrmInbox({
           </div>
         </div>
 
-        {/* Scrollable Conversation List */}
-        <div className="flex-1 overflow-y-auto divide-y divide-white/5 overscroll-contain">
+        {/* Scrollable Conversation List (Independently scrollable) */}
+        <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-white/5 overscroll-contain">
           {filteredConversations.length === 0 ? (
             <div className="p-8 text-center text-gray-400 text-xs">
               <MessageSquare className="w-8 h-8 mx-auto text-gray-600 mb-2 stroke-1" />
@@ -539,11 +594,11 @@ export default function WacrmInbox({
       <div
         className={`${
           activeConversationId ? 'flex' : 'hidden md:flex'
-        } flex-1 flex-col bg-[#05031a] relative h-full min-h-0 min-w-0`}
+        } flex-1 flex-col bg-[#05031a] relative h-full min-h-0 min-w-0 overflow-hidden`}
       >
         {activeConversation ? (
           <>
-            {/* ─── Thread Header (WhatsApp Real App Style) ─── */}
+            {/* ─── Thread Header (WhatsApp Real App Style - Fixed at top) ─── */}
             <div className="px-3 sm:px-4 py-2.5 border-b border-white/10 bg-[#0c0a24]/95 backdrop-blur-md flex items-center justify-between gap-2 z-20 flex-shrink-0">
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 {/* Mobile Back Button (Returns to Conversation List) */}
@@ -632,8 +687,12 @@ export default function WacrmInbox({
               </div>
             </div>
 
-            {/* ─── Messages Canvas with WhatsApp Obsidian Pattern ─── */}
-            <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-3 bg-[radial-gradient(#1a1745_1px,transparent_1px)] [background-size:20px_20px] overscroll-contain">
+            {/* ─── Messages Canvas with WhatsApp Obsidian Pattern (Independently scrollable) ─── */}
+            <div
+              ref={messagesContainerRef}
+              onScroll={handleMessagesScroll}
+              className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-4 space-y-3 bg-[radial-gradient(#1a1745_1px,transparent_1px)] [background-size:20px_20px] overscroll-contain relative"
+            >
               {loadingMessages ? (
                 <div className="flex flex-col items-center justify-center h-full text-gray-400 text-xs">
                   <RefreshCw className="w-6 h-6 animate-spin mb-2 text-[#7FB706]" />
@@ -822,6 +881,19 @@ export default function WacrmInbox({
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Floating WhatsApp-Style Scroll-to-Bottom Button */}
+            {showScrollBottomBtn && (
+              <button
+                type="button"
+                onClick={() => scrollToBottom('smooth')}
+                className="absolute bottom-20 right-5 z-30 p-2.5 rounded-full bg-[#12102f]/95 border border-[#7FB706]/60 text-[#B5F823] shadow-2xl hover:bg-[#1a1745] hover:scale-110 active:scale-95 transition-all flex items-center justify-center cursor-pointer group backdrop-blur-md"
+                title="Scroll to latest messages"
+                aria-label="Scroll to bottom"
+              >
+                <ChevronDown className="w-5 h-5 text-[#B5F823] transition-transform group-hover:translate-y-0.5" />
+              </button>
+            )}
+
             {/* ─── Canned / Quick Reply Popover Menu ─── */}
             {showQuickReplyMenu && (
               <div className="absolute bottom-20 left-4 right-4 max-w-md bg-[#131130] border border-[#7FB706]/40 rounded-2xl shadow-2xl p-2 z-30 space-y-1 backdrop-blur-md">
@@ -844,8 +916,8 @@ export default function WacrmInbox({
               </div>
             )}
 
-            {/* ─── WhatsApp Style Bottom Composer ─── */}
-            <div className="p-2 sm:p-3 border-t border-white/10 bg-[#0c0a24]/95 backdrop-blur-md flex-shrink-0">
+            {/* ─── WhatsApp Style Bottom Composer (Fixed at bottom) ─── */}
+            <div className="p-2 sm:p-3 border-t border-white/10 bg-[#0c0a24]/95 backdrop-blur-md flex-shrink-0 z-20">
               {/* Selected Template / Attachment / AI Banner Chips */}
               {(selectedTemplate || attachmentPreview || aiDraftBadge) && (
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -1009,7 +1081,7 @@ export default function WacrmInbox({
           />
 
           <div
-            className={`fixed xl:static top-0 right-0 bottom-0 z-50 xl:z-10 w-80 md:w-88 flex-shrink-0 border-l border-white/10 bg-[#07051f]/95 backdrop-blur-md p-4 flex flex-col overflow-y-auto space-y-4 shadow-2xl transition-transform duration-200 h-full`}
+            className={`fixed xl:static top-0 right-0 bottom-0 z-50 xl:z-10 w-80 md:w-88 flex-shrink-0 border-l border-white/10 bg-[#07051f]/95 backdrop-blur-md p-4 flex flex-col overflow-y-auto space-y-4 shadow-2xl transition-transform duration-200 h-full min-h-0`}
           >
             {/* Header & Close Drawer */}
             <div className="flex items-center justify-between pb-3 border-b border-white/10">

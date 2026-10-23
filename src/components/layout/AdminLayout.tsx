@@ -182,11 +182,13 @@ export const AdminLayout: React.FC = () => {
 
         {/* Dynamic Page Outlet — Independently Scrollable Right Side Content */}
         <main
-          className={`flex-1 overflow-y-auto overflow-x-hidden overscroll-contain min-h-0 w-full ${
-            isFlushPage ? 'p-0 pb-16 lg:pb-0' : 'p-4 lg:p-8 pb-24 lg:pb-8'
+          className={`flex-1 min-h-0 w-full ${
+            isFlushPage
+              ? 'p-0 pb-16 lg:pb-0 overflow-hidden flex flex-col h-full'
+              : 'overflow-y-auto overflow-x-hidden overscroll-contain p-4 lg:p-8 pb-24 lg:pb-8'
           }`}
         >
-          <div className={isFlushPage ? 'w-full' : 'max-w-7xl mx-auto w-full'}>
+          <div className={isFlushPage ? 'w-full h-full flex flex-col min-h-0 flex-1 overflow-hidden' : 'max-w-7xl mx-auto w-full'}>
             <ViewErrorBoundary onResetView={() => navigate('/admin/dashboard')}>
               <Suspense fallback={<PageLoader />}>
                 <Outlet />
