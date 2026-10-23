@@ -151,7 +151,8 @@ export const AdminLayout: React.FC = () => {
 
   const isFlushPage =
     location.pathname.startsWith('/admin/dashboard/wacrm') ||
-    location.pathname.startsWith('/admin/dashboard/crm-leads');
+    location.pathname.startsWith('/admin/dashboard/crm-leads') ||
+    location.pathname.startsWith('/admin/dashboard/mail');
 
   const currentTitle = allNavItems.find((i) => isActive(i.path))?.name || 'Dashboard';
 

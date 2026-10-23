@@ -37,6 +37,7 @@ export type AdminView =
   | 'installer-payments-new'
   | 'up-expenses'
   | 'wacrm'
+  | 'mail'
   | 'settings';
 
 export type UserRole =

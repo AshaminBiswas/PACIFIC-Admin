@@ -6391,6 +6391,34 @@ Documented and synced `.env.example` templates across both frontend and backend:
 - **Frontend API Client**: Created `src/api/mailApi.ts` and exported in `src/api/index.ts` / `src/api/services.ts`.
 - **Verification**: `npx tsc --noEmit` exits 0 on both backend and frontend. `npm run build` exits 0. Automated test suite runs 30 tests with 100% pass rate.
 
+---
+
+## 119. Pacific Mail Frontend Engine Implementation (Step 3 Deliverable)
+
+### 119.1 Architecture & Design System Integration
+1. **Gmail-Inspired Responsive UI Suite**:
+   - Master View: `src/pages/mail/PacificMailPage.tsx` registered at `/admin/dashboard/mail` and `/admin/dashboard/mail/:folder`.
+   - Layout Shell: Integrated into `AdminLayout.tsx` with `isFlushPage` enabled, providing a full-viewport, zero-margin flexbox workspace with independent scroll regions for folders, thread summaries, and conversation reading panes.
+   - Design System: Dark mode palette (`#030213`, `#0e0d24`, `#13112b`) accented with Pacific brand lime (`#B5F823` / `#7FB706`), glassmorphism overlays, and custom scrollbars.
+
+2. **Core Components**:
+   - **`MailFolderSidebar.tsx`**: Folder navigation (`Inbox`, `Starred`, `Sent`, `Drafts`, `Archive`, `Spam`, `Trash`), unread/total count badges, prominent gradient `+ Compose` button, verified internal address card (`user@pacific.internal`) with one-click copy, and responsive slide-out mobile drawer.
+   - **`MailMessageList.tsx`**: Toolbar with multi-select checkbox, bulk actions (`markRead`, `markUnread`, `star`, `unstar`, `archive`, `spam`, `trash`), server-side pagination controller (`1–20 of 85`), debounced Omnibox search, optimistic star toggles, unread bolding, attachment icons, and folder-specific empty states.
+   - **`MailThreadDetail.tsx`**: Header with Back navigation, thread actions, chronological expandable conversation message cards, sender avatar with initials, full date formatting, safe HTML rendering, attachment cards with size formatting & download triggers, and dual reply systems (quick inline box and compose modal trigger).
+   - **`MailComposeModal.tsx`**: Floating docked compose dialog with Minimize, Maximize, and Close actions. Features interactive recipient chips for To/CC/BCC, subject input, rich format toolbar (Bold, Italic, Underline, Bullet list, Quote, Clear formatting), draft saving, send rate-limit handling, and auto-generated idempotency keys.
+   - **`MailRecipientInput.tsx`**: Chip-based recipient manager supporting typing, Enter/Comma/Space delimiter parsing, bulk paste splitting, address format validation, and external address warning chips.
+   - **`MailConfirmDialog.tsx`**: Accessible modal dialog (`aria-modal`, keyboard trap, Escape to cancel) for destructive operations (permanent deletion, draft discarding).
+
+3. **Security & Sanitization**:
+   - `DOMPurify.sanitize`: Strips malicious `<script>` tags, inline event handlers (`onerror`, `onload`), and `javascript:` pseudo-protocols before HTML injection.
+   - BCC Isolation: BCC recipients are strictly hidden from message details unless the authenticated user is the sender.
+   - Touch targets $\ge 44\text{px}$ across mobile interfaces.
+
+4. **Automated Frontend Test Suite (`mail.frontend.tests.ts`)**:
+   - 19 test cases verifying DOMPurify sanitization, text-to-HTML conversion, recipient chip parsing, Reply/ReplyAll derivations, forward citations, pagination logic, folder badge mappings, and BCC isolation.
+   - Executable via `npm run test:mail`.
+
+
 
 
 

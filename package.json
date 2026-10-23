@@ -11,7 +11,8 @@
     "build": "tsc && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:mail": "npx tsx src/pages/mail/mail.frontend.tests.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
