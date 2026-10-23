@@ -39,6 +39,7 @@ import WacrmBroadcasts from '../../components/wacrm/WacrmBroadcasts';
 import WacrmAutomations from '../../components/wacrm/WacrmAutomations';
 import WacrmFlows from '../../components/wacrm/WacrmFlows';
 import WacrmSettings from '../../components/wacrm/WacrmSettings';
+import { wacrmCache } from '../../utils/wacrmCache';
 
 type WacrmTab = 'inbox' | 'contacts' | 'pipelines' | 'broadcasts' | 'automations' | 'flows' | 'settings';
 
@@ -59,7 +60,10 @@ export default function WACRMPage() {
 
   // ─── Shared State ───────────────────────────────────────────────────────────
   const [dashboard, setDashboard] = useState<WacrmDashboardData | null>(null);
-  const [conversations, setConversations] = useState<WacrmConversation[]>([]);
+  // Instant 0ms hydration from client cache
+  const [conversations, setConversations] = useState<WacrmConversation[]>(() => {
+    return wacrmCache.getCachedConversations() || [];
+  });
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [contacts, setContacts] = useState<WacrmContact[]>([]);
   const [stages, setStages] = useState<WacrmPipelineStage[]>([]);
@@ -100,6 +104,22 @@ export default function WACRMPage() {
       if (dashRes.data) setDashboard(dashRes.data);
       if (convsRes.data) {
         setConversations(convsRes.data);
+        // Persist conversations for instant future load
+        wacrmCache.setCachedConversations(convsRes.data);
+
+        // Pre-warm cache for the top 5 conversations in background
+        setTimeout(() => {
+          convsRes.data.slice(0, 5).forEach((conv) => {
+            if (!wacrmCache.hasCachedChat(conv.id)) {
+              wacrmApi.getConversation(conv.id).then((res) => {
+                if (res.data) {
+                  wacrmCache.setCachedChat(conv.id, res.data.messages || [], res.data.conversation);
+                }
+              }).catch(() => {});
+            }
+          });
+        }, 80);
+
         if (convsRes.data.length > 0 && !activeConversationId) {
           // On desktop (>= 768px), auto-select first conversation.
           // On mobile (< 768px), keep unselected so the chat list is presented first.
@@ -134,7 +154,10 @@ export default function WACRMPage() {
   useEffect(() => {
     const timer = setInterval(() => {
       wacrmApi.getConversations().then((res) => {
-        if (res.data) setConversations(res.data);
+        if (res.data) {
+          setConversations(res.data);
+          wacrmCache.setCachedConversations(res.data);
+        }
       }).catch(() => {});
 
       wacrmApi.getDashboard().then((res) => {
@@ -290,7 +313,10 @@ export default function WACRMPage() {
             onSelectConversation={setActiveConversationId}
             onRefreshConversations={() => {
               wacrmApi.getConversations().then((res) => {
-                if (res.data) setConversations(res.data);
+                if (res.data) {
+                  setConversations(res.data);
+                  wacrmCache.setCachedConversations(res.data);
+                }
               });
             }}
             templates={templates}

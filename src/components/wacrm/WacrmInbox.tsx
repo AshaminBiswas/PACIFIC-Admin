@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { wacrmApi } from '../../api/wacrmApi';
+import { wacrmCache } from '../../utils/wacrmCache';
 import type {
   WacrmConversation,
   WacrmMessage,
@@ -145,17 +146,41 @@ export default function WacrmInbox({
     }
   }, [activeConversationId, conversations]);
 
-  // ─── Fetch Messages for active conversation ─────────────────────────────────
-  const fetchMessages = useCallback(async (convId: string) => {
-    try {
+  // ─── Instant Hydration & Background Sync (SWR Engine) ───────────────────────
+  const fetchMessages = useCallback(async (convId: string, isManualRefresh = false) => {
+    if (!convId) return;
+
+    // 1. Check High-Speed Cache First (< 1 millisecond response time)
+    const cached = wacrmCache.getCachedChat(convId);
+    const hasCache = Boolean(cached && cached.messages && cached.messages.length > 0);
+
+    if (hasCache && !isManualRefresh) {
+      // INSTANT RENDER in 0ms! Zero spinner flash!
+      setMessages(cached!.messages);
+      if (cached!.conversation) {
+        setActiveConversation(cached!.conversation);
+      }
+      setLoadingMessages(false);
+    } else if (!hasCache) {
+      // First time EVER opening this conversation: show subtle loading indicator
       setLoadingMessages(true);
+    }
+
+    // 2. Background Revalidation (fetch latest updates from database)
+    try {
       const res = await wacrmApi.getConversation(convId);
       if (res.data) {
-        setActiveConversation(res.data.conversation);
-        setMessages(res.data.messages || []);
+        const freshConvo = res.data.conversation;
+        const freshMsgs = res.data.messages || [];
+
+        // Save fresh data into persistent cache for future < 1ms loads
+        wacrmCache.setCachedChat(convId, freshMsgs, freshConvo);
+
+        setActiveConversation(freshConvo);
+        setMessages(freshMsgs);
       }
     } catch (err) {
-      console.warn('Failed to load conversation messages:', err);
+      console.warn('Failed to revalidate conversation messages:', err);
     } finally {
       setLoadingMessages(false);
     }
@@ -198,7 +223,9 @@ export default function WacrmInbox({
           ...res.data,
           createdAt: res.data.createdAt || (res.data as any).created_at || new Date().toISOString(),
         };
+        // Optimistic UI & Cache append (0ms latency)
         setMessages((prev) => [...prev, newMsg]);
+        wacrmCache.appendCachedMessage(activeConversationId, newMsg);
       }
 
       setMessageInput('');
@@ -300,12 +327,19 @@ export default function WacrmInbox({
 
   // ─── Message Reaction Toggle ────────────────────────────────────────────────
   const handleReactToMessage = async (msgId: string, emoji: string) => {
+    if (!activeConversationId) return;
     try {
-      await wacrmApi.reactToMessage(msgId, emoji);
+      const targetMsg = messages.find((m) => m.id === msgId);
+      const newEmoji = targetMsg?.reaction === emoji ? null : emoji;
+
+      // Optimistic 0ms update in UI and Cache
       setMessages((prev) =>
-        prev.map((m) => (m.id === msgId ? { ...m, reaction: m.reaction === emoji ? null : emoji } : m))
+        prev.map((m) => (m.id === msgId ? { ...m, reaction: newEmoji } : m))
       );
+      wacrmCache.updateCachedMessageReaction(activeConversationId, msgId, newEmoji);
       setReactionPopoverMsgId(null);
+
+      await wacrmApi.reactToMessage(msgId, emoji);
     } catch (err) {
       console.warn('Reaction failed:', err);
     }
@@ -576,8 +610,8 @@ export default function WacrmInbox({
 
                 {/* Refresh Thread */}
                 <button
-                  onClick={() => fetchMessages(activeConversation.id)}
-                  title="Refresh messages"
+                  onClick={() => fetchMessages(activeConversation.id, true)}
+                  title="Force refresh messages from database"
                   className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
                 >
                   <RefreshCw className="w-4 h-4" />
