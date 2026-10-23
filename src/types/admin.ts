@@ -3389,4 +3389,170 @@ export interface WacrmAiConfig {
   updatedAt?: string;
 }
 
+// ─── Pacific Mail Types ────────────────────────────────────────────────────────
+
+export type MailFolder = 'INBOX' | 'SENT' | 'DRAFTS' | 'ARCHIVE' | 'SPAM' | 'TRASH';
+export type MailViewFolder = MailFolder | 'STARRED';
+
+export interface MailAddress {
+  id: string;
+  userId: string;
+  localPart: string;
+  domain: string;
+  displayName: string | null;
+  isPrimary: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  fullAddress: string;
+}
+
+export interface MailRecipient {
+  id: string;
+  type: 'TO' | 'CC' | 'BCC';
+  rawEmail: string;
+  userId: string | null;
+  displayName?: string | null;
+}
+
+export interface MailAttachment {
+  id: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  storagePath: string;
+  isInline: boolean;
+  contentId: string | null;
+}
+
+export interface MailMessageDetail {
+  id: string;
+  threadId: string;
+  parentId: string | null;
+  fromAddressId: string;
+  senderUserId: string;
+  subject: string;
+  bodyText: string | null;
+  bodyHtml: string | null;
+  contentType: string;
+  isDraft: boolean;
+  sentAt: string | null;
+  sizeBytes: number;
+  messageIdHeader: string | null;
+  inReplyTo: string | null;
+  references: string[];
+  idempotencyKey?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  fromAddress: {
+    id: string;
+    localPart: string;
+    domain: string;
+    displayName: string | null;
+  };
+  recipients: MailRecipient[];
+  bccRecipients?: MailRecipient[];
+  attachments: MailAttachment[];
+}
+
+export interface MailThreadSummary {
+  id: string;
+  subject: string;
+  lastMessageAt: string;
+  messageCount: number;
+  snippet: string | null;
+  fromDisplayName: string | null;
+  fromEmail: string;
+  isRead: boolean;
+  isStarred: boolean;
+  folder: MailFolder;
+  hasAttachments: boolean;
+  labels: string[];
+  mailboxItemId: string;
+}
+
+export interface MailFolderCounts {
+  inbox: { total: number; unread: number };
+  sent: { total: number; unread: number };
+  drafts: { total: number; unread: number };
+  archive: { total: number; unread: number };
+  spam: { total: number; unread: number };
+  trash: { total: number; unread: number };
+  starred: { total: number; unread: number };
+}
+
+export interface SendMailRequest {
+  draftId?: string;
+  threadId?: string;
+  parentId?: string;
+  subject?: string;
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  bodyText?: string;
+  bodyHtml?: string;
+  attachmentIds?: string[];
+  isDraft?: boolean;
+  idempotencyKey?: string;
+}
+
+export interface CreateDraftRequest {
+  threadId?: string;
+  parentId?: string;
+  subject?: string;
+  to?: string[];
+  cc?: string[];
+  bcc?: string[];
+  bodyText?: string;
+  bodyHtml?: string;
+  attachmentIds?: string[];
+}
+
+export interface ReplyMailRequest {
+  to?: string[];
+  cc?: string[];
+  bcc?: string[];
+  bodyText?: string;
+  bodyHtml?: string;
+  replyAll?: boolean;
+  attachmentIds?: string[];
+  idempotencyKey?: string;
+}
+
+export interface ForwardMailRequest {
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  bodyText?: string;
+  bodyHtml?: string;
+  forwardAttachments?: boolean;
+  idempotencyKey?: string;
+}
+
+export interface UpdateMailboxItemRequest {
+  isRead?: boolean;
+  isStarred?: boolean;
+  folder?: MailFolder;
+  labels?: string[];
+  snoozedUntil?: string | null;
+}
+
+export interface BulkMailboxActionRequest {
+  itemIds: string[];
+  action: 'markRead' | 'markUnread' | 'star' | 'unstar' | 'archive' | 'spam' | 'trash' | 'delete' | 'restore';
+}
+
+export interface MailSearchQuery {
+  q?: string;
+  from?: string;
+  to?: string;
+  subject?: string;
+  folder?: MailFolder;
+  since?: string;
+  until?: string;
+  page?: number;
+  limit?: number;
+}
+
+
 

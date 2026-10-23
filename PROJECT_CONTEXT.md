@@ -6291,5 +6291,107 @@ Documented and synced `.env.example` templates across both frontend and backend:
      - When the operator sends an outbound message (`handleSendMessage`): sets `isNearBottomRef.current = true` and smooth scrolls to the bottom.
      - Added floating WhatsApp-style scroll-to-bottom action button with `ChevronDown` icon, visible whenever `distanceFromBottom > 150px`.
 
+---
+
+## 117. Pacific Mail Module Architecture (Step 1 Deliverable)
+
+### 117.1 Schema & Data Model Specifications
+1. **Canonical Decoupled Mail Storage**:
+   - `mail_addresses`: User identity binding (`users.id` TEXT UUID foreign key). Local-part uniqueness within domain (`domain` DEFAULT `pacific.internal`).
+   - `mail_threads`: Thread root tracking (`created_by`, `message_count`, `last_message_at`).
+   - `mail_messages`: Canonical immutable message content (`thread_id`, `from_address_id`, `sender_user_id`, `subject`, `body_text`, `body_html`, `size_bytes`, `message_id_header`). Stored once regardless of recipient fan-out.
+   - `mail_recipients`: Structured To, CC, and BCC recipient relations per message. BCC recipient rows are strictly isolated in query projections from non-sender users.
+   - `mailbox_items`: Per-user mailbox state (`user_id`, `message_id`, `thread_id`, `folder` [INBOX, SENT, DRAFTS, ARCHIVE, SPAM, TRASH], `is_read`, `is_starred`, `labels`).
+   - `mail_attachments`: Metadata only (`filename`, `mime_type`, `size_bytes`, `storage_path`, `storage_bucket`, `checksum_sha256`). Zero binary storage in PostgreSQL.
+   - `mail_outbox`: Transactional outbox engine supporting resilient asynchronous dispatch and future external SMTP/Resend transports.
+   - `mail_events` & `mail_audit_logs`: Immutable delivery event log and tamper-evident security audit trail tracking all mailbox modifications.
+
+### 117.2 Security & Authentication Guarantees
+- Zero trust in client-supplied `user_id`. All acting identities derive exclusively from verified server-side JWT claims (`req.user.id`).
+- Complete reuse of existing authentication middleware (`requireAuth` in `src/middleware/auth.middleware.ts`). Zero parallel auth systems.
+- Strict isolation of BCC recipient privacy: BCC records are projected only when `callerUserId === senderUserId`.
+
+### 117.3 API Contract Endpoints (`/api/v1/mail/*`)
+- `GET /mail/me`: Active operator mail address and domain aliases.
+- `POST /mail/addresses`: Provision or modify operator mail identity.
+- `POST /mail/messages`: Send outbound message or persist draft.
+- `PATCH /mail/messages/:id`: Mutate draft content or promote draft to sent.
+- `GET /mail/threads`: Paginated thread summaries with folder/status filtering.
+- `GET /mail/threads/:threadId`: Full thread conversation timeline with recipient resolution.
+- `PATCH /mail/mailbox/:itemId`: Modify mailbox item state (read, star, folder relocation, labels).
+- `DELETE /mail/mailbox/:itemId`: Soft-delete to Trash or permanent destruction if already in Trash.
+- `POST /mail/mailbox/bulk`: High-throughput batch actions across selected items.
+- `GET /mail/search`: Full-text search across subject lines and message bodies.
+- `GET /mail/audit`: Administrative audit log inspector (SUPER_ADMIN and ADMIN only).
+
+---
+
+## 118. Pacific Mail Internal Engine Implementation (Step 2 Deliverable)
+
+### 118.1 High-Performance Internal Transport & Delivery Lifecycle
+1. **Database-Driven Zero-Cost Internal Delivery**:
+   - Internal delivery executes entirely within the existing PostgreSQL database with ₹0 additional infrastructure.
+   - Senders and internal recipients resolve to their verified `@pacific.internal` addresses.
+   - Message body and attachments are stored once in `mail_messages`. Per-user states (folder, read/unread, starred, snoozed, labels) are tracked independently in `mailbox_items`.
+   - Unique composite index `UNIQUE ("user_id", "message_id", "folder")` allows self-sends to maintain separate `SENT` and `INBOX` states while preventing duplicate delivery rows on retries.
+
+2. **Atomic Multi-Table Transactions (`prisma.$transaction`)**:
+   - Writes across `mail_messages`, `mail_recipients`, `mailbox_items`, `mail_threads`, `mail_outbox`, and `mail_events` are executed inside an atomic transaction.
+   - If recipient resolution or mailbox fan-out fails, the entire transaction rolls back; no orphaned or partially-delivered records are created.
+
+3. **Idempotency & Rate Limiting**:
+   - `idempotency_key` (via header `Idempotency-Key` or body `idempotencyKey`) prevents double-click or network retry duplication.
+   - Checked pre-transaction; duplicate submissions return `{ message, thread, replayed: true }` without inserting new rows.
+   - Guarded by database unique index `mail_messages_idempotency_key_idx` on `(sender_user_id, idempotency_key) WHERE idempotency_key IS NOT NULL`.
+   - Per-user rate limiting: max 60 messages/hour enforced via `messageRepository.countRecentSends`.
+
+4. **Recipient Verification & Suspended Account Defense**:
+   - Only `@pacific.internal` (or identical verified domain) recipients are accepted in Step 2.
+   - Recipient existence and active state (`users."isActive" === true` and `mail_addresses.is_active === true`) are checked before execution.
+   - If a recipient is suspended or deleted, the send is rejected with HTTP 400 (`Recipient account is suspended or disabled`).
+   - If sender has `isActive === false`, reject with HTTP 403 Forbidden.
+
+5. **Strict BCC Privacy Isolation**:
+   - BCC recipients are persisted in `mail_recipients` with `type = 'BCC'`, and receive an `INBOX` mailbox item.
+   - When querying message details (`findDetailById`) or thread timelines, all `type = 'BCC'` recipient records are omitted at the database query projection level unless `callerUserId === senderUserId`. Non-senders never receive BCC recipient data.
+
+6. **Threading, Conversations, Reply & Forwarding**:
+   - `POST /mail/messages/:id/reply`: Preserves `threadId`, sets `parentId` = original message ID, sets `inReplyTo` and `references` headers. Computes `Re: ` subject prefix without repetition. Supports `replyAll` (original sender + other TOs, preserving CCs, excluding caller).
+   - `POST /mail/messages/:id/forward`: Prefixes subject with `Fwd: `, formats standard RFC citation headers in text and HTML, and dispatches to new recipients.
+
+7. **Mailbox Operations, Search & Unread Counters**:
+   - Dedicated folder listing: `GET /mail/folders/:folder` supporting `INBOX`, `SENT`, `DRAFTS`, `ARCHIVE`, `SPAM`, `TRASH`, and `STARRED`.
+   - Single aggregated query `GET /mail/counts` returns total and unread counts for all folders.
+   - Multi-criteria search `GET /mail/search?q=` searches across subject lines, message bodies, senders, recipients, and date ranges.
+   - Two-phase deletion: `DELETE /mail/items/:id` moves item to `TRASH`; if already in `TRASH`, permanently deletes the record.
+   - High-throughput bulk updates: `POST /mail/items/bulk` for `markRead`, `markUnread`, `star`, `unstar`, `archive`, `spam`, `trash`, `restore`, `delete`.
+
+### 118.2 Documented API Endpoints (`/api/v1/mail/*`)
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/v1/mail/addresses/me` | Current caller's verified internal address (auto-provisions if missing) |
+| `POST` | `/api/v1/mail/addresses` | Custom local-part address provisioning |
+| `GET` | `/api/v1/mail/folders/:folder` | Paginated threads in folder (`inbox`, `sent`, `drafts`, `archive`, `spam`, `trash`, `starred`) |
+| `GET` | `/api/v1/mail/threads/:id` | Full thread timeline with participant authorization & auto-mark-read |
+| `GET` | `/api/v1/mail/messages/:id` | Single message detail with BCC privacy isolation |
+| `POST` | `/api/v1/mail/drafts` | Create draft message |
+| `PATCH` | `/api/v1/mail/drafts/:id` | Update draft content or promote to SENT (`send: true`) |
+| `POST` | `/api/v1/mail/send` | Send message atomically with idempotency and fan-out |
+| `POST` | `/api/v1/mail/messages/:id/reply` | Reply to message in existing thread (supports `replyAll`) |
+| `POST` | `/api/v1/mail/messages/:id/forward` | Forward message with citation header |
+| `GET` | `/api/v1/mail/counts` | Total & unread counts for all mailbox folders |
+| `PATCH` | `/api/v1/mail/items/:id` | Update mailbox item state (read, star, folder, labels) |
+| `DELETE` | `/api/v1/mail/items/:id` | Move item to Trash or permanently delete from Trash |
+| `POST` | `/api/v1/mail/items/bulk` | Bulk mailbox action across up to 100 items |
+| `GET` | `/api/v1/mail/search` | Multi-criteria search across folders, subjects, bodies, dates |
+| `GET` | `/api/v1/mail/audit` | Administrative audit log inspector (ADMIN and SUPER_ADMIN) |
+
+### 118.3 Cross-Stack Synchronization
+- **Frontend Types**: Added `MailAddress`, `MailMessageDetail`, `MailThreadSummary`, `MailFolderCounts`, `SendMailRequest`, `CreateDraftRequest`, `ReplyMailRequest`, `ForwardMailRequest`, `UpdateMailboxItemRequest`, `BulkMailboxActionRequest`, `MailSearchQuery` in `src/types/admin.ts`.
+- **Frontend API Client**: Created `src/api/mailApi.ts` and exported in `src/api/index.ts` / `src/api/services.ts`.
+- **Verification**: `npx tsc --noEmit` exits 0 on both backend and frontend. `npm run build` exits 0. Automated test suite runs 30 tests with 100% pass rate.
+
+
+
 
 

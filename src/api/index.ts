@@ -23,4 +23,5 @@ export * from './installerPaymentsService';
 export * from './employeeService';
 export * from './upApi';
 export * from './wacrmApi';
+export * from './mailApi';
 
