@@ -51,7 +51,7 @@ export default function WACRMPage() {
   const { user } = useAdminAuth();
   const operatorName = user?.firstName
     ? `${user.firstName} ${user.lastName || ''}`.trim()
-    : user?.email || 'Pacific Admin';
+    : user?.email ? user.email.split('@')[0] : 'Pacific Admin';
 
   // ─── Active Tab State ───────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<WacrmTab>('inbox');
@@ -101,7 +101,11 @@ export default function WACRMPage() {
       if (convsRes.data) {
         setConversations(convsRes.data);
         if (convsRes.data.length > 0 && !activeConversationId) {
-          setActiveConversationId(convsRes.data[0].id);
+          // On desktop (>= 768px), auto-select first conversation.
+          // On mobile (< 768px), keep unselected so the chat list is presented first.
+          if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+            setActiveConversationId(convsRes.data[0].id);
+          }
         }
       }
       if (contactsRes.data) setContacts(contactsRes.data);

@@ -6210,97 +6210,41 @@ Provisioned 12 dedicated tables with `wacrm_` prefix:
 
 ---
 
-## 115. Installer Payment & Advance Record Deletion & Balance Restoration Engine
-
-### 115.1 Architectural Overview & Problem Solved
-- **Problem**: When an advance payment was mistakenly recorded against an installer (or linked to a job bill), there was no capability to delete or reverse the payment record. Users were unable to correct wrongly entered disbursement sums or general upfront advances.
-- **Solution**: Implemented an atomic deletion and balance restoration system across `PACIFIC-Backend` and `PACIFIC-Admin`.
-
-### 115.2 Backend Deletion & Reversal Protocol (`PACIFIC-Backend`)
-- **Service (`installer-payments.service.ts`)**:
-  - Created `deleteInstallerPayment` (aliased as `deleteInstallerAdvance`).
-  - **Atomic Balance & Status Restoration**:
-    - If payment was linked to an `installerBill`, the bill's `advancePaid` and `amountPaid` are automatically reduced by `payment.amount`.
-    - `balanceDue` is recalculated (`Math.max(0, billTotal - newPaid)`).
-    - `paymentStatus` is recalculated (`CLEARED` vs `PARTIAL`).
-    - If no other advances remain, `advanceDate` and `advanceNote` are safely cleared.
-    - If unlinked (general upfront advance), the advance record is safely deleted.
-  - **Audit Logging**: Recorded in `audit_logs` (`module: 'InstallerPayments'`, `entityType: 'InstallerBillPayment'`, `action: 'DELETE'`).
-- **Controller & Routes (`installer-payments.controller.ts`, `installer-payments.routes.ts`)**:
-  - `DELETE /api/v1/installer-payments/advances/:id`
-  - `DELETE /api/v1/installer-payments/payments/:id`
-  - Protected with `authenticate` and `authorize('installer_payments.delete', ...)`.
-
-### 115.3 Frontend UI Integration (`PACIFIC-Admin`)
-- **API Client (`src/api/installerPaymentsService.ts`)**:
-  - Added `deleteAdvance(paymentId: string)` and `deletePayment(paymentId: string)`.
-- **View Suite (`src/pages/InstallerPaymentsPage.tsx`)**:
-  - **Advances Tab (Section A - Advance Disbursements Register)**: Added a delete button with `Trash2` icon in the `Action` column alongside "Settle Due".
-  - **Ledger Tab (Advance History Subtab)**: Added `Action` column with a direct delete button.
-  - **Ledger Tab (Payment Settlements Subtab)**: Added `Action` column with a direct delete button.
-  - **Bill 360 Details Drawer**: Added a "Payments & Advances" sub-section displaying each linked transaction with a trash icon for 1-click mistake correction.
-  - **Delete Confirmation Modal**: Contextual warning modal displaying amount in ₹ INR, contractor name, voucher note, and explanation that linked bill balances will be automatically restored. Immediate state refresh on success without full page reload.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+## 116. WhatsApp CRM (WACRM) Responsive Mobile UX & Message Bubble Polish
+
+### 116.1 Message Rendering Defect Resolution
+1. **Raw Operator Email Header Elimination**:
+   - Outbound agent messages previously rendered the operator's raw email or username above each bubble. In 1-on-1 CRM conversations, outbound bubbles are right-aligned and self-evident. Removed redundant sender labels above outbound bubbles and repetitive labels above customer bubbles. Only AI Bot auto-replies render a discreet `AI Assistant` badge.
+2. **Template Body Resolution & Duplicate Text Removal**:
+   - Previously printed duplicate tags `Meta Template: pacific_boq_followup` followed by raw `[Template: pacific_boq_followup]`.
+   - In `PACIFIC-Backend` (`wacrm.service.ts`), `sendMessage` queries `public.wacrm_templates` for `body_text` when a template is sent, storing real human-readable content.
+   - In `PACIFIC-Admin` (`WacrmInbox.tsx`), resolved `getTemplateBodyText` falls back to the active template catalog to display clean template text with a single Meta verified header badge (`ShieldCheck` + `Meta Template • <name>`).
+3. **Clunky "React" Text Button Removal**:
+   - Replaced the vertical `"React"` text button with WhatsApp's native interaction pattern:
+     - Reactions float as a sleek badge docked to the bottom corner of the bubble (`absolute -bottom-2.5 right-2`) with 1-click toggle/removal.
+     - Hover/tap reveals a discreet smiley icon that expands into a quick emoji palette (`👍 ❤️ 😂 🔥 🙏 👏`).
+4. **"Invalid Date" Resolution**:
+   - Backend `wacrm.service.ts` converts PostgreSQL `created_at` to camelCase ISO 8601 string `createdAt`.
+   - Frontend `formatMsgTime` helper guards against null/undefined or unparseable timestamps, ensuring `"Invalid Date"` is never shown.
+5. **Centered WhatsApp Day Separators**:
+   - Center-aligned day badges (`Today`, `Yesterday`, `D MMM YYYY`) grouping messages by day transitions across the chat thread.
+
+### 116.2 WhatsApp Native Mobile Responsiveness & View Transitions
+1. **Adaptive Viewport States**:
+   - **Mobile (`< md`)**:
+     - When no conversation is active: Conversation List fills 100% of the screen.
+     - When a conversation is selected: Chat Thread transitions to 100% full-screen view. The thread header provides a WhatsApp-style Back button (`ArrowLeft`) that deselects the conversation and smoothly returns the user to the chat list.
+     - Auto-select logic in `WACRMPage.tsx`: Auto-selects first conversation only on desktop (`>= 768px`). On mobile (`< 768px`), lands directly on the conversation list.
+   - **Desktop (`>= md`)**:
+     - Multi-pane WhatsApp Web layout: Left conversation list (`w-80 lg:w-96`), middle active chat thread (`flex-1`), and right Contact 360 sidebar (`w-80`).
+2. **Contact 360 Slide-Over Drawer**:
+   - On mobile/tablet (`< xl`), Contact 360 opens as an overlay drawer with dark backdrop blur and close `X` button.
+   - Clicking contact avatar/name in the thread header toggles Contact 360 drawer.
+   - Includes 1-click phone number copy with checkmark confirmation, PPS quotation creation shortcut, WhatsApp Web external link, and auto-saving internal CRM notes.
+3. **Bottom Composer Bar**:
+   - Rounded pill input with auto-expanding textarea, Enter to send (Shift+Enter for newline), `/` canned reply autocomplete, Meta template modal shortcut, attachment modal, AI draft generator, and voice note recorder.
+4. **Dark Obsidian Brand Theme Preservation**:
+   - Maintained Pacific brand styling (`#030213`, `#07051f`, `#7FB706`, `#B5F823`) with WhatsApp micro-dot pattern wallpaper (`[radial-gradient(#1a1745_1px,transparent_1px)]`).
 
 
 
