@@ -56,7 +56,7 @@ interface AdminSidebarProps {
 
 // 8-stage sales pipeline — starting from Lead Inquiries through dispatch & installation
 export const salesPipelineItems = [
-  { name: 'WhatsApp CRM (WACRM)', path: '/admin/dashboard/wacrm',          icon: MessageSquare, step: '00' },
+  { name: 'CRM',                path: '/admin/dashboard/wacrm',              icon: MessageSquare, step: '00' },
   { name: 'Sales Quotations',   path: '/admin/dashboard/sales-quotations',   icon: FileText,    step: '01' },
   { name: 'Proforma Invoices',  path: '/admin/dashboard/proforma-invoices',  icon: Receipt,     step: '02' },
   { name: 'Bill & Tax Invoices',path: '/admin/dashboard/invoices',            icon: Layers,      step: '03' },

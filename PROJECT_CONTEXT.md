@@ -6197,7 +6197,9 @@ Provisioned 12 dedicated tables with `wacrm_` prefix:
 ### 115.4 Frontend Implementation (`d:\PACIFIC-Admin`)
 - **Types**: `src/types/admin.ts` (`WacrmContact`, `WacrmConversation`, `WacrmMessage`, `WacrmDeal`, `WacrmBroadcast`, `WacrmConfig`, etc.).
 - **API Client**: `src/api/wacrmApi.ts` re-exported in `src/api/index.ts` and `src/api/services.ts`.
-- **Sidebar**: Step 00 in `salesPipelineItems` in `AdminSidebar.tsx` mapped to `WhatsApp CRM (WACRM)`.
+- **Sidebar**: Step 00 in `salesPipelineItems` in `AdminSidebar.tsx` mapped to `CRM`.
+- **Flush Layout**: Configured `AdminLayout.tsx` so `/admin/dashboard/wacrm` has 0 gap against the top navbar (`p-0`).
+- **Heading**: Unified title to `CRM` in both `AdminSidebar.tsx` and `WACRMPage.tsx`.
 - **Routing**: Registered `/admin/dashboard/wacrm` and `/admin/dashboard/crm-leads` in `App.tsx` mapped to `<WACRMPage />`.
 - **View Suite (`src/pages/wacrm/WACRMPage.tsx`)**:
   - **Shared Inbox**: WhatsApp Web layout with conversation filter chips, thread search, dark wallpaper message bubbles, Meta template selector, and contact intelligence drawer.

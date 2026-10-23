@@ -149,6 +149,10 @@ export const AdminLayout: React.FC = () => {
     return location.pathname.startsWith(path);
   };
 
+  const isFlushPage =
+    location.pathname.startsWith('/admin/dashboard/wacrm') ||
+    location.pathname.startsWith('/admin/dashboard/crm-leads');
+
   const currentTitle = allNavItems.find((i) => isActive(i.path))?.name || 'Dashboard';
 
   return (
@@ -178,9 +182,11 @@ export const AdminLayout: React.FC = () => {
 
         {/* Dynamic Page Outlet — Independently Scrollable Right Side Content */}
         <main
-          className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain min-h-0 w-full p-4 lg:p-8 pb-24 lg:pb-8"
+          className={`flex-1 overflow-y-auto overflow-x-hidden overscroll-contain min-h-0 w-full ${
+            isFlushPage ? 'p-0 pb-16 lg:pb-0' : 'p-4 lg:p-8 pb-24 lg:pb-8'
+          }`}
         >
-          <div className="max-w-7xl mx-auto w-full">
+          <div className={isFlushPage ? 'w-full' : 'max-w-7xl mx-auto w-full'}>
             <ViewErrorBoundary onResetView={() => navigate('/admin/dashboard')}>
               <Suspense fallback={<PageLoader />}>
                 <Outlet />

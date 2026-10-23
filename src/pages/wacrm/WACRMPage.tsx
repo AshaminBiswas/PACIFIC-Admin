@@ -179,9 +179,9 @@ export default function WACRMPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#030213] text-white flex flex-col font-sans">
+    <div className="min-h-full bg-[#030213] text-white flex flex-col font-sans">
       {/* ─── Master Enterprise Top Header ─────────────────────────────────── */}
-      <div className="border-b border-white/10 bg-[#0c0a24]/90 backdrop-blur-md px-4 sm:px-6 py-3 sticky top-0 z-40">
+      <div className="border-b border-white/10 bg-[#0c0a24]/95 backdrop-blur-md px-4 sm:px-6 py-3 sticky top-0 z-40">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           {/* Brand & Badge */}
           <div className="flex items-center gap-3">
@@ -193,7 +193,7 @@ export default function WACRMPage() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-black text-white tracking-tight">
-                  Pacific WhatsApp CRM <span className="text-[#B5F823]">WACRM</span>
+                  CRM
                 </h1>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#7FB706]/20 text-[#B5F823] border border-[#7FB706]/40 uppercase tracking-widest">
                   Zero-Auth Core
