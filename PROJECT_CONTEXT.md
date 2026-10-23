@@ -6246,7 +6246,16 @@ Provisioned 12 dedicated tables with `wacrm_` prefix:
 4. **Dark Obsidian Brand Theme Preservation**:
    - Maintained Pacific brand styling (`#030213`, `#07051f`, `#7FB706`, `#B5F823`) with WhatsApp micro-dot pattern wallpaper (`[radial-gradient(#1a1745_1px,transparent_1px)]`).
 
-
-
-
+### 116.3 CRM Environment Configuration (`.env.example`)
+Documented and synced `.env.example` templates across both frontend and backend:
+1. **Frontend (`d:\PACIFIC-Admin\.env.example`)**:
+   - `VITE_API_URL`: Backend API base URL (`/api/v1/wacrm` endpoints).
+   - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SUPABASE_PUBLISHABLE_KEY`: Central Supabase cloud connection for authentication and real-time state.
+   - `VITE_ADMIN_DEFAULT_EMAIL`: Operator email default.
+   - `VITE_STOREFRONT_URL`: Public storefront routing URL.
+   - `VITE_NVIDIA_API_KEY`: Client-side AI catalog intelligence key (optional).
+2. **Backend (`d:\PACIFIC-Backend\.env.example`)**:
+   - **Meta WhatsApp Business Cloud API**: Aligned with the original WACRM architecture (`webhook-signature.ts`), where Phone Number ID, Access Token, and WABA ID are saved directly into the database via the UI (CRM > Settings > Meta API). The only server environment variable strictly required by Meta is `META_APP_SECRET` to verify HMAC-SHA256 signatures (`x-hub-signature-256`) on incoming webhooks (with optional `WHATSAPP_VERIFY_TOKEN`).
+   - **CRM AI Assistant**: `GEMINI_API_KEY`, `OPENAI_API_KEY`, `NVIDIA_API_KEY`, `AI_ASSISTANT_MODEL`.
+   - **Database & Auth**: `DATABASE_URL`, `DIRECT_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET`, `JWT_REFRESH_SECRET`.
 
