@@ -214,7 +214,7 @@ export default function AdminProducts() {
       const cats = productCatalogApi.getCategories();
       setCategories(cats);
 
-      const allModels = await productCatalogApi.listModels();
+      const allModels = await productCatalogApi.listModels(undefined, true);
       setModels(allModels);
     } catch (err) {
       console.error('Error loading product catalog:', err);

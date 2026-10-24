@@ -157,7 +157,7 @@ export default function EditSalesOrderPage() {
         salesOrdersApi.getById(id),
         crmApi.listCustomers({ limit: 100 }).catch(() => ({ data: { data: { items: [] } } })),
         companiesApi.list().catch(() => ({ data: { data: [] } })),
-        productCatalogApi.listModels().catch(() => []),
+        productCatalogApi.listModels(undefined, true).catch(() => []),
       ]);
 
       const data: SalesOrder = (orderRes.data?.data ?? orderRes.data) as any;

@@ -162,7 +162,7 @@ export default function CreateLeadPage() {
   // Load catalog models on mount for search & quick pick
   useEffect(() => {
     productCatalogApi
-      .listModels()
+      .listModels(undefined, true)
       .then((models) => {
         if (models && models.length > 0) {
           setCatalogModels(models);

@@ -243,7 +243,7 @@ export default function DraftQuotationPage() {
       const [custRes, compRes, modelsList] = await Promise.all([
         crmApi.listCustomers({ limit: 100 }),
         companiesApi.list(),
-        productCatalogApi.listModels().catch(() => []),
+        productCatalogApi.listModels(undefined, true).catch(() => []),
       ]);
       if (custRes.data?.data?.items) {
         setCustomers(custRes.data.data.items);

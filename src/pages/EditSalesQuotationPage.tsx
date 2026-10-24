@@ -145,7 +145,7 @@ export default function EditSalesQuotationPage() {
 
   useEffect(() => {
     productCatalogApi
-      .listModels()
+      .listModels(undefined, true)
       .then((models) => setCatalogModels(getMergedQuotationModels(models || [])))
       .catch(() => setCatalogModels(getMergedQuotationModels([])));
 

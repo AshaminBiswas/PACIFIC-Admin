@@ -171,7 +171,7 @@ export default function CreateSalesOrderPage() {
         companiesApi.list().catch(() => ({ data: { data: [] } })),
         salesQuotationsApi.list({ limit: 50 }).catch(() => ({ data: { data: { items: [] } } })),
         piApi.list({ limit: 50 }).catch(() => ({ data: { data: { items: [] } } })),
-        productCatalogApi.listModels().catch(() => []),
+        productCatalogApi.listModels(undefined, true).catch(() => []),
       ]);
 
       if (custRes.data?.data?.items) setCustomers(custRes.data.data.items);

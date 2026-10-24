@@ -166,7 +166,7 @@ export default function EditProformaInvoicePage() {
         piApi.getById(id),
         crmApi.listCustomers({ limit: 100 }).catch(() => ({ data: { data: { items: [] } } })),
         companiesApi.list().catch(() => ({ data: { data: [] } })),
-        productCatalogApi.listModels().catch(() => []),
+        productCatalogApi.listModels(undefined, true).catch(() => []),
       ]);
 
       const data = piRes.data?.data ?? (piRes.data as any);

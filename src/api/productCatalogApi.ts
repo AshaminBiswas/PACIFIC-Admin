@@ -6,7 +6,6 @@ import type {
 } from '../types/admin';
 import {
   DEFAULT_TOP_CATEGORIES,
-  DEFAULT_CATALOG_MODELS,
 } from '../data/productCatalogData';
 
 const LOCAL_STORAGE_MODELS_KEY = 'pacific_product_catalog_models_v5';
@@ -43,18 +42,11 @@ function mapDbRowToModel(row: any): ProductCatalogModel {
   let tierCount = hardwareMeta?.value?.tierCount;
   let videos = Array.isArray(row.videos) ? row.videos : (hardwareMeta?.value?.videos || []);
 
-  // If not found in __hardware_meta, fallback to defaults or parse
-  if (!hardwareOptions || !hardwareList) {
-    const defaultMatch = DEFAULT_CATALOG_MODELS.find(
-      (m) => m.slug === row.slug || m.title.toLowerCase() === row.title.toLowerCase()
-    );
-    if (defaultMatch) {
-      hardwareOptions = hardwareOptions || defaultMatch.hardwareOptions;
-      hardwareList = hardwareList || defaultMatch.hardwareList;
-      hasExtraLeg = hasExtraLeg !== undefined ? hasExtraLeg : defaultMatch.hasExtraLeg;
-      tierCount = tierCount !== undefined ? tierCount : defaultMatch.tierCount;
-    }
-  }
+  // Default to empty array if hardware metadata not specified
+  hardwareOptions = hardwareOptions || [];
+  hardwareList = hardwareList || [];
+  hasExtraLeg = Boolean(hasExtraLeg);
+  tierCount = tierCount || '';
 
   const category = (row.category as ProductCategoryType) || 'Cubicle';
 
@@ -197,15 +189,16 @@ function mapModelToDbRow(model: ProductCatalogModel) {
 }
 
 /**
- * Execute a promise with a hard timeout to prevent Supabase or network resets
- * from hanging the entire application.
+ * Execute a promise with a generous timeout to prevent hanging.
  */
-function withTimeout<T>(promise: Promise<T>, timeoutMs = 2500): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, timeoutMs = 10000): Promise<T> {
+  let timer: any;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('Network request timed out')), timeoutMs);
+  });
   return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error('Network request timed out')), timeoutMs)
-    ),
+    promise.finally(() => clearTimeout(timer)),
+    timeoutPromise,
   ]);
 }
 
@@ -247,10 +240,10 @@ export const productCatalogApi = {
     return updated;
   },
 
-  // ── Models (Cache-First, Instant Response) ──
-  listModels: async (category?: ProductCategoryType): Promise<ProductCatalogModel[]> => {
-    // 1. If in-memory cache has models, return immediately (0ms)
-    if (memoryModelsCache && memoryModelsCache.length > 0) {
+  // ── Models (Reliable Database-First with Resilient Local Fallback) ──
+  listModels: async (category?: ProductCategoryType, forceRefresh = false): Promise<ProductCatalogModel[]> => {
+    // 1. Return in-memory cache if active and not forced
+    if (!forceRefresh && memoryModelsCache && memoryModelsCache.length > 0) {
       const active = memoryModelsCache.filter((m) => m.published !== false);
       if (category) {
         return active.filter((m) => m.category === category);
@@ -258,68 +251,84 @@ export const productCatalogApi = {
       return active;
     }
 
-    // 2. Read from localStorage immediately (0ms)
-    let models: ProductCatalogModel[] = [];
+    // 2. Fetch directly from Supabase products table
+    if (isSupabaseConfigured()) {
+      try {
+        const query = supabase
+          .from('products')
+          .select('*')
+          .order('sort_order', { ascending: true });
+
+        const res = (await withTimeout<any>(query as any, 10000)) as any;
+        const rows = res?.data;
+        const error = res?.error;
+
+        if (!error && Array.isArray(rows)) {
+          const remoteModels = rows.map(mapDbRowToModel).filter((m) => m.published !== false);
+          memoryModelsCache = remoteModels;
+          try {
+            localStorage.setItem(LOCAL_STORAGE_MODELS_KEY, JSON.stringify(remoteModels));
+          } catch {}
+          if (category) {
+            return remoteModels.filter((m) => m.category === category);
+          }
+          return remoteModels;
+        } else if (error) {
+          console.warn('[productCatalogApi] Supabase query error:', error.message);
+        }
+      } catch (err: any) {
+        console.warn('[productCatalogApi] Supabase network error:', err?.message || err);
+      }
+    }
+
+    // 3. Fallback to localStorage cache
     try {
       const cached = localStorage.getItem(LOCAL_STORAGE_MODELS_KEY);
       if (cached) {
-        models = (JSON.parse(cached) || []).filter((m: any) => m.published !== false);
+        const models: ProductCatalogModel[] = (JSON.parse(cached) || []).filter((m: any) => m.published !== false);
         memoryModelsCache = models;
+        if (category) {
+          return models.filter((m) => m.category === category);
+        }
+        return models;
       }
     } catch {}
 
-    // 3. Background sync from Supabase with strict timeout
-    if (isSupabaseConfigured()) {
-      const syncFromSupabase = async () => {
-        try {
-          let query = supabase
-            .from('products')
-            .select('*')
-            .order('sort_order', { ascending: true });
-
-          const res = (await withTimeout<any>(query as any, 2500)) as any;
-          const rows = res?.data;
-          const error = res?.error;
-          if (!error && Array.isArray(rows) && rows.length > 0) {
-            const remoteModels = rows.map(mapDbRowToModel).filter((m) => m.published !== false);
-            memoryModelsCache = remoteModels;
-            try {
-              localStorage.setItem(LOCAL_STORAGE_MODELS_KEY, JSON.stringify(remoteModels));
-            } catch {}
-            return remoteModels;
-          }
-        } catch {
-          // Supabase network error or connection reset handled silently without blocking UI
-        }
-        return null;
-      };
-
-      // If we had no cached models, wait for the short timeout attempt
-      if (models.length === 0) {
-        const remote = await syncFromSupabase();
-        if (remote && remote.length > 0) {
-          models = remote;
-        }
-      } else {
-        // Fire background sync silently without blocking UI rendering
-        syncFromSupabase();
-      }
-    }
-
-    const cleanModels = models.filter((m) => m.published !== false);
-    if (category) {
-      return cleanModels.filter((m) => m.category === category);
-    }
-    return cleanModels;
+    return [];
   },
 
   getModelById: async (idOrSlug: string): Promise<ProductCatalogModel | null> => {
-    const all = await productCatalogApi.listModels();
+    if (!idOrSlug) return null;
+
+    // 1. Check in-memory cache
+    if (memoryModelsCache && memoryModelsCache.length > 0) {
+      const found = memoryModelsCache.find((m) => m.id === idOrSlug || m.slug === idOrSlug);
+      if (found) return found;
+    }
+
+    // 2. Query Supabase directly
+    if (isSupabaseConfigured()) {
+      try {
+        const query = isValidUuid(idOrSlug)
+          ? supabase.from('products').select('*').or(`id.eq.${idOrSlug},slug.eq.${idOrSlug}`).limit(1)
+          : supabase.from('products').select('*').eq('slug', idOrSlug).limit(1);
+
+        const res = (await withTimeout<any>(query as any, 8000)) as any;
+        if (!res?.error && Array.isArray(res?.data) && res.data.length > 0) {
+          const m = mapDbRowToModel(res.data[0]);
+          return m;
+        }
+      } catch (err) {
+        console.warn('[productCatalogApi] getModelById error:', err);
+      }
+    }
+
+    // 3. Fallback to listModels
+    const all = await productCatalogApi.listModels(undefined, true);
     return all.find((m) => m.id === idOrSlug || m.slug === idOrSlug) || null;
   },
 
   saveModel: async (model: ProductCatalogModel): Promise<ProductCatalogModel> => {
-    const allModels = await productCatalogApi.listModels();
     const now = new Date().toISOString();
     const modelToSave: ProductCatalogModel = {
       ...model,
@@ -327,83 +336,51 @@ export const productCatalogApi = {
       createdAt: model.createdAt || now,
     };
 
-    const existingIdx = allModels.findIndex(
-      (m) => m.id === model.id || m.slug === model.slug
-    );
-
-    let updatedModels: ProductCatalogModel[];
-    if (existingIdx >= 0) {
-      updatedModels = [...allModels];
-      updatedModels[existingIdx] = modelToSave;
-    } else {
-      updatedModels = [...allModels, modelToSave];
-    }
-
-    // Instantly update cache & localStorage
-    memoryModelsCache = updatedModels;
-    try {
-      localStorage.setItem(LOCAL_STORAGE_MODELS_KEY, JSON.stringify(updatedModels));
-    } catch {}
-
-    // Sync with Supabase and retain generated UUID
     if (isSupabaseConfigured()) {
       try {
         const payload = mapModelToDbRow(modelToSave);
         const res: any = await withTimeout(
           supabase.from('products').upsert(payload as any, { onConflict: 'slug' }).select() as any,
-          5000
+          10000
         );
         if (res?.error) {
-          console.warn('[Supabase Sync Warning]:', res.error.message);
+          console.error('[productCatalogApi] Supabase save error:', res.error.message);
+          throw new Error(res.error.message || 'Failed to save product in database');
         } else if (res?.data && res.data[0]?.id) {
           modelToSave.id = res.data[0].id;
-          if (existingIdx >= 0) {
-            updatedModels[existingIdx] = modelToSave;
-          } else {
-            updatedModels[updatedModels.length - 1] = modelToSave;
-          }
-          memoryModelsCache = updatedModels;
-          try {
-            localStorage.setItem(LOCAL_STORAGE_MODELS_KEY, JSON.stringify(updatedModels));
-          } catch {}
         }
       } catch (err: any) {
-        console.warn('[Supabase Sync Error]:', err?.message || err);
+        console.error('[productCatalogApi] Supabase save exception:', err);
+        throw err;
       }
     }
 
+    // Refresh model cache immediately
+    await productCatalogApi.listModels(undefined, true);
     return modelToSave;
   },
 
   toggleFeatured: async (id: string, isFeatured: boolean): Promise<ProductCatalogModel | null> => {
-    const allModels = await productCatalogApi.listModels();
-    const target = allModels.find((m) => m.id === id);
+    const target = await productCatalogApi.getModelById(id);
     if (!target) return null;
     const updatedModel: ProductCatalogModel = { ...target, isFeatured };
     return await productCatalogApi.saveModel(updatedModel);
   },
 
   deleteModel: async (id: string): Promise<boolean> => {
-    const allModels = await productCatalogApi.listModels();
-    const target = allModels.find((m) => m.id === id);
-    const updated = allModels.filter((m) => m.id !== id);
-
-    memoryModelsCache = updated;
-    try {
-      localStorage.setItem(LOCAL_STORAGE_MODELS_KEY, JSON.stringify(updated));
-    } catch {}
-
-    if (isSupabaseConfigured() && target) {
-      (async () => {
-        try {
-          await withTimeout(
-            supabase.from('products').delete().or(`id.eq.${id},slug.eq.${target.slug}`) as any,
-            3000
-          );
-        } catch {}
-      })();
+    if (isSupabaseConfigured()) {
+      try {
+        const query = isValidUuid(id)
+          ? supabase.from('products').delete().eq('id', id)
+          : supabase.from('products').delete().eq('slug', id);
+        await withTimeout(query as any, 8000);
+      } catch (err) {
+        console.warn('[productCatalogApi] Supabase delete error:', err);
+      }
     }
 
+    // Refresh cache immediately
+    await productCatalogApi.listModels(undefined, true);
     return true;
   },
 
@@ -414,14 +391,12 @@ export const productCatalogApi = {
     } catch {}
 
     if (isSupabaseConfigured()) {
-      (async () => {
-        try {
-          await withTimeout(
-            supabase.from('products').delete().neq('id', '00000000-0000-0000-0000-000000000000') as any,
-            3000
-          );
-        } catch {}
-      })();
+      try {
+        await withTimeout(
+          supabase.from('products').delete().neq('id', '00000000-0000-0000-0000-000000000000') as any,
+          5000
+        );
+      } catch {}
     }
     return true;
   },

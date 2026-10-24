@@ -280,7 +280,7 @@ export default function CreateProformaPage() {
         crmApi.listCustomers({ limit: 100 }).catch(() => ({ data: { data: { items: [] } } })),
         companiesApi.list().catch(() => ({ data: { data: [] } })),
         salesQuotationsApi.list({ limit: 50 }).catch(() => ({ data: { data: { items: [] } } })),
-        productCatalogApi.listModels().catch(() => []),
+        productCatalogApi.listModels(undefined, true).catch(() => []),
       ]);
 
       if (custRes.data?.data?.items) {
@@ -1050,7 +1050,7 @@ export default function CreateProformaPage() {
       }));
     } else {
       setFormData((f) => {
-        const stdModel = catalogModels.find((m) => m.slug === 'std-delight' || m.id === 'std-delight') || catalogModels[0];
+        const stdModel = catalogModels.find((m) => m.slug === 'cubicle-delight' || m.title.toLowerCase().includes('delight')) || catalogModels[0];
         const defaultHw = stdModel ? extractModelHardwareItems(stdModel, 1) : [];
         return {
           ...f,
@@ -1058,7 +1058,7 @@ export default function CreateProformaPage() {
           accessoriesText: DEFAULT_ACCESSORIES_TEXT,
           items: [
             {
-              modelId: stdModel?.id || 'std-delight',
+              modelId: stdModel?.id || '',
               itemType: 'cubicle',
               systemCategory: 'cubicle',
               description: stdModel ? `Pacific ${stdModel.title} (Cubicle)` : 'Pacific Restroom Cubicle System',
@@ -1075,7 +1075,7 @@ export default function CreateProformaPage() {
               overallHeight: '1980mm (incl. 100mm ground clearance)',
               hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
             },
-            ...defaultHw.map((h) => ({ ...h, parentModelId: stdModel?.id || 'std-delight' })),
+            ...defaultHw.map((h) => ({ ...h, parentModelId: stdModel?.id || '' })),
           ],
         };
       });
