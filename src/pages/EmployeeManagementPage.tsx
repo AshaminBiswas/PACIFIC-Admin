@@ -144,6 +144,7 @@ export function EmployeeManagementPage() {
 
   // Advances & Deductions State
   const [advancesSubTab, setAdvancesSubTab] = useState<'advances' | 'ledger' | 'deductions'>('advances');
+  const [advanceStatusFilter, setAdvanceStatusFilter] = useState<'PENDING' | 'ALL' | 'RECOVERED'>('PENDING');
   const [advancesList, setAdvancesList] = useState<EmployeeAdvance[]>([]);
   const [deductionsList, setDeductionsList] = useState<EmployeeDeduction[]>([]);
   const [advanceSummary, setAdvanceSummary] = useState<AdvanceSummary | null>(null);
@@ -2262,6 +2263,48 @@ export function EmployeeManagementPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="flex items-center bg-[#030213] p-0.5 rounded-xl border border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setAdvanceStatusFilter('PENDING')}
+                      className={`px-2.5 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1.5 cursor-pointer ${
+                        advanceStatusFilter === 'PENDING'
+                          ? 'bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <span>Pending</span>
+                      <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500/30 text-amber-300 font-bold">
+                        {advancesList.filter((a) => !a.isRecovered && workerEmployees.some((w) => w.id === a.employeeId)).length}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdvanceStatusFilter('RECOVERED')}
+                      className={`px-2.5 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1.5 cursor-pointer ${
+                        advanceStatusFilter === 'RECOVERED'
+                          ? 'bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <span>Cleared</span>
+                      <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/30 text-emerald-300 font-bold">
+                        {advancesList.filter((a) => a.isRecovered && workerEmployees.some((w) => w.id === a.employeeId)).length}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdvanceStatusFilter('ALL')}
+                      className={`px-2.5 py-1 text-xs rounded-lg font-medium transition cursor-pointer ${
+                        advanceStatusFilter === 'ALL'
+                          ? 'bg-white/10 text-white font-bold'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      All ({advancesList.filter((a) => workerEmployees.some((w) => w.id === a.employeeId)).length})
+                    </button>
+                  </div>
+
                   <div className="px-3 py-1.5 bg-[#030213] border border-amber-500/30 rounded-xl flex items-center gap-2">
                     <span className="text-[11px] text-gray-400">Workers Pending Recovery:</span>
                     <span className="text-sm font-bold text-amber-400 font-mono">
@@ -2317,15 +2360,27 @@ export function EmployeeManagementPage() {
                             Loading worker advances...
                           </td>
                         </tr>
-                      ) : advancesList.filter((a) => workerEmployees.some((w) => w.id === a.employeeId)).length === 0 ? (
+                      ) : advancesList.filter((a) => {
+                          if (!workerEmployees.some((w) => w.id === a.employeeId)) return false;
+                          if (advanceStatusFilter === 'PENDING' && a.isRecovered) return false;
+                          if (advanceStatusFilter === 'RECOVERED' && !a.isRecovered) return false;
+                          return true;
+                        }).length === 0 ? (
                         <tr>
                           <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                            No worker advances scheduled for {MONTHS[selectedMonth - 1]?.label} {selectedYear}.
+                            {advanceStatusFilter === 'PENDING'
+                              ? `No pending worker advances for ${MONTHS[selectedMonth - 1]?.label} ${selectedYear}. All cleared!`
+                              : `No worker advances found for ${MONTHS[selectedMonth - 1]?.label} ${selectedYear}.`}
                           </td>
                         </tr>
                       ) : (
                         advancesList
-                          .filter((a) => workerEmployees.some((w) => w.id === a.employeeId))
+                          .filter((a) => {
+                            if (!workerEmployees.some((w) => w.id === a.employeeId)) return false;
+                            if (advanceStatusFilter === 'PENDING' && a.isRecovered) return false;
+                            if (advanceStatusFilter === 'RECOVERED' && !a.isRecovered) return false;
+                            return true;
+                          })
                           .map((adv) => (
                             <tr key={adv.id} className="hover:bg-white/5 transition">
                               <td className="px-4 py-3.5">
@@ -3182,33 +3237,77 @@ export function EmployeeManagementPage() {
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {advancesSubTab === 'advances' && (
-                <div className="flex items-center bg-[#030213] p-0.5 rounded-xl border border-white/10">
-                  <button
-                    type="button"
-                    onClick={() => setWorkerAdvancesFilter('ALL')}
-                    className={`px-2.5 py-1 text-xs rounded-lg font-medium transition ${
-                      workerAdvancesFilter === 'ALL'
-                        ? 'bg-white/10 text-white'
-                        : 'text-gray-500 hover:text-white'
-                    }`}
-                  >
-                    All Staff
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setWorkerAdvancesFilter('WORKERS')}
-                    className={`px-2.5 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1 ${
-                      workerAdvancesFilter === 'WORKERS'
-                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold'
-                        : 'text-gray-500 hover:text-white'
-                    }`}
-                  >
-                    <Construction size={12} />
-                    <span>Workers Only</span>
-                  </button>
-                </div>
+                <>
+                  <div className="flex items-center bg-[#030213] p-0.5 rounded-xl border border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setAdvanceStatusFilter('PENDING')}
+                      className={`px-2.5 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1.5 cursor-pointer ${
+                        advanceStatusFilter === 'PENDING'
+                          ? 'bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <span>Pending Recovery</span>
+                      <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500/30 text-amber-300 font-bold">
+                        {advancesList.filter((a) => !a.isRecovered).length}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdvanceStatusFilter('RECOVERED')}
+                      className={`px-2.5 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1.5 cursor-pointer ${
+                        advanceStatusFilter === 'RECOVERED'
+                          ? 'bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <span>Cleared / Deducted</span>
+                      <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/30 text-emerald-300 font-bold">
+                        {advancesList.filter((a) => a.isRecovered).length}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdvanceStatusFilter('ALL')}
+                      className={`px-2.5 py-1 text-xs rounded-lg font-medium transition cursor-pointer ${
+                        advanceStatusFilter === 'ALL'
+                          ? 'bg-white/10 text-white font-bold'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      All ({advancesList.length})
+                    </button>
+                  </div>
+
+                  <div className="flex items-center bg-[#030213] p-0.5 rounded-xl border border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setWorkerAdvancesFilter('ALL')}
+                      className={`px-2.5 py-1 text-xs rounded-lg font-medium transition cursor-pointer ${
+                        workerAdvancesFilter === 'ALL'
+                          ? 'bg-white/10 text-white font-bold'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      All Staff
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWorkerAdvancesFilter('WORKERS')}
+                      className={`px-2.5 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1 cursor-pointer ${
+                        workerAdvancesFilter === 'WORKERS'
+                          ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <Construction size={12} />
+                      <span>Workers Only</span>
+                    </button>
+                  </div>
+                </>
               )}
 
               {advancesSubTab === 'deductions' ? (
@@ -3255,20 +3354,28 @@ export function EmployeeManagementPage() {
                           Loading advances...
                         </td>
                       </tr>
-                    ) : (workerAdvancesFilter === 'WORKERS'
-                        ? advancesList.filter((a) => workerEmployees.some((w) => w.id === a.employeeId))
-                        : advancesList
-                      ).length === 0 ? (
+                    ) : advancesList.filter((a) => {
+                        if (workerAdvancesFilter === 'WORKERS' && !workerEmployees.some((w) => w.id === a.employeeId)) return false;
+                        if (advanceStatusFilter === 'PENDING' && a.isRecovered) return false;
+                        if (advanceStatusFilter === 'RECOVERED' && !a.isRecovered) return false;
+                        return true;
+                      }).length === 0 ? (
                       <tr>
                         <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                          No advances scheduled for {MONTHS[selectedMonth - 1]?.label} {selectedYear}.
+                          {advanceStatusFilter === 'PENDING'
+                            ? `No pending advances for ${MONTHS[selectedMonth - 1]?.label} ${selectedYear}. All advances are fully cleared!`
+                            : `No advances found for ${MONTHS[selectedMonth - 1]?.label} ${selectedYear}.`}
                         </td>
                       </tr>
                     ) : (
-                      (workerAdvancesFilter === 'WORKERS'
-                        ? advancesList.filter((a) => workerEmployees.some((w) => w.id === a.employeeId))
-                        : advancesList
-                      ).map((adv) => (
+                      advancesList
+                        .filter((a) => {
+                          if (workerAdvancesFilter === 'WORKERS' && !workerEmployees.some((w) => w.id === a.employeeId)) return false;
+                          if (advanceStatusFilter === 'PENDING' && a.isRecovered) return false;
+                          if (advanceStatusFilter === 'RECOVERED' && !a.isRecovered) return false;
+                          return true;
+                        })
+                        .map((adv) => (
                         <tr key={adv.id} className="hover:bg-white/5 transition">
                           <td className="px-4 py-3.5">
                             <div className="font-medium text-white">{adv.employee?.name}</div>
@@ -5742,7 +5849,9 @@ export function EmployeeManagementPage() {
         initialData={calculatorInitialData}
         onSaveSuccess={() => {
           fetchPayroll();
-          showFeedback('success', 'Payroll calculation saved to monthly records!');
+          fetchAdvancesAndDeductions();
+          triggerPayrollSync();
+          showFeedback('success', 'Payroll calculation saved & advance deductions reconciled successfully!');
         }}
       />
     </div>

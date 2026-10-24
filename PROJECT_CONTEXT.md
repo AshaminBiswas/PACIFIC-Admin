@@ -7400,5 +7400,49 @@ Load testing was executed against the operational engine using a 2,000-concurren
   - `D:\PACIFIC-Backend`: `npm run typecheck` exited 0 (zero errors).
 - **Frontend Production Build**: `npm run build` compiled successfully (exit code 0).
 
+---
+
+## 136. Employee Multiple Advance Deduction & Real-Time Salary Reconciliation Engine
+
+### 136.1 Issue Diagnosed & Root Causes
+1. **Multiple Advances Per Month Unlinked in Salary Calculations**:
+   - Employees frequently receive multiple cash or digital advances throughout the month (e.g. ₹2,000 on the 5th and ₹3,000 on the 15th).
+   - In the Dynamic Salary Calculator Studio (`simulateSalaryCalculation`), entering a deduction saved `advanceDeduction` on the `employeePayrollRun` record but **never updated `employee_advances` records in the database**.
+   - As a result, even after salary was calculated or paid with deductions, all advance records remained stuck in `isRecovered: false` and continued to show as unpaid in the Advances section.
+2. **Missing FIFO Reconciliation for Partial vs. Full Deductions**:
+   - There was no automated mechanism to sequentially allocate a partial salary deduction across multiple advances and cleanly carry forward the remaining balance to the next month.
+3. **No Status Filter in Advance Section UI**:
+   - In `EmployeeManagementPage.tsx` (both staff Advances and Worker Hub), the advances table rendered all rows for the month indiscriminately.
+   - Cleared and recovered advances remained visible in the main table, confusing administrators who expected already-deducted advances to vanish from the active pending list.
+4. **Stale Cache on Salary Save (`onSaveSuccess`)**:
+   - The modal's `onSaveSuccess` callback only refetched payroll runs and never triggered `fetchAdvancesAndDeductions()`, leaving the in-memory advance list unrefreshed until manual page reload.
+
+### 136.2 Applied Solutions
+1. **Real-Time Advance Reconciliation Engine (`reconcileAdvancesForPayroll`)**:
+   - Implemented `reconcileAdvancesForPayroll` in `employee-management.service.ts`:
+     - Gathers all pending advances up to the target payroll month/year in chronological FIFO order (`advanceDate ASC, createdAt ASC`).
+     - **Full Recovery**: If the salary deduction covers the advance, marks it `isRecovered: true`, `recoveredAt: new Date()`, `payrollRunId: savedRun.id`, and updates the reason notation.
+     - **Partial Recovery**: If the deduction covers only a portion of the advance, updates the current record with the deducted amount, marks it `isRecovered: true`, and automatically spawns a carry-forward advance for the remaining balance in the next month (`recoveryMonth: nextMonth, recoveryYear: nextYear, isRecovered: false`).
+     - **Re-calculation & Idempotency**: If a salary deduction is adjusted or reverted to DRAFT, previously spawned carry-forward children are safely pruned and the original amounts/status are restored.
+   - Wired `reconcileAdvancesForPayroll` into `simulateSalaryCalculation` (`saveToPayroll: true`), `finalizePayroll`, and `markPayrollPaid`.
+2. **Interactive Multi-Advance Breakdown in Dynamic Salary Calculator**:
+   - In `DynamicSalaryCalculatorModal.tsx`, active advances are retrieved and rendered in an interactive breakdown card.
+   - Displays real-time allocation feedback:
+     - Full Recovery: *"All ₹X pending advances will be recovered and cleared upon saving."*
+     - Partial Recovery: *"₹X will be deducted this month. Remaining ₹Y will carry forward to next month."*
+3. **Smart Advance Status Filter Tabs in Employee Management Page**:
+   - Added `advanceStatusFilter` (`PENDING`, `RECOVERED`, `ALL`) to both the main Advances & Deductions view and the Worker Hub.
+   - Defaults to **"Pending Recovery"** so that already-cleared advances are automatically filtered out, displaying zero clutter.
+   - Includes real-time count badges for Pending, Cleared, and Total.
+4. **Immediate Data Synchronization on Save**:
+   - Updated `onSaveSuccess` to simultaneously invoke `fetchPayroll()`, `fetchAdvancesAndDeductions()`, and `triggerPayrollSync()`.
+
+### 136.3 Verification
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (zero errors).
+  - `D:\PACIFIC-Backend`: `npm run typecheck` exited 0 (zero errors).
+- **Production Build**: `npm run build` compiled 3,018 modules cleanly in 32.46s (exit code 0).
+
+
 
 

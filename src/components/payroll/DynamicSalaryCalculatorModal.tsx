@@ -87,6 +87,17 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
   const [showHistory, setShowHistory] = useState<boolean>(true);
   const [isLoadingDefaults, setIsLoadingDefaults] = useState<boolean>(false);
   const [employeePendingAdvance, setEmployeePendingAdvance] = useState<number>(0);
+  const [employeeAdvancesList, setEmployeeAdvancesList] = useState<Array<{
+    id: string;
+    amount: number;
+    originalAmount?: number;
+    reason: string;
+    recoveryMonth: number;
+    recoveryYear: number;
+    advanceDate?: string;
+    isRecovered?: boolean;
+    isDeductedInThisRun?: boolean;
+  }>>([]);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -142,6 +153,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
     setSelectedEmpId(empId);
     if (!empId) {
       setEmployeePendingAdvance(0);
+      setEmployeeAdvancesList([]);
       return;
     }
 
@@ -171,6 +183,11 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
         showToast('success', `Loaded recorded payroll inputs for ${defaults.employeeName}`);
         if (defaults.totalPendingAdvance !== undefined) {
           setEmployeePendingAdvance(defaults.totalPendingAdvance);
+        }
+        if (defaults.pendingAdvancesList) {
+          setEmployeeAdvancesList(defaults.pendingAdvancesList);
+        } else {
+          setEmployeeAdvancesList([]);
         }
       }
     } catch {
@@ -767,7 +784,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                       <button
                         type="button"
                         onClick={() => setPartialDeductions(employeePendingAdvance)}
-                        className="px-2 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded text-[10px] font-semibold transition"
+                        className="px-2 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded text-[10px] font-semibold transition cursor-pointer"
                         title={`Full Recovery: Deduct all ₹${employeePendingAdvance} pending advances`}
                       >
                         Full: ₹{employeePendingAdvance.toLocaleString('en-IN')}
@@ -775,7 +792,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                       <button
                         type="button"
                         onClick={() => setPartialDeductions(Math.round(employeePendingAdvance / 2))}
-                        className="px-1.5 py-0.5 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded text-[10px] transition"
+                        className="px-1.5 py-0.5 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded text-[10px] transition cursor-pointer"
                         title="Customize: 50% recovery"
                       >
                         50%
@@ -783,10 +800,63 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
                       <button
                         type="button"
                         onClick={() => setPartialDeductions(0)}
-                        className="px-1.5 py-0.5 bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white rounded text-[10px] transition"
+                        className="px-1.5 py-0.5 bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white rounded text-[10px] transition cursor-pointer"
                       >
                         Clear
                       </button>
+                    </div>
+                  )}
+
+                  {/* Real-time Advance Deduction Allocation Helper */}
+                  {employeePendingAdvance > 0 && partialDeductions > 0 && (
+                    <div className="mt-2 p-2 rounded-lg bg-black/30 border border-white/5 text-[11px] leading-tight">
+                      {partialDeductions >= employeePendingAdvance ? (
+                        <span className="text-emerald-400 font-medium">
+                          ✓ Full Deduction: All ₹{employeePendingAdvance.toLocaleString('en-IN')} pending advances will be recovered and cleared upon saving.
+                        </span>
+                      ) : (
+                        <span className="text-amber-400 font-medium">
+                          ℹ️ Partial Deduction: ₹{partialDeductions.toLocaleString('en-IN')} will be deducted this month. Remaining ₹{(employeePendingAdvance - partialDeductions).toLocaleString('en-IN')} will carry forward to next month.
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Multiple Advances Breakdown List */}
+                  {employeeAdvancesList.length > 0 && (
+                    <div className="mt-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/10 space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] text-gray-400 font-medium">
+                        <span>Active Advances ({employeeAdvancesList.length})</span>
+                        <span className="text-amber-400 font-mono font-bold">
+                          ₹{employeePendingAdvance.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                      <div className="max-h-28 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                        {employeeAdvancesList.map((adv) => (
+                          <div
+                            key={adv.id}
+                            className="flex items-center justify-between text-[11px] px-2 py-1 rounded bg-[#030213] border border-white/5"
+                          >
+                            <div className="truncate mr-2">
+                              <span className="font-semibold text-white font-mono">
+                                ₹{Number(adv.amount).toLocaleString('en-IN')}
+                              </span>
+                              <span className="text-gray-400 ml-1.5 truncate">
+                                {adv.reason || 'Salary Advance'}
+                              </span>
+                            </div>
+                            <span
+                              className={`shrink-0 px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                                adv.isDeductedInThisRun || adv.isRecovered
+                                  ? 'bg-emerald-500/20 text-emerald-400'
+                                  : 'bg-amber-500/20 text-amber-400'
+                              }`}
+                            >
+                              {adv.isDeductedInThisRun || adv.isRecovered ? 'Cleared' : 'Pending'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
