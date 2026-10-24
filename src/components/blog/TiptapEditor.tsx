@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import LinkExtension from "@tiptap/extension-link";
@@ -155,6 +156,28 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Keyboard shortcut: Escape exits Zen mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && viewMode === "ZEN") {
+        setViewMode("PAGE");
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [viewMode]);
+
+  // Lock document body scroll when Zen mode is active
+  useEffect(() => {
+    if (viewMode === "ZEN") {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = prevOverflow;
+      };
+    }
+  }, [viewMode]);
 
   const editor = useEditor({
     extensions: [
@@ -651,17 +674,52 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
     );
   }
 
-  return (
+  const editorDom = (
     <div
       ref={containerRef}
-      className={`relative rounded-2xl border border-white/10 bg-[#0a0a1a] transition-all flex flex-col ${
+      className={`relative rounded-2xl border border-white/10 bg-[#0a0a1a] transition-all flex flex-col min-w-0 max-w-full ${
         viewMode === "ZEN"
-          ? "fixed inset-0 z-50 rounded-none border-none h-screen w-screen bg-[#070716]"
-          : "min-h-[560px]"
+          ? "fixed inset-0 z-[9999] rounded-none border-none w-full h-full bg-[#070716] overflow-hidden"
+          : "min-h-[560px] overflow-hidden"
       } ${className}`}
     >
+      {/* ── Zen Mode Dedicated Top Header Bar ───────────────────────────────── */}
+      {viewMode === "ZEN" && (
+        <div className="flex items-center justify-between border-b border-white/10 bg-[#0c0c1e] px-4 py-2.5 z-30 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setViewMode("PAGE")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 text-xs font-semibold border border-amber-500/30 transition cursor-pointer"
+              title="Exit Zen Fullscreen (Esc)"
+            >
+              <Minimize2 className="w-3.5 h-3.5" />
+              <span>Exit Zen Mode (Esc)</span>
+            </button>
+            <span className="text-gray-600 hidden sm:inline">•</span>
+            <span className="text-xs text-gray-300 font-medium hidden sm:inline">
+              Zen Distraction-Free Word Studio
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-mono text-[#7FB706]">
+              {editor.storage.characterCount?.words?.() || 0} words
+            </span>
+            <button
+              type="button"
+              onClick={() => setViewMode("PAGE")}
+              className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+              title="Close Zen Fullscreen"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Word Ribbon Toolbar ─────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-1 border-b border-white/10 bg-[#121226]/95 p-2 backdrop-blur-md">
+      <div className="sticky top-0 z-20 flex items-center gap-1 border-b border-white/10 bg-[#121226]/95 p-2 backdrop-blur-md overflow-x-auto no-scrollbar max-w-full flex-wrap sm:flex-nowrap lg:flex-wrap shrink-0">
         {/* Undo / Redo */}
         <div className="flex items-center border-r border-white/10 pr-1.5 mr-1 gap-0.5">
           <button
@@ -1331,16 +1389,16 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
       <div
         className={`flex-1 overflow-y-auto ${
           viewMode === "PAGE"
-            ? "py-8 px-4 sm:px-8 bg-[#070716] flex justify-center"
+            ? "py-6 sm:py-8 px-2 sm:px-6 bg-[#070716] flex justify-center"
             : viewMode === "ZEN"
-            ? "py-12 px-6 sm:px-16 max-w-4xl mx-auto w-full"
-            : "p-4 sm:p-6"
+            ? "py-8 sm:py-12 px-4 sm:px-8 max-w-4xl mx-auto w-full"
+            : "p-3 sm:p-6"
         }`}
       >
         <div
           className={`${
             viewMode === "PAGE"
-              ? "w-full max-w-3xl rounded-2xl bg-[#0f0f23] border border-white/10 shadow-2xl p-8 sm:p-14 min-h-[680px]"
+              ? "w-full max-w-3xl rounded-2xl bg-[#0f0f23] border border-white/10 shadow-2xl p-4 sm:p-8 lg:p-12 min-h-[640px]"
               : "w-full"
           } ${
             fontFamily === "serif"
@@ -1348,7 +1406,7 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
               : fontFamily === "mono"
               ? "font-mono text-sm leading-relaxed"
               : "font-sans text-base leading-relaxed"
-          }`}
+          } min-w-0 max-w-full overflow-hidden`}
         >
           <EditorContent editor={editor} />
         </div>
@@ -1385,7 +1443,7 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
       {/* ── Find and Replace Modal ───────────────────────────────────────────── */}
       {showFindReplaceModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#121226] p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -1461,7 +1519,7 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
       {/* ── Keyboard Shortcuts Modal ────────────────────────────────────────── */}
       {showShortcutsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#121226] p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -1541,7 +1599,7 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
       {/* ── Link Modal ─────────────────────────────────────────────────────── */}
       {showLinkModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#121226] p-6 shadow-2xl space-y-4">
             <h3 className="text-base font-bold text-white">Insert Hyperlink</h3>
             <div>
@@ -1586,7 +1644,7 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
       {/* ── Image Modal ────────────────────────────────────────────────────── */}
       {showImageModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#121226] p-6 shadow-2xl space-y-4">
             <h3 className="text-base font-bold text-white">Insert Article Image</h3>
             <div className="border-2 border-dashed border-white/15 rounded-2xl p-5 text-center hover:border-[#7FB706]/50 transition-colors">
@@ -1659,7 +1717,7 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
       {/* ── Video Modal ────────────────────────────────────────────────────── */}
       {showVideoModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#121226] p-6 shadow-2xl space-y-4">
             <h3 className="text-base font-bold text-white">Embed Video</h3>
             <div>
@@ -1699,7 +1757,7 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
       {/* ── Table Modal ────────────────────────────────────────────────────── */}
       {showTableModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#121226] p-6 shadow-2xl space-y-4">
             <h3 className="text-base font-bold text-white">Insert Structured Table</h3>
             <div className="grid grid-cols-2 gap-4">
@@ -1750,4 +1808,10 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
       )}
     </div>
   );
+
+  if (viewMode === "ZEN" && typeof document !== "undefined") {
+    return createPortal(editorDom, document.body);
+  }
+
+  return editorDom;
 };

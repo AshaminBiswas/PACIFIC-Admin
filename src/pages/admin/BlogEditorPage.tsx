@@ -44,6 +44,9 @@ import {
   Layers,
   ChevronRight,
   ListTree,
+  SlidersHorizontal,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 
 const AUTOSAVE_STORAGE_PREFIX = "pacific_blog_draft_";
@@ -96,6 +99,8 @@ export default function BlogEditorPage() {
   const [ogTitle, setOgTitle] = useState("");
   const [ogDescription, setOgDescription] = useState("");
   const [serpDevice, setSerpDevice] = useState<"desktop" | "mobile">("desktop");
+  const [isExpandedStudio, setIsExpandedStudio] = useState(false);
+  const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
 
   const coverInputRef = useRef<HTMLInputElement>(null);
 
@@ -506,6 +511,41 @@ export default function BlogEditorPage() {
             <span className="hidden sm:inline">Outline</span>
           </button>
 
+          {/* Expand Studio (Focus Mode - Full Width Writing Area) */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsExpandedStudio((prev) => !prev);
+              setShowSettingsDrawer(false);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+              isExpandedStudio
+                ? "bg-[#7FB706]/20 border-[#7FB706] text-[#B5F823]"
+                : "bg-white/5 border-white/10 text-gray-400 hover:text-white"
+            }`}
+            title={isExpandedStudio ? "Exit expanded canvas and restore sidebar" : "Expand writing area (hide sidebar for deep focus)"}
+          >
+            {isExpandedStudio ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{isExpandedStudio ? "Standard View" : "Expand Canvas"}</span>
+          </button>
+
+          {/* Settings Drawer Button when in Expanded Studio mode */}
+          {isExpandedStudio && (
+            <button
+              type="button"
+              onClick={() => setShowSettingsDrawer((prev) => !prev)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+                showSettingsDrawer
+                  ? "bg-[#7FB706] text-black border-[#7FB706] font-bold"
+                  : "bg-white/5 border-white/10 text-gray-300 hover:text-white"
+              }`}
+              title="Open Blog Settings & SEO Panel"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>Settings ({contentAudit.score}%)</span>
+            </button>
+          )}
+
           {/* Reset draft button */}
           {!isEditing && (
             <button
@@ -568,12 +608,18 @@ export default function BlogEditorPage() {
       {/* ── Main Layout: Document Outline (Optional) + Writing Canvas + Sidebar ─── */}
       <div
         className={`grid grid-cols-1 ${
-          showOutline ? "xl:grid-cols-[240px_1fr_340px]" : "lg:grid-cols-[1fr_340px]"
-        } gap-6 items-start`}
+          showOutline && !isExpandedStudio
+            ? "xl:grid-cols-[240px_minmax(0,1fr)_340px]"
+            : showOutline && isExpandedStudio
+            ? "xl:grid-cols-[240px_minmax(0,1fr)]"
+            : !showOutline && isExpandedStudio
+            ? "grid-cols-1"
+            : "lg:grid-cols-[minmax(0,1fr)_340px]"
+        } gap-6 items-start w-full min-w-0`}
       >
         {/* ── Left Document Outline Pane ─────────────────────────────────────── */}
         {showOutline && (
-          <div className="hidden xl:block sticky top-28 space-y-3">
+          <div className="hidden xl:block sticky top-28 space-y-3 min-w-0">
             <div className="rounded-2xl border border-white/10 bg-[#121226] p-4 shadow-xl space-y-3">
               <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
                 <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
@@ -617,7 +663,7 @@ export default function BlogEditorPage() {
         )}
 
         {/* ── Central Word Processor Canvas ──────────────────────────────────── */}
-        <div className="space-y-6">
+        <div className="space-y-6 min-w-0 w-full overflow-hidden">
           {/* Article Headline Input */}
           <div className="rounded-2xl border border-white/10 bg-[#121226] p-5 sm:p-6 shadow-xl">
             <div className="flex items-center justify-between mb-2">
@@ -722,7 +768,9 @@ export default function BlogEditorPage() {
         </div>
 
         {/* ── Right Settings Sidebar ─────────────────────────────────────────── */}
-        <div className="space-y-6">
+        {(() => {
+          const sidebarContent = (
+            <div className="space-y-6">
           {/* Real-World Content & SEO Quality Scorecard */}
           <div className="rounded-2xl border border-white/10 bg-[#121226] p-5 shadow-xl space-y-4">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
@@ -1116,7 +1164,45 @@ export default function BlogEditorPage() {
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
+      );
+
+      return (
+        <>
+          {!isExpandedStudio && (
+            <div className="space-y-6 min-w-0 w-full">{sidebarContent}</div>
+          )}
+
+          {/* Slide-over Settings Drawer when Studio is in Expanded Focus Mode */}
+          {isExpandedStudio && showSettingsDrawer && (
+            <div className="fixed inset-0 z-50 overflow-hidden">
+              <div
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+                onClick={() => setShowSettingsDrawer(false)}
+              />
+              <div className="fixed inset-y-0 right-0 max-w-full flex pl-6 sm:pl-10 z-10">
+                <div className="w-screen max-w-md bg-[#121226] border-l border-white/10 shadow-2xl p-4 sm:p-6 overflow-y-auto">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-6">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <SlidersHorizontal className="w-4 h-4 text-[#7FB706]" />
+                      Blog Settings & SEO Audit
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowSettingsDrawer(false)}
+                      className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {sidebarContent}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      );
+    })()}
+  </div>
+</div>
+);
 }

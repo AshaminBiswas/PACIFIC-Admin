@@ -7573,10 +7573,11 @@ Load testing was executed against the operational engine using a 2,000-concurren
      - Support for subscript, superscript, mark/highlight, and custom text colors.
 3. **Word Processor Component (`src/components/blog/TiptapEditor.tsx`)**:
    - **Canvas View Modes**:
-     - `page`: Centered 850px container with sheet-white/slate contrast, padded sheet margins, and dimensional shadow.
-     - `fluid`: Responsive full-width container for expansive editing.
-     - `zen`: Fixed fullscreen overlay (`z-50`) with hidden navigation and focused floating toolbar.
+     - `page`: Centered 850px container with sheet-white/slate contrast, responsive padded sheet margins (`p-4 sm:p-8 lg:p-12`), and dimensional shadow.
+     - `fluid`: Responsive 100% full-width container for expansive visual drafting with `min-w-0 max-w-full overflow-hidden` guardrails.
+     - `zen`: True distraction-free fullscreen overlay mounted directly to `document.body` via React `createPortal` with `z-[9999]`, dedicated top status bar, `Escape` key listener, and `document.body` overflow lock. Escapes all parent containing blocks, transforms, and overflow parents.
    - **Multi-Group Ribbon Toolbar**:
+     - Responsive overflow-x scroll container preventing button wrap clipping on narrow screens.
      - Undo / Redo controls with history tracking.
      - Font Family dropdown (`Inter`, `Merriweather`, `JetBrains Mono`).
      - Paragraph Style dropdown (Paragraph, Heading 1, 2, 3, 4).
@@ -7587,10 +7588,17 @@ Load testing was executed against the operational engine using a 2,000-concurren
      - Media & Embed insert group: Link dialog, Image CDN upload, Video embed dialog, Interactive Table insertion.
      - Architectural Component Presets dropdown: Injects formatted HTML callouts, comparison grids, metric cards, CTA quote banners, and FAQ accordions.
      - Find & Replace drawer (`Ctrl+F`): In-memory regex matcher with highlight matches, cycling through results, Replace, and Replace All.
+     - Modals with `z-[10000]` layering ensuring popups always render above Zen view.
      - Live Word Status Bar: Real-time calculation of words, characters, characters without spaces, paragraphs, estimated reading time, and reading level indicator.
      - Export tools: Copy Clean HTML, Download Markdown file, Print A4 preview.
      - Headings hierarchy parser callback (`onHeadingsChange`) notifying parent studio of document outline.
 4. **Blog Studio Integration (`src/pages/admin/BlogEditorPage.tsx`)**:
+   - Added **Expand Canvas / Studio Focus Mode**:
+     - Allows toggling right settings sidebar off to grant 100% full width to the word processor canvas.
+     - Top ribbon "Settings (Score%)" trigger opens an off-canvas slide-over drawer so authors can adjust SEO and metadata without leaving expanded canvas.
+   - Added strict **Anti-Blowout Grid Protection**:
+     - Upgraded CSS grid column from `1fr` to `minmax(0, 1fr)`.
+     - Bound central editor column with `min-w-0 w-full overflow-hidden`, preventing wide tables or preformatted elements from pushing columns beyond viewport or overlapping sidebars.
    - Added collapsible left **Document Outline / Navigation Pane** with real-time H1–H4 tree and instant jump-to-section.
    - Added **Content Quality & SEO Health Scorecard (0–100%)**:
      - Live circular/bar progress meter.
@@ -7602,7 +7610,7 @@ Load testing was executed against the operational engine using a 2,000-concurren
 
 ### 139.3 Verification
 - **TypeScript Typecheck**: `npx tsc --noEmit` exited **0** (zero errors).
-- **Production Build**: `npm run build` compiled 3,023 modules cleanly in 1m 21s (exit code 0).
+- **Production Build**: `npm run build` compiled 3,023 modules cleanly in 44.88s (exit code 0).
 
 
 

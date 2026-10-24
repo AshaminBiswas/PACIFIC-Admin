@@ -76,6 +76,22 @@
 /* ─── Tiptap Real-Word Document Typography ─── */
 .tiptap-word-canvas {
   outline: none;
+  max-width: 100%;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+.tiptap-word-canvas img,
+.tiptap-word-canvas iframe,
+.tiptap-word-canvas video {
+  max-width: 100% !important;
+  height: auto;
+  border-radius: 0.75rem;
+}
+.tiptap-word-canvas .tableWrapper {
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 1.5rem 0;
+  -webkit-overflow-scrolling: touch;
 }
 .tiptap-word-canvas h1 {
   font-size: 2rem;
