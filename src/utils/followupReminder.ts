@@ -21,6 +21,11 @@ export interface FollowupReminder {
 import { supabase } from '../lib/supabase';
 
 const STORAGE_KEY = 'pacific_quotation_reminders';
+const DISMISSED_KEY = 'pacific_dismissed_reminders';
+
+// Module-level throttle & shared audio context to prevent device collision
+let lastChimeTime = 0;
+let sharedAudioCtx: AudioContext | null = null;
 
 /**
  * Checks if HTML5 Notification API is supported and permission is granted.
@@ -45,15 +50,25 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
 
 /**
  * Plays a crisp, professional dual-tone alarm chime using Web Audio API.
- * No external MP3 dependencies required.
+ * Throttled to at most once every 10 seconds to protect device renderer.
  */
 export function playReminderChime(): void {
   if (typeof window === 'undefined') return;
+  const nowMs = Date.now();
+  if (nowMs - lastChimeTime < 10000) return;
+  lastChimeTime = nowMs;
+
   try {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextClass) return;
 
-    const ctx = new AudioContextClass();
+    if (!sharedAudioCtx || sharedAudioCtx.state === 'closed') {
+      sharedAudioCtx = new AudioContextClass();
+    }
+    const ctx = sharedAudioCtx;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     const now = ctx.currentTime;
 
     // Tone 1: High crisp alert (784 Hz - G5)
@@ -61,7 +76,7 @@ export function playReminderChime(): void {
     const gain1 = ctx.createGain();
     osc1.type = 'sine';
     osc1.frequency.setValueAtTime(784, now);
-    gain1.gain.setValueAtTime(0.2, now);
+    gain1.gain.setValueAtTime(0.15, now);
     gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
     osc1.connect(gain1);
     gain1.connect(ctx.destination);
@@ -73,7 +88,7 @@ export function playReminderChime(): void {
     const gain2 = ctx.createGain();
     osc2.type = 'sine';
     osc2.frequency.setValueAtTime(1046.5, now + 0.15);
-    gain2.gain.setValueAtTime(0.25, now + 0.15);
+    gain2.gain.setValueAtTime(0.2, now + 0.15);
     gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
     osc2.connect(gain2);
     gain2.connect(ctx.destination);
@@ -85,8 +100,33 @@ export function playReminderChime(): void {
 }
 
 /**
- * Retrieves all stored quotation reminders from localStorage.
+ * Retrieves dismissed reminder IDs to prevent recurrence.
  */
+export function getDismissedReminderIds(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem(DISMISSED_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Marks a reminder ID permanently dismissed locally.
+ */
+export function markReminderDismissedLocally(id: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const set = getDismissedReminderIds();
+    set.add(id);
+    const arr = Array.from(set).slice(-500); // Retain last 500 dismissed
+    localStorage.setItem(DISMISSED_KEY, JSON.stringify(arr));
+  } catch {}
+}
+
 /**
  * Retrieves all stored quotation reminders from local cache (0ms instant access).
  */
@@ -104,43 +144,48 @@ export function getAllReminders(): FollowupReminder[] {
 
 /**
  * Fetches reminders scheduled in Supabase quotation_followups table and merges into cache.
+ * Excludes already resolved followups, dismissed reminders, and stale dates older than 2 hours.
  */
 export async function syncRemindersFromSupabase(): Promise<FollowupReminder[]> {
   try {
+    const recentThreshold = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase
       .from('quotation_followups')
-      .select('id, quotationId, channel, discussionNotes, nextFollowupDate, contactPerson, contactPhone, contactEmail, createdAt')
+      .select('id, quotationId, channel, status, discussionNotes, nextFollowupDate, contactPerson, contactPhone, contactEmail, createdAt')
       .not('nextFollowupDate', 'is', null)
-      .order('nextFollowupDate', { ascending: true });
+      .neq('status', 'RESOLVED')
+      .gte('nextFollowupDate', recentThreshold)
+      .order('nextFollowupDate', { ascending: true })
+      .limit(50);
 
     if (!error && Array.isArray(data)) {
+      const dismissedIds = getDismissedReminderIds();
       const current = getAllReminders();
       const currentMap = new Map(current.map((r) => [r.id, r]));
 
-      const remoteReminders: FollowupReminder[] = data.map((row: any) => {
-        const existing = currentMap.get(row.id);
-        return {
-          id: row.id,
-          quotationId: row.quotationId,
-          quotationNumber: existing?.quotationNumber || 'QUOTATION',
-          clientName: row.contactPerson || existing?.clientName || 'Valued Client',
-          channel: (row.channel || 'CALL') as any,
-          scheduledAt: new Date(row.nextFollowupDate).toISOString(),
-          discussionNotes: row.discussionNotes || '',
-          clientPhone: row.contactPhone || undefined,
-          clientEmail: row.contactEmail || undefined,
-          fired: existing?.fired || false,
-          createdAt: row.createdAt || new Date().toISOString(),
-        };
-      });
+      const remoteReminders: FollowupReminder[] = data
+        .filter((row: any) => !dismissedIds.has(row.id))
+        .map((row: any) => {
+          const existing = currentMap.get(row.id);
+          return {
+            id: row.id,
+            quotationId: row.quotationId,
+            quotationNumber: existing?.quotationNumber || 'QUOTATION',
+            clientName: row.contactPerson || existing?.clientName || 'Valued Client',
+            channel: (row.channel || 'CALL') as any,
+            scheduledAt: new Date(row.nextFollowupDate).toISOString(),
+            discussionNotes: row.discussionNotes || '',
+            clientPhone: row.contactPhone || undefined,
+            clientEmail: row.contactEmail || undefined,
+            fired: existing?.fired || false,
+            createdAt: row.createdAt || new Date().toISOString(),
+          };
+        });
 
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteReminders));
       } catch {}
 
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('pacific-reminders-updated'));
-      }
       return remoteReminders;
     }
   } catch (err) {
@@ -212,6 +257,7 @@ export function getRemindersForQuotation(quotationId: string): FollowupReminder[
  * Dismisses / clears a reminder by ID and updates Supabase.
  */
 export function dismissReminder(id: string): void {
+  markReminderDismissedLocally(id);
   const current = getAllReminders();
   const updated = current.filter((r) => r.id !== id);
   try {
@@ -273,16 +319,27 @@ export function startReminderMonitor(
 
   const checkDueReminders = () => {
     const list = getAllReminders();
+    const dismissedIds = getDismissedReminderIds();
     const now = Date.now();
     let mutated = false;
 
-    const updated = list.map((r) => {
+    // Filter out dismissed
+    const activeList = list.filter((r) => !dismissedIds.has(r.id));
+    if (activeList.length !== list.length) {
+      mutated = true;
+    }
+
+    const updated = activeList.map((r) => {
       if (r.fired) return r;
       const targetTime = new Date(r.scheduledAt).getTime();
-      // If reminder is due or within 10 seconds past
-      if (targetTime <= now) {
+      // Only fire if reminder is due and not ancient (> 1 hour late)
+      if (targetTime <= now && now - targetTime < 60 * 60 * 1000) {
         triggerReminderAlarm(r);
         if (onDue) onDue(r);
+        mutated = true;
+        return { ...r, fired: true };
+      } else if (targetTime <= now) {
+        // Ancient overdue reminder, mark fired without alarm
         mutated = true;
         return { ...r, fired: true };
       }

@@ -52,9 +52,23 @@ if (typeof window !== "undefined") {
           const raw = localStorage.getItem(k);
           if (raw) {
             const parsed = JSON.parse(raw);
-            const expiresAt = parsed?.expires_at ? parsed.expires_at * 1000 : 0;
-            // If token expired, purge it immediately so it doesn't trigger a 401 error
-            if (expiresAt && expiresAt < Date.now()) {
+            const token = parsed?.access_token;
+            let isInvalid = false;
+            if (token && typeof token === "string") {
+              const parts = token.split(".");
+              if (parts.length === 3) {
+                const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+                // Must be for this canonical project and not expired
+                if (payload.ref !== "bcbswbzbtskvmdqmgrjm" || (payload.exp && payload.exp * 1000 <= Date.now())) {
+                  isInvalid = true;
+                }
+              } else {
+                isInvalid = true;
+              }
+            } else {
+              isInvalid = true;
+            }
+            if (isInvalid) {
               localStorage.removeItem(k);
             }
           }
@@ -85,22 +99,22 @@ export const supabase = createClient<any>(
           if (authVal) {
             const token = authVal.replace(/^Bearer\s+/i, "").trim();
             if (token && token !== CANONICAL_PACIFIC_ANON_KEY) {
-              let isExpired = false;
+              let isInvalid = false;
               try {
                 const parts = token.split(".");
                 if (parts.length === 3) {
                   const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
-                  if (payload.exp && payload.exp * 1000 <= Date.now()) {
-                    isExpired = true;
+                  if (payload.ref !== "bcbswbzbtskvmdqmgrjm" || (payload.exp && payload.exp * 1000 <= Date.now())) {
+                    isInvalid = true;
                   }
                 } else {
-                  isExpired = true;
+                  isInvalid = true;
                 }
               } catch {
-                isExpired = true;
+                isInvalid = true;
               }
 
-              if (isExpired) {
+              if (isInvalid) {
                 reqHeaders.set("apikey", CANONICAL_PACIFIC_ANON_KEY);
                 reqHeaders.set("Authorization", `Bearer ${CANONICAL_PACIFIC_ANON_KEY}`);
               }

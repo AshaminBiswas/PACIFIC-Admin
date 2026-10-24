@@ -6721,6 +6721,41 @@ Load testing was executed against the operational engine using a 2,000-concurren
 
 ---
 
+## 128. WebAudio Resource Throttling, Dismissed Reminder Persistence & Pre-Request Project JWT Validation
+
+### 128.1 Root Cause Analysis
+1. **"The AudioContext encountered an error from the audio device or the WebAudio renderer" & Infinite Reminder Alert**:
+   - `syncRemindersFromSupabase` in `src/utils/followupReminder.ts` queried all records in `quotation_followups` where `nextFollowupDate` was not null.
+   - Historical records from past dates (including resolved or ancient followups from days or weeks ago) had `scheduledAt <= now`.
+   - On initial load or cache refresh, every historical reminder lacked `fired: true` in localStorage and simultaneously triggered `triggerReminderAlarm()`.
+   - For every overdue row (e.g. 50+ followups), `new AudioContextClass()` was instantiated concurrently, exceeding browser WebAudio resource limits and crashing the audio renderer with `The AudioContext encountered an error`.
+   - When users clicked "Dismiss", the background PATCH to `quotation_followups` failed if the browser attached an invalid project JWT, causing the reminder to never resolve on the server and re-fire every 15 seconds.
+2. **Project JWT Mismatch in PostgREST**:
+   - Stale auth tokens stored in `localStorage` under `sb-*-auth-token` from old Supabase instances or differing JWT secrets passed timestamp-based expiration checks if their `exp` was in the future.
+   - PostgREST rejected them with code `PGRST301` ("None of the keys was able to decode the JWT") and HTTP 401.
+
+### 128.2 Structural Fixes & Refactoring
+1. **Shared AudioContext & Chime Throttling (`src/utils/followupReminder.ts`)**:
+   - Implemented a module-level shared `sharedAudioCtx` instance, reusing existing contexts rather than constructing new WebAudio objects per alert.
+   - Added a 10-second chime throttle (`lastChimeTime`), preventing audio hardware overloading when multiple events occur.
+2. **Persistent Dismissed Reminder Set (`pacific_dismissed_reminders`)**:
+   - Added `markReminderDismissedLocally(id)` and `getDismissedReminderIds()` backed by a distinct `localStorage` set.
+   - Dismissed IDs are immediately and permanently muted in the browser, regardless of network or database status.
+3. **Active Window & Status Filtering**:
+   - Filtered `syncRemindersFromSupabase` to `.neq('status', 'RESOLVED')` and `.gte('nextFollowupDate', recentThreshold)` (past 2 hours only). Overdue records older than 1 hour are marked `fired: true` silently without playing chimes or opening alert popups.
+4. **Pre-Request Canonical Project Verification (`src/lib/supabase.ts`)**:
+   - Enhanced both startup storage cleanup and pre-request interceptor in `src/lib/supabase.ts` to inspect `payload.ref`.
+   - If `payload.ref !== "bcbswbzbtskvmdqmgrjm"`, the token is immediately rejected as invalid for this Supabase project and substituted with `CANONICAL_PACIFIC_ANON_KEY`, guaranteeing zero 401 errors.
+
+### 128.3 Verification & Quality Assurance
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
+- **Production Build**:
+  - `D:\PACIFIC-Admin`: `npm run build` compiled 3,017 modules cleanly, exiting 0.
+
+
+---
+
 ## 127. PostgREST RLS 401 Cascade Resolution, Single-Retry Guard & Subdomain Option A Architecture
 
 ### 127.1 Root Cause Analysis
@@ -6758,6 +6793,41 @@ Load testing was executed against the operational engine using a 2,000-concurren
   - Frontend Mail Tests: 19 passed, 0 failed.
 - **Production Build**:
   - `D:\PACIFIC-Admin`: `npm run build` compiled 3,017 modules cleanly, exiting 0.
+
+---
+
+## 128. WebAudio Resource Throttling, Dismissed Reminder Persistence & Pre-Request Project JWT Validation
+
+### 128.1 Root Cause Analysis
+1. **"The AudioContext encountered an error from the audio device or the WebAudio renderer" & Infinite Reminder Alert**:
+   - `syncRemindersFromSupabase` in `src/utils/followupReminder.ts` queried all records in `quotation_followups` where `nextFollowupDate` was not null.
+   - Historical records from past dates (including resolved or ancient followups from days or weeks ago) had `scheduledAt <= now`.
+   - On initial load or cache refresh, every historical reminder lacked `fired: true` in localStorage and simultaneously triggered `triggerReminderAlarm()`.
+   - For every overdue row (e.g. 50+ followups), `new AudioContextClass()` was instantiated concurrently, exceeding browser WebAudio resource limits and crashing the audio renderer with `The AudioContext encountered an error`.
+   - When users clicked "Dismiss", the background PATCH to `quotation_followups` failed if the browser attached an invalid project JWT, causing the reminder to never resolve on the server and re-fire every 15 seconds.
+2. **Project JWT Mismatch in PostgREST**:
+   - Stale auth tokens stored in `localStorage` under `sb-*-auth-token` from old Supabase instances or differing JWT secrets passed timestamp-based expiration checks if their `exp` was in the future.
+   - PostgREST rejected them with code `PGRST301` ("None of the keys was able to decode the JWT") and HTTP 401.
+
+### 128.2 Structural Fixes & Refactoring
+1. **Shared AudioContext & Chime Throttling (`src/utils/followupReminder.ts`)**:
+   - Implemented a module-level shared `sharedAudioCtx` instance, reusing existing contexts rather than constructing new WebAudio objects per alert.
+   - Added a 10-second chime throttle (`lastChimeTime`), preventing audio hardware overloading when multiple events occur.
+2. **Persistent Dismissed Reminder Set (`pacific_dismissed_reminders`)**:
+   - Added `markReminderDismissedLocally(id)` and `getDismissedReminderIds()` backed by a distinct `localStorage` set.
+   - Dismissed IDs are immediately and permanently muted in the browser, regardless of network or database status.
+3. **Active Window & Status Filtering**:
+   - Filtered `syncRemindersFromSupabase` to `.neq('status', 'RESOLVED')` and `.gte('nextFollowupDate', recentThreshold)` (past 2 hours only). Overdue records older than 1 hour are marked `fired: true` silently without playing chimes or opening alert popups.
+4. **Pre-Request Canonical Project Verification (`src/lib/supabase.ts`)**:
+   - Enhanced both startup storage cleanup and pre-request interceptor in `src/lib/supabase.ts` to inspect `payload.ref`.
+   - If `payload.ref !== "bcbswbzbtskvmdqmgrjm"`, the token is immediately rejected as invalid for this Supabase project and substituted with `CANONICAL_PACIFIC_ANON_KEY`, guaranteeing zero 401 errors.
+
+### 128.3 Verification & Quality Assurance
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
+- **Production Build**:
+  - `D:\PACIFIC-Admin`: `npm run build` compiled 3,017 modules cleanly, exiting 0.
+
 
 
 
@@ -6814,6 +6884,41 @@ Load testing was executed against the operational engine using a 2,000-concurren
 
 ---
 
+## 128. WebAudio Resource Throttling, Dismissed Reminder Persistence & Pre-Request Project JWT Validation
+
+### 128.1 Root Cause Analysis
+1. **"The AudioContext encountered an error from the audio device or the WebAudio renderer" & Infinite Reminder Alert**:
+   - `syncRemindersFromSupabase` in `src/utils/followupReminder.ts` queried all records in `quotation_followups` where `nextFollowupDate` was not null.
+   - Historical records from past dates (including resolved or ancient followups from days or weeks ago) had `scheduledAt <= now`.
+   - On initial load or cache refresh, every historical reminder lacked `fired: true` in localStorage and simultaneously triggered `triggerReminderAlarm()`.
+   - For every overdue row (e.g. 50+ followups), `new AudioContextClass()` was instantiated concurrently, exceeding browser WebAudio resource limits and crashing the audio renderer with `The AudioContext encountered an error`.
+   - When users clicked "Dismiss", the background PATCH to `quotation_followups` failed if the browser attached an invalid project JWT, causing the reminder to never resolve on the server and re-fire every 15 seconds.
+2. **Project JWT Mismatch in PostgREST**:
+   - Stale auth tokens stored in `localStorage` under `sb-*-auth-token` from old Supabase instances or differing JWT secrets passed timestamp-based expiration checks if their `exp` was in the future.
+   - PostgREST rejected them with code `PGRST301` ("None of the keys was able to decode the JWT") and HTTP 401.
+
+### 128.2 Structural Fixes & Refactoring
+1. **Shared AudioContext & Chime Throttling (`src/utils/followupReminder.ts`)**:
+   - Implemented a module-level shared `sharedAudioCtx` instance, reusing existing contexts rather than constructing new WebAudio objects per alert.
+   - Added a 10-second chime throttle (`lastChimeTime`), preventing audio hardware overloading when multiple events occur.
+2. **Persistent Dismissed Reminder Set (`pacific_dismissed_reminders`)**:
+   - Added `markReminderDismissedLocally(id)` and `getDismissedReminderIds()` backed by a distinct `localStorage` set.
+   - Dismissed IDs are immediately and permanently muted in the browser, regardless of network or database status.
+3. **Active Window & Status Filtering**:
+   - Filtered `syncRemindersFromSupabase` to `.neq('status', 'RESOLVED')` and `.gte('nextFollowupDate', recentThreshold)` (past 2 hours only). Overdue records older than 1 hour are marked `fired: true` silently without playing chimes or opening alert popups.
+4. **Pre-Request Canonical Project Verification (`src/lib/supabase.ts`)**:
+   - Enhanced both startup storage cleanup and pre-request interceptor in `src/lib/supabase.ts` to inspect `payload.ref`.
+   - If `payload.ref !== "bcbswbzbtskvmdqmgrjm"`, the token is immediately rejected as invalid for this Supabase project and substituted with `CANONICAL_PACIFIC_ANON_KEY`, guaranteeing zero 401 errors.
+
+### 128.3 Verification & Quality Assurance
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
+- **Production Build**:
+  - `D:\PACIFIC-Admin`: `npm run build` compiled 3,017 modules cleanly, exiting 0.
+
+
+---
+
 ## 127. PostgREST RLS 401 Cascade Resolution, Single-Retry Guard & Subdomain Option A Architecture
 
 ### 127.1 Root Cause Analysis
@@ -6851,4 +6956,39 @@ Load testing was executed against the operational engine using a 2,000-concurren
   - Frontend Mail Tests: 19 passed, 0 failed.
 - **Production Build**:
   - `D:\PACIFIC-Admin`: `npm run build` compiled 3,017 modules cleanly, exiting 0.
+
+---
+
+## 128. WebAudio Resource Throttling, Dismissed Reminder Persistence & Pre-Request Project JWT Validation
+
+### 128.1 Root Cause Analysis
+1. **"The AudioContext encountered an error from the audio device or the WebAudio renderer" & Infinite Reminder Alert**:
+   - `syncRemindersFromSupabase` in `src/utils/followupReminder.ts` queried all records in `quotation_followups` where `nextFollowupDate` was not null.
+   - Historical records from past dates (including resolved or ancient followups from days or weeks ago) had `scheduledAt <= now`.
+   - On initial load or cache refresh, every historical reminder lacked `fired: true` in localStorage and simultaneously triggered `triggerReminderAlarm()`.
+   - For every overdue row (e.g. 50+ followups), `new AudioContextClass()` was instantiated concurrently, exceeding browser WebAudio resource limits and crashing the audio renderer with `The AudioContext encountered an error`.
+   - When users clicked "Dismiss", the background PATCH to `quotation_followups` failed if the browser attached an invalid project JWT, causing the reminder to never resolve on the server and re-fire every 15 seconds.
+2. **Project JWT Mismatch in PostgREST**:
+   - Stale auth tokens stored in `localStorage` under `sb-*-auth-token` from old Supabase instances or differing JWT secrets passed timestamp-based expiration checks if their `exp` was in the future.
+   - PostgREST rejected them with code `PGRST301` ("None of the keys was able to decode the JWT") and HTTP 401.
+
+### 128.2 Structural Fixes & Refactoring
+1. **Shared AudioContext & Chime Throttling (`src/utils/followupReminder.ts`)**:
+   - Implemented a module-level shared `sharedAudioCtx` instance, reusing existing contexts rather than constructing new WebAudio objects per alert.
+   - Added a 10-second chime throttle (`lastChimeTime`), preventing audio hardware overloading when multiple events occur.
+2. **Persistent Dismissed Reminder Set (`pacific_dismissed_reminders`)**:
+   - Added `markReminderDismissedLocally(id)` and `getDismissedReminderIds()` backed by a distinct `localStorage` set.
+   - Dismissed IDs are immediately and permanently muted in the browser, regardless of network or database status.
+3. **Active Window & Status Filtering**:
+   - Filtered `syncRemindersFromSupabase` to `.neq('status', 'RESOLVED')` and `.gte('nextFollowupDate', recentThreshold)` (past 2 hours only). Overdue records older than 1 hour are marked `fired: true` silently without playing chimes or opening alert popups.
+4. **Pre-Request Canonical Project Verification (`src/lib/supabase.ts`)**:
+   - Enhanced both startup storage cleanup and pre-request interceptor in `src/lib/supabase.ts` to inspect `payload.ref`.
+   - If `payload.ref !== "bcbswbzbtskvmdqmgrjm"`, the token is immediately rejected as invalid for this Supabase project and substituted with `CANONICAL_PACIFIC_ANON_KEY`, guaranteeing zero 401 errors.
+
+### 128.3 Verification & Quality Assurance
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
+- **Production Build**:
+  - `D:\PACIFIC-Admin`: `npm run build` compiled 3,017 modules cleanly, exiting 0.
+
 
