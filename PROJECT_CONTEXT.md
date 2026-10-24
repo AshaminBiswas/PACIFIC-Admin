@@ -7283,3 +7283,34 @@ Load testing was executed against the operational engine using a 2,000-concurren
   - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
 - **Production Build**:
   - `D:\PACIFIC-Admin`: `npm run build` compiled 3,018 modules cleanly, exiting 0.
+
+---
+
+## 133. Mail Admin Audit Trail 500 Resolution & Actor Details Enhancement
+
+### 133.1 Root Cause Diagnosis
+1. **PostgreSQL BigInt Serialization Failure (`TypeError: Do not know how to serialize a BigInt`)**:
+   - In `mailAuditRepository.list` (`mail.repository.ts`), the query executed `SELECT *, COUNT(*) OVER() AS total_count FROM mail_audit_logs`.
+   - In PostgreSQL, `COUNT(*)` returns an `int8` (`BIGINT`), which Prisma deserializes as a native JavaScript `BigInt` (e.g., `24n`).
+   - The query results (`rows`) were returned directly as `items`, meaning every log object had `total_count: 24n`.
+   - When Express invoked `sendPaginated` (`res.status(200).json(...)`), `JSON.stringify` failed with `TypeError: Do not know how to serialize a BigInt`, resulting in an unhandled 500 Internal Server Error in `MailAdminModal.tsx`.
+2. **Missing Actor Identification & Timestamp Column Mismatch**:
+   - In `mail_audit_logs`, the timestamp column is `occurred_at`, whereas the frontend previously looked only for `created_at` / `createdAt`, causing date displays to show `Invalid Date` once loaded.
+   - The query did not join the `users` table, obscuring which staff member performed each sensitive action.
+
+### 133.2 Structural Fixes & Verification
+1. **Window Function Cast & Clean Item Projection (`mail.repository.ts`)**:
+   - Updated the query window function to `(COUNT(*) OVER())::int AS total_count`, preventing native BigInt emission.
+   - Added `LEFT JOIN users u ON u.id = a.actor_user_id` to resolve `actor_name` (`COALESCE(NULLIF(TRIM(u."firstName" || ' ' || COALESCE(u."lastName", '')), ''), u.email)`) and `actor_email`.
+   - Mapped `items` cleanly to strip `total_count` and provide normalized keys (`id`, `actorUserId`, `actor_user_id`, `actorName`, `actorEmail`, `action`, `resourceType`, `resourceId`, `ipAddress`, `occurredAt`, `occurred_at`, `createdAt`, `created_at`).
+2. **Frontend Audit Trail Enhancement (`MailAdminModal.tsx`)**:
+   - Added an **Actor** column to the audit table (`Timestamp | Actor | Action | Resource | IP Address`).
+   - Resilient timestamp parsing supporting `log.occurred_at || log.occurredAt || log.created_at || log.createdAt`.
+3. **Automated Verification**:
+   - Live query test via `node` on Supabase database returned 24 rows, `total: 24`, full JSON stringification succeeded without error.
+   - Filtered query by actor verified (`total: 21`).
+   - Backend mail unit tests: 30 of 30 passed (`npm run test:mail`).
+   - Backend typecheck: `tsc --noEmit` exited 0.
+   - Frontend typecheck: `npx tsc --noEmit` exited 0.
+   - Frontend production build: `npm run build` compiled 3,018 modules cleanly, exiting 0.
+

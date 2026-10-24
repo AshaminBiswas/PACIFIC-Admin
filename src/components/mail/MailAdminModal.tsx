@@ -1391,24 +1391,33 @@ export const MailAdminModal: React.FC<MailAdminModalProps> = ({
                     <thead className="bg-white/10 text-white/60 font-semibold uppercase tracking-wider">
                       <tr>
                         <th className="px-4 py-2.5">Timestamp</th>
+                        <th className="px-4 py-2.5">Actor</th>
                         <th className="px-4 py-2.5">Action</th>
                         <th className="px-4 py-2.5">Resource</th>
                         <th className="px-4 py-2.5">IP Address</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/10 text-white/80 font-mono">
-                      {auditLogs.map((log) => (
-                        <tr key={log.id} className="hover:bg-white/5">
-                          <td className="px-4 py-2 text-white/50">
-                            {new Date(log.created_at || log.createdAt).toLocaleString()}
-                          </td>
-                          <td className="px-4 py-2 text-[#B5F823] font-semibold">{log.action}</td>
-                          <td className="px-4 py-2 text-white/70">
-                            {log.resource_type || log.resourceType}: {log.resource_id || log.resourceId}
-                          </td>
-                          <td className="px-4 py-2 text-white/40">{log.ip_address || log.ipAddress || 'internal'}</td>
-                        </tr>
-                      ))}
+                      {auditLogs.map((log) => {
+                        const timeStr = log.occurred_at || log.occurredAt || log.created_at || log.createdAt;
+                        const dateFormatted = timeStr ? new Date(timeStr).toLocaleString() : '—';
+                        const actorLabel = log.actorName || log.actor_name || log.actorEmail || log.actor_email || log.actorUserId || log.actor_user_id || 'System';
+                        return (
+                          <tr key={log.id} className="hover:bg-white/5">
+                            <td className="px-4 py-2 text-white/50 whitespace-nowrap">
+                              {dateFormatted}
+                            </td>
+                            <td className="px-4 py-2 text-white/90 font-sans max-w-[180px] truncate" title={log.actorEmail || log.actor_email || ''}>
+                              {actorLabel}
+                            </td>
+                            <td className="px-4 py-2 text-[#B5F823] font-semibold">{log.action}</td>
+                            <td className="px-4 py-2 text-white/70">
+                              {log.resource_type || log.resourceType}: {log.resource_id || log.resourceId}
+                            </td>
+                            <td className="px-4 py-2 text-white/40">{log.ip_address || log.ipAddress || 'internal'}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
