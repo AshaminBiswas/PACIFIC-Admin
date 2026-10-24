@@ -115,15 +115,11 @@ export const mailApi = {
    * Atomically send a message (internal DB delivery).
    */
   sendMail: async (data: SendMailRequest) => {
-    const headers: Record<string, string> = {};
-    if (data.idempotencyKey) {
-      headers['idempotency-key'] = data.idempotencyKey;
-    }
     const res = await apiClient.post<{
       success: boolean;
       data: { message: any; thread: any; replayed?: boolean };
       message: string;
-    }>('/mail/send', data, { headers });
+    }>('/mail/send', data);
     return res.data;
   },
 
@@ -131,14 +127,9 @@ export const mailApi = {
    * Reply to a message in an existing thread.
    */
   replyMessage: async (messageId: string, data: ReplyMailRequest) => {
-    const headers: Record<string, string> = {};
-    if (data.idempotencyKey) {
-      headers['idempotency-key'] = data.idempotencyKey;
-    }
     const res = await apiClient.post<{ success: boolean; data: { message: any; thread: any } }>(
       `/mail/messages/${messageId}/reply`,
-      data,
-      { headers }
+      data
     );
     return res.data;
   },
@@ -147,14 +138,9 @@ export const mailApi = {
    * Forward a message to recipients with citation headers.
    */
   forwardMessage: async (messageId: string, data: ForwardMailRequest) => {
-    const headers: Record<string, string> = {};
-    if (data.idempotencyKey) {
-      headers['idempotency-key'] = data.idempotencyKey;
-    }
     const res = await apiClient.post<{ success: boolean; data: { message: any; thread: any } }>(
       `/mail/messages/${messageId}/forward`,
-      data,
-      { headers }
+      data
     );
     return res.data;
   },

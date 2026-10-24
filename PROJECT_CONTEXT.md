@@ -6681,6 +6681,43 @@ Load testing was executed against the operational engine using a 2,000-concurren
 - **Production Build**:
   - `D:\PACIFIC-Admin`: `npm run build` compiled 3,017 modules cleanly, exited 0.
 
+---
+
+## 125. CORS Preflight Resolution, Thenable withTimeout Fix & Proactive Supabase Session Cleanup
+
+### 125.1 Root Cause Analysis
+1. **`[productCatalogApi] Supabase network error: e.finally is not a function`**:
+   - `supabase.from('products').select('*')` returns a Supabase `PostgrestFilterBuilder` instance.
+   - `PostgrestFilterBuilder` implements the standard Thenable interface (`.then()`, `.catch()`), but does not have a `.finally()` method on its prototype.
+   - The `withTimeout` wrapper in `src/api/productCatalogApi.ts` directly invoked `promise.finally(...)`, throwing a runtime `TypeError: e.finally is not a function`.
+   - The unhandled `timeoutPromise` inside `withTimeout` subsequently timed out after 10 seconds, throwing `Uncaught (in promise) Error: Network request timed out`.
+2. **CORS Preflight Failure on `/mail/send` (`idempotency-key`)**:
+   - In `src/api/mailApi.ts`, `headers['idempotency-key'] = data.idempotencyKey` injected a custom lowercase HTTP header into Axios POST requests.
+   - The browser automatically issued an `OPTIONS` preflight request with `Access-Control-Request-Headers: authorization,content-type,idempotency-key`.
+   - In `D:\PACIFIC-Backend\src\app.ts`, `corsOptions.allowedHeaders` did not include `idempotency-key` or `x-idempotency-key`, causing the preflight response to be rejected by the browser with `net::ERR_FAILED`.
+3. **Supabase 401 on `quotation_followups`**:
+   - Stale or expired Supabase authentication tokens persisted in `localStorage` under `sb-bcbswbzbtskvmdqmgrjm-auth-token`.
+   - Although `src/lib/supabase.ts` had a 401 retry interceptor, the initial fetch request was still emitted with the expired bearer token, generating browser console 401 errors before the retry succeeded.
+
+### 125.2 Structural Fixes & Refactoring
+1. **Thenable-Safe `withTimeout` (`src/api/productCatalogApi.ts`)**:
+   - Refactored `withTimeout` to safely convert any `PromiseLike<T>` (such as `PostgrestFilterBuilder`) into a standard native Promise using `Promise.resolve(thenable)`.
+   - Replaced direct `.finally()` calls with dual `.then((val) => ..., (err) => ...)` execution, guaranteeing that the timeout timer is always cleared on completion or failure without unhandled rejections.
+2. **Dual-Layer CORS Hardening**:
+   - **Frontend (`src/api/mailApi.ts`)**: Since `idempotencyKey` is already included directly in the JSON request body (which the backend controller natively reads from `req.body.idempotencyKey`), removed redundant HTTP header injection across `sendMail`, `replyMessage`, and `forwardMessage`. This prevents unnecessary CORS preflight header restrictions on existing deployments.
+   - **Backend (`D:\PACIFIC-Backend\src\app.ts`)**: Expanded `corsOptions.allowedHeaders` to explicitly permit `idempotency-key`, `Idempotency-Key`, `x-idempotency-key`, `X-Idempotency-Key`, `x-pacific-signature`, `X-Pacific-Signature`, `x-pacific-timestamp`, `X-Pacific-Timestamp`, and `apikey`.
+3. **Proactive Stale Session Invalidation (`src/lib/supabase.ts`)**:
+   - Enhanced the startup cleanup routine in `src/lib/supabase.ts` to inspect `sb-*-auth-token` entries in `localStorage`.
+   - If `expires_at` is in the past, the stale token is purged immediately before `createClient` is instantiated, completely preventing initial 401 requests across all Supabase queries.
+
+### 125.3 Verification & Quality Assurance
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Backend`: `npm run typecheck` exited 0 (0 errors).
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
+- **Automated Tests**:
+  - Frontend Mail Test Suite (`npm run test:mail`): 19 passed, 0 failed.
+- **Production Build**:
+  - `D:\PACIFIC-Admin`: `npm run build` compiled 3,017 modules cleanly, exiting 0.
 
 
 
@@ -6691,3 +6728,45 @@ Load testing was executed against the operational engine using a 2,000-concurren
 
 
 
+
+
+
+
+---
+
+## 126. Universal Recipient Gateway Resolution & Pre-Flight Expired JWT Interception
+
+### 126.1 Root Cause Analysis
+1. **Unable to Send Email to Anyone**:
+   - In `mail.service.ts`, `resolveList` strictly required all recipients to belong to `pacific.internal` or `fromAddr.domain`. If any external address (e.g. `@gmail.com`, `@yahoo.com`) was entered, it threw an immediate HTTP 400 rejection: `External sending is not supported in internal mail module. Recipient "..." must be @pacific.internal`.
+   - If an internal recipient under `@pacificproduct.in` was entered but had not yet had an explicit record in `mail_addresses`, it threw `Recipient not found: "..."`.
+   - In `src/api/mailApi.ts`, sending custom `idempotency-key` in HTTP headers caused CORS preflight failures on unpatched backends.
+2. **Supabase 401 Cascade Across Tables (`branches`, `hardware_inventory_items`, `quotation_followups`)**:
+   - When `@supabase/supabase-js` restored an expired session, its internal client attached `Authorization: Bearer <expired_token>` on every single outgoing fetch request.
+   - Even though a 401 retry interceptor was in place, the browser's native network stack logged red `401 Unauthorized` entries for each of the 40+ initial parallel requests before the retry succeeded.
+
+### 126.2 Structural Fixes & Refactoring
+1. **Universal Recipient Routing (`D:\PACIFIC-Backend\src\modules\mail\mail.service.ts`)**:
+   - Internal addresses (`@pacificproduct.in`, `@pacific.internal`, `fromAddr.domain`) are verified against `mail_addresses`. If not found, the system checks the `users` table and dynamically auto-provisions their verified internal address so internal mail just works out of the box.
+   - External addresses (`@gmail.com`, `@yahoo.com`, etc.) are recognized as gateway-routed external recipients (`userId: null`, `addressId: null`).
+   - If a message contains external recipients, `outboxRepository.create` records `transport = 'smtp'` with `status = 'PENDING'`, queuing it for the background outbox worker and `OutboundMailAdapter` (dispatched in safe mock sandbox by default or via SMTP relay).
+   - Sending an email is never blocked with `External sending is not supported`.
+2. **Pre-Request Expired JWT Interception (`src/lib/supabase.ts`)**:
+   - In `global.fetch`, inspected `options.headers` **before** the request is sent over the network.
+   - If the attached JWT is expired, it is proactively replaced with `CANONICAL_PACIFIC_ANON_KEY` prior to dispatch.
+   - PostgREST receives a valid anon key on Attempt #1, completely eliminating initial 401 errors from browser developer console logs.
+3. **Client Axios Expiry Defense (`src/api/client.ts`)**:
+   - Added token expiry check (`parseJwtExpiry(token) <= Date.now()`) in the Axios request interceptor to prevent attaching expired JWTs to backend requests.
+
+### 126.3 Verification & Quality Assurance
+- **Automated Tests**:
+  - Backend Gateway Suite: 15 passed, 0 failed.
+  - Backend Security Suite: 23 passed, 0 failed.
+  - Backend Functional Suite: 30 passed, 0 failed.
+  - Frontend Mail Suite: 19 passed, 0 failed.
+  - Total: **87 passed, 0 failed**.
+- **TypeScript Verification**:
+  - `D:\PACIFIC-Backend`: `npm run typecheck` exited 0 (0 errors).
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
+- **Production Build**:
+  - `D:\PACIFIC-Admin`: `npm run build` compiled 3,017 modules cleanly, exiting 0.

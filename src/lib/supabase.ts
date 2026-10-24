@@ -39,13 +39,28 @@ const resolvedKey =
 
 const supabaseKey = resolvedKey;
 
-// Proactively purge legacy Supabase project cache from localStorage
+// Proactively purge legacy Supabase project cache & expired sessions from localStorage
 if (typeof window !== "undefined") {
   try {
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
-      if (k && (k.includes("kgalsrokdmsrqysyoffm") || k.includes("ydpzlqjnhbcuzmjyylaj"))) {
+      if (!k) continue;
+      if (k.includes("kgalsrokdmsrqysyoffm") || k.includes("ydpzlqjnhbcuzmjyylaj")) {
         localStorage.removeItem(k);
+      } else if (k.startsWith("sb-") && (k.includes("-auth-token") || k.includes("auth-token"))) {
+        try {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const expiresAt = parsed?.expires_at ? parsed.expires_at * 1000 : 0;
+            // If token expired, purge it immediately so it doesn't trigger a 401 error
+            if (expiresAt && expiresAt < Date.now()) {
+              localStorage.removeItem(k);
+            }
+          }
+        } catch {
+          localStorage.removeItem(k);
+        }
       }
     }
   } catch {}
@@ -64,8 +79,37 @@ export const supabase = createClient<any>(
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 6000);
         try {
+          // Pre-request check: sanitize expired or invalid bearer tokens before sending
+          const reqHeaders = new Headers((options as any)?.headers || {});
+          const authVal = reqHeaders.get("authorization") || reqHeaders.get("Authorization");
+          if (authVal) {
+            const token = authVal.replace(/^Bearer\s+/i, "").trim();
+            if (token && token !== CANONICAL_PACIFIC_ANON_KEY) {
+              let isExpired = false;
+              try {
+                const parts = token.split(".");
+                if (parts.length === 3) {
+                  const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+                  if (payload.exp && payload.exp * 1000 <= Date.now()) {
+                    isExpired = true;
+                  }
+                } else {
+                  isExpired = true;
+                }
+              } catch {
+                isExpired = true;
+              }
+
+              if (isExpired) {
+                reqHeaders.set("apikey", CANONICAL_PACIFIC_ANON_KEY);
+                reqHeaders.set("Authorization", `Bearer ${CANONICAL_PACIFIC_ANON_KEY}`);
+              }
+            }
+          }
+
           const res = await fetch(url, {
             ...options,
+            headers: reqHeaders,
             signal: (options as any)?.signal || controller.signal,
           });
 

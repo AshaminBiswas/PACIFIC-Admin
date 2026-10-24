@@ -36,6 +36,13 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
       }
     } catch {}
   }
+  if (token) {
+    const exp = parseJwtExpiry(token);
+    if (exp && exp <= Date.now()) {
+      localStorage.removeItem('pacific_access_token');
+      token = null;
+    }
+  }
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }

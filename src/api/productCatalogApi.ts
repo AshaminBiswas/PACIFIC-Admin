@@ -189,15 +189,25 @@ function mapModelToDbRow(model: ProductCatalogModel) {
 }
 
 /**
- * Execute a promise with a generous timeout to prevent hanging.
+ * Execute a promise/thenable with a generous timeout to prevent hanging.
+ * Safely converts Thenables (like Supabase PostgrestBuilder) to native promises.
  */
-function withTimeout<T>(promise: Promise<T>, timeoutMs = 10000): Promise<T> {
+function withTimeout<T>(thenable: PromiseLike<T> | Promise<T>, timeoutMs = 10000): Promise<T> {
   let timer: any;
   const timeoutPromise = new Promise<T>((_, reject) => {
     timer = setTimeout(() => reject(new Error('Network request timed out')), timeoutMs);
   });
   return Promise.race([
-    promise.finally(() => clearTimeout(timer)),
+    Promise.resolve(thenable).then(
+      (val) => {
+        if (timer) clearTimeout(timer);
+        return val;
+      },
+      (err) => {
+        if (timer) clearTimeout(timer);
+        throw err;
+      }
+    ),
     timeoutPromise,
   ]);
 }
