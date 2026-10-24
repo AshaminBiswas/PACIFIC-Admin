@@ -892,7 +892,7 @@ export const MailAdminModal: React.FC<MailAdminModalProps> = ({
                     </span>
                   </h3>
                   <p className="text-xs text-white/40">
-                    Assign `@pacificproduct.in` / `@pacific.internal` addresses, manage quotas, aliases, and assignment history
+                    Assign `@pacificproduct.in` addresses, manage quotas, aliases, and assignment history
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">

@@ -487,7 +487,7 @@ export const MailThreadDetail: React.FC<MailThreadDetailProps> = ({
                 label="To"
                 recipients={replyTo}
                 onChange={setReplyTo}
-                placeholder="recipient@pacific.internal"
+                placeholder="recipient@pacificproduct.in"
                 disabled={sendingReply}
               />
               {replyCc.length > 0 && (
@@ -496,7 +496,7 @@ export const MailThreadDetail: React.FC<MailThreadDetailProps> = ({
                   label="Cc"
                   recipients={replyCc}
                   onChange={setReplyCc}
-                  placeholder="cc@pacific.internal"
+                  placeholder="cc@pacificproduct.in"
                   disabled={sendingReply}
                 />
               )}

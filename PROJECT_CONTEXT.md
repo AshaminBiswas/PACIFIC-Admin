@@ -7351,4 +7351,54 @@ Load testing was executed against the operational engine using a 2,000-concurren
 - **TypeScript Typecheck**: `npx tsc --noEmit` exited **0** (zero errors).
 - **Production Build**: `npm run build` compiled 3,018 modules cleanly in 43.55s (exit code 0).
 
+---
+
+## 135. Pacific Mail Company Domain Migration (`pacificproduct.in`), Employee Auto-Resolution & Outbox Engine Activation
+
+### 135.1 Issues Diagnosed & Root Causes
+1. **DNS NXDOMAIN on `.internal`**:
+   - External email clients (such as Google / Gmail) failed to deliver emails sent to `@pacific.internal` with:
+     `DNS Error: DNS type 'mx' lookup of pacific.internal responded with code NXDOMAIN Domain name not found: pacific.internal`.
+   - `.internal` is a reserved private TLD (RFC 6762 / ICANN special-use domain) with no public DNS records on the internet.
+   - Pacific's actual public, routable domain registered and configured on the internet is `pacificproduct.in`.
+2. **Missing Internal Mailbox Fan-Out for External-Style Emails**:
+   - When users composed emails to an employee's registered login address (e.g., `ashaminbiswas1@gmail.com`), the backend previously classified the email as purely external because the domain was not internal.
+   - As a result, no `mailbox_items` were created in `INBOX` for the recipient employee in Pacific Mail.
+3. **Dormant Outbox Worker**:
+   - `MailOutboxWorker` in `mail.worker.ts` was implemented to process asynchronous external email dispatches via transactional outbox (`mail_outbox_queue`), but its `start()` cycle was never invoked during server initialization in `server.ts`.
+   - External outgoing emails remained queued in `PENDING` status indefinitely.
+4. **Resend Outbound Adapter Integration**:
+   - The mail subsystem lacked an outbound gateway adapter wired to the system's active `RESEND_API_KEY` in `mail.adapters.ts`.
+5. **Stale Trailing Dots**:
+   - Address provisioning previously allowed trailing dots on usernames (e.g., `ashaminbiswas123.`), which produced inconsistent recipient lookup failures.
+
+### 135.2 Applied Solutions
+1. **Database Identity & Domain Migration**:
+   - Updated all rows in `mail_addresses` to use domain `pacificproduct.in` instead of `pacific.internal`.
+   - Stripped trailing dots from all stored `local_part` values (`ashaminbiswas123.` -> `ashaminbiswas123`).
+   - Altered table default: `ALTER TABLE mail_addresses ALTER COLUMN domain SET DEFAULT 'pacificproduct.in'`.
+2. **Resend Outbound Gateway Adapter (`mail.adapters.ts`)**:
+   - Implemented `ResendOutboundAdapter` implementing `IOutboundMailAdapter`, utilizing `emailService.sendEmail` with resilient curl / Resend SDK fallbacks.
+   - Configured `getOutboundAdapter` to automatically select `ResendOutboundAdapter` whenever `RESEND_API_KEY` is present.
+   - Supported `cc` and `bcc` in `SendEmailOptions` and curl payload in `email.service.ts`.
+3. **Outbox Worker Startup & Graceful Shutdown (`server.ts`)**:
+   - Added `MailOutboxWorker.getInstance().start()` immediately after database connection.
+   - Wired `MailOutboxWorker.getInstance().stop(4000)` into SIGINT/SIGTERM handlers.
+4. **Dual Recipient Resolution (`mail.service.ts`)**:
+   - In `resolveList`, if a recipient does not match a `mail_addresses` row directly, the resolver falls back to querying `users` table by `email = rawEmail`. If matched to a Pacific employee, their internal `user_id` is assigned and an `INBOX` mailbox item is placed directly in their Pacific Mail account.
+   - Trailing dots are sanitized automatically on all address parsing.
+5. **Frontend Domain Placeholders & Controls**:
+   - `MailComposeModal.tsx`: Updated placeholder to `recipient@pacificproduct.in`.
+   - `MailThreadDetail.tsx`: Updated reply/cc placeholders to `recipient@pacificproduct.in` and `cc@pacificproduct.in`.
+   - `MailAdminModal.tsx`: Updated address provisioning defaults to `pacificproduct.in`.
+
+### 135.3 Verification
+- **Frontend Mail Unit Tests**: 19 of 19 tests passed (`npm run test:mail`).
+- **Backend Mail Unit Tests**: 30 of 30 tests passed (`npm run test:mail`).
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (zero errors).
+  - `D:\PACIFIC-Backend`: `npm run typecheck` exited 0 (zero errors).
+- **Frontend Production Build**: `npm run build` compiled successfully (exit code 0).
+
+
 

@@ -401,7 +401,7 @@ export const MailComposeModal: React.FC<MailComposeModalProps> = ({
               label="To"
               recipients={to}
               onChange={setTo}
-              placeholder="recipient@pacific.internal"
+              placeholder="recipient@pacificproduct.in"
               disabled={sending}
             />
             <div className="absolute right-1 top-2 flex items-center space-x-2 text-xs text-white/40">
@@ -433,7 +433,7 @@ export const MailComposeModal: React.FC<MailComposeModalProps> = ({
               label="Cc"
               recipients={cc}
               onChange={setCc}
-              placeholder="cc@pacific.internal"
+              placeholder="cc@pacificproduct.in"
               disabled={sending}
             />
           )}
@@ -445,7 +445,7 @@ export const MailComposeModal: React.FC<MailComposeModalProps> = ({
               label="Bcc"
               recipients={bcc}
               onChange={setBcc}
-              placeholder="bcc@pacific.internal (hidden)"
+              placeholder="bcc@pacificproduct.in (hidden)"
               disabled={sending}
             />
           )}
