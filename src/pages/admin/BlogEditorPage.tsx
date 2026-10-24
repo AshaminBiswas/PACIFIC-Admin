@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { TiptapEditor } from "../../components/blog/TiptapEditor";
+import { TiptapEditor, type DocumentHeading } from "../../components/blog/TiptapEditor";
 import {
   fetchBlogById,
   saveBlogPost,
@@ -30,11 +30,20 @@ import {
   Star,
   Sparkles,
   AlertCircle,
-  ChevronRight,
   ExternalLink,
   Search,
   Check,
   X,
+  FileText,
+  Bookmark,
+  Share2,
+  Smartphone,
+  Laptop,
+  HelpCircle,
+  TrendingUp,
+  Layers,
+  ChevronRight,
+  ListTree,
 } from "lucide-react";
 
 const AUTOSAVE_STORAGE_PREFIX = "pacific_blog_draft_";
@@ -59,6 +68,10 @@ export default function BlogEditorPage() {
   const [excerpt, setExcerpt] = useState("");
   const [contentHtml, setContentHtml] = useState("");
 
+  // Document Outline
+  const [headings, setHeadings] = useState<DocumentHeading[]>([]);
+  const [showOutline, setShowOutline] = useState(true);
+
   // Media
   const [coverImageUrl, setCoverImageUrl] = useState("");
   const [altText, setAltText] = useState("");
@@ -82,6 +95,7 @@ export default function BlogEditorPage() {
   const [canonicalUrl, setCanonicalUrl] = useState("");
   const [ogTitle, setOgTitle] = useState("");
   const [ogDescription, setOgDescription] = useState("");
+  const [serpDevice, setSerpDevice] = useState<"desktop" | "mobile">("desktop");
 
   const coverInputRef = useRef<HTMLInputElement>(null);
 
@@ -216,6 +230,79 @@ export default function BlogEditorPage() {
   const effectiveMetaDescription = metaDescription.trim() || excerpt.trim() || "Commercial restroom cubicle insights, architectural guides, and turnkey washroom infrastructure by Pacific Products & Solutions.";
   const effectiveCanonicalUrl = canonicalUrl.trim() || `/blog/${slug || "your-blog-slug"}`;
 
+  // Content Quality & SEO Health Scorecard
+  const contentAudit = useMemo(() => {
+    let score = 0;
+    const items = [
+      {
+        id: "title",
+        label: "Headline Length (40–70 chars)",
+        met: title.trim().length >= 35 && title.trim().length <= 80,
+        hint: `${title.trim().length} chars (aim for 40-70)`,
+        points: 15,
+      },
+      {
+        id: "excerpt",
+        label: "Excerpt / Meta Snippet (100–180 chars)",
+        met: excerpt.trim().length >= 80 && excerpt.trim().length <= 200,
+        hint: `${excerpt.trim().length} chars (aim for 100-180)`,
+        points: 15,
+      },
+      {
+        id: "words",
+        label: "In-Depth Word Count (300+ words)",
+        met: (() => {
+          const plain = contentHtml.replace(/<[^>]*>/g, " ");
+          const words = plain.trim() ? plain.trim().split(/\s+/).filter(Boolean).length : 0;
+          return words >= 300;
+        })(),
+        hint: (() => {
+          const plain = contentHtml.replace(/<[^>]*>/g, " ");
+          const words = plain.trim() ? plain.trim().split(/\s+/).filter(Boolean).length : 0;
+          return `${words} words (aim for 300+)`;
+        })(),
+        points: 20,
+      },
+      {
+        id: "headings",
+        label: "Section Hierarchy (At least 2 subheadings)",
+        met: headings.length >= 2,
+        hint: `${headings.length} subheadings present`,
+        points: 15,
+      },
+      {
+        id: "cover",
+        label: "Featured Cover Visual",
+        met: Boolean(coverImageUrl),
+        hint: coverImageUrl ? "Cover visual linked" : "Missing cover image",
+        points: 15,
+      },
+      {
+        id: "visuals",
+        label: "Rich Content Blocks (Images / Tables / Callouts)",
+        met: /<(img|table|iframe|details)/i.test(contentHtml),
+        hint: /<(img|table|iframe|details)/i.test(contentHtml) ? "Rich blocks included" : "Add table or image in body",
+        points: 10,
+      },
+      {
+        id: "taxonomies",
+        label: "Category & Topic Tags",
+        met: Boolean(category) && tags.length >= 1,
+        hint: `${tags.length} tags assigned`,
+        points: 10,
+      },
+    ];
+
+    items.forEach((item) => {
+      if (item.met) score += item.points;
+    });
+
+    return {
+      score: Math.min(100, score),
+      items,
+    };
+  }, [title, excerpt, contentHtml, headings, coverImageUrl, category, tags]);
+
   // Cover image upload
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -279,7 +366,7 @@ export default function BlogEditorPage() {
   // Save / Publish
   const handleSave = async (intendedStatus: BlogPublicationStatus) => {
     if (!title.trim()) {
-      alert("Please provide a blog title.");
+      alert("Please provide a blog headline.");
       return;
     }
 
@@ -329,14 +416,14 @@ export default function BlogEditorPage() {
         is_featured: isFeatured,
       };
 
-      const saved = await saveBlogPost(postPayload);
+      await saveBlogPost(postPayload);
       localStorage.removeItem(`${AUTOSAVE_STORAGE_PREFIX}${id || "new"}`);
       setSaveStatus("saved");
 
       if (intendedStatus === "PUBLISHED") {
-        alert("🎉 Blog post published successfully! It is now live on the public website.");
+        alert("🎉 Blog article published successfully! It is now live on the public website.");
       } else if (intendedStatus === "SCHEDULED") {
-        alert("🗓️ Blog post scheduled for publication.");
+        alert("🗓️ Blog article scheduled for publication.");
       } else {
         alert("💾 Draft saved successfully.");
       }
@@ -355,7 +442,7 @@ export default function BlogEditorPage() {
       <div className="flex h-96 items-center justify-center">
         <div className="text-center">
           <div className="w-10 h-10 border-4 border-[#7FB706] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Loading Blog Editor...</p>
+          <p className="text-gray-400">Loading Real-Word Blog Editor...</p>
         </div>
       </div>
     );
@@ -363,7 +450,7 @@ export default function BlogEditorPage() {
 
   return (
     <div className="space-y-6 pb-24">
-      {/* ── Editor Top Header ─────────────────────────────────────────────────── */}
+      {/* ── Editor Master Top Ribbon ───────────────────────────────────────────── */}
       <div className="sticky top-0 z-30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#121226]/95 p-4 sm:p-5 shadow-2xl backdrop-blur-md">
         <div className="flex items-center gap-3">
           <Link
@@ -374,9 +461,10 @@ export default function BlogEditorPage() {
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg sm:text-xl font-bold text-white">
-                {isEditing ? "Edit Blog Post" : "Write New Blog Article"}
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+                <FileText className="w-5 h-5 text-[#7FB706]" />
+                {isEditing ? "Edit Blog Article" : "Professional Word Studio"}
               </h1>
               <span
                 className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
@@ -390,17 +478,34 @@ export default function BlogEditorPage() {
                 {status}
               </span>
             </div>
-            <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-2">
+            <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-2 flex-wrap">
               <span className="flex items-center gap-1 text-emerald-400">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                {lastSavedTime ? `Autosaved: ${lastSavedTime}` : "Local storage backed up"}
+                {lastSavedTime ? `Autosaved: ${lastSavedTime}` : "Local backup live"}
               </span>
+              <span className="text-gray-600">•</span>
+              <span className="text-gray-400 font-mono">{effectiveReadingTime}</span>
             </p>
           </div>
         </div>
 
-        {/* Header Action Buttons */}
+        {/* Master Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Outline Drawer Toggle */}
+          <button
+            type="button"
+            onClick={() => setShowOutline(!showOutline)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+              showOutline
+                ? "bg-[#7FB706]/15 border-[#7FB706]/40 text-[#B5F823]"
+                : "bg-white/5 border-white/10 text-gray-400 hover:text-white"
+            }`}
+            title="Toggle Document Outline Navigation"
+          >
+            <ListTree className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Outline</span>
+          </button>
+
           {/* Reset draft button */}
           {!isEditing && (
             <button
@@ -420,7 +525,7 @@ export default function BlogEditorPage() {
             onClick={(e) => {
               if (!id) {
                 e.preventDefault();
-                alert("Please save draft at least once to view complete preview.");
+                alert("Please save draft at least once to view complete live preview.");
               }
             }}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-semibold border border-white/10 transition"
@@ -445,7 +550,7 @@ export default function BlogEditorPage() {
             type="button"
             onClick={() => handleSave(status === "SCHEDULED" ? "SCHEDULED" : "PUBLISHED")}
             disabled={saving}
-            className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs font-bold shadow-lg shadow-[#7FB706]/20 transition disabled:opacity-50"
+            className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs font-bold shadow-lg shadow-[#7FB706]/20 transition disabled:opacity-50 cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>{status === "SCHEDULED" ? "Schedule Post" : "Publish Live"}</span>
@@ -460,20 +565,82 @@ export default function BlogEditorPage() {
         </div>
       )}
 
-      {/* ── Main Layout: 70% Writing Canvas / 30% Settings Sidebar ───────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">
-        {/* ── Left Writing Area ──────────────────────────────────────────────── */}
+      {/* ── Main Layout: Document Outline (Optional) + Writing Canvas + Sidebar ─── */}
+      <div
+        className={`grid grid-cols-1 ${
+          showOutline ? "xl:grid-cols-[240px_1fr_340px]" : "lg:grid-cols-[1fr_340px]"
+        } gap-6 items-start`}
+      >
+        {/* ── Left Document Outline Pane ─────────────────────────────────────── */}
+        {showOutline && (
+          <div className="hidden xl:block sticky top-28 space-y-3">
+            <div className="rounded-2xl border border-white/10 bg-[#121226] p-4 shadow-xl space-y-3">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                  <ListTree className="w-3.5 h-3.5 text-[#7FB706]" />
+                  Document Outline
+                </h3>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-400">
+                  {headings.length}
+                </span>
+              </div>
+
+              {headings.length === 0 ? (
+                <div className="py-6 text-center text-xs text-gray-500 leading-relaxed">
+                  No headings yet.<br />
+                  Use <kbd className="font-mono bg-white/10 px-1 rounded text-gray-300">H2</kbd> or{" "}
+                  <kbd className="font-mono bg-white/10 px-1 rounded text-gray-300">H3</kbd> to build an outline.
+                </div>
+              ) : (
+                <nav className="space-y-1 max-h-[calc(100vh-240px)] overflow-y-auto pr-1">
+                  {headings.map((h, i) => (
+                    <div
+                      key={i}
+                      className={`text-xs text-gray-300 hover:text-white rounded-lg py-1 px-1.5 transition flex items-center gap-1.5 ${
+                        h.level === 1
+                          ? "font-bold text-white pl-1"
+                          : h.level === 2
+                          ? "font-semibold pl-2.5 border-l border-white/10"
+                          : h.level === 3
+                          ? "text-gray-400 pl-4 border-l border-white/5"
+                          : "text-gray-500 pl-6 border-l border-white/5"
+                      }`}
+                    >
+                      <span className="text-[10px] font-mono text-[#7FB706]">H{h.level}</span>
+                      <span className="truncate">{h.text}</span>
+                    </div>
+                  ))}
+                </nav>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Central Word Processor Canvas ──────────────────────────────────── */}
         <div className="space-y-6">
-          {/* Article Title Input */}
-          <div className="rounded-2xl border border-white/10 bg-[#121226] p-6 shadow-xl">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">
-              Article Headline / Primary H1
-            </label>
+          {/* Article Headline Input */}
+          <div className="rounded-2xl border border-white/10 bg-[#121226] p-5 sm:p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                <Bookmark className="w-3.5 h-3.5 text-[#7FB706]" /> Article Headline / Title
+              </label>
+              <span
+                className={`text-[11px] font-mono ${
+                  title.length >= 40 && title.length <= 70
+                    ? "text-emerald-400 font-semibold"
+                    : title.length > 70
+                    ? "text-amber-400"
+                    : "text-gray-500"
+                }`}
+              >
+                {title.length} chars (rec: 40–70)
+              </span>
+            </div>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Complete Guide to 12mm Compact Laminate Restroom Cubicles for Heavy Traffic"
+              placeholder="e.g. Definitive Architectural Guide to 12mm Compact Laminate Restroom Cubicles"
               className="w-full rounded-xl border border-white/10 bg-[#0a0a1a] px-4 py-3.5 text-xl sm:text-2xl font-bold text-white placeholder-gray-600 focus:border-[#7FB706] focus:outline-none transition-colors"
             />
 
@@ -496,38 +663,48 @@ export default function BlogEditorPage() {
                 <span className="text-gray-400 text-[11px]">Validating...</span>
               ) : isSlugUnique === true ? (
                 <span className="text-emerald-400 text-[11px] font-semibold flex items-center gap-1">
-                  <Check className="w-3 h-3" /> Slug Unique
+                  <Check className="w-3 h-3" /> Unique
                 </span>
               ) : isSlugUnique === false ? (
                 <span className="text-red-400 text-[11px] font-semibold flex items-center gap-1">
-                  <X className="w-3 h-3" /> Slug Taken
+                  <X className="w-3 h-3" /> Slug In Use
                 </span>
               ) : null}
             </div>
           </div>
 
           {/* Short Excerpt / Summary */}
-          <div className="rounded-2xl border border-white/10 bg-[#121226] p-6 shadow-xl">
+          <div className="rounded-2xl border border-white/10 bg-[#121226] p-5 sm:p-6 shadow-xl">
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                Article Summary / Excerpt
+                Article Summary / Google SERP Excerpt
               </label>
-              <span className="text-[11px] text-gray-500">{excerpt.length} characters (rec: 120–160)</span>
+              <span
+                className={`text-[11px] font-mono ${
+                  excerpt.length >= 120 && excerpt.length <= 160
+                    ? "text-emerald-400 font-semibold"
+                    : excerpt.length > 160
+                    ? "text-amber-400"
+                    : "text-gray-500"
+                }`}
+              >
+                {excerpt.length} characters (rec: 120–160)
+              </span>
             </div>
             <textarea
               rows={3}
               value={excerpt}
               onChange={(e) => setExcerpt(e.target.value)}
-              placeholder="Provide a concise 2-sentence summary of the article for blog cards and Google snippets..."
-              className="w-full rounded-xl border border-white/10 bg-[#0a0a1a] px-4 py-3 text-sm text-white placeholder-gray-600 focus:border-[#7FB706] focus:outline-none transition-colors resize-none"
+              placeholder="Provide a concise 2-sentence summary of the article for blog cards, social meta, and Google search snippets..."
+              className="w-full rounded-xl border border-white/10 bg-[#0a0a1a] px-4 py-3 text-sm text-white placeholder-gray-600 focus:border-[#7FB706] focus:outline-none transition-colors resize-none leading-relaxed"
             />
           </div>
 
-          {/* Rich-Text Word Processor */}
-          <div className="rounded-2xl border border-white/10 bg-[#121226] p-6 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                Long-Form Word Processor Content
+          {/* Full Advanced Word Processor */}
+          <div className="rounded-2xl border border-white/10 bg-[#121226] p-4 sm:p-5 shadow-xl space-y-3">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <label className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-[#7FB706]" /> Word Processor Content Canvas
               </label>
               <span className="text-xs font-medium text-[#7FB706] flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" />
@@ -538,6 +715,7 @@ export default function BlogEditorPage() {
             <TiptapEditor
               content={contentHtml}
               onChange={setContentHtml}
+              onHeadingsChange={setHeadings}
               placeholder="Write comprehensive article content. Use headings, bullet lists, custom tables, quotes, and images..."
             />
           </div>
@@ -545,6 +723,57 @@ export default function BlogEditorPage() {
 
         {/* ── Right Settings Sidebar ─────────────────────────────────────────── */}
         <div className="space-y-6">
+          {/* Real-World Content & SEO Quality Scorecard */}
+          <div className="rounded-2xl border border-white/10 bg-[#121226] p-5 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-[#7FB706]" /> Content Health Score
+              </h3>
+              <div
+                className={`text-sm font-mono font-bold px-2.5 py-0.5 rounded-full border ${
+                  contentAudit.score >= 80
+                    ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
+                    : contentAudit.score >= 50
+                    ? "bg-amber-500/20 text-amber-400 border-amber-500/40"
+                    : "bg-white/10 text-gray-400 border-white/15"
+                }`}
+              >
+                {contentAudit.score}%
+              </div>
+            </div>
+
+            {/* Score progress bar */}
+            <div className="w-full h-2 rounded-full bg-white/5 overflow-hidden">
+              <div
+                className={`h-full transition-all duration-500 ${
+                  contentAudit.score >= 80
+                    ? "bg-gradient-to-r from-[#7FB706] to-[#B5F823]"
+                    : contentAudit.score >= 50
+                    ? "bg-amber-400"
+                    : "bg-gray-500"
+                }`}
+                style={{ width: `${contentAudit.score}%` }}
+              />
+            </div>
+
+            {/* Interactive Audit Checklist */}
+            <div className="space-y-2 pt-1 text-xs">
+              {contentAudit.items.map((item) => (
+                <div key={item.id} className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    {item.met ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    ) : (
+                      <span className="w-3.5 h-3.5 rounded-full border border-gray-600 shrink-0" />
+                    )}
+                    <span className={item.met ? "text-gray-200" : "text-gray-400"}>{item.label}</span>
+                  </div>
+                  <span className="text-[10px] text-gray-500 font-mono text-right shrink-0">{item.hint}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Publication Workflow Settings */}
           <div className="rounded-2xl border border-white/10 bg-[#121226] p-5 shadow-xl space-y-4">
             <h3 className="text-sm font-bold text-white border-b border-white/10 pb-3 flex items-center gap-2">
@@ -743,7 +972,7 @@ export default function BlogEditorPage() {
 
             {coverImageUrl ? (
               <div className="space-y-3">
-                <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-white/10">
+                <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-white/10 shadow-lg">
                   <img src={coverImageUrl} alt={altText || "Cover"} className="w-full h-full object-cover" />
                   <button
                     type="button"
@@ -803,14 +1032,40 @@ export default function BlogEditorPage() {
 
           {/* SEO & Social Metadata Card */}
           <div className="rounded-2xl border border-white/10 bg-[#121226] p-5 shadow-xl space-y-4">
-            <h3 className="text-sm font-bold text-white border-b border-white/10 pb-3 flex items-center gap-2">
-              <Search className="w-4 h-4 text-[#7FB706]" />
-              SEO & Social Sharing
-            </h3>
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Search className="w-4 h-4 text-[#7FB706]" />
+                SEO & Google SERP
+              </h3>
+              <div className="flex items-center gap-1 bg-white/5 p-0.5 rounded-lg border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setSerpDevice("desktop")}
+                  className={`p-1 rounded ${serpDevice === "desktop" ? "bg-[#7FB706] text-white" : "text-gray-400"}`}
+                  title="Desktop SERP Preview"
+                >
+                  <Laptop className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSerpDevice("mobile")}
+                  className={`p-1 rounded ${serpDevice === "mobile" ? "bg-[#7FB706] text-white" : "text-gray-400"}`}
+                  title="Mobile SERP Preview"
+                >
+                  <Smartphone className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
 
             {/* Google SERP Snippet Preview */}
-            <div className="p-3.5 rounded-xl bg-[#0a0a1a] border border-white/10 space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Google SERP Preview</span>
+            <div
+              className={`p-3.5 rounded-xl bg-[#0a0a1a] border border-white/10 space-y-1 ${
+                serpDevice === "mobile" ? "max-w-[280px] mx-auto" : ""
+              }`}
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                Google {serpDevice === "mobile" ? "Mobile" : "Desktop"} SERP Snippet
+              </span>
               <p className="text-xs text-[#8ab4f8] font-medium truncate">{effectiveSeoTitle}</p>
               <p className="text-[11px] text-[#00a67e] truncate font-mono">
                 https://www.pacificproduct.in{effectiveCanonicalUrl}
@@ -820,7 +1075,7 @@ export default function BlogEditorPage() {
 
             {/* SEO Title */}
             <div>
-              <div className="flex items-between justify-between mb-1">
+              <div className="flex items-center justify-between mb-1">
                 <label className="text-[11px] font-semibold text-gray-400">SEO Meta Title</label>
                 <span className="text-[10px] text-gray-500">{seoTitle.length} / 60</span>
               </div>
@@ -835,7 +1090,7 @@ export default function BlogEditorPage() {
 
             {/* Meta Description */}
             <div>
-              <div className="flex items-between justify-between mb-1">
+              <div className="flex items-center justify-between mb-1">
                 <label className="text-[11px] font-semibold text-gray-400">Meta Description</label>
                 <span className="text-[10px] text-gray-500">{metaDescription.length} / 160</span>
               </div>
@@ -844,7 +1099,7 @@ export default function BlogEditorPage() {
                 value={metaDescription}
                 onChange={(e) => setMetaDescription(e.target.value)}
                 placeholder={excerpt || "Custom search snippet..."}
-                className="w-full rounded-lg border border-white/10 bg-[#0a0a1a] px-2.5 py-1.5 text-xs text-white focus:border-[#7FB706] focus:outline-none resize-none"
+                className="w-full rounded-lg border border-white/10 bg-[#0a0a1a] px-2.5 py-1.5 text-xs text-white focus:border-[#7FB706] focus:outline-none resize-none leading-relaxed"
               />
             </div>
 
