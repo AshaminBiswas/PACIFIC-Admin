@@ -234,11 +234,33 @@ export default function HardwareInventoryPage() {
     selectedWidth,
   ]);
 
-  // Load hardware inventory data
+  // Load static reference metadata (branches, vendors, dimension options)
+  const loadMetadata = useCallback(async () => {
+    try {
+      const [branchesRes, vendorsRes, dimRes] = await Promise.all([
+        hardwareInventoryApi.listBranches(),
+        hardwareInventoryApi.listVendors(),
+        hardwareInventoryApi.getDistinctDimensions(),
+      ]);
+      if (branchesRes.data?.data) {
+        setBranches(branchesRes.data.data);
+      }
+      if (vendorsRes.data?.data) {
+        setVendors(vendorsRes.data.data);
+      }
+      if (dimRes?.data?.data) {
+        setDimensionOptions(dimRes.data.data);
+      }
+    } catch (err) {
+      console.warn('Failed to load static hardware metadata:', err);
+    }
+  }, []);
+
+  // Load hardware inventory data (items and analytics) — egress-optimized
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [itemsRes, branchesRes, vendorsRes, analyticsRes, dimRes] = await Promise.all([
+      const [itemsRes, analyticsRes] = await Promise.all([
         hardwareInventoryApi.list({
           page,
           limit: pageSize,
@@ -253,12 +275,9 @@ export default function HardwareInventoryPage() {
           length: selectedLength !== 'ALL' ? selectedLength : undefined,
           width: selectedWidth !== 'ALL' ? selectedWidth : undefined,
         }),
-        hardwareInventoryApi.listBranches(),
-        hardwareInventoryApi.listVendors(),
         hardwareInventoryApi.getAnalytics({
           warehouse: selectedBranch !== 'ALL' ? selectedBranch : undefined,
         }),
-        hardwareInventoryApi.getDistinctDimensions(),
       ]);
 
       if (itemsRes.data?.data) {
@@ -266,17 +285,8 @@ export default function HardwareInventoryPage() {
         setTotalRecords(itemsRes.data.data.total || 0);
         setTotalPages(itemsRes.data.data.totalPages || 1);
       }
-      if (branchesRes.data?.data) {
-        setBranches(branchesRes.data.data);
-      }
-      if (vendorsRes.data?.data) {
-        setVendors(vendorsRes.data.data);
-      }
       if (analyticsRes.data?.data) {
         setAnalytics(analyticsRes.data.data);
-      }
-      if (dimRes?.data?.data) {
-        setDimensionOptions(dimRes.data.data);
       }
     } catch (err) {
       console.error('Failed to load hardware inventory data:', err);
@@ -297,6 +307,10 @@ export default function HardwareInventoryPage() {
     selectedLength,
     selectedWidth,
   ]);
+
+  useEffect(() => {
+    loadMetadata();
+  }, [loadMetadata]);
 
   useEffect(() => {
     // Automatically purge any dummy demo items from browser storage on mount
@@ -1464,13 +1478,19 @@ export default function HardwareInventoryPage() {
       <HardwareVendorsModal
         isOpen={isVendorsModalOpen}
         onClose={() => setIsVendorsModalOpen(false)}
-        onVendorsUpdated={loadData}
+        onVendorsUpdated={() => {
+          loadMetadata();
+          loadData();
+        }}
       />
 
       <BranchManagerModal
         isOpen={isBranchesModalOpen}
         onClose={() => setIsBranchesModalOpen(false)}
-        onBranchesUpdated={loadData}
+        onBranchesUpdated={() => {
+          loadMetadata();
+          loadData();
+        }}
       />
 
       <EditHardwareModal

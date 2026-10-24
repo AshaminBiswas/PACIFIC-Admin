@@ -23,8 +23,10 @@ import { supabase } from '../lib/supabase';
 const STORAGE_KEY = 'pacific_quotation_reminders';
 const DISMISSED_KEY = 'pacific_dismissed_reminders';
 
-// Module-level throttle & shared audio context to prevent device collision
+// Module-level throttle & shared audio context to prevent device collision & egress spikes
 let lastChimeTime = 0;
+let lastReminderSyncTime = 0;
+const REMINDER_SYNC_TTL_MS = 5 * 60 * 1000; // 5 minutes cache TTL
 let sharedAudioCtx: AudioContext | null = null;
 
 /**
@@ -145,10 +147,16 @@ export function getAllReminders(): FollowupReminder[] {
 /**
  * Fetches reminders scheduled in Supabase quotation_followups table and merges into cache.
  * Excludes already resolved followups, dismissed reminders, and stale dates older than 2 hours.
+ * Enforces a 5-minute sync TTL to prevent repetitive Egress drain on page transitions.
  */
-export async function syncRemindersFromSupabase(): Promise<FollowupReminder[]> {
+export async function syncRemindersFromSupabase(force = false): Promise<FollowupReminder[]> {
+  const now = Date.now();
+  if (!force && now - lastReminderSyncTime < REMINDER_SYNC_TTL_MS) {
+    return getAllReminders();
+  }
+
   try {
-    const recentThreshold = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const recentThreshold = new Date(now - 2 * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase
       .from('quotation_followups')
       .select('id, quotationId, channel, status, discussionNotes, nextFollowupDate, contactPerson, contactPhone, contactEmail, createdAt')
@@ -156,7 +164,9 @@ export async function syncRemindersFromSupabase(): Promise<FollowupReminder[]> {
       .neq('status', 'RESOLVED')
       .gte('nextFollowupDate', recentThreshold)
       .order('nextFollowupDate', { ascending: true })
-      .limit(50);
+      .limit(25);
+
+    lastReminderSyncTime = now;
 
     if (!error && Array.isArray(data)) {
       const dismissedIds = getDismissedReminderIds();

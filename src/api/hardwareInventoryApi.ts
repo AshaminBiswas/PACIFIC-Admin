@@ -24,6 +24,8 @@ const ITEMS_STORAGE_KEY = 'pacific_hardware_inventory_items_v2';
 const MOVEMENTS_STORAGE_KEY = 'pacific_hardware_movements_v2';
 const BRANCHES_STORAGE_KEY = 'pacific_hardware_branches_v1';
 const VENDORS_STORAGE_KEY = 'pacific_hardware_vendors_v2';
+const LAST_SYNC_KEY = 'pacific_hardware_last_sync_timestamp';
+const SYNC_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes cache TTL to protect Supabase Egress
 const LEGACY_STORAGE_KEYS = [
   'pacific_hardware_inventory_items_v1',
   'pacific_hardware_movements_v1',
@@ -461,17 +463,37 @@ class HardwareStore {
     }
   }
 
-  async ensureSynced(): Promise<void> {
-    if (this.hasSynced) return;
+  async ensureSynced(force = false): Promise<void> {
+    if (!force && this.hasSynced) return;
     if (this.syncPromise) return this.syncPromise;
+
+    // Check persistent storage TTL — avoid repeated massive egress fetches on page navigation
+    if (!force && typeof window !== 'undefined') {
+      try {
+        const lastSync = Number(localStorage.getItem(LAST_SYNC_KEY) || '0');
+        const hasCachedItems = this.getStorage<HardwareInventoryItem[]>(ITEMS_STORAGE_KEY, []).length > 0;
+        if (hasCachedItems && Date.now() - lastSync < SYNC_CACHE_TTL_MS) {
+          this.hasSynced = true;
+          return;
+        }
+      } catch {}
+    }
 
     this.syncPromise = (async () => {
       try {
+        // Egress-optimized limits & projection: Capped to active working set instead of thousands of unbounded rows
         const [itemsRes, movRes, brRes, vendRes] = await Promise.allSettled([
-          supabase.from('hardware_inventory_items').select('*').limit(2000),
-          supabase.from('hardware_stock_movements').select('*').order('created_at', { ascending: false }).limit(2000),
+          supabase
+            .from('hardware_inventory_items')
+            .select('id, sku, name, category, material, color, finish, unit, current_stock, min_reorder_level, cost_per_unit, warehouse, rack_bin_location, is_active, remarks, dia, length, width, thickness, weight, brand, vendor_id, last_ordered_at, created_at, updated_at')
+            .limit(500),
+          supabase
+            .from('hardware_stock_movements')
+            .select('id, hardware_item_id, sku, item_name, movement_type, quantity, unit, from_location, to_location, reference_number, movement_number, performed_by, notes, created_at, cost_per_unit, total_cost')
+            .order('created_at', { ascending: false })
+            .limit(200),
           supabase.from('hardware_branches').select('*'),
-          supabase.from('hardware_vendors').select('*').limit(500),
+          supabase.from('hardware_vendors').select('*').limit(200),
         ]);
 
         // Process Items
@@ -484,14 +506,13 @@ class HardwareStore {
           const unsyncedItems = localItems.filter(
             (i) => !dbItemIds.has(i.id) && !dbSkus.has((i.sku || '').toUpperCase())
           );
-          if (unsyncedItems.length > 0) {
-            for (const item of unsyncedItems) {
-              try {
-                await supabase.from('hardware_inventory_items').upsert(mapItemToDb(item), { onConflict: 'sku' });
-                dbItems.unshift(item);
-              } catch (upsertErr) {
-                console.warn('[HardwareStore] Sync item notice:', upsertErr);
-              }
+          if (unsyncedItems.length > 0 && unsyncedItems.length <= 50) {
+            // Batch upsert unsynced items in a single request instead of sequential loop
+            try {
+              await supabase.from('hardware_inventory_items').upsert(unsyncedItems.map(mapItemToDb), { onConflict: 'sku' });
+              unsyncedItems.forEach((item) => dbItems.unshift(item));
+            } catch (upsertErr) {
+              console.warn('[HardwareStore] Batch item sync notice:', upsertErr);
             }
           }
 
@@ -508,14 +529,13 @@ class HardwareStore {
           const unsyncedMovs = localMovs.filter(
             (m) => !dbMovIds.has(m.id) && !dbMovNums.has(m.movementNumber)
           );
-          if (unsyncedMovs.length > 0) {
-            for (const mov of unsyncedMovs) {
-              try {
-                await supabase.from('hardware_stock_movements').upsert(mapMovementToDb(mov), { onConflict: 'movement_number' });
-                dbMovs.unshift(mov);
-              } catch (upsertErr) {
-                console.warn('[HardwareStore] Sync movement notice:', upsertErr);
-              }
+          if (unsyncedMovs.length > 0 && unsyncedMovs.length <= 50) {
+            // Batch upsert unsynced movements in a single request instead of sequential loop
+            try {
+              await supabase.from('hardware_stock_movements').upsert(unsyncedMovs.map(mapMovementToDb), { onConflict: 'movement_number' });
+              unsyncedMovs.forEach((mov) => dbMovs.unshift(mov));
+            } catch (upsertErr) {
+              console.warn('[HardwareStore] Batch movement sync notice:', upsertErr);
             }
           }
 
@@ -535,10 +555,12 @@ class HardwareStore {
 
           const dbVendorIds = new Set(dbVendors.map((v) => v.id));
           const unsyncedVendors = localVendors.filter((v) => !dbVendorIds.has(v.id));
-          if (unsyncedVendors.length > 0) {
-            for (const vendor of unsyncedVendors) {
-              await supabase.from('hardware_vendors').upsert(mapVendorToDb(vendor), { onConflict: 'id' });
-              dbVendors.unshift(vendor);
+          if (unsyncedVendors.length > 0 && unsyncedVendors.length <= 50) {
+            try {
+              await supabase.from('hardware_vendors').upsert(unsyncedVendors.map(mapVendorToDb), { onConflict: 'id' });
+              unsyncedVendors.forEach((v) => dbVendors.unshift(v));
+            } catch (vendErr) {
+              console.warn('[HardwareStore] Batch vendor sync notice:', vendErr);
             }
           }
 
@@ -546,6 +568,11 @@ class HardwareStore {
         }
 
         this.hasSynced = true;
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(LAST_SYNC_KEY, String(Date.now()));
+          } catch {}
+        }
       } catch (err) {
         console.warn('[HardwareStore] Database sync error:', err);
       } finally {

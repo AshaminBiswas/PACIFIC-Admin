@@ -7314,3 +7314,41 @@ Load testing was executed against the operational engine using a 2,000-concurren
    - Frontend typecheck: `npx tsc --noEmit` exited 0.
    - Frontend production build: `npm run build` compiled 3,018 modules cleanly, exiting 0.
 
+---
+
+## 134. Comprehensive Database Egress Optimization & Bandwidth Reduction
+
+### 134.1 Egress Hotspots Diagnosed
+1. **Unbounded Full Table Scans (`hardwareInventoryApi.ts`)**:
+   - Every hardware inventory sync was executing unbounded fetches of `hardware_stock_movements` (`select('*').limit(2000)`) and `hardware_inventory_items` (`select('*').limit(2000)`).
+   - In-memory `hasSynced` flag was reset on every page refresh/navigation, repeatedly pulling megabytes of JSON from Supabase.
+   - Sequential `for` loops in sync logic were sending hundreds of individual `upsert` requests on cache mismatches or 401s, multiplying egress traffic.
+2. **Aggressive Force-Refresh across Commercial Views (`productCatalogApi.ts`)**:
+   - 8 major pages (`DraftQuotationPage`, `EditSalesQuotationPage`, `CreateProformaPage`, `EditProformaInvoicePage`, `CreateSalesOrderPage`, `EditSalesOrderPage`, `CreateLeadPage`, `AdminProducts`) called `listModels(undefined, true)` on mount.
+   - Unbounded `select('*')` was transferring full high-res images, video arrays, and specification payloads on every user transition.
+3. **Omnipresent Follow-up Reminders Polling (`followupReminder.ts`)**:
+   - `syncRemindersFromSupabase` was fired on every `AdminLayout` remount without caching or throttling.
+4. **Hardware Page Keystroke Query Flooding (`HardwareInventoryPage.tsx`)**:
+   - On every search keystroke and filter change, `loadData` was re-querying static metadata (`branches`, `vendors`, `dimensions`) alongside dynamic paginated items.
+
+### 134.2 Applied Structural Reductions
+1. **Persistent Sync TTL & Capped Limits (`hardwareInventoryApi.ts`)**:
+   - Added persistent timestamp key `pacific_hardware_last_sync_timestamp` with a 10-minute TTL (`SYNC_CACHE_TTL_MS = 600,000ms`).
+   - If cached items exist and last sync was `< 10 minutes` ago, skips remote Supabase calls entirely (0 KB egress).
+   - Capped movement sync from `limit(2000)` down to `limit(200)` and selected only necessary columns (`id, hardware_item_id, sku, item_name, movement_type, quantity, unit, from_location, to_location, reference_number, movement_number, performed_by, notes, created_at, cost_per_unit, total_cost`).
+   - Capped item sync from `limit(2000)` down to `limit(500)` with explicit column projection.
+   - Replaced sequential upsert loops with single batch requests (up to 50 items/movements).
+2. **Catalog Throttling & Column Projection (`productCatalogApi.ts`)**:
+   - Added 3-minute catalog cache TTL (`MODELS_CACHE_TTL_MS = 180,000ms`) and 15-second forced-refresh throttle to prevent concurrent component mounts from triggering duplicate queries.
+   - Restricted query projection to required model fields (`id, name, slug, description, category, subcategory, base_price, sort_order, published, is_featured, images, specifications, features, metadata, created_at, updated_at`).
+3. **Follow-Up Reminder Throttling (`followupReminder.ts`)**:
+   - Added a 5-minute sync TTL (`REMINDER_SYNC_TTL_MS = 300,000ms`) and reduced query limit from 50 to 25.
+4. **Decoupled Static Metadata Loading (`HardwareInventoryPage.tsx`)**:
+   - Split `branches`, `vendors`, and `dimensionOptions` into `loadMetadata` (runs once on mount and on modal updates).
+   - Filter and pagination interactions now query only `items` and `analytics`, cutting network requests per user interaction from 5 down to 2 (60% request reduction).
+
+### 134.3 Verification
+- **TypeScript Typecheck**: `npx tsc --noEmit` exited **0** (zero errors).
+- **Production Build**: `npm run build` compiled 3,018 modules cleanly in 43.55s (exit code 0).
+
+

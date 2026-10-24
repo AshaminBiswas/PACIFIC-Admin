@@ -13,6 +13,8 @@ const LOCAL_STORAGE_CATEGORIES_KEY = 'pacific_product_catalog_categories_v4';
 
 // In-memory cache for ultra-fast instant UI rendering
 let memoryModelsCache: ProductCatalogModel[] | null = null;
+let lastModelsFetchTime = 0;
+const MODELS_CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes cache TTL to slash Supabase egress
 
 // Clear outdated legacy caches if present
 try {
@@ -252,21 +254,44 @@ export const productCatalogApi = {
 
   // ── Models (Reliable Database-First with Resilient Local Fallback) ──
   listModels: async (category?: ProductCategoryType, forceRefresh = false): Promise<ProductCatalogModel[]> => {
-    // 1. Return in-memory cache if active and not forced
-    if (!forceRefresh && memoryModelsCache && memoryModelsCache.length > 0) {
-      const active = memoryModelsCache.filter((m) => m.published !== false);
+    const now = Date.now();
+    const hasFreshMemory = memoryModelsCache && memoryModelsCache.length > 0;
+    const isThrottleActive = now - lastModelsFetchTime < 15000; // 15s throttle on forced re-fetch
+    const isWithinTtl = now - lastModelsFetchTime < MODELS_CACHE_TTL_MS;
+
+    // 1. Return in-memory cache if active and not forced (or if force-refresh is spammed within 15s)
+    if (hasFreshMemory && (!forceRefresh || isThrottleActive || isWithinTtl)) {
+      const active = (memoryModelsCache || []).filter((m) => m.published !== false);
       if (category) {
         return active.filter((m) => m.category === category);
       }
       return active;
     }
 
-    // 2. Fetch directly from Supabase products table
+    // 2. Check localStorage before hitting remote Supabase if memory is empty
+    if (!hasFreshMemory && !forceRefresh) {
+      try {
+        const cached = localStorage.getItem(LOCAL_STORAGE_MODELS_KEY);
+        if (cached) {
+          const models: ProductCatalogModel[] = (JSON.parse(cached) || []).filter((m: any) => m.published !== false);
+          if (models.length > 0) {
+            memoryModelsCache = models;
+            lastModelsFetchTime = now;
+            if (category) {
+              return models.filter((m) => m.category === category);
+            }
+            return models;
+          }
+        }
+      } catch {}
+    }
+
+    // 3. Fetch directly from Supabase products table with selective projection
     if (isSupabaseConfigured()) {
       try {
         const query = supabase
           .from('products')
-          .select('*')
+          .select('id, name, slug, description, category, subcategory, base_price, sort_order, published, is_featured, images, specifications, features, metadata, created_at, updated_at')
           .order('sort_order', { ascending: true });
 
         const res = (await withTimeout<any>(query as any, 10000)) as any;
@@ -276,6 +301,7 @@ export const productCatalogApi = {
         if (!error && Array.isArray(rows)) {
           const remoteModels = rows.map(mapDbRowToModel).filter((m) => m.published !== false);
           memoryModelsCache = remoteModels;
+          lastModelsFetchTime = now;
           try {
             localStorage.setItem(LOCAL_STORAGE_MODELS_KEY, JSON.stringify(remoteModels));
           } catch {}
@@ -291,7 +317,7 @@ export const productCatalogApi = {
       }
     }
 
-    // 3. Fallback to localStorage cache
+    // 4. Fallback to localStorage cache
     try {
       const cached = localStorage.getItem(LOCAL_STORAGE_MODELS_KEY);
       if (cached) {
