@@ -87,10 +87,19 @@ export const supabase = createClient<any>(
               console.warn("[Supabase Client] Could not purge localStorage:", storageErr);
             }
 
-            // Retry with canonical key
+            // Retry with guaranteed canonical anon key
+            const retryKey = CANONICAL_PACIFIC_ANON_KEY;
             const headers = new Headers((options as any)?.headers || {});
-            headers.set("apikey", supabaseKey);
-            headers.set("Authorization", `Bearer ${supabaseKey}`);
+            headers.delete("authorization");
+            headers.delete("Authorization");
+            headers.delete("apikey");
+            headers.set("apikey", retryKey);
+            headers.set("Authorization", `Bearer ${retryKey}`);
+
+            // Also disconnect stale auth session in client if available
+            try {
+              supabase?.auth?.signOut().catch(() => {});
+            } catch {}
 
             return await fetch(url, {
               ...options,

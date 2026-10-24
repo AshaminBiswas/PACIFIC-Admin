@@ -6577,6 +6577,49 @@ Load testing was executed against the operational engine using a 2,000-concurren
 - **Unit & Integration Tests**: `npm run test:mail` ran 19 tests, 19 passed, 0 failed.
 - **Database Parity**: Real Supabase `products` table records (AZALEA, SAFFRON, SKY LIGHT, UMP Model A, SUMMER FUN, DELIGHT, GUSTO, PLATINA WAVE) now display cleanly without phantom hardcoded items.
 
+---
+
+## 123. Supabase 401 Unauthorized Recovery & Pacific Mail Migration Database Deployment
+
+### 123.1 Root Cause Analysis
+1. **Supabase PostgREST 401 Unauthorized Across CMS & ERP Tables**:
+   - In browser sessions, an expired or stale Supabase session token persisted in `localStorage` under `sb-bcbswbzbtskvmdqmgrjm-auth-token`.
+   - When PostgREST queries were dispatched (`products`, `blogs`, `branches`, `dealer_leads`, `faqs`, etc.), `@supabase/supabase-js` automatically attached `Authorization: Bearer <stale_jwt>`. PostgREST rejected the expired token with code `PGRST301: "None of the keys was able to decode the JWT"`, returning HTTP 401.
+   - While `src/lib/supabase.ts` had a 401 retry interceptor, the retry was preserving existing headers and did not explicitly scrub lowercase `authorization` / `Authorization` headers, nor did it call `supabase.auth.signOut()` to invalidate the in-memory client session.
+2. **Pacific Mail HTTP 500 Server Errors**:
+   - The Pacific Mail database migrations (`20261023_mail_schema`, `20261023_mail_security_rls`, `20261023_mail_perf_indexes`) had been created locally in `D:\PACIFIC-Backend\prisma\migrations` but had **never been applied to the live PostgreSQL database** (`aws-0-ap-south-1.pooler.supabase.com`).
+   - Consequently, none of the 9 mail tables (`mail_addresses`, `mail_threads`, `mail_messages`, `mail_recipients`, `mailbox_items`, `mail_attachments`, `mail_outbox`, `mail_events`, `mail_audit_logs`) existed in PostgreSQL.
+   - When the Pacific Mail page loaded and called `/api/v1/mail/addresses/me`, `/api/v1/mail/counts`, `/api/v1/mail/folders/inbox`, and admin endpoints, queries failed with `relation "mail_addresses" does not exist` -> HTTP 500.
+   - Additionally, migration folders shared identical chronological prefixes (`20261023_`), causing alphabetical sorting issues during deployment, and minor enum mismatches (`COMPLETED` and `RETRY` missing from `MailJobStatus` enum).
+
+### 123.2 Structural Fixes & Resolutions
+1. **Database Migration Deployment**:
+   - Resolved baseline `0_init` migration via `npx prisma migrate resolve --applied 0_init`.
+   - Renamed migration directories sequentially (`2026102301_mail_schema`, `2026102302_mail_security_rls`, `2026102303_mail_perf_indexes`).
+   - Added `COMPLETED` and `RETRY` to `"MailJobStatus"` enum in `2026102301_mail_schema/migration.sql`.
+   - Normalized `params.eventType.toUpperCase()` in `eventRepository.record` (`mail.repository.ts`).
+   - Successfully executed `npx prisma migrate deploy` in `D:\PACIFIC-Backend`, creating all 9 tables, indexes, triggers, and RLS policies on the live Supabase PostgreSQL database.
+2. **Route Aliasing**:
+   - Added backward-compatible route aliases in `mail.routes.ts`:
+     - `/api/v1/mail/admin/outbox/failures` $\to$ `/admin/outbox-failures`
+     - `/api/v1/mail/admin/audit` $\to$ `/mail/audit`
+3. **Frontend Supabase 401 Self-Healing Hardening**:
+   - Updated `src/lib/supabase.ts` 401 retry interceptor to explicitly scrub `authorization`, `Authorization`, and `apikey` headers before setting canonical anon credentials.
+   - Added automatic client session disconnect `supabase?.auth?.signOut().catch(() => {})` on 401, purging in-memory tokens.
+
+### 123.3 Verification
+- **Remote API Live Test**: Sent authenticated requests against `https://pacific-backend-psuw.onrender.com/api/v1`:
+  - `GET /mail/addresses/me` $\to$ **HTTP 200** (auto-provisioned user address)
+  - `GET /mail/counts` $\to$ **HTTP 200**
+  - `GET /mail/folders/inbox` $\to$ **HTTP 200**
+  - `GET /mail/admin/metrics` $\to$ **HTTP 200**
+  - `GET /mail/admin/addresses` $\to$ **HTTP 200**
+- **Automated Tests**:
+  - `D:\PACIFIC-Backend`: 23 adversarial security tests + 30 unit tests passed (53 passed, 0 failed).
+  - `D:\PACIFIC-Admin`: 19 frontend tests passed (`npm run test:mail`).
+- **Build & Types**: `npx tsc --noEmit` and `npm run build` exit 0 cleanly.
+
+
 
 
 
