@@ -29,9 +29,12 @@ import {
   Layers,
   Hash,
   ClipboardList,
+  FileSpreadsheet,
+  Download,
 } from 'lucide-react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { hardwareInventoryApi } from '../../api/hardwareInventoryApi';
+import { exportComprehensiveHardwareReport } from '../../utils/hardwareExcelExport';
 import type {
   HardwareInventoryItem,
   HardwareBranch,
@@ -99,9 +102,35 @@ export default function HardwareInventoryPage() {
   const [selectedHistorySkuId, setSelectedHistorySkuId] = useState<string | null>(null);
   const [isInwardHistoryModalOpen, setIsInwardHistoryModalOpen] = useState(false);
   const [selectedInwardHistorySkuId, setSelectedInwardHistorySkuId] = useState<string | null>(null);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   // Active item for targeted modals
   const [activeItem, setActiveItem] = useState<HardwareInventoryItem | null>(null);
+
+  const handleExportAllExcel = async () => {
+    try {
+      setIsExportingExcel(true);
+      const [allInventoryRes, movRes] = await Promise.all([
+        hardwareInventoryApi.list({ limit: 5000 }),
+        hardwareInventoryApi.getMovements({ limit: 5000 }),
+      ]);
+
+      const exportItems = allInventoryRes.data?.data?.items || items;
+      const exportMovements = movRes.data?.data || [];
+
+      exportComprehensiveHardwareReport({
+        items: exportItems,
+        branches,
+        vendors,
+        movements: exportMovements,
+        selectedBranch,
+      });
+    } catch (err) {
+      console.error('Failed to export comprehensive hardware report:', err);
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
 
   // Reset pagination on filter change
   useEffect(() => {
@@ -287,6 +316,22 @@ export default function HardwareInventoryPage() {
           >
             <BarChart3 className="w-3.5 h-3.5 text-blue-400" />
             Reports
+          </button>
+
+          {/* Export Excel Reports */}
+          <button
+            type="button"
+            disabled={isExportingExcel}
+            onClick={handleExportAllExcel}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-[#030213] text-xs font-bold rounded-xl border border-[#7FB706] shadow-sm shadow-[#7FB706]/20 transition-all cursor-pointer disabled:opacity-50"
+            title="Download full multi-sheet Excel report (.xlsx)"
+          >
+            {isExportingExcel ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+            )}
+            <span>Export Excel</span>
           </button>
 
           {/* Ledger */}
@@ -1152,6 +1197,7 @@ export default function HardwareInventoryPage() {
         onClose={() => setIsReportsModalOpen(false)}
         branches={branches}
         items={items}
+        vendors={vendors}
       />
 
       <HardwareVendorsModal

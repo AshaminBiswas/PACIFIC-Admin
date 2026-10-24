@@ -10,19 +10,27 @@ import {
   Package,
   TrendingUp,
   CheckCircle2,
+  FileSpreadsheet,
+  Loader2,
+  History,
+  FileCheck,
 } from 'lucide-react';
 import { hardwareInventoryApi } from '../../api/hardwareInventoryApi';
 import type {
   HardwareAnalyticsSummary,
   HardwareInventoryItem,
   HardwareBranch,
+  HardwareVendor,
+  HardwareStockMovement,
 } from '../../types/admin';
+import { exportComprehensiveHardwareReport } from '../../utils/hardwareExcelExport';
 
 interface HardwareReportsModalProps {
   isOpen: boolean;
   onClose: () => void;
   branches: HardwareBranch[];
   items: HardwareInventoryItem[];
+  vendors?: HardwareVendor[];
 }
 
 export default function HardwareReportsModal({
@@ -30,10 +38,13 @@ export default function HardwareReportsModal({
   onClose,
   branches,
   items,
+  vendors: propVendors,
 }: HardwareReportsModalProps) {
   const [analytics, setAnalytics] = useState<HardwareAnalyticsSummary | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<string>('ALL');
   const [loading, setLoading] = useState(true);
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [exportType, setExportType] = useState<string | null>(null);
 
   const loadReport = async () => {
     setLoading(true);
@@ -60,11 +71,89 @@ export default function HardwareReportsModal({
   const lowStockItems = items.filter(
     (i) =>
       i.currentStock <= i.reorderLevel &&
-      (selectedBranch === 'ALL' || i.warehouse === selectedBranch)
+      (selectedBranch === 'ALL' || (i.warehouse || '').toUpperCase() === selectedBranch.toUpperCase())
   );
 
   const handlePrint = () => {
     window.print();
+  };
+
+  /**
+   * Universal Excel Exporter for Hardware Inventory
+   */
+  const handleExportExcel = async (type: 'ALL' | 'MASTER' | 'MOVEMENTS' | 'ALERTS' = 'ALL') => {
+    setExportingExcel(true);
+    setExportType(type);
+    try {
+      // Fetch movements & vendors in parallel for complete report
+      const [movRes, vendRes] = await Promise.allSettled([
+        hardwareInventoryApi.getMovements({ limit: 5000 }),
+        propVendors && propVendors.length > 0
+          ? Promise.resolve({ data: { success: true, data: propVendors } })
+          : hardwareInventoryApi.listVendors(),
+      ]);
+
+      const movements: HardwareStockMovement[] =
+        movRes.status === 'fulfilled' && movRes.value?.data?.data
+          ? movRes.value.data.data
+          : [];
+
+      const vendors: HardwareVendor[] =
+        vendRes.status === 'fulfilled' && vendRes.value?.data?.data
+          ? vendRes.value.data.data
+          : propVendors || [];
+
+      const branchCode = selectedBranch === 'ALL' ? 'Consolidated' : selectedBranch;
+      const dateTag = new Date().toISOString().split('T')[0];
+
+      if (type === 'MOVEMENTS') {
+        exportComprehensiveHardwareReport({
+          items: [],
+          branches,
+          vendors: [],
+          movements,
+          analytics,
+          selectedBranch,
+          customFilename: `Pacific_Hardware_Movement_Ledger_${branchCode}_${dateTag}.xlsx`,
+        });
+      } else if (type === 'ALERTS') {
+        exportComprehensiveHardwareReport({
+          items: lowStockItems,
+          branches,
+          vendors,
+          movements: [],
+          analytics,
+          selectedBranch,
+          customFilename: `Pacific_Hardware_Low_Stock_Alerts_${branchCode}_${dateTag}.xlsx`,
+        });
+      } else if (type === 'MASTER') {
+        exportComprehensiveHardwareReport({
+          items,
+          branches,
+          vendors,
+          movements: [],
+          analytics,
+          selectedBranch,
+          customFilename: `Pacific_Hardware_Master_Register_${branchCode}_${dateTag}.xlsx`,
+        });
+      } else {
+        // Complete 5-Sheet Workbook
+        exportComprehensiveHardwareReport({
+          items,
+          branches,
+          vendors,
+          movements,
+          analytics,
+          selectedBranch,
+          customFilename: `Pacific_Hardware_Comprehensive_Report_${branchCode}_${dateTag}.xlsx`,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to export hardware inventory Excel report:', err);
+    } finally {
+      setExportingExcel(false);
+      setExportType(null);
+    }
   };
 
   if (!isOpen) return null;
@@ -73,7 +162,7 @@ export default function HardwareReportsModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
       <div className="relative w-full max-w-4xl bg-[#121029] border border-[#7FB706]/30 rounded-2xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-white/10 bg-[#0d0b21]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 border-b border-white/10 bg-[#0d0b21] gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#7FB706]/20 border border-[#7FB706]/40 flex items-center justify-center text-[#7FB706]">
               <BarChart3 className="w-5 h-5" />
@@ -88,15 +177,32 @@ export default function HardwareReportsModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Primary Excel Export Button */}
+            <button
+              type="button"
+              disabled={exportingExcel}
+              onClick={() => handleExportExcel('ALL')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#7FB706] hover:bg-[#6fa005] text-[#030213] text-xs font-bold rounded-lg transition shadow-md shadow-[#7FB706]/20 cursor-pointer disabled:opacity-50"
+              title="Download full 5-sheet Excel workbook"
+            >
+              {exportingExcel && exportType === 'ALL' ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+              )}
+              <span>Export Excel (.xlsx)</span>
+            </button>
+
             <button
               type="button"
               onClick={handlePrint}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/15 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
-              Print Report
+              Print
             </button>
+
             <button
               onClick={onClose}
               className="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
@@ -131,6 +237,89 @@ export default function HardwareReportsModal({
 
         {/* Report Content */}
         <div className="p-4 sm:p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+          {/* Quick Excel Downloads Strip */}
+          <div className="p-4 bg-gradient-to-r from-[#0d0b21] to-[#121029] border border-[#7FB706]/30 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="w-4 h-4 text-[#B5F823]" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-white">
+                  Hardware Excel Exports Center
+                </h3>
+              </div>
+              <span className="text-[10px] text-[#B5F823] font-mono font-bold bg-[#7FB706]/10 px-2 py-0.5 rounded border border-[#7FB706]/30">
+                Audit-Ready .xlsx
+              </span>
+            </div>
+            <p className="text-xs text-gray-400">
+              Download professionally formatted, multi-tab Microsoft Excel reports containing complete item catalogs, valuation breakdowns, and transactional ledgers.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+              {/* Comprehensive Package */}
+              <button
+                type="button"
+                disabled={exportingExcel}
+                onClick={() => handleExportExcel('ALL')}
+                className="p-3 bg-black/40 hover:bg-black/60 border border-[#7FB706]/30 hover:border-[#7FB706] rounded-xl text-left transition flex items-center justify-between group cursor-pointer disabled:opacity-50"
+              >
+                <div>
+                  <div className="text-xs font-bold text-white group-hover:text-[#B5F823] transition-colors flex items-center gap-1.5">
+                    <Package className="w-3.5 h-3.5 text-[#7FB706]" />
+                    Complete Package
+                  </div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">5 Multi-tab sheets</div>
+                </div>
+                {exportingExcel && exportType === 'ALL' ? (
+                  <Loader2 className="w-4 h-4 text-[#B5F823] animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4 text-[#7FB706] group-hover:scale-110 transition-transform" />
+                )}
+              </button>
+
+              {/* Movement Ledger */}
+              <button
+                type="button"
+                disabled={exportingExcel}
+                onClick={() => handleExportExcel('MOVEMENTS')}
+                className="p-3 bg-black/40 hover:bg-black/60 border border-purple-500/30 hover:border-purple-400 rounded-xl text-left transition flex items-center justify-between group cursor-pointer disabled:opacity-50"
+              >
+                <div>
+                  <div className="text-xs font-bold text-white group-hover:text-purple-300 transition-colors flex items-center gap-1.5">
+                    <History className="w-3.5 h-3.5 text-purple-400" />
+                    Movement Ledger
+                  </div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">Inward & Issue audit trail</div>
+                </div>
+                {exportingExcel && exportType === 'MOVEMENTS' ? (
+                  <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
+                )}
+              </button>
+
+              {/* Low Stock Alerts */}
+              <button
+                type="button"
+                disabled={exportingExcel}
+                onClick={() => handleExportExcel('ALERTS')}
+                className="p-3 bg-black/40 hover:bg-black/60 border border-amber-500/30 hover:border-amber-400 rounded-xl text-left transition flex items-center justify-between group cursor-pointer disabled:opacity-50"
+              >
+                <div>
+                  <div className="text-xs font-bold text-white group-hover:text-amber-300 transition-colors flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                    Restock Alerts
+                  </div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">{lowStockItems.length} SKUs below threshold</div>
+                </div>
+                {exportingExcel && exportType === 'ALERTS' ? (
+                  <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
+                )}
+              </button>
+            </div>
+          </div>
+
           {loading || !analytics ? (
             <div className="p-12 text-center text-gray-400 text-sm">Generating report...</div>
           ) : (
@@ -229,10 +418,20 @@ export default function HardwareReportsModal({
               {/* Low Stock Replenishment Table */}
               {lowStockItems.length > 0 && (
                 <div className="p-4 bg-[#0d0b21] border border-amber-500/20 rounded-xl space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4" />
-                    Urgent Reorder Required ({lowStockItems.length} SKUs)
-                  </h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" />
+                      Urgent Reorder Required ({lowStockItems.length} SKUs)
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => handleExportExcel('ALERTS')}
+                      className="inline-flex items-center gap-1 text-[11px] text-amber-400 hover:text-amber-300 font-semibold cursor-pointer"
+                    >
+                      <Download className="w-3 h-3" />
+                      Export Restock List (.xlsx)
+                    </button>
+                  </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
@@ -274,7 +473,17 @@ export default function HardwareReportsModal({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-white/10 bg-[#0d0b21] flex justify-end">
+        <div className="p-4 border-t border-white/10 bg-[#0d0b21] flex items-center justify-between">
+          <button
+            type="button"
+            disabled={exportingExcel}
+            onClick={() => handleExportExcel('ALL')}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#7FB706]/15 hover:bg-[#7FB706]/25 border border-[#7FB706]/40 text-[#B5F823] text-xs font-bold rounded-lg transition cursor-pointer disabled:opacity-50"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Download All Excel Reports (.xlsx)</span>
+          </button>
+
           <button
             type="button"
             onClick={onClose}

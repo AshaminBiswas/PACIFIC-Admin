@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { hardwareInventoryApi } from '../../api/hardwareInventoryApi';
 import type { HardwareStockMovement, HardwareBranch } from '../../types/admin';
+import { exportComprehensiveHardwareReport } from '../../utils/hardwareExcelExport';
 
 interface HardwareLedgerModalProps {
   isOpen: boolean;
@@ -111,6 +112,18 @@ export default function HardwareLedgerModal({
     document.body.removeChild(link);
   };
 
+  const handleExportExcel = () => {
+    const branchTag = selectedBranch === 'ALL' ? 'Consolidated' : selectedBranch;
+    const dateTag = new Date().toISOString().slice(0, 10);
+    exportComprehensiveHardwareReport({
+      items: [],
+      branches,
+      movements: filtered,
+      selectedBranch,
+      customFilename: `Pacific_Hardware_Movement_Ledger_${branchTag}_${dateTag}.xlsx`,
+    });
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -179,15 +192,27 @@ export default function HardwareLedgerModal({
             </select>
           </div>
 
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            disabled={filtered.length === 0}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 disabled:opacity-50 text-gray-200 text-xs font-medium rounded-xl border border-white/10 transition-colors cursor-pointer whitespace-nowrap self-end sm:self-center"
-          >
-            <Download className="w-3.5 h-3.5 text-[#B5F823]" />
-            Export CSV
-          </button>
+          <div className="flex items-center gap-2 self-end sm:self-center">
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={filtered.length === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#7FB706] hover:bg-[#6fa005] disabled:opacity-50 text-[#030213] text-xs font-bold rounded-xl transition shadow-sm shadow-[#7FB706]/20 cursor-pointer whitespace-nowrap"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              Export Excel (.xlsx)
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              disabled={filtered.length === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 disabled:opacity-50 text-gray-200 text-xs font-medium rounded-xl border border-white/10 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <Download className="w-3.5 h-3.5 text-[#B5F823]" />
+              CSV
+            </button>
+          </div>
         </div>
 
         {/* Ledger Table */}

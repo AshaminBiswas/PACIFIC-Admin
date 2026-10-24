@@ -6721,6 +6721,31 @@ Load testing was executed against the operational engine using a 2,000-concurren
 
 ---
 
+## 129. Hardware Inventory Multi-Sheet Excel Reports Engine (.xlsx)
+
+### 129.1 Architecture & Implementation
+1. **Universal Excel Exporter (`src/utils/hardwareExcelExport.ts`)**:
+   - Implemented an audit-grade, multi-sheet Microsoft Excel generation engine using `xlsx`.
+   - Generates a structured 5-tab workbook with configured column widths and numeric formats:
+     - **Sheet 1: `Hardware Master Register`**: Comprehensive item catalog containing SKU, name, material, finish, unit, warehouse/branch, rack location, HSN, preferred vendor, dimensions (diameter, length, width), opening stock, total inward, total issued, closing stock, reorder level, unit cost (₹), total valuation (₹), stock status, and notes.
+     - **Sheet 2: `Stock Movement Ledger`**: Complete historical audit trail recording movement date, number, action type (INWARD, ISSUE, ADJUSTMENT), SKU, item name, branch, quantity (+/-), stock before/after, unit, valuation (₹), invoice / issue reference, and operator.
+     - **Sheet 3: `Low Stock Alerts`**: Dedicated replenishment sheet highlighting depleted and low-stock SKUs, reorder safety margins, deficit units needed, and estimated reorder costs (₹).
+     - **Sheet 4: `Inventory Valuation Summary`**: Executive summary table with KPI metrics (total registered SKUs, total units, consolidated valuation, low stock count) plus branch-by-branch and material-by-material breakdown subtotals.
+     - **Sheet 5: `Hardware Vendors Directory`**: Master supplier directory with trade name, legal entity name, contact details, GSTIN, city, address, material categories supplied, and active status.
+2. **Interactive UI Integration**:
+   - **`HardwareInventoryPage.tsx`**: Added a one-click **Export Excel** button in the main action bar beside the Reports modal button for instant download of all hardware inventory data.
+   - **`HardwareReportsModal.tsx`**: Integrated primary **Export Excel (.xlsx)** button in the modal header, quick-download action cards for Complete Package, Movement Ledger, and Restock Alerts in the body, and a secondary download button in the footer.
+   - **`HardwareLedgerModal.tsx`**: Enhanced the movement ledger with an **Export Excel (.xlsx)** button alongside the legacy CSV option.
+
+### 129.2 Verification & Quality Assurance
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
+- **Production Build**:
+  - `D:\PACIFIC-Admin`: `npm run build` compiled 3,018 modules cleanly, exiting 0.
+
+
+---
+
 ## 128. WebAudio Resource Throttling, Dismissed Reminder Persistence & Pre-Request Project JWT Validation
 
 ### 128.1 Root Cause Analysis
@@ -6752,6 +6777,31 @@ Load testing was executed against the operational engine using a 2,000-concurren
   - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
 - **Production Build**:
   - `D:\PACIFIC-Admin`: `npm run build` compiled 3,017 modules cleanly, exiting 0.
+
+---
+
+## 129. Hardware Inventory Multi-Sheet Excel Reports Engine (.xlsx)
+
+### 129.1 Architecture & Implementation
+1. **Universal Excel Exporter (`src/utils/hardwareExcelExport.ts`)**:
+   - Implemented an audit-grade, multi-sheet Microsoft Excel generation engine using `xlsx`.
+   - Generates a structured 5-tab workbook with configured column widths and numeric formats:
+     - **Sheet 1: `Hardware Master Register`**: Comprehensive item catalog containing SKU, name, material, finish, unit, warehouse/branch, rack location, HSN, preferred vendor, dimensions (diameter, length, width), opening stock, total inward, total issued, closing stock, reorder level, unit cost (₹), total valuation (₹), stock status, and notes.
+     - **Sheet 2: `Stock Movement Ledger`**: Complete historical audit trail recording movement date, number, action type (INWARD, ISSUE, ADJUSTMENT), SKU, item name, branch, quantity (+/-), stock before/after, unit, valuation (₹), invoice / issue reference, and operator.
+     - **Sheet 3: `Low Stock Alerts`**: Dedicated replenishment sheet highlighting depleted and low-stock SKUs, reorder safety margins, deficit units needed, and estimated reorder costs (₹).
+     - **Sheet 4: `Inventory Valuation Summary`**: Executive summary table with KPI metrics (total registered SKUs, total units, consolidated valuation, low stock count) plus branch-by-branch and material-by-material breakdown subtotals.
+     - **Sheet 5: `Hardware Vendors Directory`**: Master supplier directory with trade name, legal entity name, contact details, GSTIN, city, address, material categories supplied, and active status.
+2. **Interactive UI Integration**:
+   - **`HardwareInventoryPage.tsx`**: Added a one-click **Export Excel** button in the main action bar beside the Reports modal button for instant download of all hardware inventory data.
+   - **`HardwareReportsModal.tsx`**: Integrated primary **Export Excel (.xlsx)** button in the modal header, quick-download action cards for Complete Package, Movement Ledger, and Restock Alerts in the body, and a secondary download button in the footer.
+   - **`HardwareLedgerModal.tsx`**: Enhanced the movement ledger with an **Export Excel (.xlsx)** button alongside the legacy CSV option.
+
+### 129.2 Verification & Quality Assurance
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
+- **Production Build**:
+  - `D:\PACIFIC-Admin`: `npm run build` compiled 3,018 modules cleanly, exiting 0.
+
 
 
 ---
@@ -6796,6 +6846,31 @@ Load testing was executed against the operational engine using a 2,000-concurren
 
 ---
 
+## 129. Hardware Inventory Multi-Sheet Excel Reports Engine (.xlsx)
+
+### 129.1 Architecture & Implementation
+1. **Universal Excel Exporter (`src/utils/hardwareExcelExport.ts`)**:
+   - Implemented an audit-grade, multi-sheet Microsoft Excel generation engine using `xlsx`.
+   - Generates a structured 5-tab workbook with configured column widths and numeric formats:
+     - **Sheet 1: `Hardware Master Register`**: Comprehensive item catalog containing SKU, name, material, finish, unit, warehouse/branch, rack location, HSN, preferred vendor, dimensions (diameter, length, width), opening stock, total inward, total issued, closing stock, reorder level, unit cost (₹), total valuation (₹), stock status, and notes.
+     - **Sheet 2: `Stock Movement Ledger`**: Complete historical audit trail recording movement date, number, action type (INWARD, ISSUE, ADJUSTMENT), SKU, item name, branch, quantity (+/-), stock before/after, unit, valuation (₹), invoice / issue reference, and operator.
+     - **Sheet 3: `Low Stock Alerts`**: Dedicated replenishment sheet highlighting depleted and low-stock SKUs, reorder safety margins, deficit units needed, and estimated reorder costs (₹).
+     - **Sheet 4: `Inventory Valuation Summary`**: Executive summary table with KPI metrics (total registered SKUs, total units, consolidated valuation, low stock count) plus branch-by-branch and material-by-material breakdown subtotals.
+     - **Sheet 5: `Hardware Vendors Directory`**: Master supplier directory with trade name, legal entity name, contact details, GSTIN, city, address, material categories supplied, and active status.
+2. **Interactive UI Integration**:
+   - **`HardwareInventoryPage.tsx`**: Added a one-click **Export Excel** button in the main action bar beside the Reports modal button for instant download of all hardware inventory data.
+   - **`HardwareReportsModal.tsx`**: Integrated primary **Export Excel (.xlsx)** button in the modal header, quick-download action cards for Complete Package, Movement Ledger, and Restock Alerts in the body, and a secondary download button in the footer.
+   - **`HardwareLedgerModal.tsx`**: Enhanced the movement ledger with an **Export Excel (.xlsx)** button alongside the legacy CSV option.
+
+### 129.2 Verification & Quality Assurance
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
+- **Production Build**:
+  - `D:\PACIFIC-Admin`: `npm run build` compiled 3,018 modules cleanly, exiting 0.
+
+
+---
+
 ## 128. WebAudio Resource Throttling, Dismissed Reminder Persistence & Pre-Request Project JWT Validation
 
 ### 128.1 Root Cause Analysis
@@ -6827,6 +6902,31 @@ Load testing was executed against the operational engine using a 2,000-concurren
   - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
 - **Production Build**:
   - `D:\PACIFIC-Admin`: `npm run build` compiled 3,017 modules cleanly, exiting 0.
+
+---
+
+## 129. Hardware Inventory Multi-Sheet Excel Reports Engine (.xlsx)
+
+### 129.1 Architecture & Implementation
+1. **Universal Excel Exporter (`src/utils/hardwareExcelExport.ts`)**:
+   - Implemented an audit-grade, multi-sheet Microsoft Excel generation engine using `xlsx`.
+   - Generates a structured 5-tab workbook with configured column widths and numeric formats:
+     - **Sheet 1: `Hardware Master Register`**: Comprehensive item catalog containing SKU, name, material, finish, unit, warehouse/branch, rack location, HSN, preferred vendor, dimensions (diameter, length, width), opening stock, total inward, total issued, closing stock, reorder level, unit cost (₹), total valuation (₹), stock status, and notes.
+     - **Sheet 2: `Stock Movement Ledger`**: Complete historical audit trail recording movement date, number, action type (INWARD, ISSUE, ADJUSTMENT), SKU, item name, branch, quantity (+/-), stock before/after, unit, valuation (₹), invoice / issue reference, and operator.
+     - **Sheet 3: `Low Stock Alerts`**: Dedicated replenishment sheet highlighting depleted and low-stock SKUs, reorder safety margins, deficit units needed, and estimated reorder costs (₹).
+     - **Sheet 4: `Inventory Valuation Summary`**: Executive summary table with KPI metrics (total registered SKUs, total units, consolidated valuation, low stock count) plus branch-by-branch and material-by-material breakdown subtotals.
+     - **Sheet 5: `Hardware Vendors Directory`**: Master supplier directory with trade name, legal entity name, contact details, GSTIN, city, address, material categories supplied, and active status.
+2. **Interactive UI Integration**:
+   - **`HardwareInventoryPage.tsx`**: Added a one-click **Export Excel** button in the main action bar beside the Reports modal button for instant download of all hardware inventory data.
+   - **`HardwareReportsModal.tsx`**: Integrated primary **Export Excel (.xlsx)** button in the modal header, quick-download action cards for Complete Package, Movement Ledger, and Restock Alerts in the body, and a secondary download button in the footer.
+   - **`HardwareLedgerModal.tsx`**: Enhanced the movement ledger with an **Export Excel (.xlsx)** button alongside the legacy CSV option.
+
+### 129.2 Verification & Quality Assurance
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
+- **Production Build**:
+  - `D:\PACIFIC-Admin`: `npm run build` compiled 3,018 modules cleanly, exiting 0.
+
 
 
 
@@ -6884,6 +6984,31 @@ Load testing was executed against the operational engine using a 2,000-concurren
 
 ---
 
+## 129. Hardware Inventory Multi-Sheet Excel Reports Engine (.xlsx)
+
+### 129.1 Architecture & Implementation
+1. **Universal Excel Exporter (`src/utils/hardwareExcelExport.ts`)**:
+   - Implemented an audit-grade, multi-sheet Microsoft Excel generation engine using `xlsx`.
+   - Generates a structured 5-tab workbook with configured column widths and numeric formats:
+     - **Sheet 1: `Hardware Master Register`**: Comprehensive item catalog containing SKU, name, material, finish, unit, warehouse/branch, rack location, HSN, preferred vendor, dimensions (diameter, length, width), opening stock, total inward, total issued, closing stock, reorder level, unit cost (₹), total valuation (₹), stock status, and notes.
+     - **Sheet 2: `Stock Movement Ledger`**: Complete historical audit trail recording movement date, number, action type (INWARD, ISSUE, ADJUSTMENT), SKU, item name, branch, quantity (+/-), stock before/after, unit, valuation (₹), invoice / issue reference, and operator.
+     - **Sheet 3: `Low Stock Alerts`**: Dedicated replenishment sheet highlighting depleted and low-stock SKUs, reorder safety margins, deficit units needed, and estimated reorder costs (₹).
+     - **Sheet 4: `Inventory Valuation Summary`**: Executive summary table with KPI metrics (total registered SKUs, total units, consolidated valuation, low stock count) plus branch-by-branch and material-by-material breakdown subtotals.
+     - **Sheet 5: `Hardware Vendors Directory`**: Master supplier directory with trade name, legal entity name, contact details, GSTIN, city, address, material categories supplied, and active status.
+2. **Interactive UI Integration**:
+   - **`HardwareInventoryPage.tsx`**: Added a one-click **Export Excel** button in the main action bar beside the Reports modal button for instant download of all hardware inventory data.
+   - **`HardwareReportsModal.tsx`**: Integrated primary **Export Excel (.xlsx)** button in the modal header, quick-download action cards for Complete Package, Movement Ledger, and Restock Alerts in the body, and a secondary download button in the footer.
+   - **`HardwareLedgerModal.tsx`**: Enhanced the movement ledger with an **Export Excel (.xlsx)** button alongside the legacy CSV option.
+
+### 129.2 Verification & Quality Assurance
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
+- **Production Build**:
+  - `D:\PACIFIC-Admin`: `npm run build` compiled 3,018 modules cleanly, exiting 0.
+
+
+---
+
 ## 128. WebAudio Resource Throttling, Dismissed Reminder Persistence & Pre-Request Project JWT Validation
 
 ### 128.1 Root Cause Analysis
@@ -6915,6 +7040,31 @@ Load testing was executed against the operational engine using a 2,000-concurren
   - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
 - **Production Build**:
   - `D:\PACIFIC-Admin`: `npm run build` compiled 3,017 modules cleanly, exiting 0.
+
+---
+
+## 129. Hardware Inventory Multi-Sheet Excel Reports Engine (.xlsx)
+
+### 129.1 Architecture & Implementation
+1. **Universal Excel Exporter (`src/utils/hardwareExcelExport.ts`)**:
+   - Implemented an audit-grade, multi-sheet Microsoft Excel generation engine using `xlsx`.
+   - Generates a structured 5-tab workbook with configured column widths and numeric formats:
+     - **Sheet 1: `Hardware Master Register`**: Comprehensive item catalog containing SKU, name, material, finish, unit, warehouse/branch, rack location, HSN, preferred vendor, dimensions (diameter, length, width), opening stock, total inward, total issued, closing stock, reorder level, unit cost (₹), total valuation (₹), stock status, and notes.
+     - **Sheet 2: `Stock Movement Ledger`**: Complete historical audit trail recording movement date, number, action type (INWARD, ISSUE, ADJUSTMENT), SKU, item name, branch, quantity (+/-), stock before/after, unit, valuation (₹), invoice / issue reference, and operator.
+     - **Sheet 3: `Low Stock Alerts`**: Dedicated replenishment sheet highlighting depleted and low-stock SKUs, reorder safety margins, deficit units needed, and estimated reorder costs (₹).
+     - **Sheet 4: `Inventory Valuation Summary`**: Executive summary table with KPI metrics (total registered SKUs, total units, consolidated valuation, low stock count) plus branch-by-branch and material-by-material breakdown subtotals.
+     - **Sheet 5: `Hardware Vendors Directory`**: Master supplier directory with trade name, legal entity name, contact details, GSTIN, city, address, material categories supplied, and active status.
+2. **Interactive UI Integration**:
+   - **`HardwareInventoryPage.tsx`**: Added a one-click **Export Excel** button in the main action bar beside the Reports modal button for instant download of all hardware inventory data.
+   - **`HardwareReportsModal.tsx`**: Integrated primary **Export Excel (.xlsx)** button in the modal header, quick-download action cards for Complete Package, Movement Ledger, and Restock Alerts in the body, and a secondary download button in the footer.
+   - **`HardwareLedgerModal.tsx`**: Enhanced the movement ledger with an **Export Excel (.xlsx)** button alongside the legacy CSV option.
+
+### 129.2 Verification & Quality Assurance
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
+- **Production Build**:
+  - `D:\PACIFIC-Admin`: `npm run build` compiled 3,018 modules cleanly, exiting 0.
+
 
 
 ---
@@ -6959,6 +7109,31 @@ Load testing was executed against the operational engine using a 2,000-concurren
 
 ---
 
+## 129. Hardware Inventory Multi-Sheet Excel Reports Engine (.xlsx)
+
+### 129.1 Architecture & Implementation
+1. **Universal Excel Exporter (`src/utils/hardwareExcelExport.ts`)**:
+   - Implemented an audit-grade, multi-sheet Microsoft Excel generation engine using `xlsx`.
+   - Generates a structured 5-tab workbook with configured column widths and numeric formats:
+     - **Sheet 1: `Hardware Master Register`**: Comprehensive item catalog containing SKU, name, material, finish, unit, warehouse/branch, rack location, HSN, preferred vendor, dimensions (diameter, length, width), opening stock, total inward, total issued, closing stock, reorder level, unit cost (₹), total valuation (₹), stock status, and notes.
+     - **Sheet 2: `Stock Movement Ledger`**: Complete historical audit trail recording movement date, number, action type (INWARD, ISSUE, ADJUSTMENT), SKU, item name, branch, quantity (+/-), stock before/after, unit, valuation (₹), invoice / issue reference, and operator.
+     - **Sheet 3: `Low Stock Alerts`**: Dedicated replenishment sheet highlighting depleted and low-stock SKUs, reorder safety margins, deficit units needed, and estimated reorder costs (₹).
+     - **Sheet 4: `Inventory Valuation Summary`**: Executive summary table with KPI metrics (total registered SKUs, total units, consolidated valuation, low stock count) plus branch-by-branch and material-by-material breakdown subtotals.
+     - **Sheet 5: `Hardware Vendors Directory`**: Master supplier directory with trade name, legal entity name, contact details, GSTIN, city, address, material categories supplied, and active status.
+2. **Interactive UI Integration**:
+   - **`HardwareInventoryPage.tsx`**: Added a one-click **Export Excel** button in the main action bar beside the Reports modal button for instant download of all hardware inventory data.
+   - **`HardwareReportsModal.tsx`**: Integrated primary **Export Excel (.xlsx)** button in the modal header, quick-download action cards for Complete Package, Movement Ledger, and Restock Alerts in the body, and a secondary download button in the footer.
+   - **`HardwareLedgerModal.tsx`**: Enhanced the movement ledger with an **Export Excel (.xlsx)** button alongside the legacy CSV option.
+
+### 129.2 Verification & Quality Assurance
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
+- **Production Build**:
+  - `D:\PACIFIC-Admin`: `npm run build` compiled 3,018 modules cleanly, exiting 0.
+
+
+---
+
 ## 128. WebAudio Resource Throttling, Dismissed Reminder Persistence & Pre-Request Project JWT Validation
 
 ### 128.1 Root Cause Analysis
@@ -6990,5 +7165,30 @@ Load testing was executed against the operational engine using a 2,000-concurren
   - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
 - **Production Build**:
   - `D:\PACIFIC-Admin`: `npm run build` compiled 3,017 modules cleanly, exiting 0.
+
+---
+
+## 129. Hardware Inventory Multi-Sheet Excel Reports Engine (.xlsx)
+
+### 129.1 Architecture & Implementation
+1. **Universal Excel Exporter (`src/utils/hardwareExcelExport.ts`)**:
+   - Implemented an audit-grade, multi-sheet Microsoft Excel generation engine using `xlsx`.
+   - Generates a structured 5-tab workbook with configured column widths and numeric formats:
+     - **Sheet 1: `Hardware Master Register`**: Comprehensive item catalog containing SKU, name, material, finish, unit, warehouse/branch, rack location, HSN, preferred vendor, dimensions (diameter, length, width), opening stock, total inward, total issued, closing stock, reorder level, unit cost (₹), total valuation (₹), stock status, and notes.
+     - **Sheet 2: `Stock Movement Ledger`**: Complete historical audit trail recording movement date, number, action type (INWARD, ISSUE, ADJUSTMENT), SKU, item name, branch, quantity (+/-), stock before/after, unit, valuation (₹), invoice / issue reference, and operator.
+     - **Sheet 3: `Low Stock Alerts`**: Dedicated replenishment sheet highlighting depleted and low-stock SKUs, reorder safety margins, deficit units needed, and estimated reorder costs (₹).
+     - **Sheet 4: `Inventory Valuation Summary`**: Executive summary table with KPI metrics (total registered SKUs, total units, consolidated valuation, low stock count) plus branch-by-branch and material-by-material breakdown subtotals.
+     - **Sheet 5: `Hardware Vendors Directory`**: Master supplier directory with trade name, legal entity name, contact details, GSTIN, city, address, material categories supplied, and active status.
+2. **Interactive UI Integration**:
+   - **`HardwareInventoryPage.tsx`**: Added a one-click **Export Excel** button in the main action bar beside the Reports modal button for instant download of all hardware inventory data.
+   - **`HardwareReportsModal.tsx`**: Integrated primary **Export Excel (.xlsx)** button in the modal header, quick-download action cards for Complete Package, Movement Ledger, and Restock Alerts in the body, and a secondary download button in the footer.
+   - **`HardwareLedgerModal.tsx`**: Enhanced the movement ledger with an **Export Excel (.xlsx)** button alongside the legacy CSV option.
+
+### 129.2 Verification & Quality Assurance
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
+- **Production Build**:
+  - `D:\PACIFIC-Admin`: `npm run build` compiled 3,018 modules cleanly, exiting 0.
+
 
 
