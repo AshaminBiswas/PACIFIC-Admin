@@ -3,6 +3,7 @@
  * Generates audit-grade, multi-tab Microsoft Excel (.xlsx) workbooks for
  * hardware inventory registers, stock movement ledgers, valuation summaries,
  * replenishment alerts, and vendor directories.
+ * Supports granular filter-wise exports (by branch, material, finish, status, vendor, search query).
  */
 
 import * as XLSX from 'xlsx';
@@ -14,6 +15,20 @@ import type {
   HardwareAnalyticsSummary,
 } from '../types/admin';
 
+export interface ActiveHardwareFilters {
+  branch?: string;
+  material?: string;
+  color?: string;
+  unit?: string;
+  vendorId?: string;
+  vendorName?: string;
+  status?: string;
+  search?: string;
+  dia?: string;
+  length?: string;
+  width?: string;
+}
+
 export interface ExportHardwareExcelOptions {
   items: HardwareInventoryItem[];
   branches: HardwareBranch[];
@@ -21,6 +36,7 @@ export interface ExportHardwareExcelOptions {
   movements?: HardwareStockMovement[];
   analytics?: HardwareAnalyticsSummary | null;
   selectedBranch?: string;
+  activeFilters?: ActiveHardwareFilters;
   customFilename?: string;
 }
 
@@ -41,7 +57,28 @@ function formatMaterial(mat: string): string {
 }
 
 /**
+ * Build a concise label describing all active filters
+ */
+function buildFilterDescription(filters?: ActiveHardwareFilters, branch = 'ALL'): string {
+  const parts: string[] = [];
+  const b = filters?.branch || branch;
+  if (b && b !== 'ALL') parts.push(`Branch: ${b}`);
+  if (filters?.material && filters.material !== 'ALL') parts.push(`Material: ${formatMaterial(filters.material)}`);
+  if (filters?.color && filters.color !== 'ALL') parts.push(`Color: ${filters.color}`);
+  if (filters?.unit && filters.unit !== 'ALL') parts.push(`Unit: ${filters.unit}`);
+  if (filters?.vendorName && filters.vendorName !== 'ALL') parts.push(`Vendor: ${filters.vendorName}`);
+  if (filters?.status && filters.status !== 'ALL') parts.push(`Status: ${filters.status}`);
+  if (filters?.dia && filters.dia !== 'ALL') parts.push(`Dia: ${filters.dia}`);
+  if (filters?.length && filters.length !== 'ALL') parts.push(`Length: ${filters.length}`);
+  if (filters?.width && filters.width !== 'ALL') parts.push(`Width: ${filters.width}`);
+  if (filters?.search && filters.search.trim()) parts.push(`Search: "${filters.search.trim()}"`);
+
+  return parts.length > 0 ? parts.join(' | ') : 'All Consolidated Records (Unfiltered)';
+}
+
+/**
  * Exports a full, executive multi-sheet Hardware Inventory workbook (.xlsx)
+ * with complete support for filter-wise generation.
  */
 export function exportComprehensiveHardwareReport({
   items,
@@ -50,16 +87,78 @@ export function exportComprehensiveHardwareReport({
   movements = [],
   analytics = null,
   selectedBranch = 'ALL',
+  activeFilters,
   customFilename,
 }: ExportHardwareExcelOptions): void {
   const wb = XLSX.utils.book_new();
   const dateStr = new Date().toISOString().split('T')[0];
-  const branchLabel = selectedBranch === 'ALL' ? 'Consolidated' : selectedBranch;
 
-  // Filter items if specific branch selected
-  const targetItems = selectedBranch === 'ALL'
-    ? items
-    : items.filter((i) => (i.warehouse || '').toUpperCase() === selectedBranch.toUpperCase());
+  // 1. Resolve filtered items
+  let targetItems = [...items];
+  if (activeFilters) {
+    if (activeFilters.branch && activeFilters.branch !== 'ALL') {
+      targetItems = targetItems.filter(
+        (i) => (i.warehouse || '').toUpperCase() === activeFilters.branch!.toUpperCase()
+      );
+    }
+    if (activeFilters.material && activeFilters.material !== 'ALL') {
+      targetItems = targetItems.filter(
+        (i) => (i.material || '').toUpperCase() === activeFilters.material!.toUpperCase()
+      );
+    }
+    if (activeFilters.color && activeFilters.color !== 'ALL') {
+      targetItems = targetItems.filter(
+        (i) => (i.color || '').toLowerCase() === activeFilters.color!.toLowerCase()
+      );
+    }
+    if (activeFilters.unit && activeFilters.unit !== 'ALL') {
+      targetItems = targetItems.filter(
+        (i) => (i.unit || '').toLowerCase() === activeFilters.unit!.toLowerCase()
+      );
+    }
+    if (activeFilters.vendorId && activeFilters.vendorId !== 'ALL') {
+      targetItems = targetItems.filter((i) => i.vendorId === activeFilters.vendorId);
+    }
+    if (activeFilters.status && activeFilters.status !== 'ALL') {
+      targetItems = targetItems.filter((i) => {
+        const itemStatus =
+          i.status ||
+          (i.currentStock <= 0
+            ? 'OUT_OF_STOCK'
+            : i.currentStock <= i.reorderLevel
+            ? 'LOW_STOCK'
+            : 'ACTIVE');
+        return itemStatus === activeFilters.status;
+      });
+    }
+    if (activeFilters.dia && activeFilters.dia !== 'ALL') {
+      targetItems = targetItems.filter((i) => i.dia === activeFilters.dia);
+    }
+    if (activeFilters.length && activeFilters.length !== 'ALL') {
+      targetItems = targetItems.filter((i) => i.length === activeFilters.length);
+    }
+    if (activeFilters.width && activeFilters.width !== 'ALL') {
+      targetItems = targetItems.filter((i) => i.width === activeFilters.width);
+    }
+    if (activeFilters.search && activeFilters.search.trim()) {
+      const q = activeFilters.search.toLowerCase().trim();
+      targetItems = targetItems.filter(
+        (i) =>
+          (i.sku || '').toLowerCase().includes(q) ||
+          (i.name || '').toLowerCase().includes(q) ||
+          (i.vendorName || '').toLowerCase().includes(q) ||
+          (i.hsnCode || '').toLowerCase().includes(q)
+      );
+    }
+  } else if (selectedBranch && selectedBranch !== 'ALL') {
+    targetItems = targetItems.filter(
+      (i) => (i.warehouse || '').toUpperCase() === selectedBranch.toUpperCase()
+    );
+  }
+
+  const effectiveBranch = activeFilters?.branch || selectedBranch || 'ALL';
+  const filterDesc = buildFilterDescription(activeFilters, selectedBranch);
+  const isFiltered = activeFilters ? Object.values(activeFilters).some((v) => v && v !== 'ALL') : (selectedBranch !== 'ALL');
 
   // ──────────────────────────────────────────────────────────
   // Sheet 1: Hardware Master Register
@@ -85,7 +184,13 @@ export function exportComprehensiveHardwareReport({
     'Reorder Level': Number(item.reorderLevel) || 10,
     'Unit Purchase Cost (INR)': Number(item.unitCost) || 0,
     'Total Valuation (INR)': (Number(item.currentStock) || 0) * (Number(item.unitCost) || 0),
-    'Stock Status': item.status || (item.currentStock <= 0 ? 'OUT_OF_STOCK' : item.currentStock <= item.reorderLevel ? 'LOW_STOCK' : 'ACTIVE'),
+    'Stock Status':
+      item.status ||
+      (item.currentStock <= 0
+        ? 'OUT_OF_STOCK'
+        : item.currentStock <= item.reorderLevel
+        ? 'LOW_STOCK'
+        : 'ACTIVE'),
     'Notes / Remarks': item.notes || '—',
     'Created Date': item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-IN') : '—',
   }));
@@ -122,9 +227,26 @@ export function exportComprehensiveHardwareReport({
   // Sheet 2: Stock Movement Ledger (Audit Trail)
   // ──────────────────────────────────────────────────────────
   if (movements && movements.length > 0) {
-    const targetMovements = selectedBranch === 'ALL'
-      ? movements
-      : movements.filter((m) => (m.warehouse || '').toUpperCase() === selectedBranch.toUpperCase());
+    let targetMovements = [...movements];
+    if (effectiveBranch !== 'ALL') {
+      targetMovements = targetMovements.filter(
+        (m) => (m.warehouse || '').toUpperCase() === effectiveBranch.toUpperCase()
+      );
+    }
+    if (activeFilters?.material && activeFilters.material !== 'ALL') {
+      targetMovements = targetMovements.filter(
+        (m) => (m.material || '').toUpperCase() === activeFilters.material!.toUpperCase()
+      );
+    }
+    if (activeFilters?.search && activeFilters.search.trim()) {
+      const q = activeFilters.search.toLowerCase().trim();
+      targetMovements = targetMovements.filter(
+        (m) =>
+          (m.sku || '').toLowerCase().includes(q) ||
+          (m.hardwareName || '').toLowerCase().includes(q) ||
+          (m.movementNumber || '').toLowerCase().includes(q)
+      );
+    }
 
     const movementsData = targetMovements.map((mov, idx) => ({
       'Sl No': idx + 1,
@@ -198,7 +320,11 @@ export function exportComprehensiveHardwareReport({
     };
   });
 
-  const wsLowStock = XLSX.utils.json_to_sheet(lowStockData.length > 0 ? lowStockData : [{ 'Status': 'All hardware items are adequately stocked above safety threshold' }]);
+  const wsLowStock = XLSX.utils.json_to_sheet(
+    lowStockData.length > 0
+      ? lowStockData
+      : [{ 'Status': 'All hardware items in this selection are adequately stocked' }]
+  );
   wsLowStock['!cols'] = [
     { wch: 6 },  // Sl No
     { wch: 18 }, // SKU
@@ -221,7 +347,10 @@ export function exportComprehensiveHardwareReport({
   // Sheet 4: Executive Valuation & Distribution Summary
   // ──────────────────────────────────────────────────────────
   const totalUnits = targetItems.reduce((acc, i) => acc + (Number(i.currentStock) || 0), 0);
-  const totalValuation = targetItems.reduce((acc, i) => acc + ((Number(i.currentStock) || 0) * (Number(i.unitCost) || 0)), 0);
+  const totalValuation = targetItems.reduce(
+    (acc, i) => acc + (Number(i.currentStock) || 0) * (Number(i.unitCost) || 0),
+    0
+  );
 
   // Group by branch
   const branchSummaryMap = new Map<string, { skus: number; units: number; val: number }>();
@@ -247,21 +376,21 @@ export function exportComprehensiveHardwareReport({
   });
 
   const summaryData = [
-    { 'Metric': 'Report Title', 'Value': 'Pacific Hardware Inventory Executive Audit Report' },
-    { 'Metric': 'Generation Timestamp', 'Value': `${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN')}` },
-    { 'Metric': 'Branch Scope', 'Value': branchLabel },
-    { 'Metric': 'Total Active Registered SKUs', 'Value': targetItems.length },
-    { 'Metric': 'Total Units Stocked in Warehouses', 'Value': totalUnits },
-    { 'Metric': 'Total Consolidated Valuation (INR)', 'Value': totalValuation },
-    { 'Metric': 'Low Stock / Depleted SKUs Count', 'Value': lowStockItems.length },
+    { 'Metric': 'Report Title', 'Value': isFiltered ? 'Pacific Hardware Inventory — Filtered Audit Report' : 'Pacific Hardware Inventory — Consolidated Master Report' },
+    { 'Metric': 'Report Timestamp', 'Value': `${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN')}` },
+    { 'Metric': 'Active Filter Criteria', 'Value': filterDesc },
+    { 'Metric': 'Matching Registered SKUs', 'Value': targetItems.length },
+    { 'Metric': 'Total Units in Selection', 'Value': totalUnits },
+    { 'Metric': 'Total Selected Valuation (INR)', 'Value': totalValuation },
+    { 'Metric': 'Low Stock / Depleted SKUs', 'Value': lowStockItems.length },
     { 'Metric': '', 'Value': '' },
-    { 'Metric': '── BRANCH LOCATION BREAKDOWN ──', 'Value': '' },
+    { 'Metric': '── BRANCH LOCATION BREAKDOWN (IN FILTER) ──', 'Value': '' },
     ...Array.from(branchSummaryMap.entries()).map(([code, d]) => ({
       'Metric': `Branch: ${code}`,
       'Value': `${d.skus} SKUs | ${d.units} Units | ₹${d.val.toLocaleString('en-IN')}`,
     })),
     { 'Metric': '', 'Value': '' },
-    { 'Metric': '── MATERIAL CATEGORY BREAKDOWN ──', 'Value': '' },
+    { 'Metric': '── MATERIAL BREAKDOWN (IN FILTER) ──', 'Value': '' },
     ...Array.from(matSummaryMap.entries()).map(([mat, d]) => ({
       'Metric': `Material: ${mat}`,
       'Value': `${d.skus} SKUs | ${d.units} Units | ₹${d.val.toLocaleString('en-IN')}`,
@@ -270,8 +399,8 @@ export function exportComprehensiveHardwareReport({
 
   const wsSummary = XLSX.utils.json_to_sheet(summaryData);
   wsSummary['!cols'] = [
-    { wch: 38 },
-    { wch: 55 },
+    { wch: 42 },
+    { wch: 60 },
   ];
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Inventory Valuation Summary');
 
@@ -293,7 +422,7 @@ export function exportComprehensiveHardwareReport({
       'Material Categories Supplied': Array.isArray(v.materialCategories)
         ? v.materialCategories.map(formatMaterial).join(', ')
         : '—',
-      'Supplied SKUs Count': v.totalSkus || targetItems.filter((i) => i.vendorId === v.id).length,
+      'Supplied SKUs in Report': targetItems.filter((i) => i.vendorId === v.id).length,
       'Account Status': v.isActive ? 'ACTIVE' : 'INACTIVE',
     }));
 
@@ -310,14 +439,28 @@ export function exportComprehensiveHardwareReport({
       { wch: 16 }, // City
       { wch: 36 }, // Address
       { wch: 32 }, // Materials
-      { wch: 18 }, // SKUs
+      { wch: 22 }, // SKUs
       { wch: 14 }, // Status
     ];
     XLSX.utils.book_append_sheet(wb, wsVendors, 'Hardware Vendors Directory');
   }
 
-  // Generate filename and trigger direct browser download
-  const filename = customFilename || `Pacific_Hardware_Inventory_Report_${branchLabel}_${dateStr}.xlsx`;
+  // Construct intelligent descriptive filename
+  let filename = customFilename;
+  if (!filename) {
+    const tagParts: string[] = ['Pacific_Hardware'];
+    if (isFiltered) {
+      tagParts.push('Filtered');
+      if (effectiveBranch && effectiveBranch !== 'ALL') tagParts.push(effectiveBranch);
+      if (activeFilters?.material && activeFilters.material !== 'ALL') tagParts.push(activeFilters.material);
+      if (activeFilters?.status && activeFilters.status !== 'ALL') tagParts.push(activeFilters.status);
+    } else {
+      tagParts.push('Consolidated_Report');
+    }
+    tagParts.push(dateStr);
+    filename = `${tagParts.join('_')}.xlsx`;
+  }
+
   XLSX.writeFile(wb, filename);
 }
 

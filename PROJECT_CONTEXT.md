@@ -7192,3 +7192,38 @@ Load testing was executed against the operational engine using a 2,000-concurren
 
 
 
+
+
+---
+
+## 130. Granular Filter-Wise Hardware Inventory Excel Export Engine
+
+### 130.1 Architecture & User Experience
+1. **Dynamic Filter-Aware Workbook Generator (`src/utils/hardwareExcelExport.ts`)**:
+   - `exportComprehensiveHardwareReport` accepts `ActiveHardwareFilters` (branch, material, color/finish, unit, vendor, status, search, diameter, length, width).
+   - Generates filter-scoped datasets for Sheet 1 (Master Register) and Sheet 2 (Movement Ledger), automatically reflecting only items matching the user's active filter criteria.
+   - Sheet 4 (`Inventory Valuation Summary`) displays an explicit metadata audit row declaring the active filters applied (e.g. `Branch: Delhi | Material: Stainless Steel (SS) | Status: LOW_STOCK`).
+   - Dynamic filename generation automatically suffixes the active filter facets (e.g. `Pacific_Hardware_Filtered_Delhi_STAINLESS_STEEL_LOW_STOCK_2026-10-24.xlsx`).
+
+2. **Dual-Trigger UI in `HardwareInventoryPage.tsx`**:
+   - **Main Action Bar Split-Button & Dropdown**:
+     - When filters are active: Displays dynamic primary button `Export Filtered ({totalRecords})` with single-click immediate download.
+     - Chevron toggle opens an option menu allowing selection between:
+       - **Download Filtered SKUs**: Exports only the matching filtered records.
+       - **Download Full Master Database**: Exports the complete 5-sheet consolidated multi-branch database.
+       - **Open Reports Studio**: Launches the reports modal with active filters pre-loaded.
+     - When no filters are active: Shows `Export Excel` exporting the consolidated master database.
+   - **Filter Bar Quick Download Strip**:
+     - Automatically renders when any filter facet (branch, search, material, color, unit, status, dimension) is active.
+     - Shows live matching SKU count (`{totalRecords} SKUs matching`) with a direct **Download Filtered Excel ({totalRecords})** button and **Reset Filters** button.
+
+3. **Synchronized Reports Modal (`HardwareReportsModal.tsx`)**:
+   - Receives `initialBranch`, `initialMaterial`, and `initialStatus` directly from `HardwareInventoryPage.tsx` state.
+   - Interactive toolbar allows real-time adjustment of branch, material, and status filters.
+   - Offers modular exports: Complete Package (Filtered), Master Register Only, Movement Ledger Only, and Restock & Deficit Alerts.
+
+### 130.2 Verification & Quality Assurance
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
+- **Production Build**:
+  - `D:\PACIFIC-Admin`: `npm run build` compiled 3,018 modules cleanly, exiting 0.

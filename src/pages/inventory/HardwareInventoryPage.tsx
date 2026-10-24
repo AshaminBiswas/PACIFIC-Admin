@@ -31,6 +31,7 @@ import {
   ClipboardList,
   FileSpreadsheet,
   Download,
+  Filter,
 } from 'lucide-react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { hardwareInventoryApi } from '../../api/hardwareInventoryApi';
@@ -103,30 +104,115 @@ export default function HardwareInventoryPage() {
   const [isInwardHistoryModalOpen, setIsInwardHistoryModalOpen] = useState(false);
   const [selectedInwardHistorySkuId, setSelectedInwardHistorySkuId] = useState<string | null>(null);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Active item for targeted modals
   const [activeItem, setActiveItem] = useState<HardwareInventoryItem | null>(null);
 
-  const handleExportAllExcel = async () => {
+  const activeFilters = useMemo(
+    () => ({
+      branch: selectedBranch,
+      material: selectedMaterial,
+      color: selectedColor,
+      unit: selectedUnit,
+      vendorId: selectedVendorId,
+      vendorName:
+        selectedVendorId !== 'ALL'
+          ? vendors.find((v) => v.id === selectedVendorId)?.name
+          : undefined,
+      status: selectedStatus,
+      search: debouncedSearch.trim() || undefined,
+      dia: selectedDia,
+      length: selectedLength,
+      width: selectedWidth,
+    }),
+    [
+      selectedBranch,
+      selectedMaterial,
+      selectedColor,
+      selectedUnit,
+      selectedVendorId,
+      selectedStatus,
+      debouncedSearch,
+      selectedDia,
+      selectedLength,
+      selectedWidth,
+      vendors,
+    ]
+  );
+
+  const hasActiveFilters = Boolean(
+    debouncedSearch.trim() ||
+    selectedBranch !== 'ALL' ||
+    selectedMaterial !== 'ALL' ||
+    selectedColor !== 'ALL' ||
+    selectedUnit !== 'ALL' ||
+    selectedVendorId !== 'ALL' ||
+    selectedStatus !== 'ALL' ||
+    selectedDia !== 'ALL' ||
+    selectedLength !== 'ALL' ||
+    selectedWidth !== 'ALL'
+  );
+
+  const handleExportExcel = async (mode: 'FILTERED' | 'ALL' = 'FILTERED') => {
     try {
       setIsExportingExcel(true);
-      const [allInventoryRes, movRes] = await Promise.all([
-        hardwareInventoryApi.list({ limit: 5000 }),
-        hardwareInventoryApi.getMovements({ limit: 5000 }),
-      ]);
+      setShowExportMenu(false);
 
-      const exportItems = allInventoryRes.data?.data?.items || items;
-      const exportMovements = movRes.data?.data || [];
+      if (mode === 'FILTERED' && hasActiveFilters) {
+        // Fetch matching items with current active filter (up to 5000)
+        const [filteredRes, movRes] = await Promise.all([
+          hardwareInventoryApi.list({
+            page: 1,
+            limit: 5000,
+            search: debouncedSearch.trim() || undefined,
+            warehouse: selectedBranch !== 'ALL' ? selectedBranch : undefined,
+            material: selectedMaterial !== 'ALL' ? selectedMaterial : undefined,
+            color: selectedColor !== 'ALL' ? selectedColor : undefined,
+            unit: selectedUnit !== 'ALL' ? selectedUnit : undefined,
+            vendorId: selectedVendorId !== 'ALL' ? selectedVendorId : undefined,
+            status: selectedStatus !== 'ALL' ? selectedStatus : undefined,
+            dia: selectedDia !== 'ALL' ? selectedDia : undefined,
+            length: selectedLength !== 'ALL' ? selectedLength : undefined,
+            width: selectedWidth !== 'ALL' ? selectedWidth : undefined,
+          }),
+          hardwareInventoryApi.getMovements({
+            warehouse: selectedBranch !== 'ALL' ? selectedBranch : undefined,
+            limit: 5000,
+          }),
+        ]);
 
-      exportComprehensiveHardwareReport({
-        items: exportItems,
-        branches,
-        vendors,
-        movements: exportMovements,
-        selectedBranch,
-      });
+        const exportItems = filteredRes.data?.data?.items || items;
+        const exportMovements = movRes.data?.data || [];
+
+        exportComprehensiveHardwareReport({
+          items: exportItems,
+          branches,
+          vendors,
+          movements: exportMovements,
+          activeFilters,
+          selectedBranch,
+        });
+      } else {
+        // Full Consolidated Database
+        const [allInventoryRes, movRes] = await Promise.all([
+          hardwareInventoryApi.list({ limit: 5000 }),
+          hardwareInventoryApi.getMovements({ limit: 5000 }),
+        ]);
+
+        const exportItems = allInventoryRes.data?.data?.items || items;
+        const exportMovements = movRes.data?.data || [];
+
+        exportComprehensiveHardwareReport({
+          items: exportItems,
+          branches,
+          vendors,
+          movements: exportMovements,
+          selectedBranch: 'ALL',
+        });
+      }
     } catch (err) {
-      console.error('Failed to export comprehensive hardware report:', err);
+      console.error('Failed to export hardware Excel report:', err);
     } finally {
       setIsExportingExcel(false);
     }
@@ -318,21 +404,141 @@ export default function HardwareInventoryPage() {
             Reports
           </button>
 
-          {/* Export Excel Reports */}
-          <button
-            type="button"
-            disabled={isExportingExcel}
-            onClick={handleExportAllExcel}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-[#030213] text-xs font-bold rounded-xl border border-[#7FB706] shadow-sm shadow-[#7FB706]/20 transition-all cursor-pointer disabled:opacity-50"
-            title="Download full multi-sheet Excel report (.xlsx)"
-          >
-            {isExportingExcel ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <FileSpreadsheet className="w-3.5 h-3.5" />
+          {/* Export Excel Reports (Filter-Wise & Consolidated Master) */}
+          <div className="relative">
+            <div className="inline-flex items-center rounded-xl overflow-hidden shadow-sm shadow-[#7FB706]/20 border border-[#7FB706]">
+              {/* Primary Download Button */}
+              <button
+                type="button"
+                disabled={isExportingExcel}
+                onClick={() => handleExportExcel(hasActiveFilters ? 'FILTERED' : 'ALL')}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-[#030213] text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                title={
+                  hasActiveFilters
+                    ? `Download filtered Excel report (${totalRecords} matching SKUs)`
+                    : 'Download consolidated master Excel report (.xlsx)'
+                }
+              >
+                {isExportingExcel ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                )}
+                <span>
+                  {hasActiveFilters ? `Export Filtered (${totalRecords})` : 'Export Excel'}
+                </span>
+              </button>
+
+              {/* Dropdown Options Toggle */}
+              <button
+                type="button"
+                disabled={isExportingExcel}
+                onClick={() => setShowExportMenu((prev) => !prev)}
+                className="px-2 py-2 bg-[#75a805] hover:bg-[#689604] text-[#030213] border-l border-[#689604] transition-colors cursor-pointer disabled:opacity-50"
+                title="Choose export scope (Filtered vs Full Database)"
+              >
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-150 ${
+                    showExportMenu ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Dropdown Menu */}
+            {showExportMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-30"
+                  onClick={() => setShowExportMenu(false)}
+                />
+                <div className="absolute right-0 mt-2 w-80 bg-[#121029] border border-white/15 rounded-xl shadow-2xl z-40 p-2 text-xs">
+                  <div className="px-3 py-2 border-b border-white/10">
+                    <div className="font-semibold text-white flex items-center gap-1.5">
+                      <FileSpreadsheet className="w-4 h-4 text-[#7FB706]" />
+                      <span>Hardware Excel (.xlsx) Reports</span>
+                    </div>
+                    <div className="text-[11px] text-gray-400 mt-1">
+                      {hasActiveFilters ? (
+                        <span className="text-[#B5F823]">
+                          Filters: {[
+                            selectedBranch !== 'ALL' ? `Branch: ${selectedBranch}` : null,
+                            selectedMaterial !== 'ALL' ? `Material: ${selectedMaterial}` : null,
+                            selectedStatus !== 'ALL' ? `Status: ${selectedStatus}` : null,
+                            selectedColor !== 'ALL' ? `Color: ${selectedColor}` : null,
+                            debouncedSearch ? `Search: "${debouncedSearch}"` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(', ')}
+                        </span>
+                      ) : (
+                        <span>Full consolidated database (all branches & items)</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="py-1 space-y-1">
+                    {/* Option 1: Filtered Export */}
+                    <button
+                      type="button"
+                      onClick={() => handleExportExcel('FILTERED')}
+                      className="w-full text-left px-3 py-2 hover:bg-white/5 rounded-lg flex items-center justify-between text-gray-200 hover:text-white transition-colors cursor-pointer group"
+                    >
+                      <div>
+                        <div className="font-semibold flex items-center gap-1.5 text-white">
+                          <Filter className="w-3.5 h-3.5 text-[#B5F823]" />
+                          <span>Download Filtered SKUs</span>
+                        </div>
+                        <div className="text-[10px] text-gray-400">
+                          {totalRecords} SKUs matching your active filters
+                        </div>
+                      </div>
+                      <Download className="w-4 h-4 text-gray-400 group-hover:text-[#B5F823] transition-colors" />
+                    </button>
+
+                    {/* Option 2: Full Consolidated Database */}
+                    <button
+                      type="button"
+                      onClick={() => handleExportExcel('ALL')}
+                      className="w-full text-left px-3 py-2 hover:bg-white/5 rounded-lg flex items-center justify-between text-gray-200 hover:text-white transition-colors cursor-pointer group"
+                    >
+                      <div>
+                        <div className="font-semibold flex items-center gap-1.5 text-white">
+                          <Building2 className="w-3.5 h-3.5 text-blue-400" />
+                          <span>Download Full Master Database</span>
+                        </div>
+                        <div className="text-[10px] text-gray-400">
+                          All 5 sheets across all branches & suppliers
+                        </div>
+                      </div>
+                      <Download className="w-4 h-4 text-gray-400 group-hover:text-blue-400 transition-colors" />
+                    </button>
+
+                    {/* Option 3: Reports Studio Modal */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowExportMenu(false);
+                        setIsReportsModalOpen(true);
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-white/5 rounded-lg flex items-center justify-between text-gray-200 hover:text-white transition-colors cursor-pointer group border-t border-white/5 pt-2"
+                    >
+                      <div>
+                        <div className="font-semibold flex items-center gap-1.5 text-gray-300">
+                          <BarChart3 className="w-3.5 h-3.5 text-purple-400" />
+                          <span>Open Reports Studio</span>
+                        </div>
+                        <div className="text-[10px] text-gray-400">
+                          Visual breakdown, print sheets & modular exports
+                        </div>
+                      </div>
+                      <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-purple-400 transition-colors" />
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
-            <span>Export Excel</span>
-          </button>
+          </div>
 
           {/* Ledger */}
           <button
@@ -639,6 +845,58 @@ export default function HardwareInventoryPage() {
             </div>
           )}
         </div>
+
+        {/* Filter-Wise Summary & Quick Download Bar */}
+        {hasActiveFilters && (
+          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-white/5 bg-white/[0.02] -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#7FB706] animate-pulse" />
+              <span className="text-xs text-gray-300">
+                Active Filter:{' '}
+                <span className="text-white font-semibold">
+                  {totalRecords} SKU{totalRecords === 1 ? '' : 's'} matching
+                </span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={isExportingExcel}
+                onClick={() => handleExportExcel('FILTERED')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#7FB706]/15 hover:bg-[#7FB706]/25 text-[#B5F823] text-xs font-bold rounded-lg border border-[#7FB706]/30 transition-colors cursor-pointer disabled:opacity-50"
+                title="Download Excel report with these exact filters applied"
+              >
+                {isExportingExcel ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                )}
+                <span>Download Filtered Excel ({totalRecords})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  setSelectedBranch('ALL');
+                  setSelectedMaterial('ALL');
+                  setSelectedColor('ALL');
+                  setSelectedUnit('ALL');
+                  setSelectedVendorId('ALL');
+                  setSelectedStatus('ALL');
+                  setSelectedDia('ALL');
+                  setSelectedLength('ALL');
+                  setSelectedWidth('ALL');
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-gray-400 hover:text-white text-xs font-medium rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+                title="Clear all filters and show full catalog"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset Filters</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Inventory Content */}
@@ -1198,6 +1456,9 @@ export default function HardwareInventoryPage() {
         branches={branches}
         items={items}
         vendors={vendors}
+        initialBranch={selectedBranch}
+        initialMaterial={selectedMaterial}
+        initialStatus={selectedStatus}
       />
 
       <HardwareVendorsModal

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   BarChart3,
@@ -13,7 +13,8 @@ import {
   FileSpreadsheet,
   Loader2,
   History,
-  FileCheck,
+  Filter,
+  RotateCcw,
 } from 'lucide-react';
 import { hardwareInventoryApi } from '../../api/hardwareInventoryApi';
 import type {
@@ -31,6 +32,9 @@ interface HardwareReportsModalProps {
   branches: HardwareBranch[];
   items: HardwareInventoryItem[];
   vendors?: HardwareVendor[];
+  initialBranch?: string;
+  initialMaterial?: string;
+  initialStatus?: string;
 }
 
 export default function HardwareReportsModal({
@@ -39,12 +43,26 @@ export default function HardwareReportsModal({
   branches,
   items,
   vendors: propVendors,
+  initialBranch = 'ALL',
+  initialMaterial = 'ALL',
+  initialStatus = 'ALL',
 }: HardwareReportsModalProps) {
   const [analytics, setAnalytics] = useState<HardwareAnalyticsSummary | null>(null);
-  const [selectedBranch, setSelectedBranch] = useState<string>('ALL');
+  const [selectedBranch, setSelectedBranch] = useState<string>(initialBranch);
+  const [selectedMaterial, setSelectedMaterial] = useState<string>(initialMaterial);
+  const [selectedStatus, setSelectedStatus] = useState<string>(initialStatus);
   const [loading, setLoading] = useState(true);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportType, setExportType] = useState<string | null>(null);
+
+  // Sync initial props on open
+  useEffect(() => {
+    if (isOpen) {
+      if (initialBranch) setSelectedBranch(initialBranch);
+      if (initialMaterial) setSelectedMaterial(initialMaterial);
+      if (initialStatus) setSelectedStatus(initialStatus);
+    }
+  }, [isOpen, initialBranch, initialMaterial, initialStatus]);
 
   const loadReport = async () => {
     setLoading(true);
@@ -68,18 +86,54 @@ export default function HardwareReportsModal({
     }
   }, [isOpen, selectedBranch]);
 
-  const lowStockItems = items.filter(
-    (i) =>
-      i.currentStock <= i.reorderLevel &&
-      (selectedBranch === 'ALL' || (i.warehouse || '').toUpperCase() === selectedBranch.toUpperCase())
-  );
+  // Dynamic filter application across items
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      if (
+        selectedBranch !== 'ALL' &&
+        (item.warehouse || '').toUpperCase() !== selectedBranch.toUpperCase()
+      ) {
+        return false;
+      }
+      if (
+        selectedMaterial !== 'ALL' &&
+        (item.material || '').toUpperCase() !== selectedMaterial.toUpperCase()
+      ) {
+        return false;
+      }
+      if (selectedStatus !== 'ALL') {
+        const itemStatus =
+          item.status ||
+          (item.currentStock <= 0
+            ? 'OUT_OF_STOCK'
+            : item.currentStock <= item.reorderLevel
+            ? 'LOW_STOCK'
+            : 'ACTIVE');
+        if (itemStatus !== selectedStatus) return false;
+      }
+      return true;
+    });
+  }, [items, selectedBranch, selectedMaterial, selectedStatus]);
+
+  const lowStockItems = useMemo(() => {
+    return filteredItems.filter((i) => i.currentStock <= i.reorderLevel);
+  }, [filteredItems]);
+
+  const hasActiveFilters =
+    selectedBranch !== 'ALL' || selectedMaterial !== 'ALL' || selectedStatus !== 'ALL';
+
+  const resetFilters = () => {
+    setSelectedBranch('ALL');
+    setSelectedMaterial('ALL');
+    setSelectedStatus('ALL');
+  };
 
   const handlePrint = () => {
     window.print();
   };
 
   /**
-   * Universal Excel Exporter for Hardware Inventory
+   * Universal Filter-Wise Excel Exporter
    */
   const handleExportExcel = async (type: 'ALL' | 'MASTER' | 'MOVEMENTS' | 'ALERTS' = 'ALL') => {
     setExportingExcel(true);
@@ -87,7 +141,10 @@ export default function HardwareReportsModal({
     try {
       // Fetch movements & vendors in parallel for complete report
       const [movRes, vendRes] = await Promise.allSettled([
-        hardwareInventoryApi.getMovements({ limit: 5000 }),
+        hardwareInventoryApi.getMovements({
+          warehouse: selectedBranch !== 'ALL' ? selectedBranch : undefined,
+          limit: 5000,
+        }),
         propVendors && propVendors.length > 0
           ? Promise.resolve({ data: { success: true, data: propVendors } })
           : hardwareInventoryApi.listVendors(),
@@ -106,6 +163,12 @@ export default function HardwareReportsModal({
       const branchCode = selectedBranch === 'ALL' ? 'Consolidated' : selectedBranch;
       const dateTag = new Date().toISOString().split('T')[0];
 
+      const activeFilters = {
+        branch: selectedBranch,
+        material: selectedMaterial,
+        status: selectedStatus,
+      };
+
       if (type === 'MOVEMENTS') {
         exportComprehensiveHardwareReport({
           items: [],
@@ -114,6 +177,7 @@ export default function HardwareReportsModal({
           movements,
           analytics,
           selectedBranch,
+          activeFilters,
           customFilename: `Pacific_Hardware_Movement_Ledger_${branchCode}_${dateTag}.xlsx`,
         });
       } else if (type === 'ALERTS') {
@@ -124,28 +188,31 @@ export default function HardwareReportsModal({
           movements: [],
           analytics,
           selectedBranch,
+          activeFilters,
           customFilename: `Pacific_Hardware_Low_Stock_Alerts_${branchCode}_${dateTag}.xlsx`,
         });
       } else if (type === 'MASTER') {
         exportComprehensiveHardwareReport({
-          items,
+          items: filteredItems,
           branches,
           vendors,
           movements: [],
           analytics,
           selectedBranch,
+          activeFilters,
           customFilename: `Pacific_Hardware_Master_Register_${branchCode}_${dateTag}.xlsx`,
         });
       } else {
-        // Complete 5-Sheet Workbook
+        // Complete 5-Sheet Workbook reflecting active filters
         exportComprehensiveHardwareReport({
-          items,
+          items: filteredItems,
           branches,
           vendors,
           movements,
           analytics,
           selectedBranch,
-          customFilename: `Pacific_Hardware_Comprehensive_Report_${branchCode}_${dateTag}.xlsx`,
+          activeFilters,
+          customFilename: `Pacific_Hardware_Report_${branchCode}_${hasActiveFilters ? 'Filtered_' : ''}${dateTag}.xlsx`,
         });
       }
     } catch (err) {
@@ -172,7 +239,7 @@ export default function HardwareReportsModal({
                 Hardware Inventory Analytics & Reports
               </h2>
               <p className="text-xs text-gray-400">
-                Multi-branch valuation, material breakdown, and replenishment alerts
+                Multi-branch valuation, material breakdown, and filter-wise export
               </p>
             </div>
           </div>
@@ -184,14 +251,14 @@ export default function HardwareReportsModal({
               disabled={exportingExcel}
               onClick={() => handleExportExcel('ALL')}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#7FB706] hover:bg-[#6fa005] text-[#030213] text-xs font-bold rounded-lg transition shadow-md shadow-[#7FB706]/20 cursor-pointer disabled:opacity-50"
-              title="Download full 5-sheet Excel workbook"
+              title="Download Excel report with current filters"
             >
               {exportingExcel && exportType === 'ALL' ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
                 <FileSpreadsheet className="w-3.5 h-3.5" />
               )}
-              <span>Export Excel (.xlsx)</span>
+              <span>Export {hasActiveFilters ? 'Filtered' : 'All'} Excel</span>
             </button>
 
             <button
@@ -212,27 +279,73 @@ export default function HardwareReportsModal({
           </div>
         </div>
 
-        {/* Branch Filter Selector */}
-        <div className="px-4 sm:px-6 py-3 bg-[#0d0b21]/70 border-b border-white/10 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">Filter Branch:</span>
-            <select
-              value={selectedBranch}
-              onChange={(e) => setSelectedBranch(e.target.value)}
-              className="px-3 py-1.5 bg-[#030213] border border-white/10 rounded-xl text-xs text-white focus:outline-none"
-            >
-              <option value="ALL">All Consolidated Branches</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.code}>
-                  {b.name} ({b.code})
-                </option>
-              ))}
-            </select>
+        {/* Granular Filter Toolbar */}
+        <div className="px-4 sm:px-6 py-3 bg-[#0d0b21]/70 border-b border-white/10 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Branch Selector */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-gray-400">Branch:</span>
+              <select
+                value={selectedBranch}
+                onChange={(e) => setSelectedBranch(e.target.value)}
+                className="px-2.5 py-1 bg-[#030213] border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-[#7FB706]"
+              >
+                <option value="ALL">All Branches</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.code}>
+                    {b.name} ({b.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Material Category */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-gray-400">Material:</span>
+              <select
+                value={selectedMaterial}
+                onChange={(e) => setSelectedMaterial(e.target.value)}
+                className="px-2.5 py-1 bg-[#030213] border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-[#7FB706]"
+              >
+                <option value="ALL">All Materials</option>
+                <option value="STAINLESS_STEEL">Stainless Steel (SS)</option>
+                <option value="ALUMINIUM">Aluminium</option>
+                <option value="NYLON">Nylon</option>
+              </select>
+            </div>
+
+            {/* Stock Status */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-gray-400">Status:</span>
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="px-2.5 py-1 bg-[#030213] border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-[#7FB706]"
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="ACTIVE">Active (In Stock)</option>
+                <option value="LOW_STOCK">Low Stock Alert</option>
+                <option value="OUT_OF_STOCK">Out of Stock</option>
+              </select>
+            </div>
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 rounded-lg transition border border-amber-500/20 cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Reset
+              </button>
+            )}
           </div>
 
-          <span className="text-[11px] text-gray-400">
-            As of: <strong>{new Date().toLocaleDateString('en-IN')}</strong>
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-[#B5F823] font-mono font-bold bg-[#7FB706]/10 px-2.5 py-0.5 rounded-full border border-[#7FB706]/30">
+              {filteredItems.length} SKUs in Filter
+            </span>
+          </div>
         </div>
 
         {/* Report Content */}
@@ -243,15 +356,17 @@ export default function HardwareReportsModal({
               <div className="flex items-center gap-2">
                 <FileSpreadsheet className="w-4 h-4 text-[#B5F823]" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-white">
-                  Hardware Excel Exports Center
+                  Hardware Excel Exports Center {hasActiveFilters && '(Filter-Wise)'}
                 </h3>
               </div>
               <span className="text-[10px] text-[#B5F823] font-mono font-bold bg-[#7FB706]/10 px-2 py-0.5 rounded border border-[#7FB706]/30">
-                Audit-Ready .xlsx
+                {hasActiveFilters ? 'Filtered Scope' : 'Consolidated Scope'}
               </span>
             </div>
             <p className="text-xs text-gray-400">
-              Download professionally formatted, multi-tab Microsoft Excel reports containing complete item catalogs, valuation breakdowns, and transactional ledgers.
+              {hasActiveFilters
+                ? `Currently filtered by: ${selectedBranch !== 'ALL' ? `Branch: ${selectedBranch} ` : ''}${selectedMaterial !== 'ALL' ? `Material: ${selectedMaterial} ` : ''}${selectedStatus !== 'ALL' ? `Status: ${selectedStatus}` : ''}. Downloads reflect this selection.`
+                : 'Download professionally formatted, multi-tab Microsoft Excel reports containing complete item catalogs, valuation breakdowns, and transactional ledgers.'}
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
@@ -265,9 +380,11 @@ export default function HardwareReportsModal({
                 <div>
                   <div className="text-xs font-bold text-white group-hover:text-[#B5F823] transition-colors flex items-center gap-1.5">
                     <Package className="w-3.5 h-3.5 text-[#7FB706]" />
-                    Complete Package
+                    {hasActiveFilters ? 'Filtered Package' : 'Complete Package'}
                   </div>
-                  <div className="text-[10px] text-gray-400 mt-0.5">5 Multi-tab sheets</div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">
+                    {filteredItems.length} SKUs across 5 sheets
+                  </div>
                 </div>
                 {exportingExcel && exportType === 'ALL' ? (
                   <Loader2 className="w-4 h-4 text-[#B5F823] animate-spin" />
@@ -288,7 +405,9 @@ export default function HardwareReportsModal({
                     <History className="w-3.5 h-3.5 text-purple-400" />
                     Movement Ledger
                   </div>
-                  <div className="text-[10px] text-gray-400 mt-0.5">Inward & Issue audit trail</div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">
+                    Audit trail for {selectedBranch === 'ALL' ? 'all branches' : selectedBranch}
+                  </div>
                 </div>
                 {exportingExcel && exportType === 'MOVEMENTS' ? (
                   <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
@@ -309,7 +428,9 @@ export default function HardwareReportsModal({
                     <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
                     Restock Alerts
                   </div>
-                  <div className="text-[10px] text-gray-400 mt-0.5">{lowStockItems.length} SKUs below threshold</div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">
+                    {lowStockItems.length} SKUs below threshold
+                  </div>
                 </div>
                 {exportingExcel && exportType === 'ALERTS' ? (
                   <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
@@ -329,23 +450,32 @@ export default function HardwareReportsModal({
                 <div className="p-4 bg-[#0d0b21] border border-white/10 rounded-xl">
                   <div className="text-[11px] text-gray-400 uppercase font-semibold">Total Hardware SKUs</div>
                   <div className="text-2xl font-bold text-white mt-1 font-mono">
-                    {analytics.totalSkus}
+                    {filteredItems.length}
                   </div>
-                  <div className="text-[10px] text-gray-500 mt-1">Active registered parts</div>
+                  <div className="text-[10px] text-gray-500 mt-1">In current filter scope</div>
                 </div>
 
                 <div className="p-4 bg-[#0d0b21] border border-white/10 rounded-xl">
                   <div className="text-[11px] text-gray-400 uppercase font-semibold">Total Units in Stock</div>
                   <div className="text-2xl font-bold text-[#B5F823] mt-1 font-mono">
-                    {analytics.totalUnits.toLocaleString('en-IN')}
+                    {filteredItems
+                      .reduce((acc, i) => acc + (Number(i.currentStock) || 0), 0)
+                      .toLocaleString('en-IN')}
                   </div>
-                  <div className="text-[10px] text-gray-500 mt-1">Across all warehouses</div>
+                  <div className="text-[10px] text-gray-500 mt-1">Units available</div>
                 </div>
 
                 <div className="p-4 bg-[#0d0b21] border border-white/10 rounded-xl">
-                  <div className="text-[11px] text-gray-400 uppercase font-semibold">Total Stock Valuation</div>
+                  <div className="text-[11px] text-gray-400 uppercase font-semibold">Stock Valuation</div>
                   <div className="text-2xl font-bold text-[#7FB706] mt-1 font-mono">
-                    ₹{analytics.totalValuation.toLocaleString('en-IN')}
+                    ₹
+                    {filteredItems
+                      .reduce(
+                        (acc, i) =>
+                          acc + (Number(i.currentStock) || 0) * (Number(i.unitCost) || 0),
+                        0
+                      )
+                      .toLocaleString('en-IN')}
                   </div>
                   <div className="text-[10px] text-gray-500 mt-1">At average purchase cost</div>
                 </div>
@@ -353,7 +483,7 @@ export default function HardwareReportsModal({
                 <div className="p-4 bg-[#0d0b21] border border-amber-500/30 rounded-xl">
                   <div className="text-[11px] text-amber-400 uppercase font-semibold">Low Stock Alerts</div>
                   <div className="text-2xl font-bold text-amber-400 mt-1 font-mono">
-                    {analytics.lowStockCount}
+                    {lowStockItems.length}
                   </div>
                   <div className="text-[10px] text-amber-400/70 mt-1">Below safety reorder mark</div>
                 </div>
@@ -481,7 +611,7 @@ export default function HardwareReportsModal({
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#7FB706]/15 hover:bg-[#7FB706]/25 border border-[#7FB706]/40 text-[#B5F823] text-xs font-bold rounded-lg transition cursor-pointer disabled:opacity-50"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Download All Excel Reports (.xlsx)</span>
+            <span>Download {hasActiveFilters ? 'Filtered' : 'All'} Excel Reports (.xlsx)</span>
           </button>
 
           <button
