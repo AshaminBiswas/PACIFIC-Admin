@@ -114,7 +114,7 @@ export const supabase = createClient<any>(
           });
 
           // Self-heal on 401: If Supabase returns 401 due to expired/stale auth tokens in localStorage or bad apikey
-          if (res.status === 401) {
+          if (res.status === 401 && !(options as any)?._isRetry) {
             console.warn("[Supabase Client] Received 401 Unauthorized. Purging stale auth tokens and retrying with valid credentials.");
             try {
               if (typeof window !== "undefined") {
@@ -131,7 +131,7 @@ export const supabase = createClient<any>(
               console.warn("[Supabase Client] Could not purge localStorage:", storageErr);
             }
 
-            // Retry with guaranteed canonical anon key
+            // Retry once with guaranteed canonical anon key
             const retryKey = CANONICAL_PACIFIC_ANON_KEY;
             const headers = new Headers((options as any)?.headers || {});
             headers.delete("authorization");
@@ -147,9 +147,10 @@ export const supabase = createClient<any>(
 
             return await fetch(url, {
               ...options,
+              _isRetry: true,
               headers,
               signal: (options as any)?.signal || controller.signal,
-            });
+            } as any);
           }
 
           return res;
