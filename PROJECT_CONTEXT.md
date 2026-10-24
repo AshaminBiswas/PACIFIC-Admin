@@ -6535,6 +6535,49 @@ Load testing was executed against the operational engine using a 2,000-concurren
 - **Admin Modal (`MailAdminModal.tsx`)**: Added interactive "Diagnostics & Telemetry" tab rendering live health status, p50/p95/p99 latency percentiles, error rates, and outbox queue counters.
 - **Verification**: Zero TypeScript errors (`npx tsc --noEmit` exits 0 on both projects). Production build (`npm run build`) exits 0. All 72 automated test cases pass (30 Step 2, 19 Step 3, 23 Step 4).
 
+---
+
+## 122. Product Catalog Live Hydration, Service Unavailable Resolution & Presets Purge
+
+### 122.1 Root Cause Analysis
+1. **Catalog Stale Cache & Aggressive In-Memory Lockdown**:
+   - `src/api/productCatalogApi.ts` relied on a static in-memory cache and a `pacific_product_catalog_models_v5` localStorage snapshot.
+   - When new products were added via the admin panel, background synchronization swallowed fetch timeouts (`withTimeout` was set to an aggressive 2500ms that aborted early on cold connections).
+   - If cached models existed, `listModels()` immediately returned stale local storage data and failed to reflect database additions in the Admin Products view.
+2. **"Service is Not Available" on Page Reload**:
+   - `D:\PACIFIC-Admin\.env` had a duplicate environment key at line 22 overriding the local development backend (`http://localhost:5001/api/v1`) with the sleeping Render deployment (`https://pacific-backend-psuw.onrender.com/api/v1`).
+   - `src/api/client.ts` had a hardcoded Render URL fallback.
+   - On browser reloads, `authApi.me()` and product queries dispatched against the sleeping Render free instance, resulting in HTTP 503 "Service Unavailable" errors.
+3. **Quotation, Proforma Invoice (PI) & Sales Order Product Selection Missing Listed Products**:
+   - `src/utils/quotationProductPresets.ts` contained 640+ lines of hardcoded product models (`PACIFIC_STANDARD_QUOTATION_MODELS`), including 27 legacy static items (`std-delight`, `std-skylight`, `std-platina`, `std-gusto`, etc.).
+   - `getMergedQuotationModels()` was forcefully appending all hardcoded models to the product dropdowns, masking the real Supabase database products.
+   - In `CreateProformaPage.tsx`, adding a cubicle item hardcoded `modelId: 'std-delight'` instead of selecting from dynamic database models.
+
+### 122.2 Structural Fixes & Refactoring
+1. **Removed Duplicate Render Backend URL & Fixed Default Fallback**:
+   - Cleaned `D:\PACIFIC-Admin\.env` line 22 to ensure canonical `http://localhost:5001/api/v1` is respected.
+   - Updated `src/api/client.ts` default fallback `API_URL` to `http://localhost:5001/api/v1`.
+2. **Complete Purge of Hardcoded Product Presets**:
+   - Emptied `PACIFIC_STANDARD_QUOTATION_MODELS` to `[]` in `src/utils/quotationProductPresets.ts`.
+   - Refactored `getMergedQuotationModels(userModels)` to return strictly `(userModels || []).filter((m) => m.published !== false);` with zero hardcoded preset injection.
+   - Ensured `src/data/productCatalogData.ts` retains `DEFAULT_CATALOG_MODELS = []`.
+3. **Resilient Supabase Database Hydration (`productCatalogApi.ts`)**:
+   - Replaced brittle 2.5s timeout with resilient 10s timer that properly clears its timeout handle on promise resolution (`timeoutPromise` + `finally`).
+   - Overhauled `listModels(category?, forceRefresh?)` to fetch directly from Supabase `products` table ordered by `sort_order`, synchronously updating both `memoryModelsCache` and `localStorage`, only falling back to localStorage if offline.
+   - Updated `getModelById(idOrSlug)` to fetch directly from Supabase by UUID or slug.
+   - Updated `saveModel` and `deleteModel` to persist directly to Supabase and immediately trigger `listModels(undefined, true)` to invalidate and refresh cache.
+4. **Form & View Synchronous Cache Invalidation**:
+   - Updated `AdminProducts.tsx` to call `productCatalogApi.listModels(undefined, true)` on mount.
+   - Updated `DraftQuotationPage.tsx`, `EditSalesQuotationPage.tsx`, `CreateProformaPage.tsx`, `EditProformaInvoicePage.tsx`, `CreateSalesOrderPage.tsx`, `EditSalesOrderPage.tsx`, and `CreateLeadPage.tsx` to force-refresh catalog models on mount.
+   - Replaced static `'std-delight'` fallback in `CreateProformaPage.tsx` with dynamic lookup from `catalogModels[0]`.
+
+### 122.3 Verification & Quality Assurance
+- **TypeScript Typecheck**: `npx tsc --noEmit` exited 0 with zero errors.
+- **Production Build**: `npm run build` compiled 3,017 modules cleanly, exiting 0.
+- **Unit & Integration Tests**: `npm run test:mail` ran 19 tests, 19 passed, 0 failed.
+- **Database Parity**: Real Supabase `products` table records (AZALEA, SAFFRON, SKY LIGHT, UMP Model A, SUMMER FUN, DELIGHT, GUSTO, PLATINA WAVE) now display cleanly without phantom hardcoded items.
+
+
 
 
 
