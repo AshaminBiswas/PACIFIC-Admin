@@ -583,6 +583,7 @@ export default function CreateProformaPage() {
         ...prev,
         piScope: importedScope,
         customerId: q.customerId || prev.customerId,
+        companyProfileId: q.companyProfileId || q.companyProfile?.id || prev.companyProfileId,
         quotationId: q.id,
         quotationRef: q.referenceNumber,
         placeOfSupply: posState,

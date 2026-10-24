@@ -104,7 +104,14 @@ export default function CreatePackingListPage() {
         setFormData((prev) => {
           const initialCompId = prev.companyProfileId || compList[0].id;
           const comp = compList.find((c: any) => c.id === initialCompId) || compList[0];
-          const compAddr = comp?.addresses?.[0] ? [comp.addresses[0].addressLine1, comp.addresses[0].city, comp.addresses[0].postalCode].filter(Boolean).join(', ') : (comp?.state || 'New Delhi');
+          const compAddr = comp?.addresses?.[0]
+      ? [
+          comp.addresses[0].addressLine1,
+          comp.addresses[0].addressLine2,
+          comp.addresses[0].city,
+          comp.addresses[0].state ? `${comp.addresses[0].state}${comp.addresses[0].postalCode ? ` - ${comp.addresses[0].postalCode}` : ''}` : (comp.addresses[0].postalCode ? `PIN: ${comp.addresses[0].postalCode}` : '')
+        ].filter(Boolean).join(', ')
+      : (comp?.stateCode === '19' ? 'Village Burirhat Bazar, P.O-Chowrashi, P.S- Deganga, Dist.-North 24 Paragana, Kolkata, West Bengal - 743424' : 'H-3, JR Complex, Gate No. 4, Melaram farm, Sewa Dham Rd, Mandoli, Delhi - 110093');
           return {
             ...prev,
             companyProfileId: initialCompId,
@@ -131,7 +138,14 @@ export default function CreatePackingListPage() {
 
   const handleSelectCompany = (compId: string) => {
     const comp = companies.find((c) => c.id === compId);
-    const compAddr = comp?.addresses?.[0] ? [comp.addresses[0].addressLine1, comp.addresses[0].city, comp.addresses[0].postalCode].filter(Boolean).join(', ') : (comp?.state || 'New Delhi');
+    const compAddr = comp?.addresses?.[0]
+      ? [
+          comp.addresses[0].addressLine1,
+          comp.addresses[0].addressLine2,
+          comp.addresses[0].city,
+          comp.addresses[0].state ? `${comp.addresses[0].state}${comp.addresses[0].postalCode ? ` - ${comp.addresses[0].postalCode}` : ''}` : (comp.addresses[0].postalCode ? `PIN: ${comp.addresses[0].postalCode}` : '')
+        ].filter(Boolean).join(', ')
+      : (comp?.stateCode === '19' ? 'Village Burirhat Bazar, P.O-Chowrashi, P.S- Deganga, Dist.-North 24 Paragana, Kolkata, West Bengal - 743424' : 'H-3, JR Complex, Gate No. 4, Melaram farm, Sewa Dham Rd, Mandoli, Delhi - 110093');
     setFormData((prev) => ({
       ...prev,
       companyProfileId: compId,

@@ -1242,7 +1242,22 @@ export default function EditSalesQuotationPage() {
       <BranchSelector
         companies={companies}
         selectedCompanyId={form.companyProfileId || ''}
-        onSelectCompany={(compId) => setForm((f) => ({ ...f, companyProfileId: compId }))}
+        onSelectCompany={(compId, comp) => {
+          setForm((f) => {
+            let updatedTerms = f.generalTerms;
+            const isKol = comp?.stateCode === '19' || comp?.entityCode === 'PPS-KOL' || (comp?.companyName || '').toLowerCase().includes('kolkata');
+            if (isKol) {
+              updatedTerms = updatedTerms.replace(/Ex-works New Delhi factory/gi, 'Ex-works Kolkata warehouse / factory');
+            } else {
+              updatedTerms = updatedTerms.replace(/Ex-works Kolkata warehouse \/ factory/gi, 'Ex-works New Delhi factory');
+            }
+            return {
+              ...f,
+              companyProfileId: compId,
+              generalTerms: updatedTerms,
+            };
+          });
+        }}
         label="Issuing Branch & Commercial Operating Entity"
         sublabel="Select which branch is issuing this quotation. Determines seller GST jurisdiction, billing address, and factory dispatch."
       />

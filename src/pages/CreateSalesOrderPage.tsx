@@ -318,6 +318,7 @@ export default function CreateSalesOrderPage() {
       setFormData((prev) => ({
         ...prev,
         customerId: q.customerId || prev.customerId,
+        companyProfileId: q.companyProfileId || q.companyProfile?.id || prev.companyProfileId,
         quotationId: q.id,
         quotationRef: q.referenceNumber,
         placeOfSupply: posState,
@@ -388,6 +389,7 @@ export default function CreateSalesOrderPage() {
       setFormData((prev) => ({
         ...prev,
         customerId: pi.customerId || prev.customerId,
+        companyProfileId: pi.companyProfileId || pi.companyProfile?.id || prev.companyProfileId,
         proformaInvoiceId: pi.id,
         piNumber: pi.piNumber,
         quotationId: pi.quotationId || prev.quotationId,

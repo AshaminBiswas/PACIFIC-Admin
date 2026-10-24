@@ -7493,6 +7493,59 @@ Load testing was executed against the operational engine using a 2,000-concurren
 - **TypeScript Typecheck**: `npx tsc --noEmit` exited **0** (zero errors).
 - **Production Build**: `npm run build` compiled 3,018 modules cleanly in 38.81s (exit code 0).
 
+---
+
+## 138. Kolkata Branch Dynamic Address, PIN Code Resolution & Document PDF Template Synchronization
+
+### 138.1 Issue Analysis & Root Causes
+1. **Root Cause 1: Forcible Hardcoded Delhi PIN Code in PDF Templates (`D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`)**:
+   - In `generateQuotationPdfHtml` (line 1905), `generatePiPdfHtml` (line 1212), `generateExportQuotationPdfHtml` (line 2152), and `generateSalesOrderPdfHtml` (line 3025):
+     `${data.companyAddress}${data.companyAddress && !data.companyAddress.includes('110093') ? ', PIN: 110093' : ''}`
+   - Whenever Kolkata branch was selected, its address did not contain `110093`, causing the PDF template engine to forcibly append `, PIN: 110093` to the Kolkata branch address!
+2. **Root Cause 2: Incomplete Address Assembly in Backend Document Services**:
+   - In `quotations.service.ts` line 764:
+     `companyAddress: quote.companyProfile.addresses?.[0]?.addressLine1 || 'H-3, JR Complex, Mandoli, New Delhi - 110093'`
+     Only `addressLine1` was extracted, omitting `addressLine2`, `city`, `state`, and `postalCode`.
+   - Analogous truncations existed in `pi.service.ts`, `orders.service.ts` (lines 1031 & 1224), and `invoices.service.ts` (line 233).
+3. **Root Cause 3: Address Truncation & Delhi Fallback in `BranchSelector.tsx`**:
+   - `BranchSelector.tsx` omitted `addressLine2` and fell back to Delhi address `'H-3, JR Complex, Mandoli, New Delhi - 110093'` if address record wasn't pre-loaded, even when Kolkata entity code `PPS-KOL` or state `19` was selected.
+4. **Root Cause 4: Customer Recipient Address Postal Code Dropping in Quotation Creation**:
+   - In `DraftQuotationPage.tsx` `handleCustomerSelect`, `fullAddr` concatenated only `addressLine1`, `addressLine2`, and `city`, dropping `state` and `postalCode`.
+5. **Root Cause 5: Quotation Update Persistence Deficit**:
+   - In `quotations.service.ts` `update` mutation, `recipientAddress`, `recipientName`, `recipientCompany`, `recipientSalutation`, `recipientEmail`, and `recipientPhone` were missing from the update data object.
+
+### 138.2 Applied Solutions
+1. **PDF Templates Hardcoded PIN Removal (`D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`)**:
+   - Removed `, PIN: 110093` append logic across all document types (Quotations, PI, Export Quotations, Sales Orders). Uses `${data.companyAddress}` directly.
+2. **Multi-Part Company Address Assembly (`quotations.service.ts`, `pi.service.ts`, `orders.service.ts`, `invoices.service.ts`)**:
+   - Assembles full address using:
+     `[compAddr.addressLine1, compAddr.addressLine2, compAddr.city, compAddr.state ? `${compAddr.state}${compAddr.postalCode ? ` - ${compAddr.postalCode}` : ''}` : compAddr.postalCode]`
+   - Implemented dynamic fallback:
+     - Kolkata Branch (`PPS-KOL` / `19` / `PPSK/`): `'Village Burirhat Bazar, P.O-Chowrashi, P.S- Deganga, Dist.-North 24 Paragana, Kolkata, West Bengal - 743424'`.
+     - Delhi Main Branch (`PPS_IN` / `07`): `'H-3, JR Complex, Gate No. 4, Melaram farm, Sewa Dham Rd, Mandoli, Delhi - 110093'`.
+3. **Quotation Update Mutation Enhancement (`quotations.service.ts`)**:
+   - Added `recipientAddress`, `recipientName`, `recipientCompany`, `recipientSalutation`, `recipientEmail`, and `recipientPhone` to `prisma.salesQuotation.update`.
+4. **BranchSelector Coordinates Resolution (`src/components/common/BranchSelector.tsx`)**:
+   - Updated address formatting to include `addressLine2` and state-postalCode hyphenation.
+   - Fallback strictly distinguishes Kolkata (`stateCode === '19'` or `isKolkataBranch(activeCompany)`) with PIN 743424 vs Delhi HQ with PIN 110093.
+5. **Quotation Creation & Edit Studio (`DraftQuotationPage.tsx` & `EditSalesQuotationPage.tsx`)**:
+   - When selecting a customer, `recipientAddress` now includes state and PIN code (`state - postalCode`).
+   - When switching branch to Kolkata:
+     - Automatically updates General Terms price basis from `Ex-works New Delhi factory` to `Ex-works Kolkata warehouse / factory`.
+     - Intelligently checks customer address list and switches to matching Kolkata/West Bengal site address if available.
+6. **Sales Quotation Detail Page (`SalesQuotationDetailPage.tsx`)**:
+   - Added prominent Issuing Branch badge (`Kolkata Branch (PIN: 743424)` vs `Delhi HQ (PIN: 110093)`) beside quotation reference number.
+   - Added Issuing Operating Branch summary card inside Project Details with full address and PIN code.
+7. **Downstream Conversion Parity (`CreateProformaPage.tsx` & `CreateSalesOrderPage.tsx`)**:
+   - Ensured importing from a Kolkata Quotation automatically propagates `companyProfileId` so Proforma Invoices and Sales Orders inherit the Kolkata branch and its PIN code.
+
+### 138.3 Verification
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited **0** (zero errors).
+  - `D:\PACIFIC-Backend`: `npm run typecheck` exited **0** (zero errors).
+- **Production Build**: `npm run build` compiled 3,018 modules cleanly in 42.99s (exit code 0).
+
+
 
 
 

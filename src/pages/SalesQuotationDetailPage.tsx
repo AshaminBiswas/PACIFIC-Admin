@@ -11,6 +11,7 @@ import { useAdminAuth } from '../context/AdminAuthContext';
 import QuotationFollowupModal from '../components/quotations/QuotationFollowupModal';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import { calculateGstSplit } from '../utils/tax';
+import { isKolkataBranch } from '../utils/branchHelper';
 
 interface QuotationDetail {
   id: string;
@@ -71,7 +72,27 @@ interface QuotationDetail {
   siteAddress?: string;
   // Relations
   customer?: { legalName?: string; tradeName?: string; email?: string; phone?: string };
-  companyProfile?: { companyName?: string; logoUrl?: string };
+  companyProfile?: {
+    id?: string;
+    companyName?: string;
+    legalName?: string;
+    entityCode?: string;
+    state?: string;
+    stateCode?: string;
+    phone?: string;
+    email?: string;
+    gstin?: string;
+    logoUrl?: string;
+    addresses?: Array<{
+      id: string;
+      addressLine1: string;
+      addressLine2?: string;
+      city: string;
+      state: string;
+      postalCode: string;
+      isDefault?: boolean;
+    }>;
+  };
   issuingStaff?: { firstName?: string; lastName?: string; email?: string };
   items: Array<{
     id?: string;
@@ -368,6 +389,15 @@ export default function SalesQuotationDetailPage() {
                     SEZ 0% IGST
                   </span>
                 )}
+                {isKolkataBranch(quotation) ? (
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1 font-mono">
+                    <Building2 className="w-3 h-3 text-purple-400" /> Kolkata Branch (PIN: 743424)
+                  </span>
+                ) : (
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/30 flex items-center gap-1 font-mono">
+                    <Building2 className="w-3 h-3 text-blue-400" /> Delhi HQ (PIN: 110093)
+                  </span>
+                )}
               </div>
               <p className="text-sm text-gray-400 mt-0.5">
                 {quotation.customer?.legalName || quotation.recipientCompany || '—'}
@@ -595,6 +625,30 @@ export default function SalesQuotationDetailPage() {
                 </span>
               </div>
             )}
+            <div className="pt-2 border-t border-white/5 space-y-1">
+              <div className="text-[11px] text-gray-500 flex items-center gap-1 font-semibold">
+                <Building2 className="w-3 h-3 text-[#7FB706]" /> Issuing Operating Branch
+              </div>
+              <div className="text-xs font-semibold text-white">
+                {quotation.companyProfile?.companyName || (isKolkataBranch(quotation) ? 'Pacific Products & Solutions (Kolkata)' : 'Pacific Products & Solutions')}
+              </div>
+              <div className="text-[11px] text-gray-400 leading-relaxed">
+                {(() => {
+                  const addr = quotation.companyProfile?.addresses?.find((a) => a.isDefault) || quotation.companyProfile?.addresses?.[0];
+                  if (addr) {
+                    return [
+                      addr.addressLine1,
+                      addr.addressLine2,
+                      addr.city,
+                      addr.state ? `${addr.state}${addr.postalCode ? ` - ${addr.postalCode}` : ''}` : (addr.postalCode ? `PIN: ${addr.postalCode}` : '')
+                    ].filter(Boolean).join(', ');
+                  }
+                  return isKolkataBranch(quotation)
+                    ? 'Village Burirhat Bazar, P.O-Chowrashi, P.S- Deganga, Dist.-North 24 Paragana, Kolkata, West Bengal - 743424'
+                    : 'H-3, JR Complex, Gate No. 4, Melaram farm, Sewa Dham Rd, Mandoli, Delhi - 110093';
+                })()}
+              </div>
+            </div>
           </div>
         </div>
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Building2, MapPin, Landmark, ShieldCheck, CheckCircle2, ChevronDown } from 'lucide-react';
 import type { CompanyProfile, CompanyAddress } from '../../types/admin';
+import { isKolkataBranch } from '../../utils/branchHelper';
 
 interface BranchSelectorProps {
   companies: CompanyProfile[];
@@ -171,10 +172,19 @@ export default function BranchSelector({
             </div>
             <p className="text-gray-300 text-[11px] line-clamp-2">
               {primaryAddress
-                ? [primaryAddress.addressLine1, primaryAddress.city, primaryAddress.state, primaryAddress.postalCode]
+                ? [
+                    primaryAddress.addressLine1,
+                    primaryAddress.addressLine2,
+                    primaryAddress.city,
+                    primaryAddress.state
+                      ? `${primaryAddress.state}${primaryAddress.postalCode ? ` - ${primaryAddress.postalCode}` : ''}`
+                      : (primaryAddress.postalCode ? `PIN: ${primaryAddress.postalCode}` : '')
+                  ]
                     .filter(Boolean)
                     .join(', ')
-                : activeCompany.phone || 'H-3, JR Complex, Mandoli, New Delhi - 110093'}
+                : (activeCompany.stateCode === '19' || isKolkataBranch(activeCompany))
+                    ? 'Village Burirhat Bazar, P.O-Chowrashi, P.S- Deganga, Dist.-North 24 Paragana, Kolkata, West Bengal - 743424'
+                    : 'H-3, JR Complex, Gate No. 4, Melaram farm, Sewa Dham Rd, Mandoli, Delhi - 110093'}
             </p>
             {activeCompany.addresses && activeCompany.addresses.length > 1 && onSelectAddress && (
               <div className="pt-1">

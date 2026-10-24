@@ -273,10 +273,20 @@ export default function DraftQuotationPage() {
   const handleCustomerSelect = (custId: string) => {
     const cust = customers.find((c) => c.id === custId);
     if (cust) {
+      const activeCompany = companies.find((c) => c.id === form.companyProfileId);
+      const isKol = activeCompany?.stateCode === '19' || activeCompany?.entityCode === 'PPS-KOL' || (activeCompany?.companyName || '').toLowerCase().includes('kolkata');
+      const kolkataAddr = isKol ? cust.addresses?.find((a: any) => a.stateCode === '19' || (a.state || '').toLowerCase().includes('bengal') || (a.city || '').toLowerCase().includes('kolkata')) : null;
       const deliveryAddr = cust.addresses?.find((a: any) => a.addressType === 'SHIPPING' || a.isDefaultShipping);
       const billingAddr = cust.addresses?.find((a: any) => a.addressType === 'BILLING' || a.isDefaultBilling) || cust.addresses?.[0];
-      const preferredAddr = deliveryAddr || billingAddr;
-      const fullAddr = preferredAddr ? [preferredAddr.addressLine1, preferredAddr.addressLine2, preferredAddr.city].filter(Boolean).join(', ') : '';
+      const preferredAddr = kolkataAddr || deliveryAddr || billingAddr;
+      const fullAddr = preferredAddr
+        ? [
+            preferredAddr.addressLine1,
+            preferredAddr.addressLine2,
+            preferredAddr.city,
+            preferredAddr.state ? `${preferredAddr.state}${preferredAddr.postalCode ? ` - ${preferredAddr.postalCode}` : ''}` : (preferredAddr.postalCode ? `PIN: ${preferredAddr.postalCode}` : '')
+          ].filter(Boolean).join(', ')
+        : '';
 
       setForm((f) => ({
         ...f,
@@ -1477,7 +1487,40 @@ export default function DraftQuotationPage() {
       <BranchSelector
         companies={companies}
         selectedCompanyId={form.companyProfileId}
-        onSelectCompany={(compId) => setForm((f) => ({ ...f, companyProfileId: compId }))}
+        onSelectCompany={(compId, comp) => {
+          setForm((f) => {
+            let updatedTerms = f.generalTerms;
+            const isKol = comp?.stateCode === '19' || comp?.entityCode === 'PPS-KOL' || (comp?.companyName || '').toLowerCase().includes('kolkata');
+            if (isKol) {
+              updatedTerms = updatedTerms.replace(/Ex-works New Delhi factory/gi, 'Ex-works Kolkata warehouse / factory');
+            } else {
+              updatedTerms = updatedTerms.replace(/Ex-works Kolkata warehouse \/ factory/gi, 'Ex-works New Delhi factory');
+            }
+
+            let newRecipientAddr = f.recipientAddress;
+            const currentCust = customers.find((c) => c.id === f.customerId);
+            if (currentCust && currentCust.addresses && currentCust.addresses.length > 1) {
+              const matchedAddr = isKol
+                ? currentCust.addresses.find((a: any) => a.stateCode === '19' || (a.state || '').toLowerCase().includes('bengal') || (a.city || '').toLowerCase().includes('kolkata'))
+                : currentCust.addresses.find((a: any) => a.stateCode === '07' || (a.state || '').toLowerCase().includes('delhi') || (a.city || '').toLowerCase().includes('delhi'));
+              if (matchedAddr) {
+                newRecipientAddr = [
+                  matchedAddr.addressLine1,
+                  matchedAddr.addressLine2,
+                  matchedAddr.city,
+                  matchedAddr.state ? `${matchedAddr.state}${matchedAddr.postalCode ? ` - ${matchedAddr.postalCode}` : ''}` : (matchedAddr.postalCode ? `PIN: ${matchedAddr.postalCode}` : '')
+                ].filter(Boolean).join(', ');
+              }
+            }
+
+            return {
+              ...f,
+              companyProfileId: compId,
+              generalTerms: updatedTerms,
+              recipientAddress: newRecipientAddr,
+            };
+          });
+        }}
         label="Issuing Branch & Commercial Operating Entity"
         sublabel="Select which branch is issuing this quotation. Determines seller GST jurisdiction, billing address, and factory dispatch."
       />
