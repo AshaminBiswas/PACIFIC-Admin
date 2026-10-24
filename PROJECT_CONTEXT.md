@@ -7227,3 +7227,34 @@ Load testing was executed against the operational engine using a 2,000-concurren
   - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
 - **Production Build**:
   - `D:\PACIFIC-Admin`: `npm run build` compiled 3,018 modules cleanly, exiting 0.
+
+
+---
+
+## 131. Pacific Mail Send Transaction Fix (PostgreSQL JSONB Casting & Prisma Transaction Resilience)
+
+### 131.1 Root Cause Analysis
+1. **PostgreSQL JSONB Type Cast Error (`42804`) inside Interactive Transaction**:
+   - In `mail.repository.ts`, `eventRepository.record()` executed an unsafe SQL query:
+     `INSERT INTO mail_events (..., metadata) VALUES (..., $5)`
+     where `$5` was stringified JSON text (`JSON.stringify(...)`).
+   - Because `metadata` is a native `JSONB` column, PostgreSQL rejected the text parameter with error `42804`:
+     `column "metadata" is of type jsonb but expression is of type text. HINT: You will need to rewrite or cast the expression.`
+   - In PostgreSQL, any failed query inside a transaction block (`BEGIN ... COMMIT`) places the transaction into an **aborted state**.
+   - When Prisma attempted to commit the transaction, PostgreSQL rejected the commit, causing the connection pooler (PgBouncer) on Render/Supabase to close the connection or abort the transaction.
+   - Prisma query engine subsequently threw:
+     `Transaction API error: Transaction not found. Transaction ID is invalid, refers to an old closed transaction Prisma doesn't have information about anymore, or was obtained before disconnecting.`
+     resulting in HTTP 500 when sending mail.
+2. **Prisma Interactive Transaction Timeout Window**:
+   - Default Prisma transaction timeout was 5,000ms. Over remote cross-cloud connections (Render to Supabase pooler), multiple sequential queries could risk hitting the timeout limit.
+
+### 131.2 Structural Fixes & Verification
+1. **Explicit `::jsonb` Parameter Casting (`mail.repository.ts`)**:
+   - Updated `mail_events` insert: `VALUES ($1, $2, $3::"MailEventType", $4, $5::jsonb)`.
+   - Updated `mail_audit_logs` insert: `VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`.
+2. **Extended Transaction Limits (`mail.service.ts` & `mail.worker.ts`)**:
+   - Added `{ maxWait: 15000, timeout: 30000 }` to `prisma.$transaction()` in both `mailComposeService.send` and `MailOutboxWorker.processJob`, ensuring ample headroom for database operations over connection pools.
+3. **Automated Verification**:
+   - Executed live database send tests against PostgreSQL for both internal user-to-user messages and external gateway routing; both completed with 0 errors and verified atomic commit.
+   - All 30 unit tests (`npm run test:mail`) and 16 gateway tests (`npm run test:mail:gateway`) passed cleanly.
+   - Pushed commit `fd41af0` to `PACIFIC-Backend:main` to trigger live Render deployment.
