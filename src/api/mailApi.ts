@@ -12,6 +12,11 @@ import type {
   BulkMailboxActionRequest,
   MailSearchQuery,
   MailViewFolder,
+  MailOperationalMetrics,
+  MailOutboxFailure,
+  MailAdminAddressSummary,
+  AttachmentUploadResponse,
+  MailOperationalDiagnostics,
 } from '../types/admin';
 
 export const mailApi = {
@@ -187,6 +192,164 @@ export const mailApi = {
         hasPrevPage: boolean;
       };
     }>('/mail/search', { params: query });
+    return res.data;
+  },
+
+  // ─── Attachments (Step 4 Security & Storage) ──────────────────────────────
+  /**
+   * Upload an attachment linked to a message or draft.
+   */
+  uploadAttachment: async (messageId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('messageId', messageId);
+
+    const res = await apiClient.post<{
+      success: boolean;
+      data: AttachmentUploadResponse;
+      message: string;
+    }>('/mail/attachments', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data;
+  },
+
+  /**
+   * Download an attachment via authorized endpoint.
+   */
+  downloadAttachment: async (attachmentId: string, filename: string) => {
+    const res = await apiClient.get(`/mail/attachments/${attachmentId}/download`, {
+      responseType: 'blob',
+    });
+    const blob = new Blob([res.data]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.parentNode?.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  },
+
+  /**
+   * Get direct download endpoint URL for authenticated usage.
+   */
+  getAttachmentDownloadUrl: (attachmentId: string): string => {
+    return `/api/v1/mail/attachments/${attachmentId}/download`;
+  },
+
+  // ─── Admin Control Plane (Step 4 SUPER_ADMIN & ADMIN) ─────────────────────
+  /**
+   * Get operational delivery metrics and queue health.
+   */
+  getAdminMetrics: async () => {
+    const res = await apiClient.get<{ success: boolean; data: MailOperationalMetrics }>('/mail/admin/metrics');
+    return res.data;
+  },
+
+  /**
+   * Get outbox delivery failures for operational troubleshooting.
+   */
+  getOutboxFailures: async (params?: { page?: number; limit?: number }) => {
+    const res = await apiClient.get<{
+      success: boolean;
+      data: MailOutboxFailure[];
+      pagination?: {
+        page: number;
+        limit: number;
+        totalItems: number;
+        totalPages: number;
+        hasNextPage: boolean;
+        hasPrevPage: boolean;
+      };
+    }>('/mail/admin/outbox-failures', { params });
+    return res.data;
+  },
+
+  /**
+   * List all internal mail addresses with user bindings and quotas.
+   */
+  getAdminAddresses: async (params?: { page?: number; limit?: number; search?: string }) => {
+    const res = await apiClient.get<{
+      success: boolean;
+      data: MailAdminAddressSummary[];
+      pagination?: {
+        page: number;
+        limit: number;
+        totalItems: number;
+        totalPages: number;
+        hasNextPage: boolean;
+        hasPrevPage: boolean;
+      };
+    }>('/mail/admin/addresses', { params });
+    return res.data;
+  },
+
+  /**
+   * Enable or disable an internal mail address.
+   */
+  updateAddressStatus: async (addressId: string, isActive: boolean) => {
+    const res = await apiClient.patch<{ success: boolean; data: MailAddress }>(
+      `/mail/admin/addresses/${addressId}/status`,
+      { isActive }
+    );
+    return res.data;
+  },
+
+  /**
+   * Enable or disable all mail access for a user.
+   */
+  toggleUserAccess: async (userId: string, isActive: boolean) => {
+    const res = await apiClient.patch<{ success: boolean; data: { success: boolean; targetUserId: string; isActive: boolean } }>(
+      `/mail/admin/users/${userId}/access`,
+      { isActive }
+    );
+    return res.data;
+  },
+
+  /**
+   * View immutable mail audit logs.
+   */
+  getAuditLogs: async (params?: { page?: number; limit?: number; actorUserId?: string }) => {
+    const res = await apiClient.get<{
+      success: boolean;
+      data: any[];
+      pagination?: {
+        page: number;
+        limit: number;
+        totalItems: number;
+        totalPages: number;
+        hasNextPage: boolean;
+        hasPrevPage: boolean;
+      };
+    }>('/mail/audit', { params });
+    return res.data;
+  },
+
+  /**
+   * Performance diagnostics, latency percentiles & queue telemetry (Step 5).
+   */
+  getDiagnostics: async () => {
+    const res = await apiClient.get<{ success: boolean; data: MailOperationalDiagnostics }>(
+      '/mail/admin/diagnostics'
+    );
+    return res.data;
+  },
+
+  /**
+   * Public liveness check.
+   */
+  getHealth: async () => {
+    const res = await apiClient.get<{ status: string; uptimeSeconds: number }>('/mail/health');
+    return res.data;
+  },
+
+  /**
+   * Public readiness check.
+   */
+  getReadiness: async () => {
+    const res = await apiClient.get<{ status: string; database: any; queueDepth: number }>('/mail/ready');
     return res.data;
   },
 };

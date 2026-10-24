@@ -391,16 +391,14 @@ export const MailThreadDetail: React.FC<MailThreadDetailProps> = ({
                                   </span>
                                 </div>
                               </div>
-                              <a
-                                href={att.storagePath}
-                                target="_blank"
-                                rel="noreferrer"
-                                download={att.filename}
+                              <button
+                                type="button"
+                                onClick={() => mailApi.downloadAttachment(att.id, att.filename)}
                                 className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
                                 title="Download attachment"
                               >
                                 <Download className="w-4 h-4" />
-                              </a>
+                              </button>
                             </div>
                           ))}
                         </div>

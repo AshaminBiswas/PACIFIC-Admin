@@ -21,6 +21,7 @@ import {
 import { MailRecipientInput } from './MailRecipientInput';
 import { MailConfirmDialog } from './MailConfirmDialog';
 import { mailApi } from '../../api/mailApi';
+import { formatFileSize } from '../../utils/mailFormatters';
 import type { SendMailRequest, CreateDraftRequest } from '../../types/admin';
 
 interface MailComposeModalProps {
@@ -68,7 +69,14 @@ export const MailComposeModal: React.FC<MailComposeModalProps> = ({
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
 
+  // Attachments state (Step 4)
+  const [attachments, setAttachments] = useState<
+    Array<{ id: string; filename: string; sizeBytes: number; mimeType: string }>
+  >([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Populate initial data or load draft
   useEffect(() => {
@@ -203,6 +211,7 @@ export const MailComposeModal: React.FC<MailComposeModalProps> = ({
         cc: cc.length > 0 ? cc : undefined,
         bcc: bcc.length > 0 ? bcc : undefined,
         bodyText,
+        attachmentIds: attachments.length > 0 ? attachments.map((a) => a.id) : undefined,
         idempotencyKey,
       };
 
@@ -218,6 +227,60 @@ export const MailComposeModal: React.FC<MailComposeModalProps> = ({
       setStatusMessage({ text: msg, type: 'error' });
     } finally {
       setSending(false);
+    }
+  };
+
+  // ─── Attachment Upload Handler (Step 4) ──────────────────────────────────
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 25 * 1024 * 1024) {
+      setStatusMessage({ text: 'File size exceeds maximum limit of 25MB', type: 'error' });
+      return;
+    }
+
+    setUploadingAttachment(true);
+    setStatusMessage(null);
+
+    try {
+      let draftId = currentDraftId;
+      if (!draftId) {
+        // Auto-provision draft to establish parent message identity
+        const res = await mailApi.createDraft({
+          subject: subject || '(No Subject)',
+          to,
+          cc,
+          bcc,
+          bodyText,
+          threadId: initialData?.threadId,
+          parentId: initialData?.parentId,
+        });
+        if (res.data?.message?.id) {
+          draftId = res.data.message.id;
+          setCurrentDraftId(draftId);
+        } else {
+          throw new Error('Unable to create draft container for attachment');
+        }
+      }
+
+      const uploadRes = await mailApi.uploadAttachment(draftId, file);
+      setAttachments((prev) => [
+        ...prev,
+        {
+          id: uploadRes.data.id,
+          filename: uploadRes.data.filename,
+          sizeBytes: uploadRes.data.sizeBytes,
+          mimeType: uploadRes.data.mimeType,
+        },
+      ]);
+      setStatusMessage({ text: `Attached ${uploadRes.data.filename}`, type: 'success' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err.message || 'Failed to upload attachment';
+      setStatusMessage({ text: msg, type: 'error' });
+    } finally {
+      setUploadingAttachment(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -473,6 +536,39 @@ export const MailComposeModal: React.FC<MailComposeModalProps> = ({
           />
         </div>
 
+        {/* Attached Files List (Step 4) */}
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 px-4 py-2 bg-[#0c0b20] border-t border-white/10 shrink-0 max-h-24 overflow-y-auto">
+            {attachments.map((att) => (
+              <span
+                key={att.id}
+                className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-white/10 text-white text-xs border border-white/10"
+              >
+                <Paperclip className="w-3 h-3 text-[#B5F823] shrink-0" />
+                <span className="truncate max-w-[140px]">{att.filename}</span>
+                <span className="text-[10px] text-white/40">({formatFileSize(att.sizeBytes)})</span>
+                <button
+                  type="button"
+                  onClick={() => setAttachments((prev) => prev.filter((a) => a.id !== att.id))}
+                  className="hover:text-red-400 p-0.5 ml-0.5 text-white/40"
+                  title="Remove attachment"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Hidden File Input for Attachments */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          onChange={handleFileSelect}
+          className="hidden"
+          disabled={uploadingAttachment || sending}
+        />
+
         {/* Footer Actions */}
         <div className="flex items-center justify-between px-4 py-3 bg-[#110f2c] border-t border-white/10 shrink-0">
           <div className="flex items-center space-x-2">
@@ -495,6 +591,21 @@ export const MailComposeModal: React.FC<MailComposeModalProps> = ({
             >
               {savingDraft ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
               <span className="hidden sm:inline">Save Draft</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingAttachment || sending}
+              className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-medium text-white/70 hover:text-white hover:bg-white/5 border border-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Attach file (Max 25MB)"
+            >
+              {uploadingAttachment ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#B5F823]" />
+              ) : (
+                <Paperclip className="w-3.5 h-3.5 text-white/60" />
+              )}
+              <span className="hidden sm:inline">{uploadingAttachment ? 'Uploading...' : 'Attach'}</span>
             </button>
           </div>
 

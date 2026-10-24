@@ -5,6 +5,8 @@ import { MailMessageList } from '../../components/mail/MailMessageList';
 import { MailThreadDetail } from '../../components/mail/MailThreadDetail';
 import { MailComposeModal } from '../../components/mail/MailComposeModal';
 import { MailConfirmDialog } from '../../components/mail/MailConfirmDialog';
+import { MailAdminModal } from '../../components/mail/MailAdminModal';
+import { useAdminAuth } from '../../context/AdminAuthContext';
 import { mailApi } from '../../api/mailApi';
 import type {
   MailViewFolder,
@@ -61,6 +63,11 @@ export default function PacificMailPage() {
 
   // ─── Mobile Drawer State ────────────────────────────────────────────────────
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // ─── Admin Modal State (Step 4) ─────────────────────────────────────────────
+  const { hasRole } = useAdminAuth();
+  const isAdmin = hasRole(['SUPER_ADMIN', 'ADMIN']);
+  const [adminModalOpen, setAdminModalOpen] = useState(false);
 
   // ─── Destructive Confirmation Dialog State ──────────────────────────────────
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -366,6 +373,8 @@ export default function PacificMailPage() {
         myAddress={myAddress}
         isOpenMobile={mobileSidebarOpen}
         onCloseMobile={() => setMobileSidebarOpen(false)}
+        isAdmin={isAdmin}
+        onOpenAdmin={() => setAdminModalOpen(true)}
       />
 
       {/* Right Column: Dynamic Content (Thread List vs Thread Detail) */}
@@ -450,6 +459,13 @@ export default function PacificMailPage() {
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
       />
+      {/* Admin Operations Modal (Step 4) */}
+      {isAdmin && (
+        <MailAdminModal
+          isOpen={adminModalOpen}
+          onClose={() => setAdminModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

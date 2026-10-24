@@ -4,4 +4,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export * from './index';
+export { mailApi } from './mailApi';
 export { default } from './client';

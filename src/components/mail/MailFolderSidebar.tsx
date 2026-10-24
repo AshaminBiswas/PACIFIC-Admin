@@ -12,6 +12,7 @@ import {
   Check,
   X,
   ShieldCheck,
+  Shield,
 } from 'lucide-react';
 import type { MailViewFolder, MailFolderCounts, MailAddress } from '../../types/admin';
 
@@ -23,6 +24,8 @@ interface MailFolderSidebarProps {
   myAddress: MailAddress | null;
   isOpenMobile?: boolean;
   onCloseMobile?: () => void;
+  isAdmin?: boolean;
+  onOpenAdmin?: () => void;
 }
 
 interface FolderNavConfig {
@@ -85,6 +88,8 @@ export const MailFolderSidebar: React.FC<MailFolderSidebarProps> = ({
   myAddress,
   isOpenMobile = false,
   onCloseMobile,
+  isAdmin = false,
+  onOpenAdmin,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -183,6 +188,25 @@ export const MailFolderSidebar: React.FC<MailFolderSidebarProps> = ({
           );
         })}
       </nav>
+
+      {/* Admin Operations Trigger for Super Admin & Admin */}
+      {isAdmin && onOpenAdmin && (
+        <div className="px-3 pt-2 pb-1 border-t border-white/5 bg-[#0b0a1f] shrink-0">
+          <button
+            type="button"
+            onClick={onOpenAdmin}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 hover:bg-[#B5F823]/10 text-white/70 hover:text-[#B5F823] border border-white/10 hover:border-[#B5F823]/30 transition-all text-xs font-semibold"
+          >
+            <div className="flex items-center space-x-2">
+              <Shield className="w-3.5 h-3.5 text-[#B5F823]" />
+              <span>Admin Controls</span>
+            </div>
+            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-white/10 text-white/60">
+              Operations
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* User Verified Internal Identity Badge */}
       <div className="p-3 border-t border-white/10 bg-[#0e0d26] shrink-0">

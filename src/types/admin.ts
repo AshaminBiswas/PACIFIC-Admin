@@ -3555,5 +3555,98 @@ export interface MailSearchQuery {
   limit?: number;
 }
 
+export interface MailOperationalMetrics {
+  totalMessagesSent: number;
+  totalActiveAddresses: number;
+  pendingOutboxCount: number;
+  failedOutboxCount: number;
+  completedOutboxCount: number;
+  recentFailures24h: number;
+  deliverySuccessRate: number;
+}
+
+export interface MailOutboxFailure {
+  id: string;
+  messageId: string;
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'RETRY';
+  transport: string;
+  attempts: number;
+  maxAttempts: number;
+  lastError: string | null;
+  nextAttemptAt: string;
+  createdAt: string;
+  updatedAt: string;
+  subject: string;
+  senderAddress: string;
+}
+
+export interface MailAdminAddressSummary {
+  id: string;
+  userId: string;
+  localPart: string;
+  domain: string;
+  fullAddress: string;
+  displayName: string | null;
+  isActive: boolean;
+  isPrimary: boolean;
+  userEmail: string;
+  userName: string;
+  createdAt: string;
+  hourlyQuota: number;
+}
+
+export interface AttachmentUploadResponse {
+  id: string;
+  messageId: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  checksumSha256: string | null;
+  uploadedAt: string;
+}
+
+export interface LatencyStats {
+  count: number;
+  min: number;
+  max: number;
+  avg: number;
+  p50: number;
+  p90: number;
+  p95: number;
+  p99: number;
+}
+
+export interface MailOperationalDiagnostics {
+  uptimeSeconds: number;
+  throughputReqPerSec: number;
+  counters: {
+    messagesAccepted: number;
+    messagesDelivered: number;
+    messagesFailed: number;
+    transactionsFailed: number;
+    authFailures: number;
+    rateLimitHits: number;
+    totalHttpRequests: number;
+    http4xxErrors: number;
+    http5xxErrors: number;
+  };
+  latencies: Record<string, LatencyStats>;
+  queue: {
+    depth: number;
+    oldestPendingJobSeconds: number;
+    failedJobs: number;
+  };
+  storage: {
+    attachmentDirBytes: number;
+    attachmentCount: number;
+  };
+  database: {
+    status: 'CONNECTED' | 'DISCONNECTED';
+    pingLatencyMs: number;
+  };
+}
+
+
+
 
 
