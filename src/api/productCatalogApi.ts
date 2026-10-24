@@ -46,6 +46,12 @@ function mapDbRowToModel(row: any): ProductCatalogModel {
   const boqUrl = row.boq_url || hardwareMeta?.value?.boqUrl || row.metadata?.boqUrl || '';
   const boqFileName = row.boq_file_name || hardwareMeta?.value?.boqFileName || row.metadata?.boqFileName || '';
   const boqFileSize = Number(row.boq_file_size || hardwareMeta?.value?.boqFileSize || row.metadata?.boqFileSize) || undefined;
+  const brochureUrl = row.brochure_url || hardwareMeta?.value?.brochureUrl || row.metadata?.brochureUrl || '';
+  const brochureFileName = row.brochure_file_name || hardwareMeta?.value?.brochureFileName || row.metadata?.brochureFileName || '';
+  const brochureFileSize = Number(row.brochure_file_size || hardwareMeta?.value?.brochureFileSize || row.metadata?.brochureFileSize) || undefined;
+  const drawingUrl = row.drawing_url || hardwareMeta?.value?.drawingUrl || row.metadata?.drawingUrl || '';
+  const drawingFileName = row.drawing_file_name || hardwareMeta?.value?.drawingFileName || row.metadata?.drawingFileName || '';
+  const drawingFileSize = Number(row.drawing_file_size || hardwareMeta?.value?.drawingFileSize || row.metadata?.drawingFileSize) || undefined;
   const metaTitle = row.meta_title || row.metaTitle || hardwareMeta?.value?.metaTitle || row.metadata?.metaTitle || '';
   const metaDescription = row.meta_description || row.metaDescription || hardwareMeta?.value?.metaDescription || row.metadata?.metaDescription || '';
 
@@ -138,6 +144,12 @@ function mapDbRowToModel(row: any): ProductCatalogModel {
     boqUrl: boqUrl || undefined,
     boqFileName: boqFileName || undefined,
     boqFileSize,
+    brochureUrl: brochureUrl || undefined,
+    brochureFileName: brochureFileName || undefined,
+    brochureFileSize,
+    drawingUrl: drawingUrl || undefined,
+    drawingFileName: drawingFileName || undefined,
+    drawingFileSize,
     metaTitle: metaTitle || undefined,
     metaDescription: metaDescription || undefined,
     createdAt: row.created_at,
@@ -163,6 +175,12 @@ function mapModelToDbRow(model: ProductCatalogModel) {
         boqUrl: model.boqUrl || '',
         boqFileName: model.boqFileName || '',
         boqFileSize: model.boqFileSize || 0,
+        brochureUrl: model.brochureUrl || '',
+        brochureFileName: model.brochureFileName || '',
+        brochureFileSize: model.brochureFileSize || 0,
+        drawingUrl: model.drawingUrl || '',
+        drawingFileName: model.drawingFileName || '',
+        drawingFileSize: model.drawingFileSize || 0,
         metaTitle: model.metaTitle || '',
         metaDescription: model.metaDescription || '',
       },
@@ -206,6 +224,12 @@ function mapModelToDbRow(model: ProductCatalogModel) {
       boqUrl: model.boqUrl || '',
       boqFileName: model.boqFileName || '',
       boqFileSize: model.boqFileSize || 0,
+      brochureUrl: model.brochureUrl || '',
+      brochureFileName: model.brochureFileName || '',
+      brochureFileSize: model.brochureFileSize || 0,
+      drawingUrl: model.drawingUrl || '',
+      drawingFileName: model.drawingFileName || '',
+      drawingFileSize: model.drawingFileSize || 0,
       metaTitle: model.metaTitle || '',
       metaDescription: model.metaDescription || '',
     },

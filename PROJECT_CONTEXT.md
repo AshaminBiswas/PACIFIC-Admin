@@ -7612,6 +7612,62 @@ Load testing was executed against the operational engine using a 2,000-concurren
 - **TypeScript Typecheck**: `npx tsc --noEmit` exited **0** (zero errors).
 - **Production Build**: `npm run build` compiled 3,023 modules cleanly in 44.88s (exit code 0).
 
+---
+
+## 140. Product Model Commercial Brochure & Standard Architectural Drawing Management
+
+### 140.1 Motivation & Scope
+- **User Requirement**: In the product model page (`ProductModelDetailPage`, `EditProductModelPage`, `CreateAdminProductPage`, and `AdminProducts`), add dedicated upload options for both **Product Brochure** and **Standard Architectural Drawing**, with prominent **View** (opens file in viewer / new tab) and **Download** (forces direct file download) capabilities.
+- **Architectural Scope**:
+  1. **Document Formats**:
+     - **Product Commercial Brochure**: PDF, DOC, DOCX, EPUB.
+     - **Standard Architectural Drawing**: PDF, DWG, DXF, SVG, PNG, JPG, JPEG, WEBP (CAD drawings, floor layouts, elevation blueprints).
+     - **Bill of Quantities (BOQ)**: PDF, XLSX, XLS, DOC, DOCX, CSV.
+  2. **Storage Subsystems**:
+     - Supabase storage buckets `documents` with dedicated root folders:
+       - `product-brochures/` for commercial catalogs and brochures.
+       - `product-drawings/` for CAD blueprints and standard architectural drawings.
+       - `product-boq/` for itemized BOQ estimation spreadsheets.
+  3. **Cross-Stack Data Modeling**:
+     - Synchronized `brochureUrl`, `brochureFileName`, `brochureFileSize`, `drawingUrl`, `drawingFileName`, `drawingFileSize` across TypeScript definitions (`Product`, `ProductCatalogModel`), Supabase database schemas (`Product` table), and backward-compatible JSON fallbacks (`__hardware_meta` and `metadata`).
+  4. **User Experience & Interaction**:
+     - Dedicated **View** button (`<Eye />` or `<ExternalLink />`) opening hosted document in new browser tab.
+     - Dedicated **Download** button (`<Download />`) with HTML5 download attribute triggering instant local file save.
+     - Replace and Remove buttons with confirmation safeguards.
+     - Direct URL override input bar for CDN/external links.
+     - Visual badges on Product Catalog Grid cards and Table rows displaying Brochure and Drawing attachment status with one-click view/download access.
+
+### 140.2 Implementation Details Across the Stack
+1. **Types & Schema (`src/types/admin.ts`, `src/lib/database.types.ts`)**:
+   - Extended `Product` and `ProductCatalogModel` with:
+     - `brochureUrl?: string; brochureFileName?: string; brochureFileSize?: number;`
+     - `drawingUrl?: string; drawingFileName?: string; drawingFileSize?: number;`
+   - Added corresponding snake_case columns (`brochure_url`, `brochure_file_name`, `brochure_file_size`, `drawing_url`, `drawing_file_name`, `drawing_file_size`) to `src/lib/database.types.ts`.
+2. **Storage Layer (`src/lib/supabase.ts`)**:
+   - `uploadBrochureDocument(file: File)`: Uploads to `documents` bucket under `product-brochures/`, sanitizing filename and timestamping.
+   - `uploadDrawingDocument(file: File)`: Uploads to `documents` bucket under `product-drawings/`, supporting CAD (`.dwg`, `.dxf`), vector (`.svg`), and image blueprints.
+3. **API Serialization & Persistence (`src/api/productCatalogApi.ts`)**:
+   - `mapDbRowToModel`: Extracts brochure and drawing metadata from explicit database columns, `__hardware_meta` specification objects, or `metadata` JSON blobs.
+   - `mapModelToDbRow`: Saves brochure and drawing fields directly to row columns, while also serializing them into `__hardware_meta` and `metadata` for 100% data persistence resilience.
+4. **Product Model Detail Page (`src/pages/admin/ProductModelDetailPage.tsx`)**:
+   - Added **Product Commercial Brochure** Card (`BookOpen` icon, Attached/Not Attached pill, file size, **View Brochure** with `<Eye />`, **Download Brochure** with `<Download />`).
+   - Added **Standard Architectural Drawing** Card (`Layers` icon in purple, Attached/Not Attached pill, file size, **View Drawing** with `<Eye />`, **Download Drawing** with `<Download />`).
+5. **Product Model Full Editor (`src/pages/admin/EditProductModelPage.tsx`)**:
+   - Section 11: **Model Commercial Brochure & Technical Catalog** (supports drag/browse upload, preview card with file type badge, View, Download, Replace, Delete, and manual URL).
+   - Section 12: **Bill of Quantities (BOQ) Document** (preview, download, replace, remove).
+   - Section 13: **Standard Architectural Drawing (CAD / PDF / DXF)** (CAD/PDF/Image upload, View, Download, Replace, Delete, and manual URL).
+   - Section 14: **Search Engine Optimization (SEO) & Social Meta** (Google SERP snippet preview, meta title and meta description).
+6. **Product Model Creation Wizard (`src/pages/admin/CreateAdminProductPage.tsx`)**:
+   - Integrated full Brochure, BOQ, and Standard Drawing state management, draft autosave/restoration (`localStorage`), reset handling, and sections 11–14 with View and Download controls.
+7. **Product Catalog Hub (`src/pages/admin/AdminProducts.tsx`)**:
+   - **Grid Card View**: Added interactive pills in upper right corner for Brochure (`BookOpen`), Drawing (`Layers`), and BOQ (`FileSpreadsheet`), allowing direct file opening without navigating away.
+   - **Table View**: Added quick document badges next to model title.
+   - **Quick Edit Modal**: Added dedicated Model Attachments 3-column builder (Brochure, Standard Drawing, BOQ) with Browse, View, Download, and Remove options.
+
+### 140.3 Verification & Quality Assurance
+- **TypeScript Strict Check**: `npx tsc --noEmit` exited **0** (zero errors).
+- **Production Bundle Build**: `npm run build` completed with code **0** (3,023 modules transformed cleanly in 42.77s).
+
 
 
 

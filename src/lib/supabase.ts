@@ -332,6 +332,58 @@ export async function uploadBoqDocument(
 }
 
 /**
+ * Upload a product commercial catalog / brochure (.pdf, .doc, .docx) to cloud storage.
+ * Returns { url, fileName, size } or null if failed.
+ */
+export async function uploadBrochureDocument(
+  file: File,
+  folder: string = "product-brochures"
+): Promise<{ url: string; fileName: string; size: number } | null> {
+  const allowedExtensions = ["pdf", "doc", "docx", "epub"];
+  const ext = file.name.split(".").pop()?.toLowerCase() || "";
+  if (!allowedExtensions.includes(ext)) {
+    throw new Error(
+      `Invalid brochure file type (.${ext}). Allowed formats: PDF (.pdf), Word (.doc, .docx), or ePub (.epub).`
+    );
+  }
+
+  const result = await uploadFile(file, folder);
+  if (!result || !result.url) return null;
+
+  return {
+    url: result.url,
+    fileName: file.name,
+    size: result.size || file.size,
+  };
+}
+
+/**
+ * Upload a standard architectural / engineering drawing (.pdf, .dwg, .dxf, .svg, .png, .jpg) to cloud storage.
+ * Returns { url, fileName, size } or null if failed.
+ */
+export async function uploadDrawingDocument(
+  file: File,
+  folder: string = "product-drawings"
+): Promise<{ url: string; fileName: string; size: number } | null> {
+  const allowedExtensions = ["pdf", "dwg", "dxf", "svg", "png", "jpg", "jpeg", "webp"];
+  const ext = file.name.split(".").pop()?.toLowerCase() || "";
+  if (!allowedExtensions.includes(ext)) {
+    throw new Error(
+      `Invalid drawing file type (.${ext}). Allowed formats: PDF (.pdf), AutoCAD (.dwg, .dxf), Vector (.svg), or High-Res Image (.png, .jpg, .webp).`
+    );
+  }
+
+  const result = await uploadFile(file, folder);
+  if (!result || !result.url) return null;
+
+  return {
+    url: result.url,
+    fileName: file.name,
+    size: result.size || file.size,
+  };
+}
+
+/**
  * Upload multiple images to ImageKit.io in parallel.
  * Returns an array of public ImageKit CDN URLs.
  */

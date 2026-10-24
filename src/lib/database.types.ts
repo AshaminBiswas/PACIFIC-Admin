@@ -151,6 +151,12 @@ export interface Product {
   boq_url?: string;
   boq_file_name?: string;
   boq_file_size?: number;
+  brochure_url?: string;
+  brochure_file_name?: string;
+  brochure_file_size?: number;
+  drawing_url?: string;
+  drawing_file_name?: string;
+  drawing_file_size?: number;
   meta_title?: string;
   meta_description?: string;
   created_at: string;

@@ -452,6 +452,12 @@ export interface Product {
   boqUrl?: string;
   boqFileName?: string;
   boqFileSize?: number;
+  brochureUrl?: string;
+  brochureFileName?: string;
+  brochureFileSize?: number;
+  drawingUrl?: string;
+  drawingFileName?: string;
+  drawingFileSize?: number;
   metaTitle?: string;
   metaDescription?: string;
   qrCodes?: QrCode[];
@@ -2487,6 +2493,12 @@ export interface ProductCatalogModel {
   boqUrl?: string;
   boqFileName?: string;
   boqFileSize?: number;
+  brochureUrl?: string;
+  brochureFileName?: string;
+  brochureFileSize?: number;
+  drawingUrl?: string;
+  drawingFileName?: string;
+  drawingFileSize?: number;
   metaTitle?: string;
   metaDescription?: string;
   createdAt?: string;

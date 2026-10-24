@@ -23,6 +23,8 @@ import {
   FileCheck,
   Globe,
   Download,
+  BookOpen,
+  FileText,
 } from 'lucide-react';
 import { productCatalogApi } from '@/api/productCatalogApi';
 import type {
@@ -588,7 +590,7 @@ export default function ProductModelDetailPage() {
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 px-3.5 py-2 bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white rounded-xl text-xs font-medium border border-white/10 transition"
                   >
-                    <ExternalLink className="w-3.5 h-3.5" />
+                    <Eye className="w-3.5 h-3.5" />
                     Preview
                   </a>
                   <a
@@ -609,6 +611,142 @@ export default function ProductModelDetailPage() {
                   className="inline-flex items-center gap-1.5 text-xs text-[#7FB706] hover:underline font-semibold"
                 >
                   <Pencil className="w-3.5 h-3.5" /> Upload BOQ Document in Edit Mode
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* ── Product Commercial Brochure ── */}
+          <div className="bg-[#121226] border border-white/5 rounded-3xl p-5 sm:p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-sky-400" />
+                  Product Brochure &amp; Catalog
+                </h2>
+                <p className="text-xs text-gray-400">Commercial marketing catalog, technical features &amp; finishes brochure</p>
+              </div>
+              {model.brochureUrl ? (
+                <span className="text-xs font-mono text-sky-400 bg-sky-500/10 px-2.5 py-1 rounded-xl border border-sky-500/20 font-bold flex items-center gap-1.5">
+                  <FileCheck className="w-3.5 h-3.5" /> Attached
+                </span>
+              ) : (
+                <span className="text-xs text-gray-400 bg-white/5 px-2.5 py-1 rounded-xl border border-white/10 font-semibold">
+                  Not Attached
+                </span>
+              )}
+            </div>
+
+            {model.brochureUrl ? (
+              <div className="bg-[#0a0a1a] border border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-12 h-12 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center shrink-0">
+                    <BookOpen className="w-6 h-6 text-sky-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-white font-semibold text-sm truncate">{model.brochureFileName || `${model.title} Product Brochure`}</h4>
+                    <p className="text-xs text-gray-400 mt-1 truncate">
+                      {model.brochureFileSize ? `${(model.brochureFileSize / 1024).toFixed(1)} KB` : 'Brochure PDF'} • Commercial specifications &amp; finish catalog
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={model.brochureUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white rounded-xl text-xs font-medium border border-white/10 transition"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-sky-400" />
+                    View Brochure
+                  </a>
+                  <a
+                    href={model.brochureUrl}
+                    download={model.brochureFileName || `${model.title}-Brochure.pdf`}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-sky-500 hover:bg-sky-400 text-black font-bold rounded-xl text-xs shadow-lg shadow-sky-500/20 transition"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Download Brochure
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="border border-dashed border-white/10 rounded-2xl p-5 text-center bg-white/[0.01]">
+                <p className="text-xs text-gray-400 mb-2">No commercial brochure has been uploaded for this model yet.</p>
+                <Link
+                  to={`/admin/dashboard/products/${model.id}/edit`}
+                  className="inline-flex items-center gap-1.5 text-xs text-sky-400 hover:underline font-semibold"
+                >
+                  <Pencil className="w-3.5 h-3.5" /> Upload Brochure in Edit Mode
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* ── Standard Architectural Drawing ── */}
+          <div className="bg-[#121226] border border-white/5 rounded-3xl p-5 sm:p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-purple-400" />
+                  Standard Architectural Drawing
+                </h2>
+                <p className="text-xs text-gray-400">Detailed CAD layout, elevation dimensions, and installation plan</p>
+              </div>
+              {model.drawingUrl ? (
+                <span className="text-xs font-mono text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded-xl border border-purple-500/20 font-bold flex items-center gap-1.5">
+                  <FileCheck className="w-3.5 h-3.5" /> Attached
+                </span>
+              ) : (
+                <span className="text-xs text-gray-400 bg-white/5 px-2.5 py-1 rounded-xl border border-white/10 font-semibold">
+                  Not Attached
+                </span>
+              )}
+            </div>
+
+            {model.drawingUrl ? (
+              <div className="bg-[#0a0a1a] border border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center shrink-0">
+                    <Layers className="w-6 h-6 text-purple-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-white font-semibold text-sm truncate">{model.drawingFileName || `${model.title} Standard Drawing`}</h4>
+                    <p className="text-xs text-gray-400 mt-1 truncate">
+                      {model.drawingFileSize ? `${(model.drawingFileSize / 1024).toFixed(1)} KB` : 'CAD / Drawing Document'} • Sectional elevation &amp; installation guide
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={model.drawingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white rounded-xl text-xs font-medium border border-white/10 transition"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-purple-400" />
+                    View Drawing
+                  </a>
+                  <a
+                    href={model.drawingUrl}
+                    download={model.drawingFileName || `${model.title}-Drawing`}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-purple-500 hover:bg-purple-400 text-white font-bold rounded-xl text-xs shadow-lg shadow-purple-500/20 transition"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Download Drawing
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="border border-dashed border-white/10 rounded-2xl p-5 text-center bg-white/[0.01]">
+                <p className="text-xs text-gray-400 mb-2">No standard architectural drawing has been uploaded for this model yet.</p>
+                <Link
+                  to={`/admin/dashboard/products/${model.id}/edit`}
+                  className="inline-flex items-center gap-1.5 text-xs text-purple-400 hover:underline font-semibold"
+                >
+                  <Pencil className="w-3.5 h-3.5" /> Upload Standard Drawing in Edit Mode
                 </Link>
               </div>
             )}

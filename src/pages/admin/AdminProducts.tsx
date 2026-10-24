@@ -33,8 +33,10 @@ import {
   FileSpreadsheet,
   FileCheck,
   Globe,
+  BookOpen,
+  Download,
 } from 'lucide-react';
-import { uploadImage, uploadMultipleImages, uploadVideo, uploadBoqDocument } from '@/lib/supabase';
+import { uploadImage, uploadMultipleImages, uploadVideo, uploadBoqDocument, uploadBrochureDocument, uploadDrawingDocument } from '@/lib/supabase';
 import { productCatalogApi } from '@/api/productCatalogApi';
 import OpenAIGalleryModal from '@/components/common/OpenAIGalleryModal';
 import type {
@@ -188,13 +190,27 @@ export default function AdminProducts() {
   const [formUploadingVideoIdx, setFormUploadingVideoIdx] = useState<number | null>(null);
   const formVideoInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
 
-  // BOQ & SEO states for modal
+  // BOQ, Brochure, Drawing & SEO states for modal
   const [formBoqUrl, setFormBoqUrl] = useState('');
   const [formBoqFileName, setFormBoqFileName] = useState('');
   const [formBoqFileSize, setFormBoqFileSize] = useState<number | undefined>(undefined);
   const [formUploadingBoq, setFormUploadingBoq] = useState(false);
   const [formBoqError, setFormBoqError] = useState('');
   const formBoqFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [formBrochureUrl, setFormBrochureUrl] = useState('');
+  const [formBrochureFileName, setFormBrochureFileName] = useState('');
+  const [formBrochureFileSize, setFormBrochureFileSize] = useState<number | undefined>(undefined);
+  const [formUploadingBrochure, setFormUploadingBrochure] = useState(false);
+  const [formBrochureError, setFormBrochureError] = useState('');
+  const formBrochureFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [formDrawingUrl, setFormDrawingUrl] = useState('');
+  const [formDrawingFileName, setFormDrawingFileName] = useState('');
+  const [formDrawingFileSize, setFormDrawingFileSize] = useState<number | undefined>(undefined);
+  const [formUploadingDrawing, setFormUploadingDrawing] = useState(false);
+  const [formDrawingError, setFormDrawingError] = useState('');
+  const formDrawingFileInputRef = useRef<HTMLInputElement>(null);
 
   const [formMetaTitle, setFormMetaTitle] = useState('');
   const [formMetaDescription, setFormMetaDescription] = useState('');
@@ -299,6 +315,14 @@ export default function AdminProducts() {
     setFormBoqFileName('');
     setFormBoqFileSize(undefined);
     setFormBoqError('');
+    setFormBrochureUrl('');
+    setFormBrochureFileName('');
+    setFormBrochureFileSize(undefined);
+    setFormBrochureError('');
+    setFormDrawingUrl('');
+    setFormDrawingFileName('');
+    setFormDrawingFileSize(undefined);
+    setFormDrawingError('');
     setFormMetaTitle('');
     setFormMetaDescription('');
 
@@ -370,13 +394,25 @@ export default function AdminProducts() {
       setFormVideos([rawVids[0], '']);
     } else {
       setFormVideos(['', '']);
+    }
+
     setFormBoqUrl(model.boqUrl || '');
     setFormBoqFileName(model.boqFileName || '');
     setFormBoqFileSize(model.boqFileSize);
     setFormBoqError('');
+
+    setFormBrochureUrl(model.brochureUrl || '');
+    setFormBrochureFileName(model.brochureFileName || '');
+    setFormBrochureFileSize(model.brochureFileSize);
+    setFormBrochureError('');
+
+    setFormDrawingUrl(model.drawingUrl || '');
+    setFormDrawingFileName(model.drawingFileName || '');
+    setFormDrawingFileSize(model.drawingFileSize);
+    setFormDrawingError('');
+
     setFormMetaTitle(model.metaTitle || '');
     setFormMetaDescription(model.metaDescription || '');
-    }
 
     setFormIsFeatured(Boolean(model.isFeatured));
     setFormPublished(model.published !== undefined ? model.published : true);
@@ -419,6 +455,54 @@ export default function AdminProducts() {
     } finally {
       setFormUploadingBoq(false);
       if (formBoqFileInputRef.current) formBoqFileInputRef.current.value = '';
+    }
+  };
+
+  const handleFormBrochureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFormUploadingBrochure(true);
+    setFormBrochureError('');
+
+    try {
+      const res = await uploadBrochureDocument(file);
+      if (!res || !res.url) {
+        throw new Error('Failed to upload brochure to storage');
+      }
+      setFormBrochureUrl(res.url);
+      setFormBrochureFileName(res.fileName);
+      setFormBrochureFileSize(res.size);
+    } catch (err: any) {
+      console.error('Brochure upload error in modal:', err);
+      setFormBrochureError(err.message || 'Failed to upload brochure');
+    } finally {
+      setFormUploadingBrochure(false);
+      if (formBrochureFileInputRef.current) formBrochureFileInputRef.current.value = '';
+    }
+  };
+
+  const handleFormDrawingUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFormUploadingDrawing(true);
+    setFormDrawingError('');
+
+    try {
+      const res = await uploadDrawingDocument(file);
+      if (!res || !res.url) {
+        throw new Error('Failed to upload drawing to storage');
+      }
+      setFormDrawingUrl(res.url);
+      setFormDrawingFileName(res.fileName);
+      setFormDrawingFileSize(res.size);
+    } catch (err: any) {
+      console.error('Drawing upload error in modal:', err);
+      setFormDrawingError(err.message || 'Failed to upload drawing');
+    } finally {
+      setFormUploadingDrawing(false);
+      if (formDrawingFileInputRef.current) formDrawingFileInputRef.current.value = '';
     }
   };
 
@@ -726,6 +810,12 @@ export default function AdminProducts() {
       boqUrl: formBoqUrl.trim() || undefined,
       boqFileName: formBoqFileName.trim() || undefined,
       boqFileSize: formBoqFileSize || undefined,
+      brochureUrl: formBrochureUrl.trim() || undefined,
+      brochureFileName: formBrochureFileName.trim() || undefined,
+      brochureFileSize: formBrochureFileSize || undefined,
+      drawingUrl: formDrawingUrl.trim() || undefined,
+      drawingFileName: formDrawingFileName.trim() || undefined,
+      drawingFileSize: formDrawingFileSize || undefined,
       metaTitle: formMetaTitle.trim() || undefined,
       metaDescription: formMetaDescription.trim() || undefined,
     };
@@ -1079,15 +1169,43 @@ export default function AdminProducts() {
                       </span>
                     </div>
 
-                    {/* Featured / Status Pill */}
+                    {/* Documents & Featured / Status Pill */}
                     <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 z-10">
+                      {model.brochureUrl && (
+                        <a
+                          href={model.brochureUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="px-2 py-0.5 rounded-lg text-[10px] font-semibold border backdrop-blur-md bg-sky-500/20 text-sky-300 border-sky-500/40 flex items-center gap-1 hover:bg-sky-500/30 transition"
+                          title={`Product Brochure: ${model.brochureFileName || 'Available'}`}
+                        >
+                          <BookOpen className="w-3 h-3" /> Brochure
+                        </a>
+                      )}
+                      {model.drawingUrl && (
+                        <a
+                          href={model.drawingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="px-2 py-0.5 rounded-lg text-[10px] font-semibold border backdrop-blur-md bg-purple-500/20 text-purple-300 border-purple-500/40 flex items-center gap-1 hover:bg-purple-500/30 transition"
+                          title={`Standard Drawing: ${model.drawingFileName || 'Available'}`}
+                        >
+                          <Layers className="w-3 h-3" /> Drawing
+                        </a>
+                      )}
                       {model.boqUrl && (
-                        <span
-                          className="px-2 py-0.5 rounded-lg text-[10px] font-semibold border backdrop-blur-md bg-[#7FB706]/20 text-[#7FB706] border-[#7FB706]/40 flex items-center gap-1"
+                        <a
+                          href={model.boqUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="px-2 py-0.5 rounded-lg text-[10px] font-semibold border backdrop-blur-md bg-[#7FB706]/20 text-[#7FB706] border-[#7FB706]/40 flex items-center gap-1 hover:bg-[#7FB706]/30 transition"
                           title={`BOQ Document attached: ${model.boqFileName || 'Available'}`}
                         >
                           <FileSpreadsheet className="w-3 h-3" /> BOQ
-                        </span>
+                        </a>
                       )}
                       <button
                         type="button"
@@ -1358,12 +1476,43 @@ export default function AdminProducts() {
                       </td>
                       <td className="px-4 py-3">
                         <Link to={`/admin/dashboard/products/${model.id}`} className="group/name">
-                          <div className="font-bold text-white text-sm capitalize group-hover/name:text-[#7FB706] transition flex items-center gap-1.5">
+                          <div className="font-bold text-white text-sm capitalize group-hover/name:text-[#7FB706] transition flex items-center gap-1.5 flex-wrap">
                             {model.title}
+                            {model.brochureUrl && (
+                              <a
+                                href={model.brochureUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-[10px] text-sky-400 font-semibold hover:bg-sky-500/25 transition"
+                                title={`Product Brochure: ${model.brochureFileName || 'Available'}`}
+                              >
+                                <BookOpen className="w-2.5 h-2.5" /> Brochure
+                              </a>
+                            )}
+                            {model.drawingUrl && (
+                              <a
+                                href={model.drawingUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-purple-500/15 border border-purple-500/30 text-[10px] text-purple-400 font-semibold hover:bg-purple-500/25 transition"
+                                title={`Standard Drawing: ${model.drawingFileName || 'Available'}`}
+                              >
+                                <Layers className="w-2.5 h-2.5" /> Drawing
+                              </a>
+                            )}
                             {model.boqUrl && (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[#7FB706]/15 border border-[#7FB706]/30 text-[10px] text-[#7FB706] font-semibold">
+                              <a
+                                href={model.boqUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[#7FB706]/15 border border-[#7FB706]/30 text-[10px] text-[#7FB706] font-semibold hover:bg-[#7FB706]/25 transition"
+                                title={`BOQ Document attached: ${model.boqFileName || 'Available'}`}
+                              >
                                 <FileSpreadsheet className="w-2.5 h-2.5" /> BOQ
-                              </span>
+                              </a>
                             )}
                             <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover/name:opacity-100 transition text-[#7FB706]" />
                           </div>
@@ -2178,99 +2327,310 @@ export default function AdminProducts() {
                 </div>
               </div>
 
-              {/* BOQ Document & SEO Meta Area in Modal */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/10">
-                {/* BOQ Document Upload */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
-                      <FileSpreadsheet className="w-3.5 h-3.5 text-[#7FB706]" />
-                      BOQ Document (Excel/PDF)
-                    </label>
-                    {formBoqUrl && (
-                      <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
-                        <FileCheck className="w-3 h-3" /> Attached
-                      </span>
-                    )}
-                  </div>
+              {/* Documents & SEO Meta Area in Modal */}
+              <div className="space-y-4 p-4 rounded-2xl bg-white/[0.02] border border-white/10">
+                <div className="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2 border-b border-white/5 pb-2">
+                  <BookOpen className="w-4 h-4 text-[#7FB706]" />
+                  Model Attachments (Brochure, Standard Drawing &amp; BOQ)
+                </div>
 
-                  <input
-                    ref={formBoqFileInputRef}
-                    type="file"
-                    accept=".pdf,.xlsx,.xls,.doc,.docx,.csv"
-                    onChange={handleFormBoqUpload}
-                    className="hidden"
-                  />
-
-                  {formBoqError && (
-                    <div className="p-2 bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] rounded-lg">
-                      {formBoqError}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* 1. Brochure Upload */}
+                  <div className="space-y-2 p-3 rounded-xl bg-[#0a0a1a] border border-white/5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5 text-sky-400" />
+                        Brochure (PDF)
+                      </label>
+                      {formBrochureUrl && (
+                        <span className="text-[10px] text-sky-400 font-semibold flex items-center gap-1">
+                          <FileCheck className="w-3 h-3" /> Attached
+                        </span>
+                      )}
                     </div>
-                  )}
 
-                  <div className="flex items-center gap-2">
                     <input
-                      type="url"
-                      placeholder="BOQ URL or upload document..."
-                      value={formBoqUrl}
-                      onChange={(e) => {
-                        setFormBoqUrl(e.target.value);
-                        if (e.target.value && !formBoqFileName) {
-                          setFormBoqFileName(e.target.value.split('/').pop()?.split('?')[0] || 'BOQ-Document');
-                        }
-                      }}
-                      className="flex-1 bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706]"
+                      ref={formBrochureFileInputRef}
+                      type="file"
+                      accept=".pdf,.doc,.docx,.epub"
+                      onChange={handleFormBrochureUpload}
+                      className="hidden"
                     />
-                    <button
-                      type="button"
-                      onClick={() => formBoqFileInputRef.current?.click()}
-                      disabled={formUploadingBoq}
-                      className="px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-200 rounded-xl text-xs font-semibold border border-white/10 transition disabled:opacity-50 shrink-0"
-                    >
-                      {formUploadingBoq ? 'Uploading...' : 'Browse'}
-                    </button>
-                    {formBoqUrl && (
+
+                    {formBrochureError && (
+                      <div className="p-2 bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] rounded-lg">
+                        {formBrochureError}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="url"
+                        placeholder="Brochure URL or upload..."
+                        value={formBrochureUrl}
+                        onChange={(e) => {
+                          setFormBrochureUrl(e.target.value);
+                          if (e.target.value && !formBrochureFileName) {
+                            setFormBrochureFileName(e.target.value.split('/').pop()?.split('?')[0] || 'Brochure.pdf');
+                          }
+                        }}
+                        className="flex-1 min-w-0 bg-[#121226] border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-400"
+                      />
                       <button
                         type="button"
-                        onClick={() => {
-                          setFormBoqUrl('');
-                          setFormBoqFileName('');
-                          setFormBoqFileSize(undefined);
-                        }}
-                        className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-xs transition"
-                        title="Remove BOQ"
+                        onClick={() => formBrochureFileInputRef.current?.click()}
+                        disabled={formUploadingBrochure}
+                        className="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 text-gray-200 rounded-xl text-xs font-semibold border border-white/10 transition disabled:opacity-50 shrink-0"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        {formUploadingBrochure ? '...' : 'Browse'}
                       </button>
+                    </div>
+
+                    {formBrochureUrl && (
+                      <div className="flex items-center justify-between gap-1 pt-1 text-[11px]">
+                        <span className="text-gray-400 truncate flex-1 font-mono">
+                          {formBrochureFileName || 'Brochure.pdf'}
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <a
+                            href={formBrochureUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 hover:bg-white/10 text-sky-400 rounded transition"
+                            title="View Brochure"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </a>
+                          <a
+                            href={formBrochureUrl}
+                            download={formBrochureFileName || 'Brochure.pdf'}
+                            className="p-1 hover:bg-white/10 text-sky-400 rounded transition"
+                            title="Download Brochure"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormBrochureUrl('');
+                              setFormBrochureFileName('');
+                              setFormBrochureFileSize(undefined);
+                            }}
+                            className="p-1 hover:bg-red-500/20 text-red-400 rounded transition"
+                            title="Remove Brochure"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
-                  {formBoqFileName && (
-                    <p className="text-[11px] text-gray-400 truncate">
-                      File: <span className="text-white font-mono">{formBoqFileName}</span>
-                    </p>
-                  )}
+
+                  {/* 2. Drawing Upload */}
+                  <div className="space-y-2 p-3 rounded-xl bg-[#0a0a1a] border border-white/5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-purple-400" />
+                        Standard Drawing (CAD)
+                      </label>
+                      {formDrawingUrl && (
+                        <span className="text-[10px] text-purple-400 font-semibold flex items-center gap-1">
+                          <FileCheck className="w-3 h-3" /> Attached
+                        </span>
+                      )}
+                    </div>
+
+                    <input
+                      ref={formDrawingFileInputRef}
+                      type="file"
+                      accept=".pdf,.dwg,.dxf,.svg,.png,.jpg,.jpeg,.webp"
+                      onChange={handleFormDrawingUpload}
+                      className="hidden"
+                    />
+
+                    {formDrawingError && (
+                      <div className="p-2 bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] rounded-lg">
+                        {formDrawingError}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="url"
+                        placeholder="Drawing URL or upload..."
+                        value={formDrawingUrl}
+                        onChange={(e) => {
+                          setFormDrawingUrl(e.target.value);
+                          if (e.target.value && !formDrawingFileName) {
+                            setFormDrawingFileName(e.target.value.split('/').pop()?.split('?')[0] || 'Drawing.pdf');
+                          }
+                        }}
+                        className="flex-1 min-w-0 bg-[#121226] border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => formDrawingFileInputRef.current?.click()}
+                        disabled={formUploadingDrawing}
+                        className="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 text-gray-200 rounded-xl text-xs font-semibold border border-white/10 transition disabled:opacity-50 shrink-0"
+                      >
+                        {formUploadingDrawing ? '...' : 'Browse'}
+                      </button>
+                    </div>
+
+                    {formDrawingUrl && (
+                      <div className="flex items-center justify-between gap-1 pt-1 text-[11px]">
+                        <span className="text-gray-400 truncate flex-1 font-mono">
+                          {formDrawingFileName || 'Drawing.pdf'}
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <a
+                            href={formDrawingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 hover:bg-white/10 text-purple-400 rounded transition"
+                            title="View Drawing"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </a>
+                          <a
+                            href={formDrawingUrl}
+                            download={formDrawingFileName || 'Drawing.pdf'}
+                            className="p-1 hover:bg-white/10 text-purple-400 rounded transition"
+                            title="Download Drawing"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormDrawingUrl('');
+                              setFormDrawingFileName('');
+                              setFormDrawingFileSize(undefined);
+                            }}
+                            className="p-1 hover:bg-red-500/20 text-red-400 rounded transition"
+                            title="Remove Drawing"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3. BOQ Upload */}
+                  <div className="space-y-2 p-3 rounded-xl bg-[#0a0a1a] border border-white/5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                        <FileSpreadsheet className="w-3.5 h-3.5 text-[#7FB706]" />
+                        BOQ Document (Excel)
+                      </label>
+                      {formBoqUrl && (
+                        <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                          <FileCheck className="w-3 h-3" /> Attached
+                        </span>
+                      )}
+                    </div>
+
+                    <input
+                      ref={formBoqFileInputRef}
+                      type="file"
+                      accept=".pdf,.xlsx,.xls,.doc,.docx,.csv"
+                      onChange={handleFormBoqUpload}
+                      className="hidden"
+                    />
+
+                    {formBoqError && (
+                      <div className="p-2 bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] rounded-lg">
+                        {formBoqError}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="url"
+                        placeholder="BOQ URL or upload..."
+                        value={formBoqUrl}
+                        onChange={(e) => {
+                          setFormBoqUrl(e.target.value);
+                          if (e.target.value && !formBoqFileName) {
+                            setFormBoqFileName(e.target.value.split('/').pop()?.split('?')[0] || 'BOQ-Document');
+                          }
+                        }}
+                        className="flex-1 min-w-0 bg-[#121226] border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#7FB706]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => formBoqFileInputRef.current?.click()}
+                        disabled={formUploadingBoq}
+                        className="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 text-gray-200 rounded-xl text-xs font-semibold border border-white/10 transition disabled:opacity-50 shrink-0"
+                      >
+                        {formUploadingBoq ? '...' : 'Browse'}
+                      </button>
+                    </div>
+
+                    {formBoqUrl && (
+                      <div className="flex items-center justify-between gap-1 pt-1 text-[11px]">
+                        <span className="text-gray-400 truncate flex-1 font-mono">
+                          {formBoqFileName || 'BOQ-Document'}
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <a
+                            href={formBoqUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 hover:bg-white/10 text-[#7FB706] rounded transition"
+                            title="View BOQ"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </a>
+                          <a
+                            href={formBoqUrl}
+                            download={formBoqFileName || 'BOQ-Document'}
+                            className="p-1 hover:bg-white/10 text-[#7FB706] rounded transition"
+                            title="Download BOQ"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormBoqUrl('');
+                              setFormBoqFileName('');
+                              setFormBoqFileSize(undefined);
+                            }}
+                            className="p-1 hover:bg-red-500/20 text-red-400 rounded transition"
+                            title="Remove BOQ"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* SEO Meta Fields */}
-                <div className="space-y-2">
+                <div className="space-y-2 pt-2 border-t border-white/5">
                   <label className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
                     <Globe className="w-3.5 h-3.5 text-[#7FB706]" />
-                    SEO Meta Fields
+                    SEO Meta Fields (SERP Search Ranking)
                   </label>
-                  <input
-                    type="text"
-                    placeholder="Meta Title (recommended 50-60 chars)"
-                    value={formMetaTitle}
-                    onChange={(e) => setFormMetaTitle(e.target.value)}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706]"
-                  />
-                  <textarea
-                    rows={2}
-                    placeholder="Meta Description (recommended 150-160 chars)"
-                    value={formMetaDescription}
-                    onChange={(e) => setFormMetaDescription(e.target.value)}
-                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706] resize-none"
-                  />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Meta Title (recommended 50-60 chars)"
+                      value={formMetaTitle}
+                      onChange={(e) => setFormMetaTitle(e.target.value)}
+                      className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706]"
+                    />
+                    <textarea
+                      rows={2}
+                      placeholder="Meta Description (recommended 150-160 chars)"
+                      value={formMetaDescription}
+                      onChange={(e) => setFormMetaDescription(e.target.value)}
+                      className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706] resize-none"
+                    />
+                  </div>
                 </div>
               </div>
 

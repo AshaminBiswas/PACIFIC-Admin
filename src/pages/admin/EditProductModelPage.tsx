@@ -28,8 +28,9 @@ import {
   FileSpreadsheet,
   Globe,
   FileCheck,
+  BookOpen,
 } from 'lucide-react';
-import { uploadImage, uploadMultipleImages, uploadVideo, uploadFile, uploadBoqDocument, supabase } from '@/lib/supabase';
+import { uploadImage, uploadMultipleImages, uploadVideo, uploadFile, uploadBoqDocument, uploadBrochureDocument, uploadDrawingDocument, supabase } from '@/lib/supabase';
 import { productCatalogApi } from '@/api/productCatalogApi';
 import { DEFAULT_CUBICLE_DESCRIPTION } from '@/data/productCatalogData';
 import OpenAIGalleryModal from '@/components/common/OpenAIGalleryModal';
@@ -160,6 +161,17 @@ export default function EditProductModelPage() {
   const [uploadingBrochure, setUploadingBrochure] = useState(false);
   const [brochureError, setBrochureError] = useState('');
   const brochureFileInputRef = useRef<HTMLInputElement>(null);
+  const [brochureUrl, setBrochureUrl] = useState('');
+  const [brochureFileName, setBrochureFileName] = useState('');
+  const [brochureFileSize, setBrochureFileSize] = useState<number | undefined>(undefined);
+
+  // ── Standard Architectural Drawing State ──
+  const [drawingUrl, setDrawingUrl] = useState('');
+  const [drawingFileName, setDrawingFileName] = useState('');
+  const [drawingFileSize, setDrawingFileSize] = useState<number | undefined>(undefined);
+  const [uploadingDrawing, setUploadingDrawing] = useState(false);
+  const [drawingError, setDrawingError] = useState('');
+  const drawingFileInputRef = useRef<HTMLInputElement>(null);
 
   // ── BOQ & SEO Metadata State ──
   const [boqUrl, setBoqUrl] = useState('');
@@ -270,6 +282,12 @@ export default function EditProductModelPage() {
           setBoqUrl(found.boqUrl || '');
           setBoqFileName(found.boqFileName || '');
           setBoqFileSize(found.boqFileSize);
+          setBrochureUrl(found.brochureUrl || '');
+          setBrochureFileName(found.brochureFileName || '');
+          setBrochureFileSize(found.brochureFileSize);
+          setDrawingUrl(found.drawingUrl || '');
+          setDrawingFileName(found.drawingFileName || '');
+          setDrawingFileSize(found.drawingFileSize);
           setMetaTitle(found.metaTitle || '');
           setMetaDescription(found.metaDescription || '');
 
@@ -306,6 +324,11 @@ export default function EditProductModelPage() {
                   published: b.published !== false,
                   productId: b.product_id,
                 });
+                if (!found.brochureUrl && b.file_url) {
+                  setBrochureUrl(b.file_url);
+                  setBrochureFileName(b.title || 'Product-Brochure.pdf');
+                  setBrochureFileSize(Number(b.file_size || 0));
+                }
               }
             }
           } catch (catErr) {
@@ -418,6 +441,10 @@ export default function EditProductModelPage() {
         });
       }
 
+      setBrochureUrl(uploadRes.url);
+      setBrochureFileName(file.name);
+      setBrochureFileSize(uploadRes.size);
+
       alert('Model brochure uploaded successfully! It is now live on the Product page and Downloads hub.');
     } catch (err: any) {
       console.error('Error uploading brochure:', err);
@@ -429,17 +456,24 @@ export default function EditProductModelPage() {
   };
 
   const handleRemoveBrochure = async () => {
-    if (!brochure?.id) {
+    if (!brochure?.id && !brochureUrl) {
       setBrochure(null);
+      setBrochureUrl('');
+      setBrochureFileName('');
+      setBrochureFileSize(undefined);
       return;
     }
-    if (!confirm('Are you sure you want to delete this brochure from the catalog?')) return;
+    if (!confirm('Are you sure you want to remove this brochure?')) return;
 
     try {
-      const { error: delErr } = await supabase.from('catalogs').delete().eq('id', brochure.id);
-      if (delErr) throw delErr;
+      if (brochure?.id) {
+        await supabase.from('catalogs').delete().eq('id', brochure.id);
+      }
       setBrochure(null);
-      alert('Brochure deleted successfully.');
+      setBrochureUrl('');
+      setBrochureFileName('');
+      setBrochureFileSize(undefined);
+      alert('Brochure removed successfully.');
     } catch (err: any) {
       alert('Failed to delete brochure: ' + err.message);
     }
@@ -478,6 +512,39 @@ export default function EditProductModelPage() {
     }
   };
 
+  // ── Standard Architectural Drawing Handlers ──
+  const handleDrawingUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingDrawing(true);
+    setDrawingError('');
+
+    try {
+      const res = await uploadDrawingDocument(file);
+      if (!res || !res.url) {
+        throw new Error('Failed to upload drawing document to storage');
+      }
+      setDrawingUrl(res.url);
+      setDrawingFileName(res.fileName);
+      setDrawingFileSize(res.size);
+    } catch (err: any) {
+      console.error('Drawing upload error:', err);
+      setDrawingError(err.message || 'Failed to upload architectural drawing');
+    } finally {
+      setUploadingDrawing(false);
+      if (drawingFileInputRef.current) drawingFileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveDrawing = () => {
+    if (window.confirm('Remove attached standard drawing?')) {
+      setDrawingUrl('');
+      setDrawingFileName('');
+      setDrawingFileSize(undefined);
+    }
+  };
+
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return '';
     if (bytes < 1024) return `${bytes} B`;
@@ -485,7 +552,7 @@ export default function EditProductModelPage() {
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
-  const getBoqFileType = (name: string, url: string) => {
+  const getDocumentFileType = (name: string, url: string) => {
     const clean = (name || url).toLowerCase();
     if (clean.endsWith('.pdf')) return { label: 'PDF', bg: 'bg-red-500/10 text-red-400 border-red-500/20' };
     if (clean.endsWith('.xlsx') || clean.endsWith('.xls') || clean.endsWith('.csv')) {
@@ -494,8 +561,16 @@ export default function EditProductModelPage() {
     if (clean.endsWith('.docx') || clean.endsWith('.doc')) {
       return { label: 'WORD', bg: 'bg-blue-500/10 text-blue-400 border-blue-500/20' };
     }
+    if (clean.endsWith('.dwg') || clean.endsWith('.dxf')) {
+      return { label: 'CAD', bg: 'bg-purple-500/10 text-purple-400 border-purple-500/20' };
+    }
+    if (clean.endsWith('.svg') || clean.endsWith('.png') || clean.endsWith('.jpg') || clean.endsWith('.webp')) {
+      return { label: 'IMAGE', bg: 'bg-sky-500/10 text-sky-400 border-sky-500/20' };
+    }
     return { label: 'DOC', bg: 'bg-amber-500/10 text-amber-400 border-amber-500/20' };
   };
+
+  const getBoqFileType = getDocumentFileType;
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -833,6 +908,12 @@ export default function EditProductModelPage() {
         boqUrl: boqUrl.trim() || undefined,
         boqFileName: boqFileName.trim() || undefined,
         boqFileSize: boqFileSize || undefined,
+        brochureUrl: (brochureUrl.trim() || brochure?.fileUrl || '').trim() || undefined,
+        brochureFileName: (brochureFileName.trim() || brochure?.title || '').trim() || undefined,
+        brochureFileSize: brochureFileSize || (brochure?.fileSize ? Number(brochure.fileSize) : undefined),
+        drawingUrl: drawingUrl.trim() || undefined,
+        drawingFileName: drawingFileName.trim() || undefined,
+        drawingFileSize: drawingFileSize || undefined,
         metaTitle: metaTitle.trim() || undefined,
         metaDescription: metaDescription.trim() || undefined,
       };
@@ -2009,16 +2090,16 @@ export default function EditProductModelPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
             <div>
               <label className="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#7FB706]" />
-                11. Model Brochure &amp; Technical Catalog (PDF)
+                <BookOpen className="w-4 h-4 text-sky-400" />
+                11. Model Commercial Brochure &amp; Technical Catalog
               </label>
               <p className="text-xs text-gray-400 mt-0.5">
-                Upload the official architectural catalog, BOQ, or CAD spec PDF for this model. Visitors can download it directly from the product page and downloads directory.
+                Upload the official architectural catalog, finish guide, or commercial brochure PDF for this model.
               </p>
             </div>
-            {brochure && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full text-xs font-semibold self-start sm:self-auto">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Published
+            {(brochure || brochureUrl) && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sky-500/10 border border-sky-500/20 text-sky-400 rounded-full text-xs font-semibold self-start sm:self-auto">
+                <FileCheck className="w-3.5 h-3.5" /> Brochure Attached
               </span>
             )}
           </div>
@@ -2026,7 +2107,7 @@ export default function EditProductModelPage() {
           <input
             ref={brochureFileInputRef}
             type="file"
-            accept=".pdf,.doc,.docx"
+            accept=".pdf,.doc,.docx,.epub"
             onChange={handleBrochureUpload}
             className="hidden"
           />
@@ -2037,36 +2118,43 @@ export default function EditProductModelPage() {
             </div>
           )}
 
-          {brochure ? (
+          {(brochure || brochureUrl) ? (
             <div className="bg-[#0a0a1a] border border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3.5 min-w-0">
-                <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
-                  <FileText className="w-6 h-6 text-red-400" />
+                <div className="w-12 h-12 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center shrink-0">
+                  <BookOpen className="w-6 h-6 text-sky-400" />
                 </div>
                 <div className="min-w-0">
-                  <h4 className="text-white font-semibold text-sm truncate">{brochure.title}</h4>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {brochure.fileType.toUpperCase()} Document • {brochure.fileSize ? `${(brochure.fileSize / (1024 * 1024)).toFixed(2)} MB` : 'PDF'} • Categorized under "{brochure.category}"
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${getDocumentFileType(brochureFileName || brochure?.title || '', brochureUrl || brochure?.fileUrl || '').bg}`}>
+                      {getDocumentFileType(brochureFileName || brochure?.title || '', brochureUrl || brochure?.fileUrl || '').label}
+                    </span>
+                    <h4 className="text-white font-semibold text-sm truncate">
+                      {brochureFileName || brochure?.title || 'Product-Brochure.pdf'}
+                    </h4>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5 truncate">
+                    {formatFileSize(brochureFileSize || (brochure?.fileSize ? Number(brochure.fileSize) : undefined)) || 'Document'} • <span className="font-mono text-[11px] text-gray-500">{brochureUrl || brochure?.fileUrl}</span>
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
                 <a
-                  href={brochure.fileUrl}
+                  href={brochureUrl || brochure?.fileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white rounded-xl text-xs font-medium border border-white/10 transition"
-                  title="Preview document"
+                  title="View Brochure"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Preview
+                  <Eye className="w-3.5 h-3.5 text-sky-400" />
+                  View
                 </a>
                 <a
-                  href={brochure.fileUrl}
-                  download
-                  className="flex items-center gap-1.5 px-3 py-2 bg-[#7FB706]/15 hover:bg-[#7FB706]/25 text-[#7FB706] rounded-xl text-xs font-semibold border border-[#7FB706]/30 transition"
-                  title="Download document"
+                  href={brochureUrl || brochure?.fileUrl}
+                  download={brochureFileName || brochure?.title || 'Product-Brochure.pdf'}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 rounded-xl text-xs font-semibold border border-sky-500/30 transition"
+                  title="Download Brochure"
                 >
                   <Download className="w-3.5 h-3.5" />
                   Download
@@ -2076,7 +2164,7 @@ export default function EditProductModelPage() {
                   onClick={() => brochureFileInputRef.current?.click()}
                   disabled={uploadingBrochure}
                   className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl text-xs font-medium border border-white/10 transition disabled:opacity-50"
-                  title="Replace document"
+                  title="Replace brochure"
                 >
                   <Upload className="w-3.5 h-3.5" />
                   {uploadingBrochure ? 'Uploading...' : 'Replace'}
@@ -2092,23 +2180,43 @@ export default function EditProductModelPage() {
               </div>
             </div>
           ) : (
-            <div className="border-2 border-dashed border-white/10 rounded-2xl p-6 sm:p-8 text-center hover:border-[#7FB706]/40 transition group bg-white/[0.01]">
+            <div className="border-2 border-dashed border-white/10 rounded-2xl p-6 sm:p-8 text-center hover:border-sky-400/40 transition group bg-white/[0.01]">
               <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-3 group-hover:scale-105 transition">
-                <FileText className="w-6 h-6 text-gray-400 group-hover:text-[#7FB706] transition" />
+                <BookOpen className="w-6 h-6 text-gray-400 group-hover:text-sky-400 transition" />
               </div>
               <h4 className="text-white text-sm font-semibold mb-1">No Brochure Uploaded For This Model</h4>
               <p className="text-xs text-gray-400 mb-4 max-w-md mx-auto">
-                Upload the specification catalog or technical BOQ in PDF format. It will be immediately available for customers on the product page and central downloads portal.
+                Upload the specification catalog or commercial product brochure in PDF or Word format for customer and architect downloads.
               </p>
               <button
                 type="button"
                 onClick={() => brochureFileInputRef.current?.click()}
                 disabled={uploadingBrochure}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-black font-bold rounded-xl text-xs shadow-lg shadow-[#7FB706]/20 transition active:scale-95 disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-black font-bold rounded-xl text-xs shadow-lg shadow-sky-500/20 transition active:scale-95 disabled:opacity-50"
               >
                 <Upload className="w-4 h-4" />
                 {uploadingBrochure ? 'Uploading Brochure...' : 'Upload Model Brochure (PDF)'}
               </button>
+
+              {/* Direct Link Option */}
+              <div className="mt-4 pt-4 border-t border-white/5 max-w-md mx-auto">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="url"
+                    placeholder="Or enter hosted brochure URL (https://...)"
+                    value={brochureUrl}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBrochureUrl(val);
+                      if (val && !brochureFileName) {
+                        const guessedName = val.split('/').pop()?.split('?')[0] || 'brochure.pdf';
+                        setBrochureFileName(guessedName);
+                      }
+                    }}
+                    className="flex-1 bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400"
+                  />
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -2249,13 +2357,149 @@ export default function EditProductModelPage() {
           )}
         </div>
 
-        {/* 13. Search Engine Optimization (SEO) & Social Meta */}
+        {/* 13. Standard Architectural Drawing (CAD / PDF / DXF) */}
+        <div className="p-5 sm:p-6 bg-[#121226] border border-white/5 rounded-3xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+            <div>
+              <label className="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+                <Layers className="w-4 h-4 text-purple-400" />
+                13. Standard Architectural Drawing (CAD / PDF / DXF)
+              </label>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Upload the official 2D/3D architectural CAD drawing, elevation blueprint, or dimension layout for architects and site engineers.
+              </p>
+            </div>
+            {drawingUrl && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-full text-xs font-semibold self-start sm:self-auto">
+                <FileCheck className="w-3.5 h-3.5" /> Drawing Attached
+              </span>
+            )}
+          </div>
+
+          <input
+            ref={drawingFileInputRef}
+            type="file"
+            accept=".pdf,.dwg,.dxf,.svg,.png,.jpg,.jpeg,.webp"
+            onChange={handleDrawingUpload}
+            className="hidden"
+          />
+
+          {drawingError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl">
+              {drawingError}
+            </div>
+          )}
+
+          {drawingUrl ? (
+            <div className="bg-[#0a0a1a] border border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center shrink-0">
+                  <Layers className="w-6 h-6 text-purple-400" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${getDocumentFileType(drawingFileName, drawingUrl).bg}`}>
+                      {getDocumentFileType(drawingFileName, drawingUrl).label}
+                    </span>
+                    <h4 className="text-white font-semibold text-sm truncate">{drawingFileName || 'Standard-Architectural-Drawing'}</h4>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1 truncate">
+                    {drawingFileSize ? formatFileSize(drawingFileSize) : 'Document'} • <span className="font-mono text-[11px] text-gray-500">{drawingUrl}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={drawingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white rounded-xl text-xs font-medium border border-white/10 transition"
+                  title="View Architectural Drawing"
+                >
+                  <Eye className="w-3.5 h-3.5 text-purple-400" />
+                  View
+                </a>
+                <a
+                  href={drawingUrl}
+                  download={drawingFileName || 'Standard-Drawing'}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/15 hover:bg-purple-500/25 text-purple-400 rounded-xl text-xs font-semibold border border-purple-500/30 transition"
+                  title="Download Drawing"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download
+                </a>
+                <button
+                  type="button"
+                  onClick={() => drawingFileInputRef.current?.click()}
+                  disabled={uploadingDrawing}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl text-xs font-medium border border-white/10 transition disabled:opacity-50"
+                  title="Replace Drawing"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  {uploadingDrawing ? 'Uploading...' : 'Replace'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRemoveDrawing}
+                  className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl transition"
+                  title="Remove Drawing"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="border-2 border-dashed border-white/10 rounded-2xl p-6 sm:p-8 text-center hover:border-purple-400/40 transition group bg-white/[0.01]">
+              <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-3 group-hover:scale-105 transition">
+                <Layers className="w-6 h-6 text-gray-400 group-hover:text-purple-400 transition" />
+              </div>
+              <h4 className="text-white text-sm font-semibold mb-1">No Standard Drawing Uploaded For This Model</h4>
+              <p className="text-xs text-gray-400 mb-4 max-w-md mx-auto">
+                Upload the standard architectural drawing or CAD layout (.pdf, .dwg, .dxf, .svg, .png) for architects and contractors.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => drawingFileInputRef.current?.click()}
+                  disabled={uploadingDrawing}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-purple-600/20 transition active:scale-95 disabled:opacity-50"
+                >
+                  <Upload className="w-4 h-4" />
+                  {uploadingDrawing ? 'Uploading Drawing...' : 'Upload Standard Drawing (CAD/PDF)'}
+                </button>
+              </div>
+
+              {/* Direct Link Option */}
+              <div className="mt-4 pt-4 border-t border-white/5 max-w-md mx-auto">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="url"
+                    placeholder="Or enter hosted drawing file URL (https://...)"
+                    value={drawingUrl}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setDrawingUrl(val);
+                      if (val && !drawingFileName) {
+                        const guessedName = val.split('/').pop()?.split('?')[0] || 'standard-drawing.pdf';
+                        setDrawingFileName(guessedName);
+                      }
+                    }}
+                    className="flex-1 bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-400"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 14. Search Engine Optimization (SEO) & Social Meta */}
         <div className="p-5 sm:p-6 bg-[#121226] border border-white/5 rounded-3xl space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
             <div>
               <label className="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
                 <Globe className="w-4 h-4 text-[#7FB706]" />
-                13. Search Engine Optimization (SEO) &amp; Social Meta
+                14. Search Engine Optimization (SEO) &amp; Social Meta
               </label>
               <p className="text-xs text-gray-400 mt-0.5">
                 Optimize search rank on Google and preview search results for architects and procurement officers.
