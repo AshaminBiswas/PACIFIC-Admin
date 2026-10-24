@@ -306,6 +306,32 @@ export async function uploadFile(
 }
 
 /**
+ * Upload a Bill of Quantities (BOQ) document (PDF, Excel, Word, CSV) to cloud storage.
+ * Returns { url, fileName, size } or null if failed.
+ */
+export async function uploadBoqDocument(
+  file: File,
+  folder: string = "boq-documents"
+): Promise<{ url: string; fileName: string; size: number } | null> {
+  const allowedExtensions = ["pdf", "xlsx", "xls", "doc", "docx", "csv"];
+  const ext = file.name.split(".").pop()?.toLowerCase() || "";
+  if (!allowedExtensions.includes(ext)) {
+    throw new Error(
+      `Invalid BOQ document type (.${ext}). Allowed formats: PDF (.pdf), Excel (.xlsx, .xls), Word (.doc, .docx), or CSV (.csv).`
+    );
+  }
+
+  const result = await uploadFile(file, folder);
+  if (!result || !result.url) return null;
+
+  return {
+    url: result.url,
+    fileName: file.name,
+    size: result.size || file.size,
+  };
+}
+
+/**
  * Upload multiple images to ImageKit.io in parallel.
  * Returns an array of public ImageKit CDN URLs.
  */

@@ -19,6 +19,10 @@ import {
   Film,
   Play,
   Eye,
+  FileSpreadsheet,
+  FileCheck,
+  Globe,
+  Download,
 } from 'lucide-react';
 import { productCatalogApi } from '@/api/productCatalogApi';
 import type {
@@ -539,6 +543,117 @@ export default function ProductModelDetailPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+
+          {/* ── Bill of Quantities (BOQ) Document ── */}
+          <div className="bg-[#121226] border border-white/5 rounded-3xl p-5 sm:p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-[#7FB706]" />
+                  Bill of Quantities (BOQ)
+                </h2>
+                <p className="text-xs text-gray-400">Official architectural BOQ estimation and component sheet</p>
+              </div>
+              {model.boqUrl ? (
+                <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-xl border border-emerald-500/20 font-bold flex items-center gap-1.5">
+                  <FileCheck className="w-3.5 h-3.5" /> Attached
+                </span>
+              ) : (
+                <span className="text-xs text-gray-400 bg-white/5 px-2.5 py-1 rounded-xl border border-white/10 font-semibold">
+                  Not Attached
+                </span>
+              )}
+            </div>
+
+            {model.boqUrl ? (
+              <div className="bg-[#0a0a1a] border border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-12 h-12 rounded-xl bg-[#7FB706]/10 border border-[#7FB706]/20 flex items-center justify-center shrink-0">
+                    <FileSpreadsheet className="w-6 h-6 text-[#7FB706]" />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-white font-semibold text-sm truncate">{model.boqFileName || `${model.title} BOQ Document`}</h4>
+                    <p className="text-xs text-gray-400 mt-1 truncate">
+                      {model.boqFileSize ? `${(model.boqFileSize / 1024).toFixed(1)} KB` : 'Document Sheet'} • Available for contractor estimation
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={model.boqUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white rounded-xl text-xs font-medium border border-white/10 transition"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Preview
+                  </a>
+                  <a
+                    href={model.boqUrl}
+                    download={model.boqFileName || `${model.title}-BOQ`}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-black font-bold rounded-xl text-xs shadow-lg shadow-[#7FB706]/20 transition"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Download BOQ
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="border border-dashed border-white/10 rounded-2xl p-5 text-center bg-white/[0.01]">
+                <p className="text-xs text-gray-400 mb-2">No BOQ spreadsheet or document has been uploaded for this model yet.</p>
+                <Link
+                  to={`/admin/dashboard/products/${model.id}/edit`}
+                  className="inline-flex items-center gap-1.5 text-xs text-[#7FB706] hover:underline font-semibold"
+                >
+                  <Pencil className="w-3.5 h-3.5" /> Upload BOQ Document in Edit Mode
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* ── Search Engine Optimization (SEO) & Meta Card ── */}
+          <div className="bg-[#121226] border border-white/5 rounded-3xl p-5 sm:p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-[#7FB706]" />
+                  SEO &amp; Search Engine Metadata
+                </h2>
+                <p className="text-xs text-gray-400">Search ranking and public SERP snippet configuration</p>
+              </div>
+              <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-xl border border-emerald-500/20 font-bold flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" /> SERP Preview
+              </span>
+            </div>
+
+            {/* Google Result Preview */}
+            <div className="rounded-2xl bg-[#080811] border border-white/10 p-4 space-y-1.5">
+              <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold block">
+                Google Search Result Snippet Preview
+              </span>
+              <p className="text-sm text-[#8ab4f8] font-medium truncate">
+                {model.metaTitle || `${model.title} | Commercial Restroom Cubicle | Pacific`}
+              </p>
+              <p className="text-xs text-[#00a67e] truncate font-mono">
+                https://www.pacificproduct.in/product/{model.slug}
+              </p>
+              <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">
+                {model.metaDescription || model.description.slice(0, 160) || 'Premium commercial restroom cubicles and partition systems.'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-black/40 border border-white/5 rounded-2xl">
+                <span className="text-gray-400 block mb-1">Configured Meta Title</span>
+                <span className="text-white font-medium">{model.metaTitle || '<Default Auto Title>'}</span>
+              </div>
+              <div className="p-3 bg-black/40 border border-white/5 rounded-2xl">
+                <span className="text-gray-400 block mb-1">Configured Meta Description</span>
+                <span className="text-white font-medium line-clamp-2">{model.metaDescription || '<Default Auto Description>'}</span>
+              </div>
             </div>
           </div>
         </div>

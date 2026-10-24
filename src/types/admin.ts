@@ -449,6 +449,11 @@ export interface Product {
   images: string[];
   specifications: Record<string, any>;
   tags: string[];
+  boqUrl?: string;
+  boqFileName?: string;
+  boqFileSize?: number;
+  metaTitle?: string;
+  metaDescription?: string;
   qrCodes?: QrCode[];
   createdAt: string;
   updatedAt: string;
@@ -1173,6 +1178,7 @@ export type BlogPublicationStatus = BlogStatus;
 
 export interface BlogMetadata {
   seoTitle?: string;
+  metaTitle?: string;
   metaDescription?: string;
   canonicalUrl?: string;
   ogTitle?: string;
@@ -1208,7 +1214,10 @@ export interface Blog {
   is_featured?: boolean;
   isFeatured?: boolean;
   seo_title?: string;
+  meta_title?: string;
+  metaTitle?: string;
   meta_description?: string;
+  metaDescription?: string;
   canonical_url?: string;
   og_title?: string;
   og_description?: string;
@@ -2475,6 +2484,11 @@ export interface ProductCatalogModel {
   sortOrder?: number;
   published?: boolean;
   isFeatured?: boolean;
+  boqUrl?: string;
+  boqFileName?: string;
+  boqFileSize?: number;
+  metaTitle?: string;
+  metaDescription?: string;
   createdAt?: string;
   updatedAt?: string;
 }

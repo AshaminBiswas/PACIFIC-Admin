@@ -5,6 +5,7 @@ export type BlogPublicationStatus = "DRAFT" | "PUBLISHED" | "SCHEDULED" | "ARCHI
 
 export interface BlogMetadata {
   seoTitle?: string;
+  metaTitle?: string;
   metaDescription?: string;
   canonicalUrl?: string;
   ogTitle?: string;
@@ -18,7 +19,10 @@ export interface BlogMetadata {
 
 export interface BlogPost extends Blog {
   seo_title?: string;
+  meta_title?: string;
+  metaTitle?: string;
   meta_description?: string;
+  metaDescription?: string;
   canonical_url?: string;
   og_title?: string;
   og_description?: string;
@@ -107,15 +111,20 @@ export function hydrateBlogPost(row: Blog): BlogPost {
 
   // Calculate default reading time if not stored
   const readingTime = meta.readingTime || calculateReadingTime(html);
+  const effectiveMetaTitle = meta.metaTitle || meta.seoTitle || (row as any).meta_title || row.title;
+  const effectiveMetaDesc = meta.metaDescription || (row as any).meta_description || row.excerpt;
 
   return {
     ...row,
     content: html,
-    seo_title: meta.seoTitle || row.title,
-    meta_description: meta.metaDescription || row.excerpt,
+    seo_title: effectiveMetaTitle,
+    meta_title: effectiveMetaTitle,
+    metaTitle: effectiveMetaTitle,
+    meta_description: effectiveMetaDesc,
+    metaDescription: effectiveMetaDesc,
     canonical_url: meta.canonicalUrl || `/blog/${row.slug}`,
-    og_title: meta.ogTitle || meta.seoTitle || row.title,
-    og_description: meta.ogDescription || meta.metaDescription || row.excerpt,
+    og_title: meta.ogTitle || effectiveMetaTitle,
+    og_description: meta.ogDescription || effectiveMetaDesc,
     og_image: meta.ogImage || row.cover_image_url,
     reading_time: readingTime,
     is_featured: meta.isFeatured ?? false,
@@ -206,13 +215,17 @@ export async function saveBlogPost(post: Partial<BlogPost> & { title: string }):
     publishedAt = new Date().toISOString();
   }
 
+  const effectiveMetaTitle = (post as any).metaTitle || post.seo_title || (post as any).meta_title;
+  const effectiveMetaDesc = (post as any).metaDescription || post.meta_description;
+
   // Pack extended metadata
   const meta: BlogMetadata = {
-    seoTitle: post.seo_title,
-    metaDescription: post.meta_description,
+    seoTitle: effectiveMetaTitle,
+    metaTitle: effectiveMetaTitle,
+    metaDescription: effectiveMetaDesc,
     canonicalUrl: post.canonical_url,
-    ogTitle: post.og_title,
-    ogDescription: post.og_description,
+    ogTitle: post.og_title || effectiveMetaTitle,
+    ogDescription: post.og_description || effectiveMetaDesc,
     ogImage: post.og_image,
     readingTime: post.reading_time || calculateReadingTime(post.content || ""),
     isFeatured: post.is_featured ?? false,

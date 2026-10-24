@@ -7443,6 +7443,57 @@ Load testing was executed against the operational engine using a 2,000-concurren
   - `D:\PACIFIC-Backend`: `npm run typecheck` exited 0 (zero errors).
 - **Production Build**: `npm run build` compiled 3,018 modules cleanly in 32.46s (exit code 0).
 
+---
+
+## 137. Product BOQ Document Upload Engine, Product SEO Metadata & Blog SEO Metadata Architecture
+
+### 137.1 Requirements & Architectural Overview
+1. **Product Bill of Quantities (BOQ) Upload**:
+   - Enable architects, contractors, and administrators to upload itemized BOQ estimation documents (`.pdf`, `.xlsx`, `.xls`, `.doc`, `.docx`, `.csv`) for every product catalog model.
+   - Store public CDN document URLs, original filenames, and byte sizes resiliently without database migration failure risks.
+   - Provide file drag-and-drop, upload progress indicators, file type badges (EXCEL / PDF / WORD), preview links, download buttons, and replace/remove actions.
+2. **Product SEO Metadata (Meta Title & Meta Description)**:
+   - Provide dedicated `metaTitle` and `metaDescription` inputs on both product creation and editing interfaces.
+   - Implement real-time character counters adhering to SEO best practices: Meta Title (50–60 characters) and Meta Description (150–160 characters).
+   - Display a live Google SERP search result snippet preview demonstrating how the product will appear in search results.
+3. **Blog SEO Metadata (Meta Title & Meta Description)**:
+   - Add explicit `metaTitle` and `metaDescription` fields to `CreateBlogPage.tsx` and ensure complete alignment in `BlogEditorPage.tsx`.
+   - Sync with the packed metadata comment engine (`packContentWithMeta` / `unpackContentWithMeta`) for 100% schema compatibility without database DDL locks.
+
+### 137.2 Applied Solutions
+1. **Types & Models (`src/types/admin.ts` & `src/lib/database.types.ts`)**:
+   - `ProductCatalogModel`: Added `boqUrl?: string;`, `boqFileName?: string;`, `boqFileSize?: number;`, `metaTitle?: string;`, `metaDescription?: string;`.
+   - `Product`: Added `boqUrl?: string;`, `boqFileName?: string;`, `boqFileSize?: number;`, `metaTitle?: string;`, `metaDescription?: string;`.
+   - `Blog` & `BlogMetadata`: Added `metaTitle?: string;` and `metaDescription?: string;` alongside existing `seo_title` and `meta_description`.
+2. **Cloud Storage Engine & BOQ Upload Helper (`src/lib/supabase.ts`)**:
+   - Implemented `uploadBoqDocument(file: File, folder?: string)`:
+     - Validates allowed extensions (`.pdf`, `.xlsx`, `.xls`, `.doc`, `.docx`, `.csv`).
+     - Leverages ImageKit.io CDN via `uploadFile` with automatic fallback to Supabase Storage.
+     - Returns `{ url: string, fileName: string, size: number }`.
+3. **Database-Safe Persistence Engine (`src/api/productCatalogApi.ts`)**:
+   - In `mapDbRowToModel`: Hydrates `boqUrl`, `boqFileName`, `boqFileSize`, `metaTitle`, and `metaDescription` from `hardwareMeta?.value` or direct database row columns or `row.metadata`.
+   - In `mapModelToDbRow`: Persists fields simultaneously inside `__hardware_meta` (nested in `specifications` jsonb) and in `metadata` jsonb, ensuring zero PostgREST schema errors.
+4. **Product Creation Studio (`CreateAdminProductPage.tsx`)**:
+   - Added Section 11: **Bill of Quantities (BOQ) Document** with interactive file upload, file type pills, preview/download links, and direct URL fallback.
+   - Added Section 12: **Search Engine Optimization (SEO) & Social Meta** with live Google SERP snippet preview, character status counters (50–60 chars for title, 150–160 chars for description), and draft autosave persistence.
+5. **Product Editor Studio (`EditProductModelPage.tsx`)**:
+   - Added Section 12: **Bill of Quantities (BOQ) Document** and Section 13: **SEO & Social Meta**.
+   - Pre-populates stored values upon loading model and commits updates to cloud database.
+6. **Product Detail Page (`ProductModelDetailPage.tsx`)**:
+   - Added interactive BOQ card with direct Download BOQ, Preview, and status indicators.
+   - Added SEO & Search Engine Metadata card with Google SERP preview and configured tag metrics.
+7. **Product Hub Catalog (`AdminProducts.tsx`)**:
+   - Added BOQ pills and indicators across both Grid View and Table View.
+   - Integrated BOQ upload and SEO Meta inputs into the quick edit/create modal.
+8. **Blog Publishing Studio (`CreateBlogPage.tsx` & `BlogEditorPage.tsx`)**:
+   - Upgraded `CreateBlogPage.tsx` with dedicated Meta Title and Meta Description fields, live character counters, Google SERP snippet preview, and direct `saveBlogPost` persistence.
+   - Synced `BlogEditorPage.tsx` payload to guarantee both `metaTitle` and `seo_title`, `metaDescription` and `meta_description` are saved and hydrated.
+
+### 137.3 Verification
+- **TypeScript Typecheck**: `npx tsc --noEmit` exited **0** (zero errors).
+- **Production Build**: `npm run build` compiled 3,018 modules cleanly in 38.81s (exit code 0).
+
+
 
 
 

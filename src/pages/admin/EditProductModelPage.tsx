@@ -25,8 +25,11 @@ import {
   FileText,
   Download,
   ExternalLink,
+  FileSpreadsheet,
+  Globe,
+  FileCheck,
 } from 'lucide-react';
-import { uploadImage, uploadMultipleImages, uploadVideo, uploadFile, supabase } from '@/lib/supabase';
+import { uploadImage, uploadMultipleImages, uploadVideo, uploadFile, uploadBoqDocument, supabase } from '@/lib/supabase';
 import { productCatalogApi } from '@/api/productCatalogApi';
 import { DEFAULT_CUBICLE_DESCRIPTION } from '@/data/productCatalogData';
 import OpenAIGalleryModal from '@/components/common/OpenAIGalleryModal';
@@ -158,6 +161,17 @@ export default function EditProductModelPage() {
   const [brochureError, setBrochureError] = useState('');
   const brochureFileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── BOQ & SEO Metadata State ──
+  const [boqUrl, setBoqUrl] = useState('');
+  const [boqFileName, setBoqFileName] = useState('');
+  const [boqFileSize, setBoqFileSize] = useState<number | undefined>(undefined);
+  const [uploadingBoq, setUploadingBoq] = useState(false);
+  const [boqError, setBoqError] = useState('');
+  const boqFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [metaTitle, setMetaTitle] = useState('');
+  const [metaDescription, setMetaDescription] = useState('');
+
   // Load Model
   useEffect(() => {
     async function fetchModel() {
@@ -253,6 +267,11 @@ export default function EditProductModelPage() {
           setTierCount(found.tierCount || 1);
           setHasExtraLeg(Boolean(found.hasExtraLeg));
           setIsFeatured(Boolean(found.isFeatured));
+          setBoqUrl(found.boqUrl || '');
+          setBoqFileName(found.boqFileName || '');
+          setBoqFileSize(found.boqFileSize);
+          setMetaTitle(found.metaTitle || '');
+          setMetaDescription(found.metaDescription || '');
 
           // Load existing brochure from catalogs table
           try {
@@ -424,6 +443,58 @@ export default function EditProductModelPage() {
     } catch (err: any) {
       alert('Failed to delete brochure: ' + err.message);
     }
+  };
+
+  // ── BOQ & SEO Handlers ──
+  const handleBoqUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingBoq(true);
+    setBoqError('');
+
+    try {
+      const res = await uploadBoqDocument(file);
+      if (!res || !res.url) {
+        throw new Error('Failed to upload BOQ document to storage');
+      }
+      setBoqUrl(res.url);
+      setBoqFileName(res.fileName);
+      setBoqFileSize(res.size);
+    } catch (err: any) {
+      console.error('BOQ upload error:', err);
+      setBoqError(err.message || 'Failed to upload BOQ document');
+    } finally {
+      setUploadingBoq(false);
+      if (boqFileInputRef.current) boqFileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveBoq = () => {
+    if (window.confirm('Remove attached BOQ document?')) {
+      setBoqUrl('');
+      setBoqFileName('');
+      setBoqFileSize(undefined);
+    }
+  };
+
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  const getBoqFileType = (name: string, url: string) => {
+    const clean = (name || url).toLowerCase();
+    if (clean.endsWith('.pdf')) return { label: 'PDF', bg: 'bg-red-500/10 text-red-400 border-red-500/20' };
+    if (clean.endsWith('.xlsx') || clean.endsWith('.xls') || clean.endsWith('.csv')) {
+      return { label: 'EXCEL', bg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' };
+    }
+    if (clean.endsWith('.docx') || clean.endsWith('.doc')) {
+      return { label: 'WORD', bg: 'bg-blue-500/10 text-blue-400 border-blue-500/20' };
+    }
+    return { label: 'DOC', bg: 'bg-amber-500/10 text-amber-400 border-amber-500/20' };
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -759,6 +830,11 @@ export default function EditProductModelPage() {
         sortOrder: model?.sortOrder ?? 1,
         published: model?.published ?? true,
         isFeatured: isFeatured,
+        boqUrl: boqUrl.trim() || undefined,
+        boqFileName: boqFileName.trim() || undefined,
+        boqFileSize: boqFileSize || undefined,
+        metaTitle: metaTitle.trim() || undefined,
+        metaDescription: metaDescription.trim() || undefined,
       };
 
       const saved = await productCatalogApi.saveModel(updatedModel);
@@ -2035,6 +2111,238 @@ export default function EditProductModelPage() {
               </button>
             </div>
           )}
+        </div>
+
+        {/* 12. Bill of Quantities (BOQ) Document Upload */}
+        <div className="p-5 sm:p-6 bg-[#121226] border border-white/5 rounded-3xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+            <div>
+              <label className="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+                <FileSpreadsheet className="w-4 h-4 text-[#7FB706]" />
+                12. Bill of Quantities (BOQ) Document
+              </label>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Upload the itemized BOQ estimation spreadsheet (Excel / PDF / Word / CSV) containing cubicle dimensions, hardware counts, and commercial rate analysis.
+              </p>
+            </div>
+            {boqUrl && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full text-xs font-semibold self-start sm:self-auto">
+                <FileCheck className="w-3.5 h-3.5" /> BOQ Attached
+              </span>
+            )}
+          </div>
+
+          <input
+            ref={boqFileInputRef}
+            type="file"
+            accept=".pdf,.xlsx,.xls,.doc,.docx,.csv"
+            onChange={handleBoqUpload}
+            className="hidden"
+          />
+
+          {boqError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl">
+              {boqError}
+            </div>
+          )}
+
+          {boqUrl ? (
+            <div className="bg-[#0a0a1a] border border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-12 h-12 rounded-xl bg-[#7FB706]/10 border border-[#7FB706]/20 flex items-center justify-center shrink-0">
+                  <FileSpreadsheet className="w-6 h-6 text-[#7FB706]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${getBoqFileType(boqFileName, boqUrl).bg}`}>
+                      {getBoqFileType(boqFileName, boqUrl).label}
+                    </span>
+                    <h4 className="text-white font-semibold text-sm truncate">{boqFileName || 'Product-BOQ-Document'}</h4>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1 truncate">
+                    {boqFileSize ? formatFileSize(boqFileSize) : 'Document'} • <span className="font-mono text-[11px] text-gray-500">{boqUrl}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={boqUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white rounded-xl text-xs font-medium border border-white/10 transition"
+                  title="Preview BOQ Document"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Preview
+                </a>
+                <a
+                  href={boqUrl}
+                  download={boqFileName || 'Product-BOQ'}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-[#7FB706]/15 hover:bg-[#7FB706]/25 text-[#7FB706] rounded-xl text-xs font-semibold border border-[#7FB706]/30 transition"
+                  title="Download BOQ"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download
+                </a>
+                <button
+                  type="button"
+                  onClick={() => boqFileInputRef.current?.click()}
+                  disabled={uploadingBoq}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl text-xs font-medium border border-white/10 transition disabled:opacity-50"
+                  title="Replace BOQ"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  {uploadingBoq ? 'Uploading...' : 'Replace'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRemoveBoq}
+                  className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl transition"
+                  title="Remove BOQ"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="border-2 border-dashed border-white/10 rounded-2xl p-6 sm:p-8 text-center hover:border-[#7FB706]/40 transition group bg-white/[0.01]">
+              <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-3 group-hover:scale-105 transition">
+                <FileSpreadsheet className="w-6 h-6 text-gray-400 group-hover:text-[#7FB706] transition" />
+              </div>
+              <h4 className="text-white text-sm font-semibold mb-1">No BOQ Document Uploaded For This Model</h4>
+              <p className="text-xs text-gray-400 mb-4 max-w-md mx-auto">
+                Upload the Bill of Quantities spreadsheet (.xlsx, .xls, .csv) or technical specification sheet (.pdf, .docx) for contractor estimates and architect downloads.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => boqFileInputRef.current?.click()}
+                  disabled={uploadingBoq}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-black font-bold rounded-xl text-xs shadow-lg shadow-[#7FB706]/20 transition active:scale-95 disabled:opacity-50"
+                >
+                  <Upload className="w-4 h-4" />
+                  {uploadingBoq ? 'Uploading BOQ...' : 'Upload BOQ Document (Excel/PDF)'}
+                </button>
+              </div>
+
+              {/* Direct Link Option */}
+              <div className="mt-4 pt-4 border-t border-white/5 max-w-md mx-auto">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="url"
+                    placeholder="Or enter hosted BOQ file URL (https://...)"
+                    value={boqUrl}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBoqUrl(val);
+                      if (val && !boqFileName) {
+                        const guessedName = val.split('/').pop()?.split('?')[0] || 'boq-document.pdf';
+                        setBoqFileName(guessedName);
+                      }
+                    }}
+                    className="flex-1 bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706]"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 13. Search Engine Optimization (SEO) & Social Meta */}
+        <div className="p-5 sm:p-6 bg-[#121226] border border-white/5 rounded-3xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+            <div>
+              <label className="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+                <Globe className="w-4 h-4 text-[#7FB706]" />
+                13. Search Engine Optimization (SEO) &amp; Social Meta
+              </label>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Optimize search rank on Google and preview search results for architects and procurement officers.
+              </p>
+            </div>
+            <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-xl border border-emerald-500/20 font-bold flex items-center gap-1.5 self-start sm:self-auto">
+              <Sparkles className="w-3.5 h-3.5" /> Google SERP Optimized
+            </span>
+          </div>
+
+          {/* Google SERP Snippet Preview */}
+          <div className="rounded-2xl bg-[#080811] border border-white/10 p-4 space-y-1.5">
+            <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold block">
+              Google Search Result Snippet Preview
+            </span>
+            <p className="text-sm text-[#8ab4f8] font-medium truncate">
+              {metaTitle.trim() || (title ? `${title} | Commercial Restroom Cubicle | Pacific Restroom Systems` : 'Product Model Title | Pacific Restroom Systems')}
+            </p>
+            <p className="text-xs text-[#00a67e] truncate font-mono">
+              https://www.pacificproduct.in/product/{slug ? toSlug(slug) : (title ? `${toSlug(category)}-${toSlug(title)}` : 'product-slug')}
+            </p>
+            <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">
+              {metaDescription.trim() || description.replace(/<[^>]*>/g, '').slice(0, 160) || 'Premium restroom cubicles and commercial toilet partition systems manufactured with solid compact phenolic laminate.'}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {/* Meta Title */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-gray-200 flex items-center gap-2">
+                  Meta Title (Browser Tab &amp; Google Title)
+                </label>
+                <span
+                  className={`text-[10px] font-mono ${
+                    metaTitle.length >= 50 && metaTitle.length <= 60
+                      ? 'text-emerald-400'
+                      : metaTitle.length > 60
+                      ? 'text-amber-400'
+                      : 'text-gray-400'
+                  }`}
+                >
+                  {metaTitle.length} / 60 chars (Recommended: 50–60)
+                </span>
+              </div>
+              <input
+                type="text"
+                placeholder={title ? `${title} | Pacific Restroom Systems` : 'e.g. Designer Restroom Cubicles | Heavy Duty Compact Laminate | Pacific'}
+                value={metaTitle}
+                onChange={(e) => setMetaTitle(e.target.value)}
+                className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#7FB706]"
+              />
+              <p className="text-[10px] text-gray-400 mt-1">
+                If left blank, search engines will use the default title template.
+              </p>
+            </div>
+
+            {/* Meta Description */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-gray-200 flex items-center gap-2">
+                  Meta Description (Search Results Summary)
+                </label>
+                <span
+                  className={`text-[10px] font-mono ${
+                    metaDescription.length >= 140 && metaDescription.length <= 160
+                      ? 'text-emerald-400'
+                      : metaDescription.length > 160
+                      ? 'text-amber-400'
+                      : 'text-gray-400'
+                  }`}
+                >
+                  {metaDescription.length} / 160 chars (Recommended: 150–160)
+                </span>
+              </div>
+              <textarea
+                rows={3}
+                placeholder={description.replace(/<[^>]*>/g, '').slice(0, 160) || 'e.g. Explore our commercial grade restroom cubicles with 10-year compact board warranty, grade 304 SS hardware, and turnkey installation across India.'}
+                value={metaDescription}
+                onChange={(e) => setMetaDescription(e.target.value)}
+                className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#7FB706] resize-none"
+              />
+              <p className="text-[10px] text-gray-400 mt-1">
+                A concise summary of the product benefits to maximize click-through rate from search engines.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Action Buttons */}

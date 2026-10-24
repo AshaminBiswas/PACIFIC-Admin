@@ -43,6 +43,11 @@ function mapDbRowToModel(row: any): ProductCatalogModel {
   let hasExtraLeg = hardwareMeta?.value?.hasExtraLeg;
   let tierCount = hardwareMeta?.value?.tierCount;
   let videos = Array.isArray(row.videos) ? row.videos : (hardwareMeta?.value?.videos || []);
+  const boqUrl = row.boq_url || hardwareMeta?.value?.boqUrl || row.metadata?.boqUrl || '';
+  const boqFileName = row.boq_file_name || hardwareMeta?.value?.boqFileName || row.metadata?.boqFileName || '';
+  const boqFileSize = Number(row.boq_file_size || hardwareMeta?.value?.boqFileSize || row.metadata?.boqFileSize) || undefined;
+  const metaTitle = row.meta_title || row.metaTitle || hardwareMeta?.value?.metaTitle || row.metadata?.metaTitle || '';
+  const metaDescription = row.meta_description || row.metaDescription || hardwareMeta?.value?.metaDescription || row.metadata?.metaDescription || '';
 
   // Default to empty array if hardware metadata not specified
   hardwareOptions = hardwareOptions || [];
@@ -130,6 +135,11 @@ function mapDbRowToModel(row: any): ProductCatalogModel {
     sortOrder: row.sort_order ?? 0,
     published: row.published !== false,
     isFeatured: Boolean(row.is_featured),
+    boqUrl: boqUrl || undefined,
+    boqFileName: boqFileName || undefined,
+    boqFileSize,
+    metaTitle: metaTitle || undefined,
+    metaDescription: metaDescription || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -150,6 +160,11 @@ function mapModelToDbRow(model: ProductCatalogModel) {
         hasExtraLeg: model.hasExtraLeg,
         tierCount: model.tierCount,
         videos: cleanVideos,
+        boqUrl: model.boqUrl || '',
+        boqFileName: model.boqFileName || '',
+        boqFileSize: model.boqFileSize || 0,
+        metaTitle: model.metaTitle || '',
+        metaDescription: model.metaDescription || '',
       },
     },
   ];
@@ -187,6 +202,13 @@ function mapModelToDbRow(model: ProductCatalogModel) {
     is_featured: model.isFeatured,
     sort_order: model.sortOrder,
     published: model.published,
+    metadata: {
+      boqUrl: model.boqUrl || '',
+      boqFileName: model.boqFileName || '',
+      boqFileSize: model.boqFileSize || 0,
+      metaTitle: model.metaTitle || '',
+      metaDescription: model.metaDescription || '',
+    },
   };
 }
 

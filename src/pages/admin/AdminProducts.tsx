@@ -30,8 +30,11 @@ import {
   Video,
   Film,
   Play,
+  FileSpreadsheet,
+  FileCheck,
+  Globe,
 } from 'lucide-react';
-import { uploadImage, uploadMultipleImages, uploadVideo } from '@/lib/supabase';
+import { uploadImage, uploadMultipleImages, uploadVideo, uploadBoqDocument } from '@/lib/supabase';
 import { productCatalogApi } from '@/api/productCatalogApi';
 import OpenAIGalleryModal from '@/components/common/OpenAIGalleryModal';
 import type {
@@ -185,6 +188,17 @@ export default function AdminProducts() {
   const [formUploadingVideoIdx, setFormUploadingVideoIdx] = useState<number | null>(null);
   const formVideoInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
 
+  // BOQ & SEO states for modal
+  const [formBoqUrl, setFormBoqUrl] = useState('');
+  const [formBoqFileName, setFormBoqFileName] = useState('');
+  const [formBoqFileSize, setFormBoqFileSize] = useState<number | undefined>(undefined);
+  const [formUploadingBoq, setFormUploadingBoq] = useState(false);
+  const [formBoqError, setFormBoqError] = useState('');
+  const formBoqFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [formMetaTitle, setFormMetaTitle] = useState('');
+  const [formMetaDescription, setFormMetaDescription] = useState('');
+
   // Category Edit Form state
   const [catName, setCatName] = useState('');
   const [catTagline, setCatTagline] = useState('');
@@ -281,6 +295,12 @@ export default function AdminProducts() {
     setFormAdditionalImages([]);
     setFormNewImageUrl('');
     setFormVideos(['', '']);
+    setFormBoqUrl('');
+    setFormBoqFileName('');
+    setFormBoqFileSize(undefined);
+    setFormBoqError('');
+    setFormMetaTitle('');
+    setFormMetaDescription('');
 
     // Hardware defaults based on category
     setFormSsEnabled(true);
@@ -350,6 +370,12 @@ export default function AdminProducts() {
       setFormVideos([rawVids[0], '']);
     } else {
       setFormVideos(['', '']);
+    setFormBoqUrl(model.boqUrl || '');
+    setFormBoqFileName(model.boqFileName || '');
+    setFormBoqFileSize(model.boqFileSize);
+    setFormBoqError('');
+    setFormMetaTitle(model.metaTitle || '');
+    setFormMetaDescription(model.metaDescription || '');
     }
 
     setFormIsFeatured(Boolean(model.isFeatured));
@@ -370,6 +396,30 @@ export default function AdminProducts() {
     setFormHardwareList(model.hardwareList ? [...model.hardwareList] : []);
     setImageUploadError('');
     setShowModelModal(true);
+  };
+
+  const handleFormBoqUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFormUploadingBoq(true);
+    setFormBoqError('');
+
+    try {
+      const res = await uploadBoqDocument(file);
+      if (!res || !res.url) {
+        throw new Error('Failed to upload BOQ document to storage');
+      }
+      setFormBoqUrl(res.url);
+      setFormBoqFileName(res.fileName);
+      setFormBoqFileSize(res.size);
+    } catch (err: any) {
+      console.error('BOQ upload error in modal:', err);
+      setFormBoqError(err.message || 'Failed to upload BOQ document');
+    } finally {
+      setFormUploadingBoq(false);
+      if (formBoqFileInputRef.current) formBoqFileInputRef.current.value = '';
+    }
   };
 
   const handleFormMultipleImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -673,6 +723,11 @@ export default function AdminProducts() {
       sortOrder: formSortOrder,
       published: formPublished,
       isFeatured: formIsFeatured,
+      boqUrl: formBoqUrl.trim() || undefined,
+      boqFileName: formBoqFileName.trim() || undefined,
+      boqFileSize: formBoqFileSize || undefined,
+      metaTitle: formMetaTitle.trim() || undefined,
+      metaDescription: formMetaDescription.trim() || undefined,
     };
 
     await productCatalogApi.saveModel(modelData);
@@ -1026,6 +1081,14 @@ export default function AdminProducts() {
 
                     {/* Featured / Status Pill */}
                     <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 z-10">
+                      {model.boqUrl && (
+                        <span
+                          className="px-2 py-0.5 rounded-lg text-[10px] font-semibold border backdrop-blur-md bg-[#7FB706]/20 text-[#7FB706] border-[#7FB706]/40 flex items-center gap-1"
+                          title={`BOQ Document attached: ${model.boqFileName || 'Available'}`}
+                        >
+                          <FileSpreadsheet className="w-3 h-3" /> BOQ
+                        </span>
+                      )}
                       <button
                         type="button"
                         onClick={(e) => {
@@ -1297,6 +1360,11 @@ export default function AdminProducts() {
                         <Link to={`/admin/dashboard/products/${model.id}`} className="group/name">
                           <div className="font-bold text-white text-sm capitalize group-hover/name:text-[#7FB706] transition flex items-center gap-1.5">
                             {model.title}
+                            {model.boqUrl && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[#7FB706]/15 border border-[#7FB706]/30 text-[10px] text-[#7FB706] font-semibold">
+                                <FileSpreadsheet className="w-2.5 h-2.5" /> BOQ
+                              </span>
+                            )}
                             <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover/name:opacity-100 transition text-[#7FB706]" />
                           </div>
                           <div className="text-gray-400 text-xs line-clamp-1">{model.subtitle}</div>
@@ -2107,6 +2175,102 @@ export default function AdminProducts() {
                       + Add Item
                     </button>
                   </div>
+                </div>
+              </div>
+
+              {/* BOQ Document & SEO Meta Area in Modal */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/10">
+                {/* BOQ Document Upload */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-[#7FB706]" />
+                      BOQ Document (Excel/PDF)
+                    </label>
+                    {formBoqUrl && (
+                      <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                        <FileCheck className="w-3 h-3" /> Attached
+                      </span>
+                    )}
+                  </div>
+
+                  <input
+                    ref={formBoqFileInputRef}
+                    type="file"
+                    accept=".pdf,.xlsx,.xls,.doc,.docx,.csv"
+                    onChange={handleFormBoqUpload}
+                    className="hidden"
+                  />
+
+                  {formBoqError && (
+                    <div className="p-2 bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] rounded-lg">
+                      {formBoqError}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="url"
+                      placeholder="BOQ URL or upload document..."
+                      value={formBoqUrl}
+                      onChange={(e) => {
+                        setFormBoqUrl(e.target.value);
+                        if (e.target.value && !formBoqFileName) {
+                          setFormBoqFileName(e.target.value.split('/').pop()?.split('?')[0] || 'BOQ-Document');
+                        }
+                      }}
+                      className="flex-1 bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => formBoqFileInputRef.current?.click()}
+                      disabled={formUploadingBoq}
+                      className="px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-200 rounded-xl text-xs font-semibold border border-white/10 transition disabled:opacity-50 shrink-0"
+                    >
+                      {formUploadingBoq ? 'Uploading...' : 'Browse'}
+                    </button>
+                    {formBoqUrl && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormBoqUrl('');
+                          setFormBoqFileName('');
+                          setFormBoqFileSize(undefined);
+                        }}
+                        className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-xs transition"
+                        title="Remove BOQ"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {formBoqFileName && (
+                    <p className="text-[11px] text-gray-400 truncate">
+                      File: <span className="text-white font-mono">{formBoqFileName}</span>
+                    </p>
+                  )}
+                </div>
+
+                {/* SEO Meta Fields */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-[#7FB706]" />
+                    SEO Meta Fields
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Meta Title (recommended 50-60 chars)"
+                    value={formMetaTitle}
+                    onChange={(e) => setFormMetaTitle(e.target.value)}
+                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706]"
+                  />
+                  <textarea
+                    rows={2}
+                    placeholder="Meta Description (recommended 150-160 chars)"
+                    value={formMetaDescription}
+                    onChange={(e) => setFormMetaDescription(e.target.value)}
+                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706] resize-none"
+                  />
                 </div>
               </div>
 

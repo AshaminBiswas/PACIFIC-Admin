@@ -148,6 +148,11 @@ export interface Product {
   is_featured: boolean;
   sort_order: number;
   published: boolean;
+  boq_url?: string;
+  boq_file_name?: string;
+  boq_file_size?: number;
+  meta_title?: string;
+  meta_description?: string;
   created_at: string;
   updated_at: string;
 }
@@ -169,7 +174,10 @@ export interface Blog {
   updated_at: string;
   // Extended metadata
   seo_title?: string;
+  meta_title?: string;
+  metaTitle?: string;
   meta_description?: string;
+  metaDescription?: string;
   canonical_url?: string;
   og_title?: string;
   og_description?: string;
