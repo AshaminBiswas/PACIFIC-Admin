@@ -224,3 +224,84 @@
   border-radius: 0.2rem;
 }
 
+/* ─── Mobile Responsiveness for Tiptap Word Canvas (Padding 5px, No Margin, Reduced Font Size) ─── */
+@media (max-width: 640px) {
+  .tiptap-word-canvas {
+    padding: 5px !important;
+    margin: 0 !important;
+    font-size: 13px !important;
+    line-height: 1.45 !important;
+  }
+  .tiptap-word-canvas p {
+    margin: 0 !important;
+    padding: 5px 0 !important;
+    font-size: 13px !important;
+    line-height: 1.45 !important;
+  }
+  .tiptap-word-canvas h1 {
+    font-size: 1.25rem !important;
+    margin: 0 !important;
+    padding: 6px 0 3px !important;
+    line-height: 1.2 !important;
+  }
+  .tiptap-word-canvas h2 {
+    font-size: 1.1rem !important;
+    margin: 0 !important;
+    padding: 5px 0 3px !important;
+    line-height: 1.25 !important;
+  }
+  .tiptap-word-canvas h3 {
+    font-size: 1rem !important;
+    margin: 0 !important;
+    padding: 4px 0 2px !important;
+    line-height: 1.3 !important;
+  }
+  .tiptap-word-canvas h4 {
+    font-size: 0.9rem !important;
+    margin: 0 !important;
+    padding: 3px 0 2px !important;
+    line-height: 1.3 !important;
+  }
+  .tiptap-word-canvas ul,
+  .tiptap-word-canvas ol {
+    margin: 0 !important;
+    padding-left: 1.15rem !important;
+    padding-top: 3px !important;
+    padding-bottom: 3px !important;
+  }
+  .tiptap-word-canvas li {
+    margin: 0 !important;
+    padding: 2px 0 !important;
+    font-size: 12.5px !important;
+    line-height: 1.4 !important;
+  }
+  .tiptap-word-canvas blockquote {
+    margin: 0 !important;
+    padding: 5px 8px !important;
+    font-size: 12.5px !important;
+    border-left-width: 3px;
+  }
+  .tiptap-word-canvas .tableWrapper {
+    margin: 0 !important;
+    padding: 5px 0 !important;
+  }
+  .tiptap-word-canvas table {
+    margin: 0 !important;
+    font-size: 11.5px !important;
+  }
+  .tiptap-word-canvas th,
+  .tiptap-word-canvas td {
+    padding: 5px !important;
+    font-size: 11.5px !important;
+  }
+  .tiptap-word-canvas pre {
+    margin: 0 !important;
+    padding: 5px !important;
+    font-size: 11px !important;
+  }
+  .tiptap-word-canvas hr {
+    margin: 8px 0 !important;
+  }
+}
+
+

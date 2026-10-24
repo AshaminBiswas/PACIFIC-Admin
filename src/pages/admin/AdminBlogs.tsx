@@ -208,27 +208,27 @@ export default function AdminBlogs() {
   };
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-3 sm:space-y-6 pb-24 p-0 m-0">
       {/* ── HEADER ──────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-[#121226] border border-white/5 p-4 sm:p-6 rounded-2xl">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 bg-[#121226] border border-white/5 p-3 sm:p-6 rounded-xl sm:rounded-2xl m-0">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold text-white">Blog Management</h1>
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#7FB706]/15 text-[#7FB706] border border-[#7FB706]/20">
+            <h1 className="text-lg sm:text-2xl font-bold text-white">Blog Management</h1>
+            <span className="text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#7FB706]/15 text-[#7FB706] border border-[#7FB706]/20">
               CMS Suite
             </span>
           </div>
-          <p className="text-xs sm:text-sm text-gray-400 mt-1">
+          <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
             Author, curate, preview, and publish architectural washroom articles with live storefront sync.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={loadBlogs}
             disabled={loading}
-            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition disabled:opacity-50"
+            className="p-2 sm:p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition disabled:opacity-50"
             title="Refresh blogs"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -236,7 +236,7 @@ export default function AdminBlogs() {
 
           <Link
             to="/admin/dashboard/blogs/new"
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-white font-bold rounded-xl shadow-lg shadow-[#7FB706]/20 text-sm transition"
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-white font-bold rounded-xl shadow-lg shadow-[#7FB706]/20 text-xs sm:text-sm transition"
           >
             <Plus className="w-4 h-4" />
             <span>Write New Blog</span>
@@ -245,56 +245,56 @@ export default function AdminBlogs() {
       </div>
 
       {/* ── METRICS SUMMARY CARDS ────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <div className="bg-[#121226] border border-white/5 p-4 rounded-xl">
-          <div className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
-            <span>Total Blogs</span>
-            <FileText className="w-4 h-4 text-gray-500" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 m-0">
+        <div className="bg-[#121226] border border-white/5 p-2.5 sm:p-4 rounded-xl m-0">
+          <div className="text-gray-400 text-[11px] sm:text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
+            <span>Total</span>
+            <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500" />
           </div>
-          <div className="text-2xl font-black text-white">{metrics.total}</div>
-          <div className="text-[10px] text-gray-500 mt-0.5">All database articles</div>
+          <div className="text-xl sm:text-2xl font-black text-white">{metrics.total}</div>
+          <div className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5">All articles</div>
         </div>
 
-        <div className="bg-[#121226] border border-white/5 p-4 rounded-xl">
-          <div className="text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
+        <div className="bg-[#121226] border border-white/5 p-2.5 sm:p-4 rounded-xl m-0">
+          <div className="text-emerald-400 text-[11px] sm:text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
             <span>Published</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
           </div>
-          <div className="text-2xl font-black text-emerald-400">{metrics.published}</div>
-          <div className="text-[10px] text-gray-500 mt-0.5">Live on storefront</div>
+          <div className="text-xl sm:text-2xl font-black text-emerald-400">{metrics.published}</div>
+          <div className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5">Live storefront</div>
         </div>
 
-        <div className="bg-[#121226] border border-white/5 p-4 rounded-xl">
-          <div className="text-amber-400 text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
+        <div className="bg-[#121226] border border-white/5 p-2.5 sm:p-4 rounded-xl m-0">
+          <div className="text-amber-400 text-[11px] sm:text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
             <span>Drafts</span>
-            <Clock className="w-4 h-4 text-amber-400" />
+            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
           </div>
-          <div className="text-2xl font-black text-amber-400">{metrics.drafts}</div>
-          <div className="text-[10px] text-gray-500 mt-0.5">Unpublished work</div>
+          <div className="text-xl sm:text-2xl font-black text-amber-400">{metrics.drafts}</div>
+          <div className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5">Unpublished</div>
         </div>
 
-        <div className="bg-[#121226] border border-white/5 p-4 rounded-xl">
-          <div className="text-blue-400 text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
+        <div className="bg-[#121226] border border-white/5 p-2.5 sm:p-4 rounded-xl m-0">
+          <div className="text-blue-400 text-[11px] sm:text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
             <span>Scheduled</span>
-            <Calendar className="w-4 h-4 text-blue-400" />
+            <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400" />
           </div>
-          <div className="text-2xl font-black text-blue-400">{metrics.scheduled}</div>
-          <div className="text-[10px] text-gray-500 mt-0.5">Queued publication</div>
+          <div className="text-xl sm:text-2xl font-black text-blue-400">{metrics.scheduled}</div>
+          <div className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5">Queued</div>
         </div>
 
-        <div className="bg-[#121226] border border-white/5 p-4 rounded-xl col-span-2 sm:col-span-1">
-          <div className="text-[#B5F823] text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
+        <div className="bg-[#121226] border border-white/5 p-2.5 sm:p-4 rounded-xl col-span-2 sm:col-span-1 m-0">
+          <div className="text-[#B5F823] text-[11px] sm:text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
             <span>Recent (7d)</span>
-            <TrendingUp className="w-4 h-4 text-[#B5F823]" />
+            <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#B5F823]" />
           </div>
-          <div className="text-2xl font-black text-[#B5F823]">{metrics.recentlyUpdated}</div>
-          <div className="text-[10px] text-gray-500 mt-0.5">Updated this week</div>
+          <div className="text-xl sm:text-2xl font-black text-[#B5F823]">{metrics.recentlyUpdated}</div>
+          <div className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5">Updated this week</div>
         </div>
       </div>
 
       {/* ── SEARCH & FILTER CONTROLS ────────────────────────────── */}
-      <div className="bg-[#121226] border border-white/5 p-4 rounded-2xl space-y-3">
-        <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+      <div className="bg-[#121226] border border-white/5 p-2.5 sm:p-4 rounded-xl sm:rounded-2xl space-y-2.5 sm:space-y-3 m-0">
+        <div className="flex flex-col lg:flex-row gap-2.5 sm:gap-3 items-stretch lg:items-center justify-between">
           {/* Search bar */}
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -303,7 +303,7 @@ export default function AdminBlogs() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by blog title, slug, author, or excerpt..."
-              className="w-full pl-10 pr-4 py-2.5 bg-[#0a0a1a] border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706] transition"
+              className="w-full pl-10 pr-4 py-2 sm:py-2.5 bg-[#0a0a1a] border border-white/10 rounded-xl text-xs sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#7FB706] transition"
             />
             {searchQuery && (
               <button
@@ -317,15 +317,15 @@ export default function AdminBlogs() {
           </div>
 
           {/* Quick Filter Controls */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             {/* Status Filter */}
-            <div className="flex items-center bg-[#0a0a1a] border border-white/10 rounded-xl p-1 text-xs">
+            <div className="flex items-center bg-[#0a0a1a] border border-white/10 rounded-xl p-0.5 sm:p-1 text-[11px] sm:text-xs overflow-x-auto no-scrollbar">
               {(["ALL", "PUBLISHED", "DRAFT", "SCHEDULED"] as StatusFilter[]).map((st) => (
                 <button
                   key={st}
                   type="button"
                   onClick={() => setStatusFilter(st)}
-                  className={`px-3 py-1.5 rounded-lg font-semibold transition ${
+                  className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg font-semibold transition shrink-0 ${
                     statusFilter === st
                       ? "bg-[#7FB706] text-white shadow-sm"
                       : "text-gray-400 hover:text-white"
@@ -340,7 +340,7 @@ export default function AdminBlogs() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706]"
+              className="bg-[#0a0a1a] border border-white/10 rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs text-white focus:outline-none focus:border-[#7FB706]"
             >
               <option value="ALL">All Categories</option>
               {availableCategories.map((cat) => (

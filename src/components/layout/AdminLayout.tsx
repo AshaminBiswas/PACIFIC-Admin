@@ -154,6 +154,8 @@ export const AdminLayout: React.FC = () => {
     location.pathname.startsWith('/admin/dashboard/crm-leads') ||
     location.pathname.startsWith('/admin/dashboard/mail');
 
+  const isBlogPage = location.pathname.startsWith('/admin/dashboard/blogs');
+
   const currentTitle = allNavItems.find((i) => isActive(i.path))?.name || 'Dashboard';
 
   return (
@@ -186,6 +188,8 @@ export const AdminLayout: React.FC = () => {
           className={`flex-1 min-h-0 w-full ${
             isFlushPage
               ? 'p-0 pb-16 lg:pb-0 overflow-hidden flex flex-col h-full'
+              : isBlogPage
+              ? 'overflow-y-auto overflow-x-hidden overscroll-contain p-[5px] sm:p-4 lg:p-8 pb-20 sm:pb-24 lg:pb-8'
               : 'overflow-y-auto overflow-x-hidden overscroll-contain p-4 lg:p-8 pb-24 lg:pb-8'
           }`}
         >

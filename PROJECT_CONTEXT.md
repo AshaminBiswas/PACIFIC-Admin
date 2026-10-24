@@ -7668,6 +7668,52 @@ Load testing was executed against the operational engine using a 2,000-concurren
 - **TypeScript Strict Check**: `npx tsc --noEmit` exited **0** (zero errors).
 - **Production Bundle Build**: `npm run build` completed with code **0** (3,023 modules transformed cleanly in 42.77s).
 
+---
+
+## 141. Mobile Responsiveness Optimization for Blog Studio & Word Canvas Architecture
+
+### 141.1 Motivation & Requirements
+- **User Requirement**: Optimize the blog page responsiveness for small devices (especially mobile smartphones), enforcing **5px padding**, **zero margin (`m-0` / `margin: 0 !important`)**, and **reduced font sizes**.
+- **Identified Issues on Small Screens (< 640px)**:
+  1. **Ribbon Toolbar Explosion**: Over 30 toolbar action buttons wrapped (`flex-wrap`) across 8–10 vertical rows, consuming 60% of vertical screen height and causing horizontal overflow.
+  2. **Double Lateral Margin & Padding**: Outer `<main>` container padding (`p-4` / 16px) combined with inner card padding (`p-6` / 24px) squeezed the writing canvas to less than 280px on standard 360px–390px mobile screens.
+  3. **Typography & Margins**: Default desktop headings (`h1` at 32px, `h2` at 24px) and element margins (`1.25rem` on paragraphs, tables, blockquotes) caused text wrapping issues and wasted viewport space.
+  4. **Canvas Minimum Height & Padding**: Desktop canvas had `min-h-[640px]` and `p-8 lg:p-12`.
+
+### 141.2 Comprehensive Mobile Architecture & Implementation
+1. **Admin Layout Dynamic Container Padding (`src/components/layout/AdminLayout.tsx`)**:
+   - Added `isBlogPage = location.pathname.startsWith('/admin/dashboard/blogs')`.
+   - On mobile screens, `<main>` dynamically scales down to `p-[5px] sm:p-4 lg:p-8 pb-20 sm:pb-24 lg:pb-8`, reclaiming 22px of lateral width on mobile phones while preserving desktop padding.
+2. **Global Blog Canvas CSS Typography (`src/index.css`)**:
+   - Added dedicated `@media (max-width: 640px)` stylesheet targeting `.tiptap-word-canvas`:
+     - Base editor canvas: `padding: 5px !important; margin: 0 !important; font-size: 13px !important; line-height: 1.45 !important; border-radius: 6px !important;`.
+     - Compact heading scale:
+       - `h1`: `1.25rem` (20px), zero margin, 6px top / 3px bottom padding, `line-height: 1.2`.
+       - `h2`: `1.1rem` (17.5px), zero margin, 5px top / 3px bottom padding, `line-height: 1.25`.
+       - `h3`: `1.0rem` (16px), zero margin, 4px top / 2px bottom padding, `line-height: 1.3`.
+       - `h4`: `0.9rem` (14.5px), zero margin, 3px top / 2px bottom padding, `line-height: 1.3`.
+     - Content elements: Paragraphs, blockquotes, code blocks, tables, and lists strictly enforced to `margin: 0 !important; padding: 5px 0 !important;`.
+     - Tables & Cells: `padding: 5px !important; font-size: 11.5px !important;`.
+3. **Word Processor Ribbon Toolbar & Canvas (`src/components/blog/TiptapEditor.tsx`)**:
+   - Ribbon toolbar: Switched from multi-line wrapping to single-row swipeable `flex-nowrap overflow-x-auto no-scrollbar max-w-full p-[5px] sm:p-2 m-0 gap-0.5 sm:gap-1`.
+   - Sheet canvas container: `p-[5px] sm:py-6 sm:px-4 bg-[#070716] flex justify-center m-0`.
+   - Inner paper sheet: `p-[5px] sm:p-8 lg:p-12 min-h-[350px] sm:min-h-[640px] m-0`.
+   - Canvas typography: Scaled dynamically with `text-[13px] sm:text-base` (sans), `text-[14px] sm:text-lg` (serif), and `text-[12px] sm:text-sm` (mono).
+   - Status bar: Compact `p-[5px] sm:px-4 sm:py-2 text-[10px] sm:text-xs m-0 gap-1.5 sm:gap-3 flex-wrap sm:flex-nowrap overflow-x-auto no-scrollbar`.
+4. **Blog Editor Page & Master Actions (`src/pages/admin/BlogEditorPage.tsx`)**:
+   - Root container: `p-0 m-0 space-y-2 sm:space-y-6 pb-24 w-full max-w-full overflow-x-hidden`.
+   - Top action ribbon: `p-[5px] sm:p-5 m-0 rounded-xl sm:rounded-2xl gap-2.5 sm:gap-4`. Action buttons formatted as compact horizontal swipeable ribbon `gap-1 sm:gap-2 flex-wrap sm:flex-nowrap overflow-x-auto no-scrollbar max-w-full` with reduced font size (`text-[11px] sm:text-xs`) and compact touch targets (`px-2 py-1.5 sm:px-3 sm:py-2`).
+   - Cards & Inputs: Headline and excerpt cards adjusted to `p-[5px] sm:p-6 shadow-xl m-0`, inputs `px-2.5 py-2 sm:px-4 sm:py-3.5 text-base sm:text-2xl m-0`.
+   - Sidebars & Grids: Layout grid `gap-2 sm:gap-6 m-0`, sidebar cards `p-3 sm:p-5 m-0`.
+5. **Blog Management Catalog (`src/pages/admin/AdminBlogs.tsx`)**:
+   - Outer container: `p-0 m-0 space-y-3 sm:space-y-6 pb-24`.
+   - Header, metric statistics cards, and filter bar compact padding `p-2.5 sm:p-4 m-0`, horizontal scrollable pill categories (`overflow-x-auto no-scrollbar`).
+
+### 141.3 Verification & Quality Assurance
+- **TypeScript Strict Check**: `npx tsc --noEmit` exited **0** (zero errors).
+- **Production Bundle Build**: `npm run build` completed with code **0** (Vite transformed modules cleanly).
+
+
 
 
 

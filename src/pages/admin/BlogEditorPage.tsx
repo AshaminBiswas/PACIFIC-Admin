@@ -454,25 +454,25 @@ export default function BlogEditorPage() {
   }
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-2 sm:space-y-6 pb-24 p-0 m-0 w-full max-w-full overflow-x-hidden">
       {/* ── Editor Master Top Ribbon ───────────────────────────────────────────── */}
-      <div className="sticky top-0 z-30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#121226]/95 p-4 sm:p-5 shadow-2xl backdrop-blur-md">
-        <div className="flex items-center gap-3">
+      <div className="sticky top-0 z-30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4 rounded-xl sm:rounded-2xl border border-white/10 bg-[#121226]/95 p-[5px] sm:p-5 shadow-2xl backdrop-blur-md m-0">
+        <div className="flex items-center gap-2 sm:gap-3">
           <Link
             to="/admin/dashboard/blogs"
-            className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+            className="flex h-8 w-8 sm:h-11 sm:w-11 items-center justify-center rounded-lg sm:rounded-xl bg-white/5 text-gray-400 transition hover:bg-white/10 hover:text-white shrink-0"
             title="Back to Blog Management"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
           </Link>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
-                <FileText className="w-5 h-5 text-[#7FB706]" />
-                {isEditing ? "Edit Blog Article" : "Professional Word Studio"}
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <h1 className="text-sm sm:text-xl font-bold text-white flex items-center gap-1.5 truncate">
+                <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-[#7FB706] shrink-0" />
+                <span className="truncate">{isEditing ? "Edit Blog Article" : "Word Studio"}</span>
               </h1>
               <span
-                className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-full ${
                   status === "PUBLISHED"
                     ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                     : status === "SCHEDULED"
@@ -483,31 +483,31 @@ export default function BlogEditorPage() {
                 {status}
               </span>
             </div>
-            <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-2 flex-wrap">
+            <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5 flex items-center gap-1.5 sm:gap-2 flex-wrap truncate">
               <span className="flex items-center gap-1 text-emerald-400">
-                <CheckCircle2 className="w-3.5 h-3.5" />
+                <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 {lastSavedTime ? `Autosaved: ${lastSavedTime}` : "Local backup live"}
               </span>
-              <span className="text-gray-600">•</span>
-              <span className="text-gray-400 font-mono">{effectiveReadingTime}</span>
+              <span className="text-gray-600 hidden sm:inline">•</span>
+              <span className="text-gray-400 font-mono hidden sm:inline">{effectiveReadingTime}</span>
             </p>
           </div>
         </div>
 
         {/* Master Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 flex-wrap sm:flex-nowrap overflow-x-auto no-scrollbar max-w-full">
           {/* Outline Drawer Toggle */}
           <button
             type="button"
             onClick={() => setShowOutline(!showOutline)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+            className={`flex items-center gap-1 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold border transition shrink-0 ${
               showOutline
                 ? "bg-[#7FB706]/15 border-[#7FB706]/40 text-[#B5F823]"
                 : "bg-white/5 border-white/10 text-gray-400 hover:text-white"
             }`}
             title="Toggle Document Outline Navigation"
           >
-            <ListTree className="w-3.5 h-3.5" />
+            <ListTree className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             <span className="hidden sm:inline">Outline</span>
           </button>
 
@@ -518,15 +518,15 @@ export default function BlogEditorPage() {
               setIsExpandedStudio((prev) => !prev);
               setShowSettingsDrawer(false);
             }}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+            className={`flex items-center gap-1 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold border transition shrink-0 ${
               isExpandedStudio
                 ? "bg-[#7FB706]/20 border-[#7FB706] text-[#B5F823]"
                 : "bg-white/5 border-white/10 text-gray-400 hover:text-white"
             }`}
             title={isExpandedStudio ? "Exit expanded canvas and restore sidebar" : "Expand writing area (hide sidebar for deep focus)"}
           >
-            {isExpandedStudio ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{isExpandedStudio ? "Standard View" : "Expand Canvas"}</span>
+            {isExpandedStudio ? <Minimize2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : <Maximize2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
+            <span className="hidden sm:inline">{isExpandedStudio ? "Standard" : "Expand"}</span>
           </button>
 
           {/* Settings Drawer Button when in Expanded Studio mode */}
@@ -534,14 +534,14 @@ export default function BlogEditorPage() {
             <button
               type="button"
               onClick={() => setShowSettingsDrawer((prev) => !prev)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+              className={`flex items-center gap-1 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold border transition shrink-0 ${
                 showSettingsDrawer
                   ? "bg-[#7FB706] text-black border-[#7FB706] font-bold"
                   : "bg-white/5 border-white/10 text-gray-300 hover:text-white"
               }`}
               title="Open Blog Settings & SEO Panel"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <SlidersHorizontal className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               <span>Settings ({contentAudit.score}%)</span>
             </button>
           )}
@@ -551,10 +551,10 @@ export default function BlogEditorPage() {
             <button
               type="button"
               onClick={handleResetDraft}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white text-xs font-semibold transition"
+              className="flex items-center gap-1 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white text-[11px] sm:text-xs font-semibold transition shrink-0"
               title="Reset unsaved draft"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
+              <RotateCcw className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               <span className="hidden md:inline">Reset</span>
             </button>
           )}
@@ -568,9 +568,9 @@ export default function BlogEditorPage() {
                 alert("Please save draft at least once to view complete live preview.");
               }
             }}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-semibold border border-white/10 transition"
+            className="flex items-center gap-1 px-2 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-[11px] sm:text-xs font-semibold border border-white/10 transition shrink-0"
           >
-            <Eye className="w-3.5 h-3.5" />
+            <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             <span>Preview</span>
           </Link>
 
@@ -579,9 +579,9 @@ export default function BlogEditorPage() {
             type="button"
             onClick={() => handleSave("DRAFT")}
             disabled={saving}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/15 transition disabled:opacity-50"
+            className="flex items-center gap-1 px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl bg-white/10 hover:bg-white/20 text-white text-[11px] sm:text-xs font-semibold border border-white/15 transition disabled:opacity-50 shrink-0"
           >
-            <Save className="w-3.5 h-3.5" />
+            <Save className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             <span>{saving ? "Saving..." : "Save Draft"}</span>
           </button>
 
@@ -590,16 +590,16 @@ export default function BlogEditorPage() {
             type="button"
             onClick={() => handleSave(status === "SCHEDULED" ? "SCHEDULED" : "PUBLISHED")}
             disabled={saving}
-            className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs font-bold shadow-lg shadow-[#7FB706]/20 transition disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-1 px-3 py-1.5 sm:px-5 sm:py-2 rounded-lg sm:rounded-xl bg-[#7FB706] hover:bg-[#6fa005] text-white text-[11px] sm:text-xs font-bold shadow-lg shadow-[#7FB706]/20 transition disabled:opacity-50 cursor-pointer shrink-0"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>{status === "SCHEDULED" ? "Schedule Post" : "Publish Live"}</span>
+            <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+            <span>{status === "SCHEDULED" ? "Schedule" : "Publish"}</span>
           </button>
         </div>
       </div>
 
       {errorMsg && (
-        <div className="flex items-center gap-2 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+        <div className="flex items-center gap-2 p-2.5 sm:p-4 rounded-lg sm:rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs sm:text-sm m-0">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{errorMsg}</span>
         </div>
@@ -615,7 +615,7 @@ export default function BlogEditorPage() {
             : !showOutline && isExpandedStudio
             ? "grid-cols-1"
             : "lg:grid-cols-[minmax(0,1fr)_340px]"
-        } gap-6 items-start w-full min-w-0`}
+        } gap-2 sm:gap-6 items-start w-full min-w-0 m-0`}
       >
         {/* ── Left Document Outline Pane ─────────────────────────────────────── */}
         {showOutline && (
@@ -663,15 +663,15 @@ export default function BlogEditorPage() {
         )}
 
         {/* ── Central Word Processor Canvas ──────────────────────────────────── */}
-        <div className="space-y-6 min-w-0 w-full overflow-hidden">
+        <div className="space-y-2 sm:space-y-6 min-w-0 w-full overflow-hidden m-0 p-0">
           {/* Article Headline Input */}
-          <div className="rounded-2xl border border-white/10 bg-[#121226] p-5 sm:p-6 shadow-xl">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+          <div className="rounded-xl sm:rounded-2xl border border-white/10 bg-[#121226] p-[5px] sm:p-6 shadow-xl m-0">
+            <div className="flex items-center justify-between mb-1.5 sm:mb-2 px-1 sm:px-0">
+              <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
                 <Bookmark className="w-3.5 h-3.5 text-[#7FB706]" /> Article Headline / Title
               </label>
               <span
-                className={`text-[11px] font-mono ${
+                className={`text-[10px] sm:text-[11px] font-mono ${
                   title.length >= 40 && title.length <= 70
                     ? "text-emerald-400 font-semibold"
                     : title.length > 70
@@ -687,11 +687,11 @@ export default function BlogEditorPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Definitive Architectural Guide to 12mm Compact Laminate Restroom Cubicles"
-              className="w-full rounded-xl border border-white/10 bg-[#0a0a1a] px-4 py-3.5 text-xl sm:text-2xl font-bold text-white placeholder-gray-600 focus:border-[#7FB706] focus:outline-none transition-colors"
+              className="w-full rounded-lg sm:rounded-xl border border-white/10 bg-[#0a0a1a] px-2.5 py-2 sm:px-4 sm:py-3.5 text-base sm:text-2xl font-bold text-white placeholder-gray-600 focus:border-[#7FB706] focus:outline-none transition-colors m-0"
             />
 
             {/* Dynamic URL Slug preview & edit */}
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            <div className="mt-1.5 sm:mt-3 flex flex-wrap items-center gap-1.5 text-[11px] sm:text-xs px-1 sm:px-0">
               <span className="text-gray-500 font-mono">Public URL: /blog/</span>
               <input
                 type="text"
@@ -700,19 +700,19 @@ export default function BlogEditorPage() {
                   setSlug(toSlug(e.target.value));
                   setSlugManuallyEdited(true);
                 }}
-                className="rounded-lg border border-white/10 bg-[#0a0a1a] px-2.5 py-1 text-xs font-mono text-[#B5F823] focus:border-[#7FB706] focus:outline-none"
+                className="rounded-lg border border-white/10 bg-[#0a0a1a] px-2 py-0.5 text-xs font-mono text-[#B5F823] focus:border-[#7FB706] focus:outline-none"
                 placeholder="slug"
               />
               <span className="text-gray-500 font-mono">/</span>
 
               {checkingSlug ? (
-                <span className="text-gray-400 text-[11px]">Validating...</span>
+                <span className="text-gray-400 text-[10px]">Validating...</span>
               ) : isSlugUnique === true ? (
-                <span className="text-emerald-400 text-[11px] font-semibold flex items-center gap-1">
+                <span className="text-emerald-400 text-[10px] font-semibold flex items-center gap-1">
                   <Check className="w-3 h-3" /> Unique
                 </span>
               ) : isSlugUnique === false ? (
-                <span className="text-red-400 text-[11px] font-semibold flex items-center gap-1">
+                <span className="text-red-400 text-[10px] font-semibold flex items-center gap-1">
                   <X className="w-3 h-3" /> Slug In Use
                 </span>
               ) : null}
@@ -720,13 +720,13 @@ export default function BlogEditorPage() {
           </div>
 
           {/* Short Excerpt / Summary */}
-          <div className="rounded-2xl border border-white/10 bg-[#121226] p-5 sm:p-6 shadow-xl">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                Article Summary / Google SERP Excerpt
+          <div className="rounded-xl sm:rounded-2xl border border-white/10 bg-[#121226] p-[5px] sm:p-6 shadow-xl m-0">
+            <div className="flex items-center justify-between mb-1.5 sm:mb-2 px-1 sm:px-0">
+              <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-gray-400">
+                Article Summary / SERP Excerpt
               </label>
               <span
-                className={`text-[11px] font-mono ${
+                className={`text-[10px] sm:text-[11px] font-mono ${
                   excerpt.length >= 120 && excerpt.length <= 160
                     ? "text-emerald-400 font-semibold"
                     : excerpt.length > 160
@@ -734,26 +734,26 @@ export default function BlogEditorPage() {
                     : "text-gray-500"
                 }`}
               >
-                {excerpt.length} characters (rec: 120–160)
+                {excerpt.length} chars (rec: 120–160)
               </span>
             </div>
             <textarea
-              rows={3}
+              rows={2}
               value={excerpt}
               onChange={(e) => setExcerpt(e.target.value)}
               placeholder="Provide a concise 2-sentence summary of the article for blog cards, social meta, and Google search snippets..."
-              className="w-full rounded-xl border border-white/10 bg-[#0a0a1a] px-4 py-3 text-sm text-white placeholder-gray-600 focus:border-[#7FB706] focus:outline-none transition-colors resize-none leading-relaxed"
+              className="w-full rounded-lg sm:rounded-xl border border-white/10 bg-[#0a0a1a] px-2.5 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-white placeholder-gray-600 focus:border-[#7FB706] focus:outline-none transition-colors resize-none leading-relaxed m-0"
             />
           </div>
 
           {/* Full Advanced Word Processor */}
-          <div className="rounded-2xl border border-white/10 bg-[#121226] p-4 sm:p-5 shadow-xl space-y-3">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#7FB706]" /> Word Processor Content Canvas
+          <div className="rounded-xl sm:rounded-2xl border border-white/10 bg-[#121226] p-[5px] sm:p-5 shadow-xl space-y-1.5 sm:space-y-3 m-0">
+            <div className="flex items-center justify-between border-b border-white/10 pb-2 sm:pb-3 px-1 sm:px-0">
+              <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5 sm:gap-2">
+                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#7FB706]" /> Content Canvas
               </label>
-              <span className="text-xs font-medium text-[#7FB706] flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5" />
+              <span className="text-[11px] sm:text-xs font-medium text-[#7FB706] flex items-center gap-1">
+                <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 {effectiveReadingTime}
               </span>
             </div>
@@ -770,9 +770,9 @@ export default function BlogEditorPage() {
         {/* ── Right Settings Sidebar ─────────────────────────────────────────── */}
         {(() => {
           const sidebarContent = (
-            <div className="space-y-6">
+            <div className="space-y-3 sm:space-y-6 m-0 p-0">
           {/* Real-World Content & SEO Quality Scorecard */}
-          <div className="rounded-2xl border border-white/10 bg-[#121226] p-5 shadow-xl space-y-4">
+          <div className="rounded-xl sm:rounded-2xl border border-white/10 bg-[#121226] p-3 sm:p-5 shadow-xl space-y-3 sm:space-y-4 m-0">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-[#7FB706]" /> Content Health Score
@@ -823,7 +823,7 @@ export default function BlogEditorPage() {
           </div>
 
           {/* Publication Workflow Settings */}
-          <div className="rounded-2xl border border-white/10 bg-[#121226] p-5 shadow-xl space-y-4">
+          <div className="rounded-xl sm:rounded-2xl border border-white/10 bg-[#121226] p-3 sm:p-5 shadow-xl space-y-3 sm:space-y-4 m-0">
             <h3 className="text-sm font-bold text-white border-b border-white/10 pb-3 flex items-center gap-2">
               <Globe className="w-4 h-4 text-[#7FB706]" />
               Publishing & Status
@@ -1012,7 +1012,7 @@ export default function BlogEditorPage() {
           </div>
 
           {/* Featured Cover Image */}
-          <div className="rounded-2xl border border-white/10 bg-[#121226] p-5 shadow-xl space-y-4">
+          <div className="rounded-xl sm:rounded-2xl border border-white/10 bg-[#121226] p-3 sm:p-5 shadow-xl space-y-3 sm:space-y-4 m-0">
             <h3 className="text-sm font-bold text-white border-b border-white/10 pb-3 flex items-center gap-2">
               <Upload className="w-4 h-4 text-[#7FB706]" />
               Featured Cover Image
@@ -1079,7 +1079,7 @@ export default function BlogEditorPage() {
           </div>
 
           {/* SEO & Social Metadata Card */}
-          <div className="rounded-2xl border border-white/10 bg-[#121226] p-5 shadow-xl space-y-4">
+          <div className="rounded-xl sm:rounded-2xl border border-white/10 bg-[#121226] p-3 sm:p-5 shadow-xl space-y-3 sm:space-y-4 m-0">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Search className="w-4 h-4 text-[#7FB706]" />
@@ -1169,7 +1169,7 @@ export default function BlogEditorPage() {
       return (
         <>
           {!isExpandedStudio && (
-            <div className="space-y-6 min-w-0 w-full">{sidebarContent}</div>
+            <div className="space-y-3 sm:space-y-6 min-w-0 w-full m-0 p-0">{sidebarContent}</div>
           )}
 
           {/* Slide-over Settings Drawer when Studio is in Expanded Focus Mode */}
