@@ -17,6 +17,13 @@ import type {
   MailAdminAddressSummary,
   AttachmentUploadResponse,
   MailOperationalDiagnostics,
+  MailAddressAssignment,
+  MailAlias,
+  DnsReadinessReport,
+  CreateAddressAdminInput,
+  AssignAddressInput,
+  UpdateAddressQuotasInput,
+  CreateAliasInput,
 } from '../types/admin';
 
 export const mailApi = {
@@ -283,6 +290,101 @@ export const mailApi = {
         hasPrevPage: boolean;
       };
     }>('/mail/admin/addresses', { params });
+    return res.data;
+  },
+
+  /**
+   * Provision a new internal or enterprise mail address under @pacificproduct.in.
+   */
+  createAddressAdmin: async (data: CreateAddressAdminInput) => {
+    const res = await apiClient.post<{ success: boolean; data: MailAddress; message?: string }>(
+      '/mail/admin/addresses',
+      data
+    );
+    return res.data;
+  },
+
+  /**
+   * Assign an address to a user.
+   */
+  assignAddress: async (addressId: string, data: AssignAddressInput) => {
+    const res = await apiClient.post<{ success: boolean; data: MailAddress; message?: string }>(
+      `/mail/admin/addresses/${addressId}/assign`,
+      data
+    );
+    return res.data;
+  },
+
+  /**
+   * Unassign an address from its current user (retains mailbox separation).
+   */
+  unassignAddress: async (addressId: string, reason?: string) => {
+    const res = await apiClient.post<{ success: boolean; data: MailAddress; message?: string }>(
+      `/mail/admin/addresses/${addressId}/unassign`,
+      { reason }
+    );
+    return res.data;
+  },
+
+  /**
+   * Update storage quota (bytes) and daily sending limit for an address.
+   */
+  updateAddressQuotas: async (addressId: string, data: UpdateAddressQuotasInput) => {
+    const res = await apiClient.patch<{ success: boolean; data: MailAddress; message?: string }>(
+      `/mail/admin/addresses/${addressId}/quotas`,
+      data
+    );
+    return res.data;
+  },
+
+  /**
+   * Retrieve immutable assignment and reassignment audit history for an address.
+   */
+  getAddressHistory: async (addressId: string) => {
+    const res = await apiClient.get<{ success: boolean; data: MailAddressAssignment[] }>(
+      `/mail/admin/addresses/${addressId}/history`
+    );
+    return res.data;
+  },
+
+  /**
+   * List email aliases configured for an address.
+   */
+  listAliases: async (addressId: string) => {
+    const res = await apiClient.get<{ success: boolean; data: MailAlias[] }>(
+      `/mail/admin/addresses/${addressId}/aliases`
+    );
+    return res.data;
+  },
+
+  /**
+   * Create an email alias routing into this target address.
+   */
+  createAlias: async (data: CreateAliasInput) => {
+    const res = await apiClient.post<{ success: boolean; data: MailAlias; message?: string }>(
+      '/mail/admin/aliases',
+      data
+    );
+    return res.data;
+  },
+
+  /**
+   * Delete an email alias.
+   */
+  deleteAlias: async (aliasId: string) => {
+    const res = await apiClient.delete<{ success: boolean; message?: string }>(
+      `/mail/admin/aliases/${aliasId}`
+    );
+    return res.data;
+  },
+
+  /**
+   * Inspect live DNS records for pacificproduct.in and review PROPOSED_NOT_APPLIED plan.
+   */
+  getDnsReadiness: async () => {
+    const res = await apiClient.get<{ success: boolean; data: DnsReadinessReport }>(
+      '/mail/admin/dns/readiness'
+    );
     return res.data;
   },
 

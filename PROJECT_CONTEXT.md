@@ -6619,6 +6619,69 @@ Load testing was executed against the operational engine using a 2,000-concurren
   - `D:\PACIFIC-Admin`: 19 frontend tests passed (`npm run test:mail`).
 - **Build & Types**: `npx tsc --noEmit` and `npm run build` exit 0 cleanly.
 
+---
+
+## 124. Pacific Mail Full Email Management System (Gateway Adapters, Address Lifecycle & DNS Protection)
+
+### 124.1 Architecture & Production Specification
+1. **Dual-Layer Mail Delivery Invariant**:
+   - Internal mail between authorized Pacific accounts (`@pacificproduct.in` / `@pacific.internal`) executes entirely within PostgreSQL Supabase database transactions with zero external network latency and zero third-party cost.
+   - External mail routing operates via provider-neutral gateway adapters (`IOutboundMailAdapter`, `IInboundMailAdapter`) with a secure transactional outbox worker.
+   - Outbound adapter defaults to `SandboxOutboundAdapter` (safe mode) with `MAIL_EXTERNAL_SENDING_ENABLED=false` to prevent accidental or unapproved external email dispatch.
+   - Inbound adapter provides webhook ingestion (`/api/v1/mail/webhooks/inbound`) with HMAC-SHA256 signature verification and replay prevention.
+2. **Zero DNS Breakage Guarantee & Google Workspace Coexistence**:
+   - Read-only DNS audit verifies live Google Workspace MX (`smtp.google.com`, Priority 1) and SPF (`v=spf1 include:_spf.google.com ~all`).
+   - Root MX records are strictly untouched.
+   - Proposed external email configuration isolates outbound (`mail.pacificproduct.in`) and inbound (`inbound.pacificproduct.in`) subdomains, explicitly marked in the UI and reports as **`PROPOSED — NOT APPLIED`**.
+3. **Address Lifecycle & Mailbox Privacy Separation**:
+   - Addresses can exist unassigned in an enterprise pool (`user_id` nullable).
+   - Reassigning an address logs an immutable entry to `mail_address_assignments`.
+   - Mailbox items (`mailbox_items`) bind directly to `user_id`. When an address is reassigned, previous messages remain in the prior user's mailbox and are never exposed to new assignees.
+
+### 124.2 Database Migrations & Schema Changes (`2026102401_mail_address_assignments_and_aliases`)
+- Made `mail_addresses.user_id` nullable (`DROP NOT NULL`).
+- Added `mail_addresses.verification_status` (`MailAddressStatus` enum: `INTERNAL_ONLY`, `PENDING_VERIFICATION`, `VERIFIED`, `EXTERNAL_ROUTABLE`).
+- Added `mail_addresses.max_storage_bytes` (BIGINT default 500 MB), `daily_send_quota` (INT default 100), `is_shared` (BOOLEAN default false).
+- Created `mail_address_assignments` table with foreign keys, indexes, and RLS policies for complete reassignment audit logging.
+- Created `mail_aliases` table with unique constraint on `(alias_local_part, alias_domain)` and RLS policies.
+
+### 124.3 Backend API Endpoints (`D:\PACIFIC-Backend`)
+- `POST /api/v1/mail/admin/addresses` — Provision `@pacificproduct.in` / `@pacific.internal` address with custom quotas and shared inbox toggle.
+- `POST /api/v1/mail/admin/addresses/:id/assign` — Assign address to system user with audit reason.
+- `POST /api/v1/mail/admin/addresses/:id/unassign` — Release address back to pool with mailbox isolation.
+- `PATCH /api/v1/mail/admin/addresses/:id/quotas` — Update storage (bytes) and daily sending quota.
+- `GET /api/v1/mail/admin/addresses/:id/history` — Chronological assignment history audit log.
+- `GET /api/v1/mail/admin/addresses/:id/aliases` — List aliases for an address.
+- `POST /api/v1/mail/admin/aliases` — Create alias.
+- `DELETE /api/v1/mail/admin/aliases/:id` — Delete alias.
+- `GET /api/v1/mail/admin/dns/readiness` — Read-only DNS audit and proposed change plan (`PROPOSED_NOT_APPLIED`).
+- `POST /api/v1/mail/webhooks/inbound` — Webhook ingestion with HMAC-SHA256 signature verification.
+
+### 124.4 Frontend Implementation (`D:\PACIFIC-Admin`)
+- `src/types/admin.ts`: Extended types for `MailAddressStatus`, `MailAdminAddressSummary`, `MailAddressAssignment`, `MailAlias`, `DnsReadinessReport`, inputs for create, assign, quotas, and aliases.
+- `src/api/mailApi.ts`: Added methods matching all new backend admin and gateway endpoints; synced via `src/api/services.ts`.
+- `src/components/mail/MailAdminModal.tsx`: Complete 6-tab administrative control plane:
+  - *Metrics*: Aggregate delivery totals, success rates, queue counts.
+  - *Diagnostics*: Latency percentiles (p50/p95/p99), DB health, queue telemetry.
+  - *Failures*: Outbox job inspection without exposing private message content.
+  - *Addresses & Directory*: Interactive address directory with "New Address" modal, Assign/Unassign modals, Quota editor, Aliases manager modal, and Assignment History timeline modal.
+  - *Gateway & DNS*: Live status ribbons, DNS inspection audit table, and Proposed Subdomain DNS Plan container with **`PROPOSED — NOT APPLIED`** badge and one-click copyable records.
+  - *Audit Trail*: Immutable audit log table.
+
+### 124.5 Quality Assurance & Verification
+- **Automated Test Suites**:
+  - Backend Gateway Suite (`mail.gateway.tests.ts`): 15 passed, 0 failed.
+  - Backend Security Suite (`mail.security.tests.ts`): 23 passed, 0 failed.
+  - Backend Unit Suite (`mail.tests.ts`): 30 passed, 0 failed.
+  - Frontend Component Suite (`mail.frontend.tests.ts`): 19 passed, 0 failed.
+  - **Total Tests**: **87 passed, 0 failed**.
+- **TypeScript Typecheck**:
+  - `D:\PACIFIC-Backend`: `npm run typecheck` exited 0 (0 errors).
+  - `D:\PACIFIC-Admin`: `npx tsc --noEmit` exited 0 (0 errors).
+- **Production Build**:
+  - `D:\PACIFIC-Admin`: `npm run build` compiled 3,017 modules cleanly, exited 0.
+
+
 
 
 

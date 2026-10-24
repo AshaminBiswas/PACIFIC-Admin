@@ -3580,19 +3580,109 @@ export interface MailOutboxFailure {
   senderAddress: string;
 }
 
+export type MailAddressStatus =
+  | 'INTERNAL_ONLY'
+  | 'PENDING_VERIFICATION'
+  | 'VERIFIED'
+  | 'EXTERNAL_ROUTABLE';
+
 export interface MailAdminAddressSummary {
   id: string;
-  userId: string;
+  userId: string | null;
   localPart: string;
   domain: string;
   fullAddress: string;
   displayName: string | null;
   isActive: boolean;
   isPrimary: boolean;
-  userEmail: string;
-  userName: string;
+  userEmail?: string | null;
+  userName?: string | null;
   createdAt: string;
   hourlyQuota: number;
+  verificationStatus?: MailAddressStatus;
+  maxStorageBytes?: number;
+  dailySendQuota?: number;
+  isShared?: boolean;
+  assignedAt?: string | null;
+  aliasCount?: number;
+}
+
+export interface MailAddressAssignment {
+  id: string;
+  addressId: string;
+  userId: string;
+  assignedBy: string | null;
+  assignedAt: string;
+  unassignedAt: string | null;
+  reason: string | null;
+  createdAt: string;
+  userEmail?: string;
+  assignedByEmail?: string;
+}
+
+export interface MailAlias {
+  id: string;
+  addressId: string;
+  aliasLocalPart: string;
+  aliasDomain: string;
+  displayName: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DnsReadinessReport {
+  domain: string;
+  inspectedAt: string;
+  hasMx: boolean;
+  currentMx: Array<{ exchange: string; priority: number }>;
+  hasSpf: boolean;
+  currentSpf: string | null;
+  hasDmarc: boolean;
+  currentDmarc: string | null;
+  isGoogleWorkspaceActive: boolean;
+  isExternalSendingReady: boolean;
+  isExternalReceivingReady: boolean;
+  proposedChangesPlan: {
+    status: 'PROPOSED_NOT_APPLIED';
+    subdomainOutbound: string;
+    subdomainInbound: string;
+    requiredRecords: Array<{
+      type: 'MX' | 'TXT' | 'CNAME';
+      host: string;
+      value: string;
+      purpose: string;
+      priority?: number;
+    }>;
+    notes: string[];
+  };
+}
+
+export interface CreateAddressAdminInput {
+  localPart: string;
+  domain?: string;
+  displayName?: string;
+  userId?: string;
+  maxStorageBytes?: number;
+  dailySendQuota?: number;
+  isShared?: boolean;
+}
+
+export interface AssignAddressInput {
+  userId: string;
+  reason?: string;
+}
+
+export interface UpdateAddressQuotasInput {
+  maxStorageBytes?: number;
+  dailySendQuota?: number;
+}
+
+export interface CreateAliasInput {
+  addressId: string;
+  aliasLocalPart: string;
+  aliasDomain?: string;
+  displayName?: string;
 }
 
 export interface AttachmentUploadResponse {
