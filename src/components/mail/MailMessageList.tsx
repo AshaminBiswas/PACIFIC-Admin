@@ -16,6 +16,7 @@ import {
   Inbox,
   FileEdit,
   Send,
+  Users,
 } from 'lucide-react';
 import type { MailThreadSummary, MailViewFolder } from '../../types/admin';
 import { formatMailTimestamp } from '../../utils/mailFormatters';
@@ -39,6 +40,8 @@ interface MailMessageListProps {
   selectedItemIds: string[];
   onToggleSelectItem: (id: string) => void;
   onToggleSelectAll: () => void;
+  isAdmin?: boolean;
+  onOpenAdmin?: () => void;
 }
 
 export const MailMessageList: React.FC<MailMessageListProps> = ({
@@ -60,6 +63,8 @@ export const MailMessageList: React.FC<MailMessageListProps> = ({
   selectedItemIds,
   onToggleSelectItem,
   onToggleSelectAll,
+  isAdmin = false,
+  onOpenAdmin,
 }) => {
   const [searchInput, setSearchInput] = useState(searchQuery);
 
@@ -218,15 +223,28 @@ export const MailMessageList: React.FC<MailMessageListProps> = ({
               </button>
             </div>
           ) : (
-            <button
-              onClick={onRefresh}
-              disabled={loading}
-              className="p-2 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-colors"
-              title="Refresh"
-              aria-label="Refresh mail list"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#B5F823]' : ''}`} />
-            </button>
+            <div className="flex items-center space-x-2">
+              {isAdmin && onOpenAdmin && (
+                <button
+                  type="button"
+                  onClick={onOpenAdmin}
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-[#B5F823]/10 hover:bg-[#B5F823]/20 text-[#B5F823] border border-[#B5F823]/30 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                  title="Create and assign @pacificproduct.in email addresses to employees"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Assign Employee Emails</span>
+                </button>
+              )}
+              <button
+                onClick={onRefresh}
+                disabled={loading}
+                className="p-2 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                title="Refresh"
+                aria-label="Refresh mail list"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#B5F823]' : ''}`} />
+              </button>
+            </div>
           )}
 
           {/* Server-Side Pagination Controller */}

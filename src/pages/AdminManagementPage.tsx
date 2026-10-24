@@ -26,9 +26,11 @@ import {
   Info,
   Clock,
   RotateCcw,
+  Mail,
 } from 'lucide-react';
 import { usersApi, rolesApi } from '../api/services';
 import { useAdminAuth } from '../context/AdminAuthContext';
+import { MailAdminModal } from '../components/mail/MailAdminModal';
 import type {
   AdminUserManagementItem,
   RoleManagementItem,
@@ -44,6 +46,7 @@ export default function AdminManagementPage() {
 
   // Tabs
   const [activeTab, setActiveTab] = useState<'USERS' | 'ROLES'>('USERS');
+  const [isMailAdminModalOpen, setIsMailAdminModalOpen] = useState(false);
 
   // ─── Users State ────────────────────────────────────────────────────────────
   const [users, setUsers] = useState<AdminUserManagementItem[]>([]);
@@ -507,12 +510,23 @@ export default function AdminManagementPage() {
           {canManageAdmins && (
             <>
               {activeTab === 'USERS' ? (
-                <button
-                  onClick={handleOpenCreateUser}
-                  className="px-4 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-[#7FB706]/20 transition-all cursor-pointer min-h-[44px]"
-                >
-                  <Plus className="w-4 h-4" /> New Admin User
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsMailAdminModalOpen(true)}
+                    className="px-3.5 py-2.5 bg-white/5 hover:bg-[#B5F823]/15 text-white/90 hover:text-[#B5F823] text-xs font-bold rounded-xl flex items-center gap-2 border border-white/10 hover:border-[#B5F823]/30 transition-all cursor-pointer min-h-[44px]"
+                    title="Create and assign @pacificproduct.in employee email addresses"
+                  >
+                    <Mail className="w-4 h-4 text-[#B5F823]" />
+                    <span>Assign Pacific Mail</span>
+                  </button>
+                  <button
+                    onClick={handleOpenCreateUser}
+                    className="px-4 py-2.5 bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-[#7FB706]/20 transition-all cursor-pointer min-h-[44px]"
+                  >
+                    <Plus className="w-4 h-4" /> New Admin User
+                  </button>
+                </>
               ) : (
                 <button
                   onClick={handleOpenCreateRole}
@@ -1617,6 +1631,14 @@ export default function AdminManagementPage() {
             </form>
           </div>
         </div>
+      )}
+      {/* Pacific Mail Employee Identity & Assignment Modal */}
+      {canManageAdmins && (
+        <MailAdminModal
+          isOpen={isMailAdminModalOpen}
+          onClose={() => setIsMailAdminModalOpen(false)}
+          initialTab="addresses"
+        />
       )}
     </div>
   );

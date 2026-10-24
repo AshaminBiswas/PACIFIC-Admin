@@ -40,12 +40,8 @@ export const MailRecipientInput: React.FC<MailRecipientInputProps> = ({
       return;
     }
 
-    if (!cleaned.toLowerCase().endsWith('@pacific.internal')) {
-      // Internal system warning indicator
-      setErrorMsg(`Note: "${cleaned}" is outside pacific.internal`);
-    } else {
-      setErrorMsg(null);
-    }
+    // Clear any previous error; outsider recipients will simply be styled with distinct color
+    setErrorMsg(null);
 
     if (!recipients.includes(cleaned)) {
       onChange([...recipients, cleaned]);
@@ -95,14 +91,16 @@ export const MailRecipientInput: React.FC<MailRecipientInputProps> = ({
 
         <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
           {recipients.map((email, idx) => {
-            const isInternal = email.toLowerCase().endsWith('@pacific.internal');
+            const isInternal =
+              email.toLowerCase().endsWith('@pacificproduct.in') ||
+              email.toLowerCase().endsWith('@pacific.internal');
             return (
               <span
                 key={idx}
                 className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${
                   isInternal
                     ? 'bg-[#B5F823]/10 text-[#B5F823] border border-[#B5F823]/20'
-                    : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
                 }`}
               >
                 <span className="truncate max-w-[200px]">{email}</span>

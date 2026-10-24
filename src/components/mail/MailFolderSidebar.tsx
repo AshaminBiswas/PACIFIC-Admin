@@ -13,6 +13,7 @@ import {
   X,
   ShieldCheck,
   Shield,
+  Users,
 } from 'lucide-react';
 import type { MailViewFolder, MailFolderCounts, MailAddress } from '../../types/admin';
 
@@ -195,14 +196,14 @@ export const MailFolderSidebar: React.FC<MailFolderSidebarProps> = ({
           <button
             type="button"
             onClick={onOpenAdmin}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 hover:bg-[#B5F823]/10 text-white/70 hover:text-[#B5F823] border border-white/10 hover:border-[#B5F823]/30 transition-all text-xs font-semibold"
+            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-[#B5F823]/10 hover:bg-[#B5F823]/20 text-white hover:text-[#B5F823] border border-[#B5F823]/30 transition-all text-xs font-semibold shadow-sm cursor-pointer group"
           >
             <div className="flex items-center space-x-2">
-              <Shield className="w-3.5 h-3.5 text-[#B5F823]" />
-              <span>Admin Controls</span>
+              <Users className="w-4 h-4 text-[#B5F823] group-hover:scale-110 transition-transform" />
+              <span>Assign Employee Emails</span>
             </div>
-            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-white/10 text-white/60">
-              Operations
+            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-[#B5F823]/20 text-[#B5F823] font-bold">
+              @pacificproduct.in
             </span>
           </button>
         </div>

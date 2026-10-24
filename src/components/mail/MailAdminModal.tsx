@@ -47,12 +47,23 @@ import type {
 interface MailAdminModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: 'metrics' | 'diagnostics' | 'failures' | 'addresses' | 'gateway' | 'audit';
 }
 
-export const MailAdminModal: React.FC<MailAdminModalProps> = ({ isOpen, onClose }) => {
+export const MailAdminModal: React.FC<MailAdminModalProps> = ({
+  isOpen,
+  onClose,
+  initialTab = 'addresses',
+}) => {
   const [activeTab, setActiveTab] = useState<
     'metrics' | 'diagnostics' | 'failures' | 'addresses' | 'gateway' | 'audit'
-  >('metrics');
+  >(initialTab);
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
 
   // Metrics
   const [metrics, setMetrics] = useState<MailOperationalMetrics | null>(null);
@@ -516,6 +527,32 @@ export const MailAdminModal: React.FC<MailAdminModalProps> = ({ isOpen, onClose 
         <div className="flex items-center space-x-1 px-4 sm:px-6 pt-2 border-b border-white/10 bg-[#0c0a20] shrink-0 overflow-x-auto custom-scrollbar">
           <button
             type="button"
+            onClick={() => setActiveTab('addresses')}
+            className={`flex items-center space-x-2 px-3.5 py-2.5 text-xs font-semibold rounded-t-xl border-b-2 whitespace-nowrap transition-colors ${
+              activeTab === 'addresses'
+                ? 'border-[#B5F823] text-[#B5F823] bg-white/5'
+                : 'border-transparent text-white/60 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Employee Emails (@pacificproduct.in)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('gateway')}
+            className={`flex items-center space-x-2 px-3.5 py-2.5 text-xs font-semibold rounded-t-xl border-b-2 whitespace-nowrap transition-colors ${
+              activeTab === 'gateway'
+                ? 'border-[#B5F823] text-[#B5F823] bg-white/5'
+                : 'border-transparent text-white/60 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>Gateway & DNS</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('metrics')}
             className={`flex items-center space-x-2 px-3.5 py-2.5 text-xs font-semibold rounded-t-xl border-b-2 whitespace-nowrap transition-colors ${
               activeTab === 'metrics'
@@ -556,32 +593,6 @@ export const MailAdminModal: React.FC<MailAdminModalProps> = ({ isOpen, onClose 
                 {failures.length}
               </span>
             )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('addresses')}
-            className={`flex items-center space-x-2 px-3.5 py-2.5 text-xs font-semibold rounded-t-xl border-b-2 whitespace-nowrap transition-colors ${
-              activeTab === 'addresses'
-                ? 'border-[#B5F823] text-[#B5F823] bg-white/5'
-                : 'border-transparent text-white/60 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>Addresses & Directory</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('gateway')}
-            className={`flex items-center space-x-2 px-3.5 py-2.5 text-xs font-semibold rounded-t-xl border-b-2 whitespace-nowrap transition-colors ${
-              activeTab === 'gateway'
-                ? 'border-[#B5F823] text-[#B5F823] bg-white/5'
-                : 'border-transparent text-white/60 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Globe className="w-3.5 h-3.5" />
-            <span>Gateway & DNS</span>
           </button>
 
           <button

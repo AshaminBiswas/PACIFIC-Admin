@@ -428,6 +428,8 @@ export default function PacificMailPage() {
             selectedItemIds={selectedIds}
             onToggleSelectItem={handleToggleSelectItem}
             onToggleSelectAll={handleToggleSelectAll}
+            isAdmin={isAdmin}
+            onOpenAdmin={() => setAdminModalOpen(true)}
           />
         )}
       </div>
