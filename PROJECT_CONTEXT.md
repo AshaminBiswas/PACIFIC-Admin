@@ -7960,6 +7960,37 @@ Load testing was executed against the operational engine using a 2,000-concurren
 - `npx tsc --noEmit` verified with 0 errors across both repositories.
 - `npm run build` completed with exit code 0 in both repositories.
 
+---
+
+## 148. Storefront Product SEO Title / Meta Description Reflection & WhatsApp Dynamic Open Graph Previews
+
+### 148.1 Problem Identification
+1. **Ignored SEO Fields in Client**: In `ProductDetail.tsx`, the `<SEO />` invocation passed `title={product.title}` and sliced `product.description`, completely ignoring `product.metaTitle` and `product.metaDescription` configured via the Admin panel.
+2. **Missing WhatsApp / Social Link Previews**:
+   - When a product URL was shared on WhatsApp, Facebook, LinkedIn, Twitter, or Telegram, only the raw URL was rendered (no product image banner, no title, no snippet).
+   - Social crawlers (e.g. `WhatsApp/2.x`, `facebookexternalhit/1.1`) do not execute client-side JavaScript or React Helmet.
+   - Vercel's SPA catch-all rewrite sent the generic `index.html` (which lacked product-specific meta tags and had mismatched `og:url`).
+   - Image formats like `.webp` are often rejected by WhatsApp's link preview engine unless converted to JPEG with standard 1200x630 dimensions.
+
+### 148.2 Permanent Architectural Fixes
+1. **Storefront Dynamic SEO Reflection (`src/app/pages/ProductDetail.tsx`)**:
+   - Reads `configuredMetaTitle = product.metaTitle || product.metadata?.metaTitle`.
+   - Reads `configuredMetaDesc = product.metaDescription || product.metadata?.metaDescription`.
+   - Passes configured titles and descriptions to `<SEO />` component with fallbacks.
+2. **Open Graph Image Formatting (`src/app/components/SEO.tsx`)**:
+   - Transformed ImageKit URLs on the fly to `?tr=w-1200,h-630,cm-pad_resize,bg-030213,f-jpg,q-85` so social networks receive a high-contrast 1200x630 JPEG under 300KB.
+   - Added `og:image:secure_url` and `og:image:type` meta properties.
+3. **Vercel Edge Open Graph Preview Engine (`api/og-preview.ts` & `vercel.json`)**:
+   - Added an Edge Function (`api/og-preview.ts`) with 0ms cold-start.
+   - Configured `vercel.json` rewrites to intercept requests from social crawlers (`WhatsApp`, `facebookexternalhit`, `Twitterbot`, `LinkedInBot`, `TelegramBot`, `Discordbot`, `Slackbot`, `Applebot`, etc.) on `/products/(.*)` and `/blog/(.*)`.
+   - The edge handler fetches product data directly from Supabase PostgREST and returns server-rendered HTML with full Open Graph and Twitter Card tags.
+   - Includes automatic browser redirect fallback for human visitors.
+
+### 148.3 Verification & Status
+- `npx tsc --noEmit` exited 0 with 0 errors across both projects.
+- `npm run build` exited code 0 across both projects.
+
+
 
 
 
