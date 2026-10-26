@@ -371,6 +371,7 @@ export default function AdminCatalogs() {
                   >
                     <option value="Brochure" className="bg-[#0a0a1a]">Brochure</option>
                     <option value="Catalog" className="bg-[#0a0a1a]">Catalog</option>
+                    <option value="BOQ" className="bg-[#0a0a1a]">BOQ / Bill of Quantities</option>
                     <option value="Drawing" className="bg-[#0a0a1a]">Drawing</option>
                     <option value="Installation Manual" className="bg-[#0a0a1a]">Installation Manual</option>
                     <option value="Warranty" className="bg-[#0a0a1a]">Warranty</option>

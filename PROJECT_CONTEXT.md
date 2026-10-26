@@ -7924,6 +7924,43 @@ Load testing was executed against the operational engine using a 2,000-concurren
   - Admin Console: `npm run build` exited code 0.
   - Storefront Website: `npm run build` exited code 0.
 
+---
+
+## 147. Cross-Stack Architectural BOQ Integration & Storefront Display
+
+### 147.1 Problem Diagnosis & Discovery
+1. **Symptom**: User uploaded BOQ documents via the Admin Panel for product models (DELIGHT, SKY LIGHT), but the BOQ was not showing anywhere on the frontend storefront.
+2. **Root Cause**:
+   - In `products` table, BOQ documents are stored in `metadata.boqUrl`, `metadata.boqFileName`, and `metadata.boqFileSize`.
+   - Storefront `useProducts` hook previously omitted `metadata` in the `.select()` query clause, stripping all architectural attachments.
+   - Storefront `Product` type definition had no properties for `boqUrl`, `boqFileName`, `boqFileSize`, `brochureUrl`, or `drawingUrl`.
+   - `ProductDetail.tsx` had no button or card to render or download the model's attached BOQ spreadsheet or PDF.
+   - `Downloads.tsx` only queried the `catalogs` table and lacked a "BOQ" document filter type, ignoring product-attached BOQs.
+   - Admin `productCatalogApi.saveModel` saved into `products.metadata` but did not sync the BOQ into the `catalogs` table.
+
+### 147.2 Architectural Resolution
+1. **Admin Console Sync (`src/api/productCatalogApi.ts` & `AdminCatalogs.tsx`)**:
+   - Enhanced `productCatalogApi.saveModel()` to automatically upsert attached BOQs into the `catalogs` table with `document_type: 'BOQ'`.
+   - Added `"BOQ"` (`BOQ / Bill of Quantities`) to the document type dropdown in `AdminCatalogs.tsx`.
+   - Synced existing uploaded BOQs for DELIGHT and SKY LIGHT into `catalogs`.
+2. **Storefront Type & Hook Normalization (`database.types.ts` & `hooks.ts`)**:
+   - Extended `Product` interface in `src/lib/database.types.ts` with top-level and metadata BOQ / architectural attachment fields.
+   - Created `normalizeProductRow()` in `src/lib/hooks.ts` to extract `boqUrl`, `boqFileName`, `boqFileSize`, `brochureUrl`, and `drawingUrl`.
+   - Included `metadata` in `useProducts()` Supabase query and mapped all rows through `normalizeProductRow()`.
+   - Bumped session cache prefix to `prc_cache_v6_` to proactively purge stale cached product models.
+3. **Storefront Product Detail Display (`ProductDetail.tsx`)**:
+   - Added a prominent, high-visibility **"Download BOQ"** button (`FileSpreadsheet` icon) directly in the Hero action bar whenever `product.boqUrl` is present.
+   - Added an **"Architectural Bill of Quantities (BOQ)"** card in the Hardware & Technical Specifications section with one-click **"Download BOQ Sheet"** and **"Preview"** actions.
+   - Integrated attached BOQs, Brochures, and Drawings into the Resources / Technical Downloads grid.
+4. **Downloads Center Integration (`Downloads.tsx`)**:
+   - Added `"BOQ"` to `DOCUMENT_TYPES` sidebar filter.
+   - Enhanced `fetchDownloads()` to merge product-attached BOQ documents into the downloads pool, ensuring all model BOQs appear under the "BOQ" filter tab.
+
+### 147.3 Quality Verification
+- `npx tsc --noEmit` verified with 0 errors across both repositories.
+- `npm run build` completed with exit code 0 in both repositories.
+
+
 
 
 

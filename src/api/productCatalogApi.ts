@@ -438,6 +438,47 @@ export const productCatalogApi = {
         } else if (res?.data && res.data[0]?.id) {
           modelToSave.id = res.data[0].id;
         }
+
+        // Automatic synchronization of attached BOQ to catalogs table for storefront downloads
+        if (modelToSave.id && isValidUuid(modelToSave.id)) {
+          try {
+            if (modelToSave.boqUrl && modelToSave.boqUrl.trim()) {
+              const boqPayload = {
+                title: `${modelToSave.title.trim()} BOQ & Estimation Sheet`,
+                description: `Official architectural Bill of Quantities (BOQ) with stall counts, dimensions, and hardware schedules for ${modelToSave.title.trim()}.`,
+                document_type: 'BOQ',
+                category: modelToSave.category === 'Cubicle' ? 'Restroom Cubicles' : modelToSave.category,
+                file_url: modelToSave.boqUrl.trim(),
+                file_type: modelToSave.boqUrl.toLowerCase().endsWith('.pdf') ? 'pdf' : 'document',
+                file_size: modelToSave.boqFileSize || 0,
+                thumbnail_url: modelToSave.imageUrl || '',
+                product_id: modelToSave.id,
+                published: modelToSave.published !== false,
+                sort_order: 1,
+              };
+              const { data: existingBoq } = await supabase
+                .from('catalogs')
+                .select('id')
+                .eq('product_id', modelToSave.id)
+                .eq('document_type', 'BOQ')
+                .maybeSingle();
+
+              if (existingBoq?.id) {
+                await supabase.from('catalogs').update(boqPayload as any).eq('id', existingBoq.id);
+              } else {
+                await supabase.from('catalogs').insert([boqPayload] as any);
+              }
+            } else {
+              await supabase
+                .from('catalogs')
+                .delete()
+                .eq('product_id', modelToSave.id)
+                .eq('document_type', 'BOQ');
+            }
+          } catch (syncErr) {
+            console.warn('[productCatalogApi] Failed to sync BOQ to catalogs table:', syncErr);
+          }
+        }
       } catch (err: any) {
         console.error('[productCatalogApi] Supabase save exception:', err);
         throw err;
