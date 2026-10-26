@@ -5,8 +5,31 @@ import type { Database } from "./database.types";
 function isValidSupabaseKey(key?: string): boolean {
   if (!key || typeof key !== "string") return false;
   const trimmed = key.trim();
-  if (trimmed.length < 20) return false;
-  if (trimmed.includes("placeholder")) return false;
+  if (trimmed.length < 20 || trimmed.includes("placeholder")) return false;
+  if (trimmed.includes("kgalsrokdmsrqysyoffm") || trimmed.includes("ydpzlqjnhbcuzmjyylaj")) return false;
+
+  // Verify that any provided JWT specifically targets the canonical Pacific project (bcbswbzbtskvmdqmgrjm)
+  if (trimmed.startsWith("eyJ")) {
+    try {
+      const parts = trimmed.split(".");
+      if (parts.length >= 2) {
+        const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+        const jsonStr =
+          typeof atob === "function"
+            ? atob(base64)
+            : typeof (globalThis as any).Buffer !== "undefined" ? (globalThis as any).Buffer.from(base64, "base64").toString("utf-8") : "";
+        if (jsonStr) {
+          const payload = JSON.parse(jsonStr);
+          if (payload.ref && payload.ref !== "bcbswbzbtskvmdqmgrjm") {
+            return false;
+          }
+        }
+      }
+    } catch {
+      return false;
+    }
+  }
+
   return true;
 }
 

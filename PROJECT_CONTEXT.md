@@ -7869,6 +7869,38 @@ Load testing was executed against the operational engine using a 2,000-concurren
   - `npm run build` in `D:\PACIFIC-Admin`: exited **0** in 33.90s.
   - `npm run build` in `D:\Pacific Products And Solutions`: exited **0** in 11.28s.
 
+---
+
+## 145. Elimination of Stale Vercel API Key Mismatch & Guaranteed Production DB Hydration
+
+### 145.1 Problem Identification & Discovery
+1. **Symptom**: Visitors and the user reported that the live frontend was "still not showing in the Frontend side only showing dummy data".
+2. **Root Cause Diagnosis**:
+   - Inspection of live production bundles on `pacificproduct.in` revealed that Vercel was injecting an outdated `VITE_SUPABASE_ANON_KEY` originating from the previous Supabase project (`kgalsrokdmsrqysyoffm`).
+   - `isValidSupabaseKey()` previously checked only if the key was a non-empty string starting with `"eyJ"`.
+   - Consequently, the frontend initialized the client with URL `https://bcbswbzbtskvmdqmgrjm.supabase.co` coupled with the old JWT for `kgalsrokdmsrqysyoffm`.
+   - PostgREST rejected every API request in the browser with `401: Invalid API key`.
+   - Hook catch blocks caught the 401 error and fell back to hardcoded `demoProducts` or returned empty arrays, concealing all 20 live catalog models.
+
+### 145.2 Permanent Architectural Fixes
+1. **JWT Project Reference Validation (`src/lib/supabase.ts`)**:
+   - Enhanced `isValidSupabaseKey()` in both repositories to decode the base64url JWT payload and verify that `payload.ref === 'bcbswbzbtskvmdqmgrjm'`.
+   - Any key matching `kgalsrokdmsrqysyoffm` or any non-canonical project reference is automatically rejected.
+   - System transparently falls back to `CANONICAL_PACIFIC_ANON_KEY`, guaranteeing that every API request uses the matching authentication token.
+2. **Session Storage Invalidation (`src/lib/hooks.ts`)**:
+   - Upgraded cache prefix to `prc_cache_v4_` and automatically pruned all previous `prc_cache_` entries from browser `sessionStorage`.
+3. **Cleaned Demo Fallbacks in Search & Highlights (`Home.tsx` & `FeaturedServices.tsx`)**:
+   - Updated `Home.tsx` quick search to map product links through `toCategorySlug` and filtered out any demo mock IDs.
+   - Refined `FeaturedServices.tsx` so only authentic database products are displayed.
+
+### 145.3 Quality Verification & Cross-Stack Builds
+- **TypeScript Verifications**:
+  - `npx tsc --noEmit` in `D:\PACIFIC-Admin`: **0 errors**.
+  - `npx tsc --noEmit` in `D:\Pacific Products And Solutions`: **0 errors**.
+- **Production Builds**:
+  - `npm run build` in `D:\PACIFIC-Admin`: exited **0** in 41.28s.
+  - `npm run build` in `D:\Pacific Products And Solutions`: exited **0** in 10.15s.
+
 
 
 
