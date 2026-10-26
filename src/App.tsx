@@ -713,6 +713,22 @@ export default function App() {
               }
             />
             <Route
+              path="export/quotations/:id/edit"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <CreateExportQuotationPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="export/quotations/:id"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <CreateExportQuotationPage />
+                </Suspense>
+              }
+            />
+            <Route
               path="export/realization"
               element={
                 <Suspense fallback={<PageLoader />}>
