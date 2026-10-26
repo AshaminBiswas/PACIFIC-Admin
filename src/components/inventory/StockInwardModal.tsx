@@ -94,15 +94,15 @@ export default function StockInwardModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load complete catalog when modal opens to remove 100-board limitation
+  // Load complete catalog once when modal opens (cached in component state to avoid egress on repeated opens)
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || catalogBoards.length > 0) return;
 
     let isMounted = true;
     const fetchCatalog = async () => {
       try {
         setIsLoadingCatalog(true);
-        const res = await boardInventoryApi.list({ limit: 1000 });
+        const res = await boardInventoryApi.list({ limit: 300 });
         if (isMounted && res.data?.data?.items) {
           setCatalogBoards(res.data.data.items);
         }
@@ -117,7 +117,7 @@ export default function StockInwardModal({
     return () => {
       isMounted = false;
     };
-  }, [isOpen]);
+  }, [isOpen, catalogBoards.length]);
 
   // Handle initial board selection
   useEffect(() => {

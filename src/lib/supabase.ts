@@ -80,6 +80,45 @@ if (typeof window !== "undefined") {
   } catch {}
 }
 
+// ── Cached Egress Engine: In-Memory SWR & Edge Cache Layer ──────────────────
+// Automatically intercepts read-heavy reference tables to serve from cache hits,
+// minimizing origin queries and transforming outbound bandwidth into Cached Egress.
+interface CachedResponse {
+  body: string;
+  status: number;
+  statusText: string;
+  headers: [string, string][];
+  timestamp: number;
+}
+const edgeApiCache = new Map<string, CachedResponse>();
+const CACHE_TTL_MS = 60 * 1000; // 60s memory TTL for static/reference tables
+
+const CACHEABLE_SUPABASE_TABLES = [
+  '/rest/v1/products',
+  '/rest/v1/catalogs',
+  '/rest/v1/blogs',
+  '/rest/v1/hardware_branches',
+  '/rest/v1/hardware_vendors',
+  '/rest/v1/testimonials',
+  '/rest/v1/feedback',
+  '/rest/v1/faqs',
+  '/rest/v1/gallery_images',
+  '/rest/v1/commercial_projects',
+  '/rest/v1/contact_queries',
+];
+
+export function invalidateSupabaseCache(tablePattern?: string) {
+  if (!tablePattern) {
+    edgeApiCache.clear();
+    return;
+  }
+  for (const key of edgeApiCache.keys()) {
+    if (key.includes(tablePattern)) {
+      edgeApiCache.delete(key);
+    }
+  }
+}
+
 export const supabase = createClient<any>(
   supabaseUrl,
   supabaseKey,
@@ -93,8 +132,41 @@ export const supabase = createClient<any>(
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 6000);
         try {
+          const urlStr = typeof url === 'string' ? url : (url as any)?.url || String(url);
+          const rawMethod = (options as any)?.method || 'GET';
+          const method = String(rawMethod).toUpperCase();
+
+          // Invalidate cache on mutations
+          if (method !== 'GET') {
+            for (const pattern of CACHEABLE_SUPABASE_TABLES) {
+              if (urlStr.includes(pattern)) {
+                invalidateSupabaseCache(pattern);
+              }
+            }
+          }
+
+          // Check memory cache for GET requests to eligible reference tables
+          const isCacheable = method === 'GET' && CACHEABLE_SUPABASE_TABLES.some((p) => urlStr.includes(p));
+          if (isCacheable) {
+            const cached = edgeApiCache.get(urlStr);
+            if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+              clearTimeout(timeout);
+              return new Response(cached.body, {
+                status: cached.status,
+                statusText: cached.statusText,
+                headers: new Headers(cached.headers),
+              });
+            }
+          }
+
           // Pre-request check: sanitize expired or invalid bearer tokens before sending
           const reqHeaders = new Headers((options as any)?.headers || {});
+
+          // Inject Edge Cache-Control headers on GET requests to trigger Cloudflare Smart CDN Cached Egress
+          if (method === 'GET') {
+            reqHeaders.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
+          }
+
           const authVal = reqHeaders.get("authorization") || reqHeaders.get("Authorization");
           if (authVal) {
             const token = authVal.replace(/^Bearer\s+/i, "").trim();
@@ -126,6 +198,26 @@ export const supabase = createClient<any>(
             headers: reqHeaders,
             signal: (options as any)?.signal || controller.signal,
           });
+
+          // Populate cache if response is valid
+          if (isCacheable && res.ok) {
+            try {
+              const clone = res.clone();
+              clone.text().then((body) => {
+                const headerList: [string, string][] = [];
+                clone.headers.forEach((v, k) => headerList.push([k, v]));
+                headerList.push(['x-supabase-cache', 'HIT']);
+                headerList.push(['x-cached-egress', 'true']);
+                edgeApiCache.set(urlStr, {
+                  body,
+                  status: clone.status,
+                  statusText: clone.statusText,
+                  headers: headerList,
+                  timestamp: Date.now(),
+                });
+              }).catch(() => {});
+            } catch {}
+          }
 
           // Self-heal on 401: If Supabase returns 401 due to expired/stale auth tokens in localStorage or bad apikey
           if (res.status === 401 && !(options as any)?._isRetry) {
@@ -241,7 +333,7 @@ export async function uploadImage(
     const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
     const { error } = await supabase.storage.from(BUCKET).upload(fileName, optimizedFile, {
-      cacheControl: "31536000, immutable",
+      cacheControl: "public, max-age=31536000, s-maxage=31536000, immutable",
       upsert: false,
     });
 
@@ -287,7 +379,7 @@ export async function uploadFile(
     const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
     const { error } = await supabase.storage.from(BUCKET).upload(fileName, processedFile, {
-      cacheControl: "31536000, immutable",
+      cacheControl: "public, max-age=31536000, s-maxage=31536000, immutable",
       upsert: false,
       contentType: file.type,
     });
@@ -428,7 +520,7 @@ export async function uploadVideo(
     const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
     const { error } = await supabase.storage.from(BUCKET).upload(fileName, file, {
-      cacheControl: "3600",
+      cacheControl: "public, max-age=31536000, s-maxage=31536000, immutable",
       upsert: false,
       contentType: file.type || "video/mp4",
     });

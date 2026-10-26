@@ -100,7 +100,7 @@ export default function BoardInventoryPage() {
     selectedStatus,
   ]);
 
-  // Load all data with server-side pagination and filters
+  // Load paginated board list (egress-optimized: does not reload analytics or suppliers)
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -112,22 +112,18 @@ export default function BoardInventoryPage() {
       const statusParam = selectedStatus !== 'ALL' ? selectedStatus : undefined;
       const searchParam = debouncedSearch.trim() || undefined;
 
-      const [boardsRes, suppliersRes, analyticsRes] = await Promise.all([
-        boardInventoryApi.list({
-          page,
-          limit: pageSize,
-          warehouse: warehouseParam,
-          vendorName: vendorNameParam,
-          size: sizeParam,
-          thickness: thicknessParam,
-          boardType: boardTypeParam,
-          status: statusParam,
-          search: searchParam,
-          category: 'RESTROOM_CUBICLE',
-        }),
-        boardInventoryApi.listSuppliers(),
-        boardInventoryApi.getAnalytics({ warehouse: warehouseParam, category: 'RESTROOM_CUBICLE' }),
-      ]);
+      const boardsRes = await boardInventoryApi.list({
+        page,
+        limit: pageSize,
+        warehouse: warehouseParam,
+        vendorName: vendorNameParam,
+        size: sizeParam,
+        thickness: thicknessParam,
+        boardType: boardTypeParam,
+        status: statusParam,
+        search: searchParam,
+        category: 'RESTROOM_CUBICLE',
+      });
 
       if (boardsRes.data?.data) {
         const resp = boardsRes.data.data;
@@ -137,12 +133,6 @@ export default function BoardInventoryPage() {
         setTotalRecords(total);
         const pages = resp.totalPages ?? (resp as any).pagination?.totalPages ?? Math.max(1, Math.ceil(total / pageSize));
         setTotalPages(pages);
-      }
-      if (suppliersRes.data?.data) {
-        setSuppliers(suppliersRes.data.data);
-      }
-      if (analyticsRes.data?.data) {
-        setAnalytics(analyticsRes.data.data);
       }
     } catch (err) {
       console.error('Failed to load board inventory data:', err);
@@ -161,9 +151,42 @@ export default function BoardInventoryPage() {
     selectedStatus,
   ]);
 
+  // Load analytics separately — only runs when warehouse changes or after mutations
+  const loadAnalytics = useCallback(async () => {
+    try {
+      const warehouseParam = selectedWarehouse !== 'ALL' ? selectedWarehouse : undefined;
+      const analyticsRes = await boardInventoryApi.getAnalytics({ warehouse: warehouseParam, category: 'RESTROOM_CUBICLE' });
+      if (analyticsRes.data?.data) {
+        setAnalytics(analyticsRes.data.data);
+      }
+    } catch (err) {
+      console.error('Failed to load board analytics:', err);
+    }
+  }, [selectedWarehouse]);
+
+  // Load suppliers once on mount
+  const loadSuppliers = useCallback(async () => {
+    try {
+      const suppliersRes = await boardInventoryApi.listSuppliers();
+      if (suppliersRes.data?.data) {
+        setSuppliers(suppliersRes.data.data);
+      }
+    } catch (err) {
+      console.warn('Failed to load board suppliers:', err);
+    }
+  }, []);
+
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    loadAnalytics();
+  }, [loadAnalytics]);
+
+  useEffect(() => {
+    loadSuppliers();
+  }, [loadSuppliers]);
 
   // Dynamic dropdown values
   const availableSizes = useMemo(() => {
@@ -819,7 +842,10 @@ export default function BoardInventoryPage() {
           setIsInwardModalOpen(false);
           setActiveBoardItem(null);
         }}
-        onSuccess={loadData}
+        onSuccess={() => {
+          loadData();
+          loadAnalytics();
+        }}
         initialBoardId={activeBoardItem?.id}
         suppliers={suppliers}
         boards={boards}
@@ -832,7 +858,10 @@ export default function BoardInventoryPage() {
           setIsIssueModalOpen(false);
           setActiveBoardItem(null);
         }}
-        onSuccess={loadData}
+        onSuccess={() => {
+          loadData();
+          loadAnalytics();
+        }}
         initialBoardId={activeBoardItem?.id}
         boards={boards}
       />
@@ -841,7 +870,10 @@ export default function BoardInventoryPage() {
       <CreateBoardModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onSuccess={loadData}
+        onSuccess={() => {
+          loadData();
+          loadAnalytics();
+        }}
         suppliers={suppliers}
       />
 
@@ -866,7 +898,10 @@ export default function BoardInventoryPage() {
           setIsAdjustModalOpen(false);
           setActiveMovement(null);
         }}
-        onSuccess={loadData}
+        onSuccess={() => {
+          loadData();
+          loadAnalytics();
+        }}
         movement={activeMovement}
       />
 

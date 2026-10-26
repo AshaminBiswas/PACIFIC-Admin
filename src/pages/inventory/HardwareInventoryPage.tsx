@@ -256,37 +256,29 @@ export default function HardwareInventoryPage() {
     }
   }, []);
 
-  // Load hardware inventory data (items and analytics) — egress-optimized
+  // Load hardware inventory data (items only) — egress-optimized
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [itemsRes, analyticsRes] = await Promise.all([
-        hardwareInventoryApi.list({
-          page,
-          limit: pageSize,
-          search: debouncedSearch.trim() || undefined,
-          warehouse: selectedBranch !== 'ALL' ? selectedBranch : undefined,
-          material: selectedMaterial !== 'ALL' ? selectedMaterial : undefined,
-          color: selectedColor !== 'ALL' ? selectedColor : undefined,
-          unit: selectedUnit !== 'ALL' ? selectedUnit : undefined,
-          vendorId: selectedVendorId !== 'ALL' ? selectedVendorId : undefined,
-          status: selectedStatus !== 'ALL' ? selectedStatus : undefined,
-          dia: selectedDia !== 'ALL' ? selectedDia : undefined,
-          length: selectedLength !== 'ALL' ? selectedLength : undefined,
-          width: selectedWidth !== 'ALL' ? selectedWidth : undefined,
-        }),
-        hardwareInventoryApi.getAnalytics({
-          warehouse: selectedBranch !== 'ALL' ? selectedBranch : undefined,
-        }),
-      ]);
+      const itemsRes = await hardwareInventoryApi.list({
+        page,
+        limit: pageSize,
+        search: debouncedSearch.trim() || undefined,
+        warehouse: selectedBranch !== 'ALL' ? selectedBranch : undefined,
+        material: selectedMaterial !== 'ALL' ? selectedMaterial : undefined,
+        color: selectedColor !== 'ALL' ? selectedColor : undefined,
+        unit: selectedUnit !== 'ALL' ? selectedUnit : undefined,
+        vendorId: selectedVendorId !== 'ALL' ? selectedVendorId : undefined,
+        status: selectedStatus !== 'ALL' ? selectedStatus : undefined,
+        dia: selectedDia !== 'ALL' ? selectedDia : undefined,
+        length: selectedLength !== 'ALL' ? selectedLength : undefined,
+        width: selectedWidth !== 'ALL' ? selectedWidth : undefined,
+      });
 
       if (itemsRes.data?.data) {
         setItems(itemsRes.data.data.items || []);
         setTotalRecords(itemsRes.data.data.total || 0);
         setTotalPages(itemsRes.data.data.totalPages || 1);
-      }
-      if (analyticsRes.data?.data) {
-        setAnalytics(analyticsRes.data.data);
       }
     } catch (err) {
       console.error('Failed to load hardware inventory data:', err);
@@ -308,9 +300,27 @@ export default function HardwareInventoryPage() {
     selectedWidth,
   ]);
 
+  // Load hardware analytics — only runs when branch changes or after mutations
+  const loadAnalytics = useCallback(async () => {
+    try {
+      const analyticsRes = await hardwareInventoryApi.getAnalytics({
+        warehouse: selectedBranch !== 'ALL' ? selectedBranch : undefined,
+      });
+      if (analyticsRes.data?.data) {
+        setAnalytics(analyticsRes.data.data);
+      }
+    } catch (err) {
+      console.error('Failed to load hardware analytics:', err);
+    }
+  }, [selectedBranch]);
+
   useEffect(() => {
     loadMetadata();
   }, [loadMetadata]);
+
+  useEffect(() => {
+    loadAnalytics();
+  }, [loadAnalytics]);
 
   useEffect(() => {
     // Automatically purge any dummy demo items from browser storage on mount
@@ -1422,7 +1432,10 @@ export default function HardwareInventoryPage() {
       <CreateHardwareModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onSuccess={loadData}
+        onSuccess={() => {
+          loadData();
+          loadAnalytics();
+        }}
         branches={branches}
         vendors={vendors}
         items={items}
@@ -1433,7 +1446,10 @@ export default function HardwareInventoryPage() {
       <HardwareInwardModal
         isOpen={isInwardModalOpen}
         onClose={() => setIsInwardModalOpen(false)}
-        onSuccess={loadData}
+        onSuccess={() => {
+          loadData();
+          loadAnalytics();
+        }}
         preselectedItem={activeItem}
         items={items}
         branches={branches}
@@ -1444,7 +1460,10 @@ export default function HardwareInventoryPage() {
       <HardwareIssueModal
         isOpen={isIssueModalOpen}
         onClose={() => setIsIssueModalOpen(false)}
-        onSuccess={loadData}
+        onSuccess={() => {
+          loadData();
+          loadAnalytics();
+        }}
         preselectedItem={activeItem}
         items={items}
         branches={branches}
@@ -1453,7 +1472,10 @@ export default function HardwareInventoryPage() {
       <HardwareAdjustModal
         isOpen={isAdjustModalOpen}
         onClose={() => setIsAdjustModalOpen(false)}
-        onSuccess={loadData}
+        onSuccess={() => {
+          loadData();
+          loadAnalytics();
+        }}
         item={activeItem}
       />
 
@@ -1481,6 +1503,7 @@ export default function HardwareInventoryPage() {
         onVendorsUpdated={() => {
           loadMetadata();
           loadData();
+          loadAnalytics();
         }}
       />
 
@@ -1490,13 +1513,17 @@ export default function HardwareInventoryPage() {
         onBranchesUpdated={() => {
           loadMetadata();
           loadData();
+          loadAnalytics();
         }}
       />
 
       <EditHardwareModal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
-        onSuccess={loadData}
+        onSuccess={() => {
+          loadData();
+          loadAnalytics();
+        }}
         item={activeItem}
         branches={branches}
         vendors={vendors}
