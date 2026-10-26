@@ -8,13 +8,14 @@ import {
   DEFAULT_TOP_CATEGORIES,
 } from '../data/productCatalogData';
 
-const LOCAL_STORAGE_MODELS_KEY = 'pacific_product_catalog_models_v5';
+const LOCAL_STORAGE_MODELS_KEY = 'pacific_product_catalog_models_v7';
+const LOCAL_STORAGE_MODELS_TS_KEY = 'pacific_product_catalog_models_time_v7';
 const LOCAL_STORAGE_CATEGORIES_KEY = 'pacific_product_catalog_categories_v4';
 
 // In-memory cache for ultra-fast instant UI rendering
 let memoryModelsCache: ProductCatalogModel[] | null = null;
 let lastModelsFetchTime = 0;
-const MODELS_CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes cache TTL to slash Supabase egress
+const MODELS_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes fresh cache TTL to ensure swift sync
 
 // Clear outdated legacy caches if present
 try {
@@ -23,6 +24,8 @@ try {
     localStorage.removeItem('pacific_product_catalog_models_v2');
     localStorage.removeItem('pacific_product_catalog_models_v3');
     localStorage.removeItem('pacific_product_catalog_models_v4');
+    localStorage.removeItem('pacific_product_catalog_models_v5');
+    localStorage.removeItem('pacific_product_catalog_models_v6');
   }
 } catch {}
 
@@ -302,7 +305,6 @@ export const productCatalogApi = {
   listModels: async (category?: ProductCategoryType, forceRefresh = false): Promise<ProductCatalogModel[]> => {
     const now = Date.now();
     const hasFreshMemory = memoryModelsCache && memoryModelsCache.length > 0;
-    const isThrottleActive = now - lastModelsFetchTime < 15000; // 15s throttle on forced re-fetch
     const isWithinTtl = now - lastModelsFetchTime < MODELS_CACHE_TTL_MS;
 
     // 1. Return in-memory cache if active, not force-refreshed, and within TTL
@@ -314,19 +316,23 @@ export const productCatalogApi = {
       return active;
     }
 
-    // 2. Check localStorage before hitting remote Supabase if memory is empty
+    // 2. Check localStorage with TTL validation before hitting remote Supabase if memory is empty
     if (!hasFreshMemory && !forceRefresh) {
       try {
-        const cached = localStorage.getItem(LOCAL_STORAGE_MODELS_KEY);
-        if (cached) {
-          const models: ProductCatalogModel[] = (JSON.parse(cached) || []).filter((m: any) => m.published !== false);
-          if (models.length > 0) {
-            memoryModelsCache = models;
-            lastModelsFetchTime = now;
-            if (category) {
-              return models.filter((m) => m.category === category);
+        const cachedTs = Number(localStorage.getItem(LOCAL_STORAGE_MODELS_TS_KEY) || 0);
+        const isLocalFresh = cachedTs > 0 && (now - cachedTs < MODELS_CACHE_TTL_MS);
+        if (isLocalFresh) {
+          const cached = localStorage.getItem(LOCAL_STORAGE_MODELS_KEY);
+          if (cached) {
+            const models: ProductCatalogModel[] = (JSON.parse(cached) || []).filter((m: any) => m.published !== false);
+            if (models.length > 0) {
+              memoryModelsCache = models;
+              lastModelsFetchTime = cachedTs;
+              if (category) {
+                return models.filter((m) => m.category === category);
+              }
+              return models;
             }
-            return models;
           }
         }
       } catch {}
@@ -350,6 +356,7 @@ export const productCatalogApi = {
           lastModelsFetchTime = now;
           try {
             localStorage.setItem(LOCAL_STORAGE_MODELS_KEY, JSON.stringify(remoteModels));
+            localStorage.setItem(LOCAL_STORAGE_MODELS_TS_KEY, String(now));
           } catch {}
           if (category) {
             return remoteModels.filter((m) => m.category === category);
@@ -363,7 +370,7 @@ export const productCatalogApi = {
       }
     }
 
-    // 4. Fallback to localStorage cache
+    // 4. Fallback to localStorage cache (offline/degraded network only)
     try {
       const cached = localStorage.getItem(LOCAL_STORAGE_MODELS_KEY);
       if (cached) {
@@ -443,6 +450,8 @@ export const productCatalogApi = {
     try {
       if (typeof window !== 'undefined') {
         localStorage.removeItem(LOCAL_STORAGE_MODELS_KEY);
+        localStorage.removeItem(LOCAL_STORAGE_MODELS_TS_KEY);
+        window.dispatchEvent(new CustomEvent('pacific:products-updated'));
       }
     } catch {}
     await productCatalogApi.listModels(undefined, true);
@@ -474,6 +483,8 @@ export const productCatalogApi = {
     try {
       if (typeof window !== 'undefined') {
         localStorage.removeItem(LOCAL_STORAGE_MODELS_KEY);
+        localStorage.removeItem(LOCAL_STORAGE_MODELS_TS_KEY);
+        window.dispatchEvent(new CustomEvent('pacific:products-updated'));
       }
     } catch {}
     await productCatalogApi.listModels(undefined, true);

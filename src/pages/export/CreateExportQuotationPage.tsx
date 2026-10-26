@@ -268,6 +268,7 @@ export default function CreateExportQuotationPage({ readOnly = false }: { readOn
   // Preset Selector Modal
   const [showPresetModal, setShowPresetModal] = useState<boolean>(false);
   const [presetItemIndex, setPresetItemIndex] = useState<number | null>(null);
+  const [presetModalTab, setPresetModalTab] = useState<'catalog' | 'presets'>('catalog');
 
   // Inline "Add Foreign Buyer" Modal
   const [showNewBuyerModal, setShowNewBuyerModal] = useState<boolean>(false);
@@ -294,7 +295,7 @@ export default function CreateExportQuotationPage({ readOnly = false }: { readOn
           exportApi.listPorts().catch(() => ({ data: { success: false, data: [] } })),
           exportApi.listHsCodes().catch(() => ({ data: { success: false, data: [] } })),
           companiesApi.list().catch(() => ({ data: { success: false, data: [] } })),
-          productCatalogApi.listModels().catch(() => []),
+          productCatalogApi.listModels(undefined, true).catch(() => []),
         ]);
 
         if (isMounted) {
@@ -313,7 +314,15 @@ export default function CreateExportQuotationPage({ readOnly = false }: { readOn
       }
     };
     fetchLookups();
+
+    const handleProductsUpdated = () => {
+      productCatalogApi.listModels(undefined, true).then((m) => {
+        if (isMounted && Array.isArray(m)) setCatalogModels(m);
+      }).catch(() => {});
+    };
+    window.addEventListener('pacific:products-updated', handleProductsUpdated);
     return () => {
+      window.removeEventListener('pacific:products-updated', handleProductsUpdated);
       isMounted = false;
     };
   }, []);
@@ -565,6 +574,78 @@ export default function CreateExportQuotationPage({ readOnly = false }: { readOn
       cbm: Number((existingQty * preset.cbmPerUnit).toFixed(3)),
       grossWeightKg: Math.round(existingQty * preset.grossWeightPerUnit),
       netWeightKg: Math.round(existingQty * preset.netWeightPerUnit),
+    };
+    setQuoteForm({ ...quoteForm, items: updated });
+    setShowPresetModal(false);
+    setPresetItemIndex(null);
+  };
+
+  const handleApplyCatalogModelToItem = (model: ProductCatalogModel, targetIndex: number | null) => {
+    const isLocker = model.category === 'Lockers';
+    const isUmp = model.category === 'Urinal Partitions';
+    const isKid = model.category === 'Kids Toilet';
+
+    const categoryPrefix = isLocker ? 'EXP-LCK' : isUmp ? 'EXP-UMP' : isKid ? 'EXP-KID' : 'EXP-CUB';
+    const systemCategory: 'CUBICLE' | 'BOARD' | 'HARDWARE' = 'CUBICLE';
+    const unit = isUmp ? 'NOS' : 'SETS';
+    const defaultRate = isUmp ? 95 : isLocker ? 320 : 450;
+    const cbmPerUnit = isUmp ? 0.05 : 0.22;
+    const grossWeightPerUnit = isUmp ? 15 : 84;
+    const netWeightPerUnit = isUmp ? 14 : 80;
+
+    const specLines: string[] = [];
+    specLines.push(`• System: Pacific ${model.title} (${model.category})`);
+    if (model.subtitle) specLines.push(`• Configuration: ${model.subtitle}`);
+    if (model.description) specLines.push(`• Description: ${model.description}`);
+    if (model.specifications && model.specifications.length > 0) {
+      const publicSpecs = model.specifications.filter((s) => !s.label.startsWith('__'));
+      publicSpecs.forEach((s) => specLines.push(`• ${s.label}: ${s.value}`));
+    }
+    if (model.features && model.features.length > 0) {
+      specLines.push(`• Standard Features: ${model.features.slice(0, 4).join(', ')}`);
+    }
+
+    const techDescription = specLines.join('\n');
+    const itemCode = `${categoryPrefix}-${model.slug.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10)}`;
+
+    if (targetIndex === null) {
+      const qty = 25;
+      const newItem: ExportQuoteItemForm = {
+        itemCode,
+        systemCategory,
+        description: techDescription,
+        hsCodeId: hsCodes.find((h) => h.hsCode.replace(/\./g, '').startsWith('3925'))?.id || '',
+        quantity: qty,
+        unit,
+        unitRate: defaultRate,
+        totalAmount: qty * defaultRate,
+        cbm: Number((qty * cbmPerUnit).toFixed(3)),
+        grossWeightKg: Math.round(qty * grossWeightPerUnit),
+        netWeightKg: Math.round(qty * netWeightPerUnit),
+      };
+      setQuoteForm({
+        ...quoteForm,
+        items: [...quoteForm.items, newItem],
+      });
+      setShowPresetModal(false);
+      setPresetItemIndex(null);
+      return;
+    }
+
+    const updated = [...quoteForm.items];
+    const existingQty = updated[targetIndex]?.quantity || 1;
+    updated[targetIndex] = {
+      ...updated[targetIndex],
+      itemCode,
+      systemCategory,
+      description: techDescription,
+      hsCodeId: updated[targetIndex]?.hsCodeId || hsCodes.find((h) => h.hsCode.replace(/\./g, '').startsWith('3925'))?.id || '',
+      unit,
+      unitRate: updated[targetIndex]?.unitRate || defaultRate,
+      totalAmount: existingQty * (updated[targetIndex]?.unitRate || defaultRate),
+      cbm: Number((existingQty * cbmPerUnit).toFixed(3)),
+      grossWeightKg: Math.round(existingQty * grossWeightPerUnit),
+      netWeightKg: Math.round(existingQty * netWeightPerUnit),
     };
     setQuoteForm({ ...quoteForm, items: updated });
     setShowPresetModal(false);
@@ -1219,6 +1300,24 @@ export default function CreateExportQuotationPage({ readOnly = false }: { readOn
                         >
                           <Layers className="w-3 h-3 text-[#7FB706]" /> Preset
                         </button>
+                        {catalogModels.length > 0 && (
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              const found = catalogModels.find((m) => m.id === e.target.value);
+                              if (found) handleApplyCatalogModelToItem(found, idx);
+                            }}
+                            className="bg-[#161536] border border-white/10 hover:border-[#7FB706]/40 rounded px-2 py-1 text-gray-300 hover:text-white text-[11px] font-semibold focus:outline-none focus:border-[#7FB706]"
+                            title="Apply official product catalog model"
+                          >
+                            <option value="">Apply Catalog Model...</option>
+                            {catalogModels.map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.title} ({m.category})
+                              </option>
+                            ))}
+                          </select>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleDuplicateItem(idx)}
@@ -1949,8 +2048,90 @@ export default function CreateExportQuotationPage({ readOnly = false }: { readOn
               </button>
             </div>
 
+            {/* Tab Switcher */}
+            <div className="flex border-b border-white/10 bg-[#070714] px-6">
+              <button
+                type="button"
+                onClick={() => setPresetModalTab('catalog')}
+                className={`py-3 px-4 text-xs font-bold border-b-2 transition ${
+                  presetModalTab === 'catalog'
+                    ? 'border-[#7FB706] text-[#7FB706]'
+                    : 'border-transparent text-gray-400 hover:text-white'
+                }`}
+              >
+                Official Product Models ({catalogModels.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setPresetModalTab('presets')}
+                className={`py-3 px-4 text-xs font-bold border-b-2 transition ${
+                  presetModalTab === 'presets'
+                    ? 'border-[#7FB706] text-[#7FB706]'
+                    : 'border-transparent text-gray-400 hover:text-white'
+                }`}
+              >
+                Export Commercial Presets ({EXPORT_PRODUCT_PRESETS.length})
+              </button>
+            </div>
+
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3">
-              {EXPORT_PRODUCT_PRESETS.map((preset, pIdx) => (
+              {presetModalTab === 'catalog' ? (
+                catalogModels.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400 text-xs">
+                    No catalog models found. Check your database connection.
+                  </div>
+                ) : (
+                  catalogModels.map((model) => (
+                    <div
+                      key={model.id}
+                      onClick={() => handleApplyCatalogModelToItem(model, presetItemIndex)}
+                      className="bg-black/40 hover:bg-white/[0.04] border border-white/10 hover:border-[#7FB706]/40 p-4 rounded-2xl cursor-pointer transition space-y-2 group"
+                    >
+                      <div className="flex justify-between items-start gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/20">
+                              {model.category}
+                            </span>
+                            <span className="text-[10px] text-gray-400 font-mono">
+                              Slug: {model.slug}
+                            </span>
+                          </div>
+                          <h4 className="text-sm font-bold text-white group-hover:text-[#7FB706] transition mt-1">
+                            {model.title}
+                          </h4>
+                          {model.subtitle && (
+                            <p className="text-[11px] text-gray-400 mt-0.5">{model.subtitle}</p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[#7FB706]/20 text-[#7FB706] group-hover:bg-[#7FB706] group-hover:text-black transition">
+                            {presetItemIndex === null ? '+ Add Item' : 'Apply to Line Item'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {model.description && (
+                        <p className="text-[11px] text-gray-400 line-clamp-2">{model.description}</p>
+                      )}
+
+                      {model.specifications && model.specifications.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-1 border-t border-white/5">
+                          {model.specifications
+                            .filter((s) => !s.label.startsWith('__'))
+                            .slice(0, 3)
+                            .map((s, sIdx) => (
+                              <span key={sIdx} className="text-[10px] text-gray-400 bg-white/5 px-2 py-0.5 rounded">
+                                <strong className="text-gray-300">{s.label}:</strong> {s.value}
+                              </span>
+                              ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )
+              ) : (
+              EXPORT_PRODUCT_PRESETS.map((preset, pIdx) => (
                 <div
                   key={pIdx}
                   onClick={() => handleApplyPresetToItem(preset)}
@@ -1981,7 +2162,8 @@ export default function CreateExportQuotationPage({ readOnly = false }: { readOn
                     <span>Net Weight: {preset.netWeightPerUnit} KG</span>
                   </div>
                 </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>

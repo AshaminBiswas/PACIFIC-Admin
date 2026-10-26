@@ -7786,6 +7786,53 @@ Load testing was executed against the operational engine using a 2,000-concurren
 - **Frontend Build**: `npm run build` in `D:\Pacific Products And Solutions` exited **0** in 13.68s.
 - **Admin TypeScript Check**: `npx tsc --noEmit` exited **0** with zero errors.
 
+---
+
+## 143. Real-Time Product Model Cross-Stack Linking & Cache Invalidation
+
+### 143.1 Problem Identification & Discovery
+1. **User Observation**: Newly added product models (e.g. `SPLENDOR`) saved in the Admin Console were not appearing in:
+   - **Frontend Website** (`pacificproduct.in` / `D:\Pacific Products And Solutions`): Navbar dropdowns, `/products`, and `/products/restroom-cubicles`.
+   - **Quotation Page** (`D:\PACIFIC-Admin`): `DraftQuotationPage.tsx` and `EditSalesQuotationPage.tsx`.
+   - **PI Creation Page** (`D:\PACIFIC-Admin`): `CreateProformaPage.tsx` and `EditProformaInvoicePage.tsx`.
+   - **Export Quotations Page** (`D:\PACIFIC-Admin`): `CreateExportQuotationPage.tsx`.
+2. **Root Causes**:
+   - **Unbounded `localStorage` Caching in Admin (`src/api/productCatalogApi.ts`)**:
+     - `listModels` previously retrieved cached models from `localStorage` without timestamp expiration when `forceRefresh` was false.
+     - Legacy cache keys (`pacific_product_catalog_models_v5`) prevented subsequent pages from querying Supabase for newly created items.
+   - **Frontend Supabase Configuration Fallback Vulnerability (`Pacific Products And Solutions/src/lib/supabase.ts`)**:
+     - In the frontend website, `isSupabaseConfigured()` evaluated only `import.meta.env.VITE_SUPABASE_URL`. If environment variables were omitted or delayed during build/runtime, it reverted to demo products (`id.startsWith("prod-")`), which `Products.tsx` and `Navbar.tsx` strictly filtered out.
+   - **Frontend Stale Session Storage (`Pacific Products And Solutions/src/lib/hooks.ts`)**:
+     - Earlier sessions cached `prc_cache_products:false` in browser `sessionStorage`, continuing to serve stale items for existing visitors until cache prefix invalidation.
+   - **Export Quotations Disconnect (`src/pages/export/CreateExportQuotationPage.tsx`)**:
+     - `listModels()` was invoked without `forceRefresh=true`, and the line items card and preset modal only exposed hardcoded export presets without allowing selection from live catalog models.
+
+### 143.2 Implementation & Architectural Enhancements
+1. **Admin Product Catalog Sync Engine (`src/api/productCatalogApi.ts`)**:
+   - Upgraded cache storage version to `pacific_product_catalog_models_v7`.
+   - Introduced timestamped cache validation (`pacific_product_catalog_models_time_v7`) with strict 2-minute TTL (`MODELS_CACHE_TTL_MS = 2 * 60 * 1000`).
+   - If `localStorage` is older than TTL or `forceRefresh=true`, the engine automatically hits the live Supabase `products` table.
+   - On `saveModel` and `deleteModel`: Proactively purges in-memory cache, removes local storage keys, dispatches the window broadcast event `'pacific:products-updated'`, and immediately executes a live re-fetch.
+2. **Export Quotation Model Integration (`src/pages/export/CreateExportQuotationPage.tsx`)**:
+   - Updated model lookup to `productCatalogApi.listModels(undefined, true)`.
+   - Added event listener for `'pacific:products-updated'` to dynamically reload models whenever edits occur in another tab or modal.
+   - Added `handleApplyCatalogModelToItem`: Intelligently formats technical specifications, dimensions, features, and hardware package descriptions into the export line item.
+   - Added an inline model dropdown selector in each line item card ("Apply Catalog Model...").
+   - Added a dual-tab selector to the preset modal: "Official Product Models" (showing all active catalog items with 1-click addition) and "Export Commercial Presets".
+3. **Frontend Canonical Credentials & Guaranteed Connection (`Pacific Products And Solutions/src/lib/supabase.ts`)**:
+   - Added `CANONICAL_PACIFIC_SUPABASE_URL` and `CANONICAL_PACIFIC_ANON_KEY` fallbacks matching the admin architecture.
+   - Configured `isSupabaseConfigured()` to guarantee `true`, ensuring live Supabase PostgreSQL connection across all hosting and deployment environments.
+4. **Frontend Session Cache Migration (`Pacific Products And Solutions/src/lib/hooks.ts`)**:
+   - Bumped session cache prefix to `prc_cache_v3_`.
+   - Added automatic purging logic to erase all legacy `prc_cache_` entries from visitor `sessionStorage` on page initialization.
+
+### 143.3 Quality Verification & Cross-Stack Builds
+- **Database Query Verification**: Confirmed all 9 published products (including `SPLENDOR`, `id: ea572e09-9ba0-4734-9fc4-f986f257ea80`) query with zero PostgREST errors.
+- **Admin TypeScript Check**: `npx tsc --noEmit` passed with **0 errors**.
+- **Admin Production Build**: `npm run build` in `D:\PACIFIC-Admin` exited **0** in 47.83s.
+- **Frontend Production Build**: `npm run build` in `D:\Pacific Products And Solutions` exited **0** in 19.36s.
+
+
 
 
 
