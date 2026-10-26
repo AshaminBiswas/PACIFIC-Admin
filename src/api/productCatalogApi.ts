@@ -200,11 +200,11 @@ function mapModelToDbRow(model: ProductCatalogModel) {
     id: isValidUuid(model.id) ? model.id : undefined,
     slug: model.slug,
     title: model.title,
-    subtitle: model.subtitle || '',
-    description: model.description || '',
+    subtitle: model.subtitle || `${model.title} Commercial Model`,
+    description: model.description || `High-performance commercial ${model.category} system engineered by Pacific.`,
     bottom_description: '',
     category: model.category,
-    image_url: model.imageUrl,
+    image_url: model.imageUrl || 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1200&q=80',
     additional_images: model.additionalImages || [],
     features: (model.features && model.features.length > 0)
       ? model.features

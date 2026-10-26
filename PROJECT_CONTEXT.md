@@ -7832,6 +7832,43 @@ Load testing was executed against the operational engine using a 2,000-concurren
 - **Admin Production Build**: `npm run build` in `D:\PACIFIC-Admin` exited **0** in 47.83s.
 - **Frontend Production Build**: `npm run build` in `D:\Pacific Products And Solutions` exited **0** in 19.36s.
 
+---
+
+## 144. Full Cross-Stack Catalog Synchronization (Cubicles, Lockers, Kids Cubicles, Urinal Partitions)
+
+### 144.1 Problem Resolution & Root Cause Diagnosis
+1. **Empty Locker Catalog**: The Supabase `products` database had 0 models with `category: 'Lockers'`, causing `/products/lockers` and the Navbar "Lockers" dropdown to display "No Models Listed Yet".
+2. **Category Normalization Bug**: Earlier slug extraction checked `cat.includes("partition")` before `cubicle`, misclassifying "Toilet Partition" models under `urinal-partitions`, and `cat.includes("toilet")` before `kid`, redirecting general cubicles to `kids-cubicles`.
+3. **Route Fall-Through Loop**: Category URLs like `/products/cubicle` or `/products/kids` lacked explicit route declarations in `routes.tsx`, falling through to `products/:slug` (the `ProductDetail` component) and triggering redirect cycles or 404s.
+4. **Stale Cache & Lack of Live Invalidation**: The frontend relied solely on static TTLs without listening to database mutations. Adding a model in `PACIFIC-Admin` did not trigger instant UI refresh in client sessions.
+5. **PostgreSQL NOT NULL Constraints**: Supabase `products` table strictly requires non-null `title`, `subtitle`, `description`, `category`, and `image_url`. Any model saved with empty strings or omitted fields threw code `23502` violations.
+
+### 144.2 Architectural Improvements
+1. **Live Database Seeding (20 Models Total)**:
+   - Seeded 7 official modular HPL locker models (`Z-Shape Interlocking Dual Locker`, `Tier 1 Compact Laminate Locker`, `Tier 2 Dual Compartment Locker`, `Tier 3 Triple Compartment Locker`, `Tier 4 Four Compartment Locker`, `Tier 5 High-Capacity Locker`, `Tier 6 Multi-Compartment Locker`).
+   - Seeded 4 official urinal partition models (`Urinal Partition Model B Cantilever`, `Urinal Partition Model C Channel`, `Urinal Partition Model D Privacy`, `Urinal Modesty Screen Partition`) alongside `UMP Model A`.
+   - Maintained 6 commercial cubicles (`PLATINA WAVE`, `DELIGHT`, `SKY LIGHT`, `SPLENDOR`, `SAFFRON`, `GUSTO`) and 2 child-safe cubicles (`AZALEA`, `SUMMER FUN`).
+2. **Canonical Category Engine (`src/lib/categoryUtils.ts`)**:
+   - Centralized `toCategorySlug` and `normalizeCategorySlug` with strict priority: Kids (`kids-cubicles`) $\to$ Lockers (`lockers`) $\to$ Urinals (`urinal-partitions`) $\to$ Cubicles (`restroom-cubicles`).
+   - Integrated into `Products.tsx`, `Navbar.tsx`, `FeaturedServices.tsx`, `RelatedProducts.tsx`, and `ProductDetail.tsx`.
+3. **Comprehensive Route Aliases (`src/app/routes.tsx`)**:
+   - Added canonical redirects for `/products/cubicle`, `/products/cubicles`, `/products/toilet-cubicles`, `/products/toilet-partitions`, `/products/shower-cubicles`, `/products/locker`, `/products/modular-lockers`, `/products/hpl-lockers`, `/products/urinal`, `/products/urinals`, `/products/urinal-partition`, `/products/kids`, `/products/kids-toilet`, `/products/kids-cubicle`, and `/products/kids-toilet-cubicles`.
+4. **Supabase Realtime Channel & Cross-Window Invalidation (`src/lib/hooks.ts`)**:
+   - Subscribed `useProducts()` to `supabase.channel("public:products-realtime")` on table `products`.
+   - Listens to window storage and `'pacific:products-updated'` events, automatically invalidating memory and `sessionStorage` cache on any catalog mutation.
+5. **Admin Console Synchronization (`src/api/productCatalogApi.ts` & `AdminProducts.tsx`)**:
+   - Added fallback defaults in `mapModelToDbRow` for `subtitle`, `description`, and `imageUrl`.
+   - Updated `AdminProducts.tsx` form defaults (`published: true`) and standardized category selectors to the 4 canonical groups.
+
+### 144.3 Quality Verification & Cross-Stack Builds
+- **Live Supabase DB Query**: Verified 20 models across Cubicle (6), Lockers (7), Urinal Partitions (5), and Kids Toilet (2) with `published: true`.
+- **TypeScript Verifications**:
+  - `npx tsc --noEmit` in `D:\PACIFIC-Admin`: **0 errors**.
+  - `npx tsc --noEmit` in `D:\Pacific Products And Solutions`: **0 errors**.
+- **Production Builds**:
+  - `npm run build` in `D:\PACIFIC-Admin`: exited **0** in 33.90s.
+  - `npm run build` in `D:\Pacific Products And Solutions`: exited **0** in 11.28s.
+
 
 
 
