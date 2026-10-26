@@ -8,8 +8,8 @@ import {
   DEFAULT_TOP_CATEGORIES,
 } from '../data/productCatalogData';
 
-const LOCAL_STORAGE_MODELS_KEY = 'pacific_product_catalog_models_v7';
-const LOCAL_STORAGE_MODELS_TS_KEY = 'pacific_product_catalog_models_time_v7';
+const LOCAL_STORAGE_MODELS_KEY = 'pacific_product_catalog_models_v8';
+const LOCAL_STORAGE_MODELS_TS_KEY = 'pacific_product_catalog_models_time_v8';
 const LOCAL_STORAGE_CATEGORIES_KEY = 'pacific_product_catalog_categories_v4';
 
 // In-memory cache for ultra-fast instant UI rendering

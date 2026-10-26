@@ -7901,6 +7901,30 @@ Load testing was executed against the operational engine using a 2,000-concurren
   - `npm run build` in `D:\PACIFIC-Admin`: exited **0** in 41.28s.
   - `npm run build` in `D:\Pacific Products And Solutions`: exited **0** in 10.15s.
 
+---
+
+## 146. Complete Removal of Temporary Seed Models & Cache Purge Across Frontends
+
+### 146.1 Action Summary
+1. **Database Purge**:
+   - Permanently deleted all 11 temporary seed/mock models from the Supabase `products` table:
+     - 7 Lockers (`locker-tier-1`, `locker-z-shape`, `locker-tier-2`, `locker-tier-3`, `locker-tier-4`, `locker-tier-5`, `locker-tier-6`)
+     - 4 Urinal Screens (`urinal-model-b`, `urinal-model-c`, `urinal-model-d`, `designer-urinal-modesty-screen`)
+   - Left intact exactly the 9 authentic Pacific product models:
+     - 6 Cubicles: `platina-wave`, `sky-light`, `saffron`, `cubicle-delight`, `gusto`, `splendor`
+     - 2 Kids Toilet: `summer-fun`, `azalea`
+     - 1 Urinal Partition: `ump-model-a`
+2. **Cache Invalidation & Client Updates**:
+   - Frontend (`D:\Pacific Products And Solutions`): Bumped cache prefix in `src/lib/hooks.ts` to `prc_cache_v5_`, forcing immediate invalidation and clean fetch of authentic models.
+   - Admin Console (`D:\PACIFIC-Admin`): Bumped cache keys in `src/api/productCatalogApi.ts` to `pacific_product_catalog_models_v8`, ensuring immediate synchronization with live database records.
+
+### 146.2 Verification & Build Status
+- **TypeScript**: `npx tsc --noEmit` exited 0 with 0 errors across both projects.
+- **Production Builds**:
+  - Admin Console: `npm run build` exited code 0.
+  - Storefront Website: `npm run build` exited code 0.
+
+
 
 
 
