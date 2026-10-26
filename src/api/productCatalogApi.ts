@@ -305,8 +305,8 @@ export const productCatalogApi = {
     const isThrottleActive = now - lastModelsFetchTime < 15000; // 15s throttle on forced re-fetch
     const isWithinTtl = now - lastModelsFetchTime < MODELS_CACHE_TTL_MS;
 
-    // 1. Return in-memory cache if active and not forced (or if force-refresh is spammed within 15s)
-    if (hasFreshMemory && (!forceRefresh || isThrottleActive || isWithinTtl)) {
+    // 1. Return in-memory cache if active, not force-refreshed, and within TTL
+    if (hasFreshMemory && !forceRefresh && isWithinTtl) {
       const active = (memoryModelsCache || []).filter((m) => m.published !== false);
       if (category) {
         return active.filter((m) => m.category === category);
@@ -337,7 +337,7 @@ export const productCatalogApi = {
       try {
         const query = supabase
           .from('products')
-          .select('id, name, slug, description, category, subcategory, base_price, sort_order, published, is_featured, images, specifications, features, metadata, created_at, updated_at')
+          .select('id, slug, title, subtitle, description, bottom_description, category, image_url, alt_text, additional_images, features, specifications, applications, colors, is_featured, sort_order, published, metadata, created_at, updated_at')
           .order('sort_order', { ascending: true });
 
         const res = (await withTimeout<any>(query as any, 10000)) as any;
@@ -438,6 +438,13 @@ export const productCatalogApi = {
     }
 
     // Refresh model cache immediately
+    memoryModelsCache = null;
+    lastModelsFetchTime = 0;
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(LOCAL_STORAGE_MODELS_KEY);
+      }
+    } catch {}
     await productCatalogApi.listModels(undefined, true);
     return modelToSave;
   },
@@ -462,6 +469,13 @@ export const productCatalogApi = {
     }
 
     // Refresh cache immediately
+    memoryModelsCache = null;
+    lastModelsFetchTime = 0;
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(LOCAL_STORAGE_MODELS_KEY);
+      }
+    } catch {}
     await productCatalogApi.listModels(undefined, true);
     return true;
   },

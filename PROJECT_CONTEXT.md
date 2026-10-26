@@ -7736,6 +7736,57 @@ Load testing was executed against the operational engine using a 2,000-concurren
 - **TypeScript Strict Check**: `npx tsc --noEmit` exited **0** (zero errors).
 - **Production Bundle Build**: `npm run build` completed with code **0** (Vite transformed modules cleanly).
 
+---
+
+## 142. Product Model Real-Time Synchronization & Frontend Cache Optimization
+
+### 142.1 Root Cause Analysis
+- **User Issue**: Updates made to product models in the Pacific Admin Console were not appearing on the public frontend website (`pacificproduct.in` / `Pacific Products And Solutions`), showing stale data instead.
+- **Identified Breakpoints**:
+  1. **Invalid Column Projection in `listModels` (`src/api/productCatalogApi.ts`)**:
+     - The query was executing:
+       `supabase.from('products').select('id, name, slug, description, category, subcategory, base_price, sort_order, published, is_featured, images, specifications, features, metadata, created_at, updated_at')`
+     - Columns `name`, `subcategory`, `base_price`, and `images` do not exist in the Supabase PostgreSQL `products` table (which uses `title`, `image_url`, `additional_images`).
+     - This caused PostgREST to return error `42703: column products.name does not exist` on every fetch, silently falling back to stale browser `localStorage` models.
+  2. **Schema Cache Conflict on `metadata` Column**:
+     - `mapModelToDbRow` in `productCatalogApi.ts` generated a `metadata` JSON payload.
+     - The Supabase PostgreSQL `products` table lacked a `metadata` column, causing `supabase.from('products').upsert()` to reject submissions with `PGRST204: Could not find the 'metadata' column of 'products' in the schema cache`.
+     - Because of this, changes made in the Admin Console were never successfully committed to the database.
+  3. **Frontend Aggressive 10-Minute Session Cache**:
+     - In `Pacific Products And Solutions` (`src/lib/hooks.ts`), `useProducts` had a 10-minute cache TTL stored in `sessionStorage` with immediate early-return (`if (cached) return;`).
+     - Even if the database was updated, the browser served stale data from `sessionStorage` without background revalidation.
+
+### 142.2 Comprehensive Architecture & Implementation
+1. **Supabase Schema Enhancement (`products` table)**:
+   - Added `metadata jsonb DEFAULT '{}'::jsonb` column to the `products` table in Supabase PostgreSQL:
+     ```sql
+     ALTER TABLE products ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
+     NOTIFY pgrst, 'reload schema';
+     ```
+2. **Product Catalog API Normalization (`src/api/productCatalogApi.ts`)**:
+   - Replaced invalid column names in `listModels` with valid table attributes:
+     `id, slug, title, subtitle, description, bottom_description, category, image_url, alt_text, additional_images, features, specifications, applications, colors, is_featured, sort_order, published, metadata, created_at, updated_at`.
+   - Fixed cache evaluation logic to strictly enforce force-refresh when saving or deleting:
+     ```typescript
+     if (hasFreshMemory && !forceRefresh && isWithinTtl) { ... }
+     ```
+   - In `saveModel` and `deleteModel`: Proactively invalidate both `memoryModelsCache` and `localStorage.removeItem(LOCAL_STORAGE_MODELS_KEY)` and re-fetch fresh state from the database.
+3. **Admin Products Modal Resiliency (`src/pages/admin/AdminProducts.tsx`)**:
+   - Wrapped `handleSaveModel` inside a robust `try/catch` block with visible error logging and user alerts.
+4. **Frontend Stale-While-Revalidate (SWR) Engine (`Pacific Products And Solutions/src/lib/hooks.ts`)**:
+   - Reduced cache TTL from 10 minutes to 2 minutes (`CACHE_TTL_MS = 2 * 60 * 1000`).
+   - Implemented SWR pattern in `useProducts`:
+     - If cached data exists in memory or `sessionStorage`, it is served immediately for instantaneous 0ms page rendering.
+     - If the cache is older than 30 seconds, a background fetch is dispatched to Supabase `products` table.
+     - When fresh data resolves, React state and session storage are seamlessly updated without page reload or visual jarring.
+   - Updated query projection to include all product attributes.
+
+### 142.3 Verification & Quality Assurance
+- **Supabase Integration**: Tested direct upsert with `metadata` column and verified zero PostgREST schema errors.
+- **Frontend Build**: `npm run build` in `D:\Pacific Products And Solutions` exited **0** in 13.68s.
+- **Admin TypeScript Check**: `npx tsc --noEmit` exited **0** with zero errors.
+
+
 
 
 

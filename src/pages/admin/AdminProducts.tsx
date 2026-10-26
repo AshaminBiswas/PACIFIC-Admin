@@ -820,10 +820,15 @@ export default function AdminProducts() {
       metaDescription: formMetaDescription.trim() || undefined,
     };
 
-    await productCatalogApi.saveModel(modelData);
-    setShowModelModal(false);
-    showToast(editingModel ? `Model "${formTitle}" updated successfully!` : `New model "${formTitle}" created!`);
-    loadData();
+    try {
+      await productCatalogApi.saveModel(modelData);
+      setShowModelModal(false);
+      showToast(editingModel ? `Model "${formTitle}" updated successfully!` : `New model "${formTitle}" created!`);
+      loadData();
+    } catch (err: any) {
+      console.error('Failed to save product model:', err);
+      alert(err.message || 'Failed to save product model');
+    }
   };
 
   // â”€â”€ Toggle Featured Handler â”€â”€
