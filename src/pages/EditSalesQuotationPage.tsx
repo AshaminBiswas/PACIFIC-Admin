@@ -3,7 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import {
   FileText, ArrowLeft, Save, Plus, Trash2, RefreshCw,
   AlertTriangle, RotateCcw, Wrench, Sparkles, Layers,
-  UploadCloud, ExternalLink, Eye,
+  UploadCloud, ExternalLink, Eye, History,
 } from 'lucide-react';
 import { salesQuotationsApi } from '../api/salesQuotationsApi';
 import { companiesApi } from '../api/companyApi';
@@ -121,6 +121,8 @@ export default function EditSalesQuotationPage() {
   const [installationMode, setInstallationMode] = useState<InstallationPricingMode>('RATE');
   const [catalogModels, setCatalogModels] = useState<ProductCatalogModel[]>([]);
   const [companies, setCompanies] = useState<CompanyProfile[]>([]);
+  const [revisionReason, setRevisionReason] = useState<string>('');
+  const [currentRevNum, setCurrentRevNum] = useState<number>(1);
 
   const standardCubicleModels = useMemo(
     () => catalogModels.filter((m) => m.category === 'Cubicle'),
@@ -212,6 +214,7 @@ export default function EditSalesQuotationPage() {
       .then((res) => {
         const q: any = res.data?.data ?? res.data;
         setQuotationNum(q.referenceNumber || q.quotationNumber || q.id);
+        setCurrentRevNum(q.revisionNumber || 1);
 
         const initialCharge = Number(q.installationCharge) || 0;
         const initialMode: InstallationPricingMode = initialCharge > 0 ? 'RATE' : 'OPTION';
@@ -1065,6 +1068,7 @@ export default function EditSalesQuotationPage() {
         installationCustomNote: installationMode === 'OPTION' && form.installationOption === 'Custom' ? form.installationCustomNote : undefined,
         freightAmount: Number(form.freightAmount),
         gstRate: Number(form.gstRate),
+        revisionReason: revisionReason.trim() || undefined,
       });
       if (id) localStorage.removeItem(getStorageKey(id));
       navigate(`/admin/dashboard/sales-quotations/${id}`);
@@ -1170,6 +1174,40 @@ export default function EditSalesQuotationPage() {
           advancePaymentStatus: 'DRAFT',
         }}
       />
+
+      {/* Document Version Control Notice */}
+      <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 shrink-0">
+            <History className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="font-bold text-white flex items-center gap-2 flex-wrap">
+              <span>Document Version Control &amp; PDF Archiving Active</span>
+              <span className="font-mono px-2 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">
+                Current: Rev {String(currentRevNum).padStart(2, '0')}
+              </span>
+              <span className="text-gray-400">→</span>
+              <span className="font-mono px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                New: Rev {String(currentRevNum + 1).padStart(2, '0')}
+              </span>
+            </div>
+            <p className="text-gray-400 mt-0.5 text-[11px]">
+              Saving edits automatically creates an immutable revision snapshot and archives its PDF. Previous versions remain accessible in the Revision History.
+            </p>
+          </div>
+        </div>
+
+        <div className="w-full md:w-auto shrink-0">
+          <input
+            type="text"
+            placeholder="Revision note (optional, e.g. Price revised per client)..."
+            value={revisionReason}
+            onChange={(e) => setRevisionReason(e.target.value)}
+            className="w-full md:w-80 bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs placeholder:text-gray-500 focus:border-indigo-400 focus:outline-none"
+          />
+        </div>
+      </div>
 
       {/* Live Total Banner */}
       <div className="bg-[#121226] border border-[#7FB706]/20 rounded-2xl px-5 py-3 flex flex-wrap items-center gap-4 text-sm">

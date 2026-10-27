@@ -23,6 +23,7 @@ import {
   Package,
   Boxes,
   Edit3,
+  History,
 } from 'lucide-react';
 import { piApi } from '../api/proformaApi';
 import { crmApi } from '../api/crmApi';
@@ -73,6 +74,8 @@ export default function EditProformaInvoicePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [piScope, setPiScope] = useState<PiScope>('CUBICLE');
+  const [revisionReason, setRevisionReason] = useState<string>('');
+  const [currentRevNum, setCurrentRevNum] = useState<number>(1);
 
   // Lookups
   const [customers, setCustomers] = useState<BusinessParty[]>([]);
@@ -186,6 +189,7 @@ export default function EditProformaInvoicePage() {
       setCatalogModels(availableModels);
 
       setPiNumber(data.piNumber || '');
+      setCurrentRevNum(data.revisionNumber || 1);
       setCompanyProfileId(data.companyProfileId || data.companyProfile?.id || (companyList && companyList[0]?.id) || '');
       setStatus(data.status || 'DRAFT');
       setCustomerId(data.customerId || '');
@@ -1366,6 +1370,7 @@ export default function EditProformaInvoicePage() {
         advancePercentage,
         advanceRequiredAmount: requiredAdvance,
         status,
+        revisionReason: revisionReason.trim() || undefined,
         billTo: {
           partyName: billingAddress.partyName,
           gstin: billingAddress.gstin ? billingAddress.gstin.toUpperCase().trim() : undefined,
@@ -1452,6 +1457,40 @@ export default function EditProformaInvoicePage() {
           advancePaymentStatus: status === 'ISSUED' ? 'PENDING' : 'DRAFT',
         }}
       />
+
+      {/* Document Version Control Notice */}
+      <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 shrink-0">
+            <History className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="font-bold text-white flex items-center gap-2 flex-wrap">
+              <span>Document Version Control &amp; PDF Archiving Active</span>
+              <span className="font-mono px-2 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">
+                Current: Rev {String(currentRevNum).padStart(2, '0')}
+              </span>
+              <span className="text-gray-400">→</span>
+              <span className="font-mono px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                New: Rev {String(currentRevNum + 1).padStart(2, '0')}
+              </span>
+            </div>
+            <p className="text-gray-400 mt-0.5 text-[11px]">
+              Saving edits automatically creates an immutable revision snapshot and archives its PDF. Previous revisions remain accessible in the Revision History.
+            </p>
+          </div>
+        </div>
+
+        <div className="w-full md:w-auto shrink-0">
+          <input
+            type="text"
+            placeholder="Revision note (optional, e.g. Price revised per client)..."
+            value={revisionReason}
+            onChange={(e) => setRevisionReason(e.target.value)}
+            className="w-full md:w-80 bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs placeholder:text-gray-500 focus:border-indigo-400 focus:outline-none"
+          />
+        </div>
+      </div>
 
       {/* ── Quick Scope & Boilerplate Presets ── */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">

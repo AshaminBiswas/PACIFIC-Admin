@@ -606,6 +606,7 @@ export interface ProformaInvoice {
   grandTotal: number;
   amountInWords?: string;
   currency: string;
+  revisionNumber?: number;
   status: PIStatus;
   quotationId?: string | null;
   quotationRef?: string | null;
@@ -618,6 +619,7 @@ export interface ProformaInvoice {
   advancePaymentReference?: string | null;
   advancePaymentMode?: string | null;
   convertedOrderId?: string | null;
+  revisions?: DocumentRevision[];
   parties?: ProformaInvoiceParty[];
   items?: ProformaInvoiceItem[];
   taxSummary?: ProformaInvoiceTaxSummary[];
@@ -1349,14 +1351,56 @@ export interface SalesQuotationItem {
   customSpecsJson?: any;
 }
 
+export type DocumentRevisionStatus = 'CURRENT' | 'SUPERSEDED' | 'ORIGINAL';
+
+export interface DocumentRevision {
+  id: string;
+  documentId: string;
+  documentType: 'QUOTATION' | 'PI';
+  documentNumber?: string;
+  customerName?: string;
+  revisionNumber: number;
+  revisionCode: string; // e.g. "REV-01", "REV-02"
+  status: DocumentRevisionStatus;
+  grandTotal: number;
+  subtotal: number;
+  taxAmount: number;
+  itemCount: number;
+  pdfFileName: string;
+  pdfUrl: string;
+  reason?: string;
+  createdAt: string;
+  createdBy?: {
+    id: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  } | null;
+  snapshotJson?: any;
+}
+
 export interface SalesQuotationRevision {
   id: string;
   revisionNumber: number;
-  date: string;
-  totalAmount: number;
+  date?: string;
+  totalAmount?: number;
+  grandTotal?: number;
+  subtotal?: number;
+  taxAmount?: number;
+  itemCount?: number;
+  status?: DocumentRevisionStatus;
+  pdfFileName?: string;
+  pdfUrl?: string;
   snapshotData?: any;
+  snapshotJson?: any;
   reason?: string;
   createdAt: string;
+  createdBy?: {
+    id: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  } | null;
 }
 
 export interface QuotationContentTemplate {

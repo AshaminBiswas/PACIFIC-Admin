@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { ApiResponse, PaginatedResponse, ProformaInvoice } from '../types/admin';
+import type { ApiResponse, PaginatedResponse, ProformaInvoice, DocumentRevision } from '../types/admin';
 
 export const piApi = {
   list: (params?: Record<string, any>) =>
@@ -32,6 +32,15 @@ export const piApi = {
   }) => apiClient.post<ApiResponse<any>>(`/sales/pi/${id}/followups`, data),
   updateStatus: (id: string, status: string, notes?: string) =>
     apiClient.patch<ApiResponse<ProformaInvoice>>(`/sales/pi/${id}`, { status, notes }),
+  getRevisions: (id: string) =>
+    apiClient.get<ApiResponse<DocumentRevision[]>>(`/sales/pi/${id}/revisions`),
+  getRevision: (id: string, rev: number) =>
+    apiClient.get<ApiResponse<any>>(`/sales/pi/${id}/revisions/${rev}`),
+  getRevisionPdfUrl: (id: string, rev: number, download = false) => {
+    const token = localStorage.getItem('pacific_access_token');
+    const authQuery = token ? `&token=${encodeURIComponent(token)}` : '';
+    return `${apiClient.defaults.baseURL}/sales/pi/${id}/revisions/${rev}/pdf?download=${download ? 'true' : 'false'}${authQuery}`;
+  },
   getPdfUrl: (id: string) => {
     const token = localStorage.getItem('pacific_access_token');
     return `${apiClient.defaults.baseURL}/sales/pi/${id}/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`;

@@ -34,6 +34,7 @@ import { piApi } from '../api/proformaApi';
 import { financeApi } from '../api/financeApi';
 import type { ProformaInvoice, PIStatus, Payment } from '../types/admin';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
+import DocumentRevisionHistoryCard from '../components/common/DocumentRevisionHistoryCard';
 import { EditPaymentModal } from '../components/finance/EditPaymentModal';
 import { calculateGstSplit, isDelhiState } from '../utils/tax';
 
@@ -1101,6 +1102,14 @@ export default function ProformaInvoiceDetailPage() {
           })()}
         </div>
       </div>
+
+      {/* ── Document Version Control & Revision History ───────── */}
+      <DocumentRevisionHistoryCard
+        documentType="PI"
+        documentId={pi.id}
+        documentNumber={pi.piNumber}
+        currentRevisionNumber={pi.revisionNumber || 1}
+      />
 
       {/* ── Status History & Follow-ups Timeline ───────────────── */}
       <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-4">

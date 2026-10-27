@@ -10,6 +10,7 @@ import { salesQuotationsApi } from '../api/salesQuotationsApi';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import QuotationFollowupModal from '../components/quotations/QuotationFollowupModal';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
+import DocumentRevisionHistoryCard from '../components/common/DocumentRevisionHistoryCard';
 import { calculateGstSplit } from '../utils/tax';
 import { isKolkataBranch } from '../utils/branchHelper';
 
@@ -1034,27 +1035,13 @@ export default function SalesQuotationDetailPage() {
         )}
       </div>
 
-      {/* Revision History */}
-      {quotation.revisions && quotation.revisions.length > 0 && (
-        <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Revision History</h3>
-          <div className="space-y-2">
-            {quotation.revisions.map((rev) => (
-              <div key={rev.id} className="flex items-center gap-3 text-xs text-gray-400">
-                <span className="font-mono bg-white/5 px-2 py-0.5 rounded font-bold text-amber-400">
-                  R{rev.revisionNumber}
-                </span>
-                <span>{rev.reason || 'Revision'}</span>
-                {rev.createdAt && (
-                  <span className="text-gray-500 ml-auto">
-                    {new Date(rev.createdAt).toLocaleDateString('en-GB')}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Revision History & PDF Archiving System */}
+      <DocumentRevisionHistoryCard
+        documentType="QUOTATION"
+        documentId={quotation.id}
+        documentNumber={quotation.referenceNumber || quotation.quotationNumber}
+        currentRevisionNumber={quotation.revisionNumber}
+      />
 
       {/* Meta Footer */}
       <div className="flex flex-wrap gap-4 text-xs text-gray-600">

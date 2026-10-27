@@ -8171,3 +8171,103 @@ Load testing was executed against the operational engine using a 2,000-concurren
   - `syncInstallationToPiTerms`: When installation is "Not Applicable" or empty, removes any installation condition from the terms array instead of inserting negative wording.
   - `syncFreightToPiTerms`: When freight is "Extra as Actual / To pay" or empty, removes any dedicated freight clause from the terms array.
   - `CreateProformaPage` & `EditProformaInvoicePage`: Stop auto-appending `accessoriesText` as a commercial condition in `finalTerms` on submission, and filter out all 3 unwanted patterns when loading or saving terms.
+
+
+---
+
+## 151. Quotation & Proforma Invoice (PI) Revision History & PDF Archiving System
+
+### 151.1 Objective & Architectural Mandate
+Previous edit workflows in Sales Quotations (`quotations.service.ts::update`) and Proforma Invoices (`pi.service.ts::update`) directly overwritten existing document data and purged item rows (`.deleteMany`), which caused permanent loss of historical document state, pricing snapshots, customer terms, and previously issued PDFs.
+
+To guarantee commercial integrity, legal auditability, and historical retrieval across the enterprise ERP lifecycle, an immutable **Document Version Control & PDF Archiving Subsystem** has been implemented across PACIFIC-Backend and PACIFIC-Admin.
+
+### 151.2 Database Schema & Migrations (`PACIFIC-Backend/prisma/schema.prisma`)
+1. **Sales Quotation Revisions (`sales_quotation_revisions`)**:
+   - `id`: UUID Primary Key.
+   - `quotationId`: UUID Foreign Key referencing `sales_quotations(id)` ON DELETE CASCADE.
+   - `revisionNumber`: Sequential integer (`1, 2, 3...`), with a unique compound constraint `(quotationId, revisionNumber)`.
+   - `status`: String enum (`CURRENT`, `SUPERSEDED`, `ORIGINAL`).
+   - `snapshotJson`: Immutable JSONB column capturing complete document state, client profile, addresses, signatories, items, specs, pricing, and terms.
+   - `grandTotal`, `subtotal`, `taxAmount`, `itemCount`: Financial and volumetric snapshot metrics.
+   - `pdfPath`: Permanent on-disk filepath within `storage/documents/quotations/{quotationId}/{fileName}`.
+   - `pdfFileName`: Standardized filename (e.g. `PPS_QT_2026-27_001_REV-01.pdf`).
+   - `pdfUrl`: Standard endpoint `/api/v1/sales/quotations/{id}/revisions/{rev}/pdf`.
+   - `reason`: Revision rationale (e.g. `Initial issuance (Rev 01)`, `Price update per client negotiation`).
+   - `createdById`: Foreign Key referencing `users(id)` ON DELETE SET NULL.
+   - `createdAt`: ISO 8601 UTC timestamp.
+
+2. **Proforma Invoice Revisions (`proforma_invoice_revisions`)**:
+   - `id`: UUID Primary Key.
+   - `piId`: UUID Foreign Key referencing `proforma_invoices(id)` ON DELETE CASCADE.
+   - `revisionNumber`: Sequential integer (`1, 2, 3...`), unique on `(piId, revisionNumber)`.
+   - `status`: String enum (`CURRENT`, `SUPERSEDED`, `ORIGINAL`).
+   - `snapshotJson`: Immutable JSONB capturing PI metadata, parties (Bill To / Ship To), tax summaries, line items, specifications, terms, and advance requirements.
+   - `grandTotal`, `subtotal`, `taxAmount`, `itemCount`: Financial metrics.
+   - `pdfPath`: Permanent filepath in `storage/documents/proforma-invoices/{piId}/{fileName}`.
+   - `pdfFileName`: Standardized filename (e.g. `PPS_PI_2026-27_0043_REV-01.pdf`).
+   - `pdfUrl`: Standard endpoint `/api/v1/sales/pi/{id}/revisions/{rev}/pdf`.
+   - `reason`: Revision rationale.
+   - `createdById`: Foreign Key referencing `users(id)` ON DELETE SET NULL.
+   - `createdAt`: ISO 8601 UTC timestamp.
+
+3. **Safe Database Migration**:
+   - Zero-data-loss SQL migration applied to Supabase PostgreSQL using `IF NOT EXISTS` constructs.
+   - Registered in Prisma migration tracking via `2026102701_quotation_pi_revisions/migration.sql`.
+
+### 151.3 Backend Services & API Endpoints (`PACIFIC-Backend`)
+1. **Core Service (`src/modules/docs/documentRevision.service.ts`)**:
+   - `createQuotationRevision(quotationId, revNum, reason, userId)`: Captures snapshot, pre-renders PDF via Puppeteer (`htmlToPdfBuffer`), archives PDF to disk, marks prior revisions as `SUPERSEDED`, and upserts revision record.
+   - `createPiRevision(piId, revNum, reason, userId)`: Parallel implementation for Proforma Invoices.
+   - `ensureInitialQuotationRevision` & `ensureInitialPiRevision`: Transparently backfills Revision 1 for legacy documents lacking previous revision entries.
+   - `getQuotationRevisionPdfBuffer` & `getPiRevisionPdfBuffer`: Reads cached PDF directly from disk; if absent, deterministically re-renders from the immutable `snapshotJson`.
+   - `renderQuotationSnapshotHtml` & `renderPiSnapshotHtml`: Dedicated vector HTML generators rendering exact historical state without live table dependencies.
+
+2. **Sales Quotations Controller & Routes**:
+   - `GET /api/v1/sales/quotations/:id/revisions`: Returns list of all archived revisions sorted descending with metrics and status badges.
+   - `GET /api/v1/sales/quotations/:id/revisions/:rev`: Returns full snapshot details for a specific revision.
+   - `GET /api/v1/sales/quotations/:id/revisions/:rev/pdf`: Streams the exact archived PDF binary with headers `Content-Disposition: inline/attachment; filename="PPS_QT_..._REV-01.pdf"`.
+   - Integrated into `quotationsService.create()`, `quotationsService.update()`, and `quotationsService.revise()`.
+
+3. **Proforma Invoices Controller & Routes**:
+   - `GET /api/v1/sales/pi/:id/revisions`: Returns list of PI revisions.
+   - `GET /api/v1/sales/pi/:id/revisions/:rev`: Returns specific revision snapshot.
+   - `GET /api/v1/sales/pi/:id/revisions/:rev/pdf`: Streams archived PI PDF binary.
+   - Integrated into `piService.create()`, `piService.update()`, and `piService.issue()`.
+
+### 151.4 Frontend Integration & UI Components (`PACIFIC-Admin`)
+1. **Universal Revision Component (`src/components/common/DocumentRevisionHistoryCard.tsx`)**:
+   - Reusable across Quotations (`documentType="QUOTATION"`) and Proforma Invoices (`documentType="PI"`).
+   - Interactive table detailing:
+     - Revision badge (`Rev 01`, `Rev 02`, `Rev 03`...)
+     - Document Number (`PPS/QT/2026-27/001`, `PPS/PI/2026-27/0043`)
+     - Date & Time with dual locale formatting (date + time)
+     - Staff Author with user badge
+     - Grand total in Indian Rupee format (`₹...`) & line item count
+     - Status badges: `Current Version` (Emerald active badge), `Original Version` (Cyan badge), `Superseded` (Amber badge)
+     - Action buttons: `View` (opens in-modal inspection modal) and `PDF` (triggers immediate download of the locked archived PDF).
+   - Modal inspection viewer:
+     - Embedded PDF viewer tab streaming the authenticated PDF from the backend archive.
+     - Immutable JSON snapshot tab displaying financial, item, and customer parameters captured at that revision time.
+     - Direct Download PDF action in the modal header.
+
+2. **Detail Page Integration**:
+   - `src/pages/SalesQuotationDetailPage.tsx`: Replaced legacy plain-text placeholder with `DocumentRevisionHistoryCard`.
+   - `src/pages/ProformaInvoiceDetailPage.tsx`: Embedded `DocumentRevisionHistoryCard` directly above Document History & Audit Trail.
+
+3. **Edit Page Workflows**:
+   - `src/pages/EditSalesQuotationPage.tsx` & `src/pages/EditProformaInvoicePage.tsx`:
+     - Added prominent Document Version Control banner highlighting active version tracking (`Current: Rev 01 -> New: Rev 02`).
+     - Added optional Revision Reason input field passed with the submission payload.
+     - Notifies staff that edits will preserve previous versions and generate an immutable new revision.
+
+4. **API Clients & Type Contracts**:
+   - `src/types/admin.ts`: Added `DocumentRevisionStatus`, `DocumentRevision`, and updated `SalesQuotation`, `ProformaInvoice`.
+   - `src/api/salesQuotationsApi.ts`: Added `getRevisions`, `getRevision`, `getRevisionPdfUrl`.
+   - `src/api/proformaApi.ts`: Added `getRevisions`, `getRevision`, `getRevisionPdfUrl`.
+   - `src/api/services.ts`: Exported for seamless cross-stack sync.
+
+### 151.5 Verification
+- **Backend Build**: `npm run --prefix D:\PACIFIC-Backend build` exited with code 0 (`prisma generate`, `puppeteer`, `tsc`).
+- **Frontend Type Check**: `npx tsc --noEmit` exited with 0 errors.
+- **Frontend Build**: `npm run build` exited with code 0, emitting `DocumentRevisionHistoryCard` into production bundle.

@@ -8,6 +8,7 @@ import type {
   QuotationFollowup,
   QuotationFollowupChannel,
   QuotationFollowupStatus,
+  DocumentRevision,
 } from '../types/admin';
 
 export const salesQuotationsApi = {
@@ -54,6 +55,13 @@ export const salesQuotationsApi = {
   listTemplates: (category?: string) =>
     apiClient.get<ApiResponse<QuotationContentTemplate[]>>('/sales/quotations/templates', { params: { category } }),
   saveTemplate: (data: any) => apiClient.post<ApiResponse<QuotationContentTemplate>>('/sales/quotations/templates', data),
+  getRevisions: (id: string) =>
+    apiClient.get<ApiResponse<DocumentRevision[]>>(`/sales/quotations/${id}/revisions`),
+  getRevision: (id: string, rev: number) =>
+    apiClient.get<ApiResponse<any>>(`/sales/quotations/${id}/revisions/${rev}`),
+  getRevisionPdfUrl: (id: string, rev: number, download = false) => {
+    return `${apiClient.defaults.baseURL}/sales/quotations/${id}/revisions/${rev}/pdf${download ? '?download=true' : ''}`;
+  },
   getPdfUrl: (id?: string) => {
     return `${apiClient.defaults.baseURL}/sales/quotations/${id || ''}/pdf`;
   },
