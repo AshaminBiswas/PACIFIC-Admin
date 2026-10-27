@@ -305,12 +305,30 @@ export default function EditProformaInvoicePage() {
         'Subject to Delhi/NCR jurisdiction.',
       ];
 
-      const cleanTerms = termsList.filter(
-        (t) =>
-          !t.toLowerCase().includes('hardware accessories') &&
-          !t.toLowerCase().includes('standard inclusions') &&
-          !t.startsWith('[PI_SCOPE:')
-      );
+      const cleanTerms = termsList.filter((t) => {
+        if (!t) return false;
+        const tLower = t.toLowerCase();
+        if (t.startsWith('[PI_SCOPE:') || t.startsWith('[METADATA:')) return false;
+        if (
+          tLower.includes('hardware accessories') ||
+          tLower.includes('standard inclusions') ||
+          tLower.includes('gravity hinges') ||
+          tLower.includes('hardware scope')
+        ) {
+          return false;
+        }
+        if (tLower.includes('installation') && (tLower.includes('not applicable') || tLower.includes('n/a'))) {
+          return false;
+        }
+        if (
+          tLower.includes('freight charges are extra as actual') ||
+          (tLower.includes('freight') && tLower.includes('extra as actual')) ||
+          (tLower.includes('freight') && tLower.includes('to pay'))
+        ) {
+          return false;
+        }
+        return true;
+      });
 
       if (cleanTerms.length > 0 && !cleanTerms.some((t) => t.toLowerCase().includes('goods once sold will not be taken back'))) {
         setTerms(cleanTerms);
@@ -1294,18 +1312,31 @@ export default function EditProformaInvoicePage() {
         deliveryAddress.state
       );
 
-      // Prepare clean terms without legacy hardware inclusions block or internal scope tags
-      const finalTerms = terms.filter(
-        (t) =>
-          !t.toLowerCase().includes('hardware accessories') &&
-          !t.toLowerCase().includes('standard inclusions') &&
-          !t.startsWith('[PI_SCOPE:')
-      );
-
-      // Preserve accessoriesText in terms
-      if (accessoriesText?.trim()) {
-        finalTerms.push(`Standard Inclusions & Hardware Accessories:\n${accessoriesText.trim()}`);
-      }
+      // Prepare clean terms without unwanted accessories blocks, negative installation, or redundant freight
+      const finalTerms = terms.filter((t) => {
+        if (!t) return false;
+        const tLower = t.toLowerCase();
+        if (t.startsWith('[PI_SCOPE:') || t.startsWith('[METADATA:')) return false;
+        if (
+          tLower.includes('hardware accessories') ||
+          tLower.includes('standard inclusions') ||
+          tLower.includes('gravity hinges') ||
+          tLower.includes('hardware scope')
+        ) {
+          return false;
+        }
+        if (tLower.includes('installation') && (tLower.includes('not applicable') || tLower.includes('n/a'))) {
+          return false;
+        }
+        if (
+          tLower.includes('freight charges are extra as actual') ||
+          (tLower.includes('freight') && tLower.includes('extra as actual')) ||
+          (tLower.includes('freight') && tLower.includes('to pay'))
+        ) {
+          return false;
+        }
+        return true;
+      });
 
       // Persist explicit scope tag
       finalTerms.push(`[PI_SCOPE:${piScope || 'CUBICLE'}]`);

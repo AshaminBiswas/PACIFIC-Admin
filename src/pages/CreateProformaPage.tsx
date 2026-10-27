@@ -1578,18 +1578,31 @@ export default function CreateProformaPage() {
         formData.deliveryAddress.state
       );
 
-      // Prepare clean terms without legacy hardware inclusions block or internal scope tags
-      const finalTerms = formData.terms.filter(
-        (t) =>
-          !t.toLowerCase().includes('hardware accessories') &&
-          !t.toLowerCase().includes('standard inclusions') &&
-          !t.startsWith('[PI_SCOPE:')
-      );
-
-      // Preserve accessoriesText in terms
-      if (formData.accessoriesText?.trim()) {
-        finalTerms.push(`Standard Inclusions & Hardware Accessories:\n${formData.accessoriesText.trim()}`);
-      }
+      // Prepare clean terms without unwanted accessories blocks, negative installation, or redundant freight
+      const finalTerms = formData.terms.filter((t) => {
+        if (!t) return false;
+        const tLower = t.toLowerCase();
+        if (t.startsWith('[PI_SCOPE:') || t.startsWith('[METADATA:')) return false;
+        if (
+          tLower.includes('hardware accessories') ||
+          tLower.includes('standard inclusions') ||
+          tLower.includes('gravity hinges') ||
+          tLower.includes('hardware scope')
+        ) {
+          return false;
+        }
+        if (tLower.includes('installation') && (tLower.includes('not applicable') || tLower.includes('n/a'))) {
+          return false;
+        }
+        if (
+          tLower.includes('freight charges are extra as actual') ||
+          (tLower.includes('freight') && tLower.includes('extra as actual')) ||
+          (tLower.includes('freight') && tLower.includes('to pay'))
+        ) {
+          return false;
+        }
+        return true;
+      });
 
       // Persist the explicit scope tag
       finalTerms.push(`[PI_SCOPE:${formData.piScope || 'CUBICLE'}]`);

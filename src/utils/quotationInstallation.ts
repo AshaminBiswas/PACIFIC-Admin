@@ -214,6 +214,10 @@ export function syncInstallationToPiTerms(
   newClause: string
 ): string[] {
   const cleanClause = newClause.replace(/^(Installation:\s*|4\.\s*Installation:\s*)/i, '').trim();
+  // If installation is Not Applicable, remove any installation clause from PI terms
+  if (!cleanClause || cleanClause.toLowerCase().includes('not applicable') || cleanClause.toLowerCase().includes('supply of restroom cubicle materials only')) {
+    return terms.filter((t) => !/(installation|site readiness)/i.test(t));
+  }
   const installClauseText = `Installation: ${cleanClause}`;
   const installIdx = terms.findIndex((t) => /(installation|site readiness)/i.test(t));
   if (installIdx >= 0) {
@@ -328,6 +332,11 @@ export function syncFreightToPiTerms(
   newClause: string
 ): string[] {
   const cleanClause = newClause.replace(/^(Freight & Transportation:\s*|Freight:\s*)/i, '').trim();
+  // If freight is Extra as Actual / To pay, do not add a redundant freight clause into PI terms;
+  // statutory terms already state "GST and transport charges applicable as per statutory rates."
+  if (!cleanClause || cleanClause.toLowerCase().includes('extra as actual') || cleanClause.toLowerCase().includes('to pay')) {
+    return terms.filter((t) => !/(freight|transportation|dispatch transit)/i.test(t));
+  }
   const freightClauseText = `Freight: ${cleanClause}`;
   const freightIdx = terms.findIndex((t) => /(freight|transportation|dispatch transit)/i.test(t));
   if (freightIdx >= 0) {

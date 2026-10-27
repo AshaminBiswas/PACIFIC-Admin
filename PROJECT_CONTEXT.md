@@ -8146,3 +8146,28 @@ Load testing was executed against the operational engine using a 2,000-concurren
 - **Verification**:
   - Backend: `npm run --prefix D:\PACIFIC-Backend build` exited with code 0; committed (`395232e`) and pushed to `main`.
   - Frontend: `npx tsc --noEmit` exited with 0 errors; `npm run build` exited with code 0.
+
+### 150.6 Removal of Redundant Commercial Conditions from Proforma Invoices
+
+#### 1. Removed Conditions:
+1. **Clause 5 (Standard Inclusions & Hardware Accessories)**:
+   - Full narrative paragraph detailing standard cubicle hardware (Gravity Hinges, Indicator Lock, Supporting Shoe/Legs, Coat Hook, Fasteners).
+   - Removed completely because hardware is either separately itemized as individual lines in the product schedule or not applicable for board/custom scopes.
+2. **Clause 6 (Installation: Installation is Not Applicable)**:
+   - Negative clause stating `Installation is Not Applicable (Supply of restroom cubicle materials only)`.
+   - Removed because when installation is not purchased or not applicable, negative boilerplate should not be listed as a commercial condition.
+3. **Clause 7 (Freight: Freight charges are EXTRA AS ACTUAL / TO PAY)**:
+   - Boilerplate clause stating `Freight charges are EXTRA AS ACTUAL / TO PAY by client/buyer at the time of site delivery`.
+   - Removed because statutory commercial clause `GST and transport charges applicable as per statutory rates` already governs logistics, avoiding redundant friction.
+
+#### 2. Cross-Stack Harmonization:
+- **Backend PDF Renderer (`D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`)**:
+  - Filters out all occurrences of `standard inclusions`, `hardware accessories`, `gravity hinges`, and `hardware scope` from `termsToDisplay`.
+  - Filters out `installation` when `not applicable` or `n/a`, and suppresses pushing installation clauses when `installationOption === 'Not Applicable'` or 0.
+  - Filters out `freight charges are extra as actual` / `extra as actual / to pay`, and suppresses pushing redundant freight clauses when `freightAmount === 0`.
+- **Database Cleanup (`PPS/PI/2026-27/0043`)**:
+  - Purged the `Standard Inclusions & Hardware Accessories` term record from `proforma_invoice_terms`, leaving 4 clean commercial clauses (Warranty, GST & Transport, Delhi Jurisdiction, Payment Terms) plus `[PI_SCOPE:CUSTOM]`.
+- **Frontend Form Controls (`CreateProformaPage.tsx`, `EditProformaInvoicePage.tsx`, `quotationInstallation.ts`)**:
+  - `syncInstallationToPiTerms`: When installation is "Not Applicable" or empty, removes any installation condition from the terms array instead of inserting negative wording.
+  - `syncFreightToPiTerms`: When freight is "Extra as Actual / To pay" or empty, removes any dedicated freight clause from the terms array.
+  - `CreateProformaPage` & `EditProformaInvoicePage`: Stop auto-appending `accessoriesText` as a commercial condition in `finalTerms` on submission, and filter out all 3 unwanted patterns when loading or saving terms.
