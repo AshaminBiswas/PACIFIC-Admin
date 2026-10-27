@@ -22,7 +22,7 @@ import {
   setCustomForexApiKey,
   hasForexApiKey,
 } from '../../api/currencyApi';
-import { Key } from 'lucide-react';
+import { Key, AlertTriangle } from 'lucide-react';
 import type { ConvertedCurrencyResult } from '../../types/admin';
 
 export interface RealtimeCurrencyConverterProps {
@@ -113,7 +113,11 @@ export const RealtimeCurrencyConverter: React.FC<RealtimeCurrencyConverterProps>
       setLastUpdated(res.lastUpdated);
     } catch (err: any) {
       console.error('Forex conversion error:', err);
-      setError(err.message || 'Failed to fetch real-time exchange rate');
+      const msg = err.message || 'Failed to fetch real-time exchange rate';
+      setError(msg);
+      if (msg.includes('403') || msg.includes('key is not configured') || msg.includes('Forbidden')) {
+        setShowKeyConfig(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -125,8 +129,12 @@ export const RealtimeCurrencyConverter: React.FC<RealtimeCurrencyConverterProps>
       setLoadingMarket(true);
       const rates = await currencyApi.getExportMarketRates('INR', forceRefresh);
       setMarketRates(rates);
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Failed to load market rates:', err);
+      const msg = err?.message || '';
+      if (msg.includes('403') || msg.includes('key is not configured') || msg.includes('Forbidden')) {
+        setShowKeyConfig(true);
+      }
     } finally {
       setLoadingMarket(false);
     }
@@ -277,6 +285,23 @@ export const RealtimeCurrencyConverter: React.FC<RealtimeCurrencyConverterProps>
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Error Alert with 1-Click Fix */}
+      {error && !showKeyConfig && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-red-300">
+            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowKeyConfig(true)}
+            className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 rounded-xl text-xs font-bold transition shrink-0 cursor-pointer"
+          >
+            Update API Key
+          </button>
         </div>
       )}
 

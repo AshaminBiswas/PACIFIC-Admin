@@ -188,6 +188,11 @@ export const currencyApi = {
     const url = `https://v6.exchangerate-api.com/v6/${apiKey}/latest/${base}`;
     const res = await fetch(url);
     if (!res.ok) {
+      if (res.status === 403 || res.status === 401) {
+        throw new Error(
+          'Forex API error: 403 Forbidden (API key inactive or invalid). Please enter your active key via "Set API Key" or set VITE_EXCHANGERATE_API_KEY.'
+        );
+      }
       throw new Error(`Forex API error: ${res.status} ${res.statusText}`);
     }
 
