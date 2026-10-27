@@ -55,7 +55,14 @@ import {
   formatFreightTermClause,
   syncFreightToPiTerms,
 } from '../utils/quotationInstallation';
-import { DEFAULT_ACCESSORIES_TEXT, type CreateItem, type BillingAddressData, type DeliveryAddressData, type PiScope } from './CreateProformaPage';
+import {
+  DEFAULT_ACCESSORIES_TEXT,
+  enrichPiItemForSubmission,
+  type CreateItem,
+  type BillingAddressData,
+  type DeliveryAddressData,
+  type PiScope,
+} from './CreateProformaPage';
 import { CustomPiItemCard } from '../components/common/CustomPiItemCard';
 
 export default function EditProformaInvoicePage() {
@@ -267,8 +274,8 @@ export default function EditProformaInvoicePage() {
         phone: sParty?.phone || bParty?.phone || '',
       });
 
-      // Extract Hardware Inclusions from Terms
-      const termsList: string[] = Array.isArray(data.terms) ? data.terms.map((t: any) => t.text) : [];
+      // Extract Hardware Inclusions and Scope Tag from Terms
+      const termsList: string[] = Array.isArray(data.terms) ? data.terms.map((t: any) => typeof t === 'string' ? t : t.text).filter(Boolean) : [];
       if (initInstallCharge > 0) {
         setInstallationMode('RATE');
         setInstallationOption(data.installationOption || 'Included');
@@ -277,6 +284,12 @@ export default function EditProformaInvoicePage() {
         const detectedOpt = detectInstallationOption(termsList.join('\n'));
         setInstallationOption(data.installationOption || detectedOpt || 'Included');
       }
+
+      const rawScopeTerm = termsList.find((t) => t.startsWith('[PI_SCOPE:'));
+      const explicitScope = rawScopeTerm
+        ? (rawScopeTerm.replace('[PI_SCOPE:', '').replace(']', '').trim() as PiScope)
+        : null;
+
       const hardwareTerm = termsList.find(
         (t) =>
           t.toLowerCase().includes('hardware accessories') ||
@@ -292,13 +305,28 @@ export default function EditProformaInvoicePage() {
         'Subject to Delhi/NCR jurisdiction.',
       ];
 
+      const cleanTerms = termsList.filter(
+        (t) =>
+          !t.toLowerCase().includes('hardware accessories') &&
+          !t.toLowerCase().includes('standard inclusions') &&
+          !t.startsWith('[PI_SCOPE:')
+      );
+
+      if (cleanTerms.length > 0 && !cleanTerms.some((t) => t.toLowerCase().includes('goods once sold will not be taken back'))) {
+        setTerms(cleanTerms);
+      } else {
+        setTerms(officialTerms);
+      }
+
       if (hardwareTerm) {
         const cleanHw = hardwareTerm.replace(/^Standard Inclusions & Hardware Accessories:\s*/i, '').trim();
         setAccessoriesText(cleanHw);
-        const filtered = termsList.filter((t) => t !== hardwareTerm);
-        setTerms(filtered.length > 0 && !filtered.some((t) => t.toLowerCase().includes('goods once sold will not be taken back')) ? filtered : officialTerms);
-      } else {
-        setTerms(termsList.length > 0 && !termsList.some((t) => t.toLowerCase().includes('goods once sold will not be taken back')) ? termsList : officialTerms);
+      } else if (explicitScope === 'CUSTOM') {
+        setAccessoriesText('• Scope of Supply: Customized compact laminate board sheets and precision architectural restroom hardware accessories as itemized below.');
+      } else if (explicitScope === 'BOARD') {
+        setAccessoriesText('• Scope of Supply: Raw material compact laminate / HPL board sheets only.\n• Hardware Accessories: Not included in this invoice scope.');
+      } else if (explicitScope === 'HARDWARE') {
+        setAccessoriesText('• Material: Grade 304 Stainless Steel Architectural Restroom Hardware.\n• Fasteners: Grade 304 stainless steel screws and wall anchors included.');
       }
 
       // Extract Items & Specifications
@@ -307,6 +335,7 @@ export default function EditProformaInvoicePage() {
         let hasRealCubicleModel = false;
         let hasBoardItem = false;
         let hasHardwareItem = false;
+        let hasCustomItem = false;
 
         data.items.forEach((it: any) => {
           const rawDesc: string = it.description || '';
@@ -318,40 +347,64 @@ export default function EditProformaInvoicePage() {
           let doorSize = it.doorSize || '';
           let overallHeight = it.overallHeight || '';
           let hardwarePackage = it.hardwarePackage || '';
+          let make = it.make || 'Pacific';
+          let parsedModel = it.customModelName || it.modelName || '';
+          let parsedItemType = it.itemType || '';
+          let parsedSysCat = it.systemCategory || '';
 
-          // Parse specs from \n(Board: ... | Hardware: ...)
+          // Parse specs from \n(Model: ... | Make: ... | Type: ... | Board: ...)
           if (rawDesc.includes('(') && rawDesc.includes(')')) {
             const specSection = rawDesc.slice(rawDesc.indexOf('(') + 1, rawDesc.lastIndexOf(')'));
             mainDesc = rawDesc.slice(0, rawDesc.indexOf('(')).trim();
 
             const parts = specSection.split('|').map((s) => s.trim());
             parts.forEach((p) => {
-              const [k, ...vParts] = p.split(':');
-              const v = vParts.join(':').trim();
-              const keyLower = k.toLowerCase().trim();
-              if (keyLower.includes('board')) {
+              const colonIdx = p.indexOf(':');
+              if (colonIdx === -1) return;
+              const k = p.substring(0, colonIdx).trim().toLowerCase();
+              const v = p.substring(colonIdx + 1).trim();
+
+              if (k === 'model') {
+                if (!parsedModel) parsedModel = v;
+              } else if (k === 'make') {
+                make = v;
+              } else if (k === 'type') {
+                parsedItemType = v;
+              } else if (k === 'category') {
+                parsedSysCat = v;
+              } else if (k.includes('board')) {
                 const bTokens = v.split(' ');
                 if (!boardType && bTokens[0]) boardType = bTokens[0];
                 if (!boardThickness && bTokens[1]) boardThickness = bTokens.slice(1).join(' ');
-              } else if (keyLower.includes('color') && !boardColor) {
+              } else if (k.includes('color') && !boardColor) {
                 boardColor = v;
-              } else if (keyLower.includes('size') && !cubicleSize) {
+              } else if (k.includes('size') && !cubicleSize) {
                 cubicleSize = v;
-              } else if (keyLower.includes('door') && !doorSize) {
+              } else if (k.includes('door') && !doorSize) {
                 doorSize = v;
-              } else if (keyLower.includes('height') && !overallHeight) {
+              } else if (k.includes('height') && !overallHeight) {
                 overallHeight = v;
-              } else if (keyLower.includes('hardware') && !hardwarePackage) {
+              } else if (k.includes('hardware') && !hardwarePackage) {
                 hardwarePackage = v;
               }
             });
           }
 
+          // Separate "ModelTitle — Description" if formatted into mainDesc
+          const dashMatch = mainDesc.match(/^(.*?)\s*(?:—|–|-)\s*(.*)$/);
+          if (dashMatch) {
+            if (!parsedModel) parsedModel = dashMatch[1].trim();
+            mainDesc = dashMatch[2].trim();
+          }
+
           const hsnStr = String(it.hsnSac || it.hsnCode || '');
-          const descLower = mainDesc.toLowerCase();
+          const descLower = (mainDesc || rawDesc).toLowerCase();
 
           // 1. Hardware Item check
           const isHardware =
+            explicitScope === 'HARDWARE' ||
+            parsedItemType === 'hardware' ||
+            parsedSysCat === 'hardware' ||
             it.itemType === 'hardware' ||
             it.systemCategory === 'hardware' ||
             ['8302', '7610', '3925'].includes(hsnStr) ||
@@ -367,14 +420,14 @@ export default function EditProformaInvoicePage() {
               !descLower.includes('hdf') &&
               !descLower.includes('locker'));
 
-          if (isHardware) {
+          if (isHardware && explicitScope !== 'BOARD') {
             hasHardwareItem = true;
             loadedItems.push({
               id: it.id,
               itemType: 'hardware',
               systemCategory: 'hardware',
-              isCustom: Boolean(it.isCustom ?? true),
-              description: mainDesc,
+              isCustom: true,
+              description: mainDesc || parsedModel,
               hardwarePackage: hardwarePackage || '',
               hsnSac: it.hsnSac || '8302',
               quantity: Number(it.quantity) || 1,
@@ -387,6 +440,8 @@ export default function EditProformaInvoicePage() {
 
           // 2. Board Sheet check
           const isBoard =
+            explicitScope === 'BOARD' ||
+            parsedSysCat === 'board' ||
             it.systemCategory === 'board' ||
             ['4823', '4411'].includes(hsnStr) ||
             it.unit === 'SQFT' ||
@@ -406,7 +461,7 @@ export default function EditProformaInvoicePage() {
               id: it.id,
               itemType: 'cubicle',
               systemCategory: 'board',
-              description: mainDesc,
+              description: mainDesc || parsedModel,
               hsnSac: it.hsnSac || '4823',
               quantity: Number(it.quantity) || 1,
               unit: it.unit || 'SQFT',
@@ -421,20 +476,25 @@ export default function EditProformaInvoicePage() {
           }
 
           // 2.5 Custom Item check
-          const isCustomItem =
+          const isExplicitCustom =
+            explicitScope === 'CUSTOM' ||
+            parsedItemType === 'custom' ||
+            parsedSysCat === 'custom' ||
             it.itemType === 'custom' ||
             it.systemCategory === 'custom' ||
             it.isCustom ||
-            it.modelId === 'CUSTOM';
+            it.modelId === 'CUSTOM' ||
+            (!it.productId && parsedModel && !availableModels.some((m) => m.id === it.productId));
 
-          if (isCustomItem) {
+          if (isExplicitCustom && explicitScope !== 'CUBICLE') {
+            hasCustomItem = true;
             loadedItems.push({
               id: it.id,
               itemType: 'custom',
               systemCategory: 'custom',
               isCustom: true,
-              customModelName: it.customModelName || (mainDesc.includes(' - ') ? mainDesc.split(' - ')[0] : mainDesc),
-              description: mainDesc,
+              customModelName: parsedModel || mainDesc,
+              description: mainDesc || parsedModel,
               hsnSac: it.hsnSac || '9403',
               quantity: Number(it.quantity) || 1,
               unit: it.unit || 'NOS',
@@ -447,12 +507,12 @@ export default function EditProformaInvoicePage() {
               doorSize: doorSize || '',
               overallHeight: overallHeight || '',
               hardwarePackage: hardwarePackage || '',
-              make: it.make || 'Pacific',
+              make: make || 'Pacific',
             });
             return;
           }
 
-          // 3. Cubicle / Other System check
+          // 3. Standard Cubicle / Other System check
           const matchedModel = findMatchingCatalogModel(availableModels, {
             productId: it.productId,
             modelId: it.modelId,
@@ -469,7 +529,7 @@ export default function EditProformaInvoicePage() {
 
           const resolvedModelId = (hasExplicitModel && matchedModel?.id) ? matchedModel.id : (it.modelId || it.productId || '');
           const defaultDims = (hasExplicitModel && matchedModel) ? extractModelDimensions(matchedModel) : null;
-          const resolvedTitle = mainDesc;
+          const resolvedTitle = mainDesc || parsedModel;
           const sysCat: 'cubicle' | 'ump' | 'locker' =
             matchedModel?.category === 'Urinal Partitions' || descLower.includes('urinal') || descLower.includes('ump')
               ? 'ump'
@@ -496,14 +556,18 @@ export default function EditProformaInvoicePage() {
             doorSize: doorSize || (hasExplicitModel ? defaultDims?.doorSize : '') || '',
             overallHeight: overallHeight || (hasExplicitModel ? defaultDims?.overallHeight : '') || '',
             hardwarePackage: hardwarePackage || (hasExplicitModel ? defaultDims?.hardwarePackage : '') || '',
+            make: make || 'Pacific',
           };
 
           loadedItems.push(cubicleItem);
         });
 
         // Determine detectedScope
-        const detectedScope: PiScope =
-          hasRealCubicleModel
+        const finalScope: PiScope =
+          explicitScope ||
+          (hasCustomItem
+            ? 'CUSTOM'
+            : hasRealCubicleModel
             ? 'CUBICLE'
             : (hasBoardItem && hasHardwareItem)
             ? 'CUSTOM'
@@ -511,9 +575,9 @@ export default function EditProformaInvoicePage() {
             ? 'BOARD'
             : hasHardwareItem
             ? 'HARDWARE'
-            : 'CUSTOM';
+            : 'CUSTOM');
 
-        setPiScope(detectedScope);
+        setPiScope(finalScope);
         setItems(loadedItems);
       }
     } catch (err: any) {
@@ -1221,62 +1285,24 @@ export default function EditProformaInvoicePage() {
         deliveryAddress.state
       );
 
-      // Prepare clean terms without legacy hardware inclusions block
+      // Prepare clean terms without legacy hardware inclusions block or internal scope tags
       const finalTerms = terms.filter(
         (t) =>
           !t.toLowerCase().includes('hardware accessories') &&
-          !t.toLowerCase().includes('standard inclusions')
+          !t.toLowerCase().includes('standard inclusions') &&
+          !t.startsWith('[PI_SCOPE:')
       );
 
+      // Preserve accessoriesText in terms
+      if (accessoriesText?.trim()) {
+        finalTerms.push(`Standard Inclusions & Hardware Accessories:\n${accessoriesText.trim()}`);
+      }
+
+      // Persist explicit scope tag
+      finalTerms.push(`[PI_SCOPE:${piScope || 'CUBICLE'}]`);
+
       // Enrich item descriptions with specifications so they persist to DB, PDF, and Detail views
-      const enrichedItems = items.map((it) => {
-        let desc = it.description;
-        if (it.itemType === 'custom' || it.systemCategory === 'custom' || it.isCustom) {
-          if (!desc && it.customModelName) {
-            desc = it.customModelName;
-          } else if (desc && it.customModelName && !desc.includes(it.customModelName)) {
-            desc = `${it.customModelName} - ${desc}`;
-          }
-        }
-        const specParts = [];
-        if (it.customModelName && it.itemType !== 'custom' && it.systemCategory !== 'custom' && !it.isCustom) {
-          specParts.push(`Model: ${it.customModelName}`);
-        }
-        if (it.boardType || it.boardThickness) {
-          specParts.push(`Board: ${[it.boardType, it.boardThickness].filter(Boolean).join(' ')}`);
-        }
-        if (it.boardColor) specParts.push(`Color: ${it.boardColor}`);
-        if (it.cubicleSize) specParts.push(`Size: ${it.cubicleSize}`);
-        if (it.systemCategory !== 'board' && it.itemType !== 'hardware') {
-          if (it.doorSize) specParts.push(`Door: ${it.doorSize}`);
-          if (it.overallHeight) specParts.push(`Height: ${it.overallHeight}`);
-        }
-        if (it.hardwarePackage) specParts.push(`Hardware: ${it.hardwarePackage}`);
-
-        if (specParts.length > 0 && !desc.includes('Board:')) {
-          desc = `${desc}\n(${specParts.join(' | ')})`;
-        }
-
-        return {
-          id: it.id,
-          productId: (it.modelId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(it.modelId)) ? it.modelId : undefined,
-          description: desc,
-          hsnSac: it.hsnSac || (it.itemType === 'custom' ? '9403' : it.itemType === 'hardware' ? '8302' : it.systemCategory === 'board' ? '4823' : '48239019'),
-          quantity: Number(it.quantity) || 1,
-          unit: it.unit || (it.itemType === 'hardware' ? 'SET' : 'NOS'),
-          rate: Number(it.rate) || 0,
-          gstRate: Number(it.gstRate || 18),
-          boardType: it.boardType || undefined,
-          boardThickness: it.boardThickness || undefined,
-          boardColor: it.boardColor || undefined,
-          cubicleSize: it.cubicleSize || undefined,
-          doorSize: it.doorSize || undefined,
-          overallHeight: it.overallHeight || undefined,
-          hardwarePackage: it.hardwarePackage || undefined,
-          customModelName: it.customModelName || undefined,
-          modelName: it.customModelName || undefined,
-        };
-      });
+      const enrichedItems = items.map(enrichPiItemForSubmission);
 
       await piApi.update(id, {
         customerId,

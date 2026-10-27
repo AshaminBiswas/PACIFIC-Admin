@@ -91,6 +91,77 @@ export interface CreateItem {
   make?: string;
 }
 
+export function enrichPiItemForSubmission(it: CreateItem) {
+  let baseDesc = it.description?.trim() || '';
+  let modelTitle = it.customModelName?.trim() || '';
+
+  // Clean baseDesc to prevent repeated "Title — Title — Description" on re-edits
+  if (modelTitle) {
+    if (baseDesc.startsWith(`${modelTitle} — `)) {
+      baseDesc = baseDesc.replace(`${modelTitle} — `, '').trim();
+    } else if (baseDesc.startsWith(`${modelTitle} - `)) {
+      baseDesc = baseDesc.replace(`${modelTitle} - `, '').trim();
+    }
+  }
+
+  let titleLine = '';
+  if (modelTitle && baseDesc && modelTitle !== baseDesc) {
+    titleLine = `${modelTitle} — ${baseDesc}`;
+  } else {
+    titleLine = modelTitle || baseDesc || 'Custom Item';
+  }
+
+  const specParts: string[] = [];
+  if (modelTitle) {
+    specParts.push(`Model: ${modelTitle}`);
+  }
+  if (it.make) {
+    specParts.push(`Make: ${it.make}`);
+  }
+  if (it.boardType || it.boardThickness) {
+    specParts.push(`Board: ${[it.boardType, it.boardThickness].filter(Boolean).join(' ')}`);
+  }
+  if (it.boardColor) specParts.push(`Color: ${it.boardColor}`);
+  if (it.cubicleSize) specParts.push(`Size: ${it.cubicleSize}`);
+  if (it.systemCategory !== 'board' && it.itemType !== 'hardware') {
+    if (it.doorSize) specParts.push(`Door: ${it.doorSize}`);
+    if (it.overallHeight) specParts.push(`Height: ${it.overallHeight}`);
+  }
+  if (it.hardwarePackage) specParts.push(`Hardware: ${it.hardwarePackage}`);
+  if (it.itemType) {
+    specParts.push(`Type: ${it.itemType}`);
+  }
+  if (it.systemCategory) {
+    specParts.push(`Category: ${it.systemCategory}`);
+  }
+
+  let desc = titleLine;
+  if (specParts.length > 0) {
+    desc = `${titleLine}\n(${specParts.join(' | ')})`;
+  }
+
+  return {
+    id: it.id,
+    productId: (it.modelId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(it.modelId)) ? it.modelId : undefined,
+    description: desc,
+    hsnSac: it.hsnSac || (it.itemType === 'hardware' ? '8302' : it.systemCategory === 'board' ? '4823' : '9403'),
+    quantity: Number(it.quantity) || 1,
+    unit: it.unit || (it.itemType === 'hardware' ? 'SET' : it.systemCategory === 'board' ? 'SQFT' : 'NOS'),
+    rate: Number(it.rate) || 0,
+    gstRate: Number(it.gstRate || 18),
+    boardType: it.boardType || undefined,
+    boardThickness: it.boardThickness || undefined,
+    boardColor: it.boardColor || undefined,
+    cubicleSize: it.cubicleSize || undefined,
+    doorSize: it.doorSize || undefined,
+    overallHeight: it.overallHeight || undefined,
+    hardwarePackage: it.hardwarePackage || undefined,
+    customModelName: it.customModelName || undefined,
+    modelName: it.customModelName || undefined,
+    make: it.make || undefined,
+  };
+}
+
 export interface BillingAddressData {
   partyName: string;
   gstin: string;
@@ -1440,57 +1511,24 @@ export default function CreateProformaPage() {
         formData.deliveryAddress.state
       );
 
-      // Prepare clean terms without legacy hardware inclusions block
+      // Prepare clean terms without legacy hardware inclusions block or internal scope tags
       const finalTerms = formData.terms.filter(
         (t) =>
           !t.toLowerCase().includes('hardware accessories') &&
-          !t.toLowerCase().includes('standard inclusions')
+          !t.toLowerCase().includes('standard inclusions') &&
+          !t.startsWith('[PI_SCOPE:')
       );
 
+      // Preserve accessoriesText in terms
+      if (formData.accessoriesText?.trim()) {
+        finalTerms.push(`Standard Inclusions & Hardware Accessories:\n${formData.accessoriesText.trim()}`);
+      }
+
+      // Persist the explicit scope tag
+      finalTerms.push(`[PI_SCOPE:${formData.piScope || 'CUBICLE'}]`);
+
       // Enrich item descriptions with specifications so they persist to DB, PDF, and Detail views
-      const enrichedItems = formData.items.map((it) => {
-        let desc = it.description?.trim() || it.customModelName?.trim() || 'Custom Item';
-        if (it.customModelName && it.description && !it.description.includes(it.customModelName)) {
-          desc = `${it.customModelName} — ${it.description}`;
-        }
-        const specParts = [];
-        if (it.customModelName && !desc.includes(it.customModelName)) {
-          specParts.push(`Model: ${it.customModelName}`);
-        }
-        if (it.boardType || it.boardThickness) {
-          specParts.push(`Board: ${[it.boardType, it.boardThickness].filter(Boolean).join(' ')}`);
-        }
-        if (it.boardColor) specParts.push(`Color: ${it.boardColor}`);
-        if (it.cubicleSize) specParts.push(`Size: ${it.cubicleSize}`);
-        if (it.systemCategory !== 'board' && it.itemType !== 'hardware') {
-          if (it.doorSize) specParts.push(`Door: ${it.doorSize}`);
-          if (it.overallHeight) specParts.push(`Height: ${it.overallHeight}`);
-        }
-        if (it.hardwarePackage) specParts.push(`Hardware: ${it.hardwarePackage}`);
-
-        if (specParts.length > 0 && !desc.includes('Board:')) {
-          desc = `${desc}\n(${specParts.join(' | ')})`;
-        }
-
-        return {
-          productId: (it.modelId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(it.modelId)) ? it.modelId : undefined,
-          description: desc,
-          hsnSac: it.hsnSac || (it.itemType === 'hardware' ? '8302' : it.systemCategory === 'board' ? '4823' : '9403'),
-          quantity: Number(it.quantity) || 1,
-          unit: it.unit || (it.itemType === 'hardware' ? 'SET' : 'NOS'),
-          rate: Number(it.rate) || 0,
-          gstRate: Number(it.gstRate || 18),
-          boardType: it.boardType || undefined,
-          boardThickness: it.boardThickness || undefined,
-          boardColor: it.boardColor || undefined,
-          cubicleSize: it.cubicleSize || undefined,
-          doorSize: it.doorSize || undefined,
-          overallHeight: it.overallHeight || undefined,
-          hardwarePackage: it.hardwarePackage || undefined,
-          customModelName: it.customModelName || undefined,
-          modelName: it.customModelName || undefined,
-        };
-      });
+      const enrichedItems = formData.items.map(enrichPiItemForSubmission);
 
       const res = await piApi.create({
         companyProfileId: formData.companyProfileId || companies[0]?.id,

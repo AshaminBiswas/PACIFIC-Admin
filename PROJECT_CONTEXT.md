@@ -8065,3 +8065,53 @@ Load testing was executed against the operational engine using a 2,000-concurren
 ### 149.3 Verification & Status
 - `npx tsc --noEmit` exited code 0 with 0 errors.
 - `npm run build` exited code 0 with clean production bundle emission.
+
+---
+
+## 150. Custom Board & Hardware Proforma Invoice Pre-Fill & Resilient Edit Engine
+
+### 150.1 Problem Statement & User Request
+- **Issue**: When creating a Proforma Invoice with Custom (Board & Hardware), Board Only, or Hardware Only scope (`CUSTOM`, `BOARD`, `HARDWARE`), opening the PI in the Edit page (`/admin/dashboard/proforma-invoices/:id/edit`) failed to pre-fill the already-filled data:
+  - Scope was misclassified or overridden to `'CUBICLE'`, causing standard cubicle model selectors to replace custom item cards.
+  - Custom specifications (`customModelName`, `make`, `boardType`, `boardThickness`, `boardColor`, `cubicleSize`, `doorSize`, `overallHeight`, `hardwarePackage`) were stripped or lost because item fields were not correctly parsed or structured.
+  - Adding or modifying line items during edit caused previously entered lines to disappear or become corrupted.
+
+### 150.2 Root Cause Analysis
+1. **Scope Persistence Absence**:
+   - The PostgreSQL `proforma_invoices` table does not have an explicit `piScope` column. When creating a PI, `piScope` was discarded, and the edit page relied on heuristic checks (`hasRealCubicleModel`).
+   - Any custom cubicle item with door dimensions or height automatically flagged `hasCubicleSpecs = true`, forcing `detectedScope` to `'CUBICLE'` and locking the UI in cubicle system mode.
+2. **Item Metadata Serialization & Deserialization Gap**:
+   - `customModelName`, `make`, `itemType`, and `systemCategory` were omitted from the specs parenthetical or formatted with inconsistent delimiters (`—` vs `-`).
+   - When loading in `EditProformaInvoicePage.tsx`, `it.itemType` and `it.systemCategory` were `undefined` on Prisma DB records, so `isCustomItem` evaluated to `false` and lines were converted to cubicle lines.
+3. **Loss of Inclusions & Accessories Text**:
+   - `accessoriesText` was not re-injected into terms upon submission, resulting in default cubicle accessories overwriting custom hardware descriptions.
+
+### 150.3 Architectural Fix & Implementation
+1. **Unified Enrichment Engine (`src/pages/CreateProformaPage.tsx` & `src/pages/EditProformaInvoicePage.tsx`)**:
+   - Created and exported `enrichPiItemForSubmission(it: CreateItem)` shared across create and edit flows.
+   - Enriches `description` with a structured specifications block:
+     `\n(Model: ... | Make: ... | Board: ... | Color: ... | Size: ... | Door: ... | Height: ... | Hardware: ... | Type: ... | Category: ...)`
+   - Strips nested duplicate prefixes (`ModelTitle — ModelTitle — Desc`) to maintain clean text across repeated edits.
+   - Preserves all first-class Prisma DB columns: `boardType`, `boardThickness`, `boardColor`, `cubicleSize`, `doorSize`, `overallHeight`, `hardwarePackage`, `customModelName`, `modelName`, `make`.
+
+2. **Scope Tag Persistence (`[PI_SCOPE:${piScope}]`)**:
+   - Stored reliably in `terms` during both create and update operations.
+   - Accurately extracted upon PI load in `EditProformaInvoicePage.tsx` (`explicitScope = rawScopeTerm.replace('[PI_SCOPE:', '').replace(']', '')`).
+   - Cleanly filtered out from visible terms in `EditProformaInvoicePage.tsx`, `ProformaInvoiceDetailPage.tsx`, and backend `pdf.service.ts` so no metadata tags leak into customer-facing PDF prints or clause lists.
+
+3. **Resilient Multi-Scope Deserialization in Edit Page (`src/pages/EditProformaInvoicePage.tsx`)**:
+   - Parses parenthetical specifications and splits `ModelTitle — Description` cleanly via regex `/^(.*?)\s*(?:—|–|-)\s*(.*)$/`.
+   - Recognizes `explicitScope` and accurately categorizes:
+     - `HARDWARE`: Preserves item as `itemType: 'hardware'`, `systemCategory: 'hardware'`, pre-filling description, material/finish, HSN, unit, rate, qty.
+     - `BOARD`: Preserves item as `systemCategory: 'board'`, pre-filling description, board type, thickness, color, sheet dimensions, rate, qty.
+     - `CUSTOM`: Preserves item as `itemType: 'custom'`, pre-filling `customModelName`, technical description, board specs, door/height dimensions, hardware package, and brand make.
+   - Default state of `showSpecs` in `CustomPiItemCard.tsx` opens automatically when any specifications or make are present.
+   - Full support for adding more custom items, board sheets, and hardware items (`+ Custom Item`, `+ Board Sheet`, `+ Hardware Item`) seamlessly alongside existing data.
+
+4. **Component Enhancements (`src/components/common/CustomPiItemCard.tsx`)**:
+   - Added `Brand / Make` input field inside the specifications accordion to edit and display brand makes (Pacific, Merino, Greenlam, etc.).
+   - Updated `showSpecs` state to check for `make` and `doorSize`.
+
+### 150.4 Verification & Status
+- `npx tsc --noEmit` exited code 0 with 0 errors.
+- `npm run build` exited code 0 with clean production bundle emission.

@@ -22,7 +22,7 @@ export const CustomPiItemCard: React.FC<CustomPiItemCardProps> = React.memo(({
   canRemove,
 }) => {
   const [showSpecs, setShowSpecs] = useState(
-    Boolean(item.boardType || item.boardThickness || item.boardColor || item.cubicleSize || item.overallHeight || item.hardwarePackage)
+    Boolean(item.boardType || item.boardThickness || item.boardColor || item.cubicleSize || item.overallHeight || item.hardwarePackage || item.doorSize || item.make)
   );
 
   const lineTotal = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
@@ -278,6 +278,17 @@ export const CustomPiItemCard: React.FC<CustomPiItemCardProps> = React.memo(({
                 value={item.doorSize || ''}
                 onChange={(e) => onChange('doorSize', e.target.value)}
                 placeholder="e.g. 600mm × 1785mm"
+                className={inputCls}
+              />
+            </div>
+
+            <div>
+              <label className={labelCls}>Brand / Make</label>
+              <input
+                type="text"
+                value={item.make || ''}
+                onChange={(e) => onChange('make', e.target.value)}
+                placeholder="e.g. Pacific / Merino / Greenlam"
                 className={inputCls}
               />
             </div>

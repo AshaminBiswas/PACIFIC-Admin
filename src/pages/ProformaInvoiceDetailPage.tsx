@@ -1072,7 +1072,8 @@ export default function ProformaInvoiceDetailPage() {
             {((pi.terms || []).filter(
               (t) =>
                 !t.text?.toLowerCase().includes('hardware accessories') &&
-                !t.text?.toLowerCase().includes('standard inclusions')
+                !t.text?.toLowerCase().includes('standard inclusions') &&
+                !t.text?.startsWith('[PI_SCOPE:')
             )).length} Clauses
           </span>
         </div>
@@ -1082,7 +1083,8 @@ export default function ProformaInvoiceDetailPage() {
             const standardTerms = (pi.terms || []).filter(
               (t) =>
                 !t.text?.toLowerCase().includes('hardware accessories') &&
-                !t.text?.toLowerCase().includes('standard inclusions')
+                !t.text?.toLowerCase().includes('standard inclusions') &&
+                !t.text?.startsWith('[PI_SCOPE:')
             );
             return standardTerms.length > 0 ? (
               standardTerms.map((t, idx) => (
