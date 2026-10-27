@@ -8271,3 +8271,53 @@ To guarantee commercial integrity, legal auditability, and historical retrieval 
 - **Backend Build**: `npm run --prefix D:\PACIFIC-Backend build` exited with code 0 (`prisma generate`, `puppeteer`, `tsc`).
 - **Frontend Type Check**: `npx tsc --noEmit` exited with 0 errors.
 - **Frontend Build**: `npm run build` exited with code 0, emitting `DocumentRevisionHistoryCard` into production bundle.
+
+
+---
+
+## 152. Deprecated Pages & Legacy CMS Cleanup
+
+### 152.1 Objective
+Per user request, permanently purged 5 deprecated/legacy modules from PACIFIC-Admin to streamline the navigation drawer, reduce route bloat, and eliminate confusion with active enterprise ERP suites.
+
+### 152.2 Deleted Pages & Routes
+1. **3D Configurator Leads (`/admin/dashboard/configurator-leads`)**:
+   - Deleted: `src/pages/ConfiguratorLeadsPage.tsx`.
+   - Removed route from `src/App.tsx`.
+   - Removed navigation link and `Cpu` icon from `src/components/layout/AdminSidebar.tsx`.
+   - Removed route access rule from `src/utils/rbacNavigation.ts`.
+   - Removed view identifier from `AdminView` in `src/types/admin.ts`.
+
+2. **Legacy Quotations (`/admin/dashboard/quotations` & `/admin/dashboard/quotations/new`)**:
+   - Deleted: `src/pages/QuotationsPage.tsx` and `src/pages/CreateLegacyQuotationPage.tsx`.
+   - Removed routes and lazy imports from `src/App.tsx`.
+   - Removed navigation link from `src/components/layout/AdminSidebar.tsx`.
+   - Removed route access rule from `src/utils/rbacNavigation.ts`.
+   - Updated link in `src/pages/InvoicesPage.tsx` to target the active ERP Sales Quotations module (`/admin/dashboard/sales-quotations/:id`).
+   - Removed view identifier from `AdminView` in `src/types/admin.ts`.
+   - *Note*: Active enterprise Sales Quotations suite (`/admin/dashboard/sales-quotations`) and Export Quotations suite (`/admin/dashboard/export/quotations`) remain fully operational.
+
+3. **Commercial Projects (`/admin/dashboard/projects` & `/admin/dashboard/projects/new`)**:
+   - Deleted: `src/pages/ProjectsPage.tsx` and `src/pages/CreateProjectPage.tsx`.
+   - Removed routes and lazy imports from `src/App.tsx`.
+   - Removed navigation link from `src/components/layout/AdminSidebar.tsx`.
+   - Removed route access rule from `src/utils/rbacNavigation.ts`.
+   - Removed view identifier from `AdminView` in `src/types/admin.ts`.
+
+4. **Photo Gallery (`/admin/dashboard/gallery` & `/admin/dashboard/gallery/new`)**:
+   - Deleted: `src/pages/admin/AdminGallery.tsx` and `src/pages/admin/CreateGalleryPage.tsx`.
+   - Removed routes and lazy imports from `src/App.tsx`.
+   - Removed navigation link and `ImageIcon` from `src/components/layout/AdminSidebar.tsx`.
+   - Removed route access rule from `src/utils/rbacNavigation.ts`.
+   - Removed from dashboard summary metrics in `src/pages/admin/AdminOverview.tsx`.
+
+5. **Core Services (`/admin/dashboard/core-services`)**:
+   - Deleted: `src/pages/admin/AdminCoreServices.tsx`.
+   - Removed route and lazy import from `src/App.tsx`.
+   - Removed navigation link from `src/components/layout/AdminSidebar.tsx`.
+   - Removed route access rule from `src/utils/rbacNavigation.ts`.
+   - Removed from dashboard summary metrics in `src/pages/admin/AdminOverview.tsx`.
+
+### 152.3 Verification & Status
+- **TypeScript**: `npx tsc --noEmit` exited with 0 errors.
+- **Production Build**: `npm run build` exited with code 0.

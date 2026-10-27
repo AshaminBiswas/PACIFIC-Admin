@@ -12,9 +12,7 @@ const AdminOverview = lazyWithRetry(() => import('./pages/admin/AdminOverview'))
 const AdminProducts = lazyWithRetry(() => import('./pages/admin/AdminProducts'));
 const AdminBlogs = lazyWithRetry(() => import('./pages/admin/AdminBlogs'));
 const AdminSolutions = lazyWithRetry(() => import('./pages/admin/AdminSolutions'));
-const AdminGallery = lazyWithRetry(() => import('./pages/admin/AdminGallery'));
 const AdminHero = lazyWithRetry(() => import('./pages/admin/AdminHero'));
-const AdminCoreServices = lazyWithRetry(() => import('./pages/admin/AdminCoreServices'));
 const AdminPageBanners = lazyWithRetry(() => import('./pages/admin/AdminPageBanners'));
 const AdminCatalogs = lazyWithRetry(() => import('./pages/admin/AdminCatalogs'));
 const AdminContactQueries = lazyWithRetry(() => import('./pages/admin/AdminContactQueries'));
@@ -29,7 +27,6 @@ const CreateBlogPage = lazyWithRetry(() => import('./pages/admin/CreateBlogPage'
 const BlogEditorPage = lazyWithRetry(() => import('./pages/admin/BlogEditorPage'));
 const BlogPreviewPage = lazyWithRetry(() => import('./pages/admin/BlogPreviewPage'));
 const CreateSolutionPage = lazyWithRetry(() => import('./pages/admin/CreateSolutionPage'));
-const CreateGalleryPage = lazyWithRetry(() => import('./pages/admin/CreateGalleryPage'));
 const CreateCatalogPage = lazyWithRetry(() => import('./pages/admin/CreateCatalogPage'));
 const CreateContactQueryPage = lazyWithRetry(() => import('./pages/admin/CreateContactQueryPage'));
 
@@ -110,12 +107,7 @@ const PublicVerifyPage = lazyWithRetry(() => import('./pages/PublicVerifyPage'))
 const ConsigneeAckPage = lazyWithRetry(() => import('./pages/ConsigneeAckPage'));
 
 // Legacy Sales & Commercial Pages
-const ConfiguratorLeadsPage = lazyWithRetry(() => import('./pages/ConfiguratorLeadsPage'));
-const QuotationsPage = lazyWithRetry(() => import('./pages/QuotationsPage'));
-const ProjectsPage = lazyWithRetry(() => import('./pages/ProjectsPage'));
 const InvoicesPage = lazyWithRetry(() => import('./pages/InvoicesPage'));
-const CreateLegacyQuotationPage = lazyWithRetry(() => import('./pages/CreateLegacyQuotationPage'));
-const CreateProjectPage = lazyWithRetry(() => import('./pages/CreateProjectPage'));
 const CreateInvoicePage = lazyWithRetry(() => import('./pages/CreateInvoicePage'));
 
 export default function App() {
@@ -843,34 +835,10 @@ export default function App() {
               }
             />
             <Route
-              path="gallery"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <AdminGallery />
-                </Suspense>
-              }
-            />
-            <Route
-              path="gallery/new"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <CreateGalleryPage />
-                </Suspense>
-              }
-            />
-            <Route
               path="hero"
               element={
                 <Suspense fallback={<PageLoader />}>
                   <AdminHero />
-                </Suspense>
-              }
-            />
-            <Route
-              path="core-services"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <AdminCoreServices />
                 </Suspense>
               }
             />
@@ -991,46 +959,6 @@ export default function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <AdminLeads />
-                </Suspense>
-              }
-            />
-            <Route
-              path="configurator-leads"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <ConfiguratorLeadsPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="quotations"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <QuotationsPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="quotations/new"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <CreateLegacyQuotationPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="projects"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <ProjectsPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="projects/new"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <CreateProjectPage />
                 </Suspense>
               }
             />

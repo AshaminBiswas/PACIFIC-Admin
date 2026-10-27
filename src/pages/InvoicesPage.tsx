@@ -377,7 +377,7 @@ const InvoicesPage: React.FC = () => {
                           </Link>
                         ) : (inv as any).quotationId ? (
                           <Link
-                            to={`/admin/dashboard/quotations`}
+                            to={`/admin/dashboard/sales-quotations/${(inv as any).quotationId}`}
                             onClick={e => e.stopPropagation()}
                             className="inline-flex items-center gap-1 text-[11px] font-mono text-amber-400 hover:text-amber-300 px-2 py-1 bg-amber-500/10 rounded-lg border border-amber-500/20"
                           >

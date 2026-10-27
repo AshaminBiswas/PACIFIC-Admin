@@ -59,16 +59,11 @@ export const PATH_PERMISSIONS: Record<string, UserRole[]> = {
 
   // ─── Website CMS Suite ────────────────────────────────────────────────────
   '/admin/dashboard/products': ['SUPER_ADMIN', 'ADMIN', 'EDITOR', 'VIEWER'],
-  '/admin/dashboard/configurator-leads': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'EDITOR', 'VIEWER'],
-  '/admin/dashboard/quotations': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'EDITOR', 'VIEWER'],
-  '/admin/dashboard/projects': ['SUPER_ADMIN', 'ADMIN', 'EDITOR', 'VIEWER'],
   '/admin/dashboard/leads': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'EDITOR', 'VIEWER'],
   '/admin/dashboard/contact-queries': ['SUPER_ADMIN', 'ADMIN', 'EDITOR', 'VIEWER'],
   '/admin/dashboard/blogs': ['SUPER_ADMIN', 'ADMIN', 'EDITOR', 'VIEWER'],
   '/admin/dashboard/solutions': ['SUPER_ADMIN', 'ADMIN', 'EDITOR', 'VIEWER'],
-  '/admin/dashboard/gallery': ['SUPER_ADMIN', 'ADMIN', 'EDITOR', 'VIEWER'],
   '/admin/dashboard/hero': ['SUPER_ADMIN', 'ADMIN', 'EDITOR', 'VIEWER'],
-  '/admin/dashboard/core-services': ['SUPER_ADMIN', 'ADMIN', 'EDITOR', 'VIEWER'],
   '/admin/dashboard/page-banners': ['SUPER_ADMIN', 'ADMIN', 'EDITOR', 'VIEWER'],
   '/admin/dashboard/catalogs': ['SUPER_ADMIN', 'ADMIN', 'EDITOR', 'VIEWER'],
   '/admin/dashboard/feedback': ['SUPER_ADMIN', 'ADMIN', 'EDITOR', 'VIEWER'],

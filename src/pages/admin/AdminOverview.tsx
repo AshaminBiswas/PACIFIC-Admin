@@ -62,9 +62,7 @@ export default function AdminOverview() {
         { key: "products", table: "products" },
         { key: "blogs", table: "blogs" },
         { key: "solutions", table: "solutions" },
-        { key: "gallery", table: "gallery_images" },
         { key: "hero_images", table: "hero_images" },
-        { key: "core_services", table: "core_services" },
         { key: "page_banners", table: "page_banners" },
         { key: "catalogs", table: "catalogs" },
         { key: "contact_queries", table: "leads" },
@@ -97,9 +95,7 @@ export default function AdminOverview() {
     { label: "Services", count: counts.products, icon: Package, color: "#7FB706", path: "/admin/dashboard/products" },
     { label: "Blog Posts", count: counts.blogs, icon: FileText, color: "#3B82F6", path: "/admin/dashboard/blogs" },
     { label: "Solutions", count: counts.solutions, icon: Lightbulb, color: "#F59E0B", path: "/admin/dashboard/solutions" },
-    { label: "Gallery", count: counts.gallery, icon: ImageIcon, color: "#EC4899", path: "/admin/dashboard/gallery" },
     { label: "Hero Images", count: counts.hero_images, icon: MonitorPlay, color: "#8B5CF6", path: "/admin/dashboard/hero" },
-    { label: "Core Services", count: counts.core_services, icon: Layers, color: "#06B6D4", path: "/admin/dashboard/core-services" },
     { label: "Page Banners", count: counts.page_banners, icon: LayoutTemplate, color: "#10B981", path: "/admin/dashboard/page-banners" },
     { label: "Catalogs", count: counts.catalogs, icon: FileDown, color: "#F97316", path: "/admin/dashboard/catalogs" },
     { label: "Contact Queries", count: counts.contact_queries, icon: MessageSquare, color: "#EF4444", path: "/admin/dashboard/contact-queries" },
@@ -260,8 +256,7 @@ export default function AdminOverview() {
           </p>
           <p>
             🧩 Then update core content in <strong className="text-white">Services</strong>,{" "}
-            <strong className="text-white">Solutions</strong>, <strong className="text-white">Blogs</strong>, and{" "}
-            <strong className="text-white">Gallery</strong>.
+            <strong className="text-white">Solutions</strong>, and <strong className="text-white">Blogs</strong>.
           </p>
           <p>
             📤 Upload images while editing — files are stored in Supabase Storage and linked automatically.
