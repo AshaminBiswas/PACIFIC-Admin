@@ -393,8 +393,17 @@ export default function EditProformaInvoicePage() {
           // Separate "ModelTitle — Description" if formatted into mainDesc
           const dashMatch = mainDesc.match(/^(.*?)\s*(?:—|–|-)\s*(.*)$/);
           if (dashMatch) {
-            if (!parsedModel) parsedModel = dashMatch[1].trim();
-            mainDesc = dashMatch[2].trim();
+            const left = dashMatch[1].trim();
+            const right = dashMatch[2].trim();
+            if (right.toLowerCase().startsWith(left.toLowerCase())) {
+              mainDesc = right;
+              if (!parsedModel) parsedModel = left;
+            } else if (left.toLowerCase() === right.toLowerCase()) {
+              mainDesc = right;
+            } else {
+              if (!parsedModel) parsedModel = left;
+              mainDesc = right;
+            }
           }
 
           const hsnStr = String(it.hsnSac || it.hsnCode || '');
@@ -426,7 +435,7 @@ export default function EditProformaInvoicePage() {
               id: it.id,
               itemType: 'hardware',
               systemCategory: 'hardware',
-              isCustom: true,
+              isCustom: false,
               description: mainDesc || parsedModel,
               hardwarePackage: hardwarePackage || '',
               hsnSac: it.hsnSac || '8302',
@@ -1009,7 +1018,7 @@ export default function EditProformaInvoicePage() {
       ...prev,
       {
         itemType: 'hardware',
-        isCustom: true,
+        isCustom: false,
         systemCategory: 'hardware',
         description: '',
         hardwarePackage: '',

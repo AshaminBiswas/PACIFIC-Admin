@@ -95,44 +95,109 @@ export function enrichPiItemForSubmission(it: CreateItem) {
   let baseDesc = it.description?.trim() || '';
   let modelTitle = it.customModelName?.trim() || '';
 
-  // Clean baseDesc to prevent repeated "Title — Title — Description" on re-edits
+  // 1. Strip any embedded parenthetical spec block from baseDesc to prevent nested or repeated blocks
+  baseDesc = baseDesc
+    .replace(/\s*\(\s*(?:Model|Make|Board|Material|Color|Size|Door|Height|Hardware|Type|Category)\s*:[\s\S]*?\)/gi, '')
+    .replace(/\s*\([^)]{4,}?:[^)]*?\|[^)]*?\)/gi, '')
+    .trim();
+
+  // 2. Remove duplicate titles separated by dash inside baseDesc
+  const dashMatch = baseDesc.match(/^(.*?)\s*(?:—|–|-)\s*(.*)$/);
+  if (dashMatch) {
+    const l = dashMatch[1].trim().toLowerCase();
+    const r = dashMatch[2].trim().toLowerCase();
+    if (l === r || r.startsWith(l)) {
+      baseDesc = dashMatch[2].trim();
+    }
+  }
+
+  // 3. De-duplicate modelTitle vs baseDesc
   if (modelTitle) {
-    if (baseDesc.startsWith(`${modelTitle} — `)) {
-      baseDesc = baseDesc.replace(`${modelTitle} — `, '').trim();
-    } else if (baseDesc.startsWith(`${modelTitle} - `)) {
-      baseDesc = baseDesc.replace(`${modelTitle} - `, '').trim();
+    const mLower = modelTitle.toLowerCase();
+    const bLower = baseDesc.toLowerCase();
+    if (bLower === mLower) {
+      baseDesc = '';
+    } else if (bLower.startsWith(`${mLower} — `) || bLower.startsWith(`${mLower} - `)) {
+      baseDesc = baseDesc.slice(modelTitle.length + 3).trim();
+    } else if (bLower.startsWith(mLower)) {
+      baseDesc = baseDesc.slice(modelTitle.length).replace(/^[\s—–:-]+/, '').trim();
+    } else if (mLower.startsWith(bLower) && baseDesc.length > 5) {
+      modelTitle = '';
+    }
+  }
+
+  // 4. Board Sheet item handling (enhance bare "12mm" / "18mm")
+  const isBoard =
+    it.systemCategory === 'board' ||
+    it.unit === 'SQFT' ||
+    it.unit === 'SHEET' ||
+    ['4823', '4411'].includes(String(it.hsnSac || ''));
+
+  if (isBoard) {
+    const checkVal = (modelTitle || baseDesc).trim();
+    if (/^(\d+\s*mm)$/i.test(checkVal) || (!modelTitle && !baseDesc)) {
+      const thick = it.boardThickness || checkVal || '12mm';
+      const bType = it.boardType || 'HPL';
+      baseDesc = `${thick} ${bType} Compact Laminate Restroom Partition Board`;
+      modelTitle = '';
     }
   }
 
   let titleLine = '';
-  if (modelTitle && baseDesc && modelTitle !== baseDesc) {
+  if (modelTitle && baseDesc) {
     titleLine = `${modelTitle} — ${baseDesc}`;
   } else {
-    titleLine = modelTitle || baseDesc || 'Custom Item';
+    titleLine = modelTitle || baseDesc || (isBoard ? 'Compact Laminate Board' : 'Custom Item');
+  }
+
+  const isHardware =
+    it.itemType === 'hardware' ||
+    it.systemCategory === 'hardware' ||
+    ['8302', '7610', '3925'].some((h) => String(it.hsnSac || '').startsWith(h)) ||
+    ['SET', 'PAIR'].includes(it.unit || '');
+
+  // Hardware items should NOT have internal metadata tags (Type: hardware | Category: hardware) appended!
+  if (isHardware) {
+    return {
+      id: it.id,
+      productId: (it.modelId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(it.modelId)) ? it.modelId : undefined,
+      description: titleLine,
+      hsnSac: it.hsnSac || '8302',
+      quantity: Number(it.quantity) || 1,
+      unit: it.unit || 'SET',
+      rate: Number(it.rate) || 0,
+      gstRate: Number(it.gstRate ?? 18),
+      hardwarePackage: it.hardwarePackage || undefined,
+      customModelName: it.customModelName || undefined,
+      modelName: it.customModelName || undefined,
+      make: it.make || undefined,
+      itemType: 'hardware',
+      systemCategory: 'hardware',
+    };
   }
 
   const specParts: string[] = [];
-  if (modelTitle) {
+  if (modelTitle && modelTitle !== titleLine) {
     specParts.push(`Model: ${modelTitle}`);
   }
-  if (it.make) {
+  if (it.make && it.make !== 'Pacific') {
     specParts.push(`Make: ${it.make}`);
   }
   if (it.boardType || it.boardThickness) {
     specParts.push(`Board: ${[it.boardType, it.boardThickness].filter(Boolean).join(' ')}`);
   }
-  if (it.boardColor) specParts.push(`Color: ${it.boardColor}`);
-  if (it.cubicleSize) specParts.push(`Size: ${it.cubicleSize}`);
-  if (it.systemCategory !== 'board' && it.itemType !== 'hardware') {
+  if (it.boardColor && it.boardColor.toLowerCase() !== 'not confirmed') {
+    specParts.push(`Color: ${it.boardColor}`);
+  }
+  if (it.cubicleSize) {
+    specParts.push(`Size: ${it.cubicleSize}`);
+  }
+  if (!isBoard) {
     if (it.doorSize) specParts.push(`Door: ${it.doorSize}`);
     if (it.overallHeight) specParts.push(`Height: ${it.overallHeight}`);
   }
-  if (it.hardwarePackage) specParts.push(`Hardware: ${it.hardwarePackage}`);
-  if (it.itemType) {
-    specParts.push(`Type: ${it.itemType}`);
-  }
-  if (it.systemCategory) {
-    specParts.push(`Category: ${it.systemCategory}`);
+  if (it.hardwarePackage) {
+    specParts.push(`Hardware: ${it.hardwarePackage}`);
   }
 
   let desc = titleLine;
@@ -144,9 +209,9 @@ export function enrichPiItemForSubmission(it: CreateItem) {
     id: it.id,
     productId: (it.modelId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(it.modelId)) ? it.modelId : undefined,
     description: desc,
-    hsnSac: it.hsnSac || (it.itemType === 'hardware' ? '8302' : it.systemCategory === 'board' ? '4823' : '9403'),
+    hsnSac: it.hsnSac || (it.systemCategory === 'board' ? '4823' : '9403'),
     quantity: Number(it.quantity) || 1,
-    unit: it.unit || (it.itemType === 'hardware' ? 'SET' : it.systemCategory === 'board' ? 'SQFT' : 'NOS'),
+    unit: it.unit || (it.systemCategory === 'board' ? 'SQFT' : 'NOS'),
     rate: Number(it.rate) || 0,
     gstRate: Number(it.gstRate || 18),
     boardType: it.boardType || undefined,
@@ -159,6 +224,8 @@ export function enrichPiItemForSubmission(it: CreateItem) {
     customModelName: it.customModelName || undefined,
     modelName: it.customModelName || undefined,
     make: it.make || undefined,
+    itemType: it.itemType || undefined,
+    systemCategory: it.systemCategory || undefined,
   };
 }
 
@@ -1187,7 +1254,7 @@ export default function CreateProformaPage() {
         ...f.items,
         {
           itemType: 'hardware',
-          isCustom: true,
+          isCustom: false,
           systemCategory: 'hardware',
           description: '',
           hardwarePackage: '',

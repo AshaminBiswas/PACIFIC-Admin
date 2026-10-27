@@ -8115,3 +8115,34 @@ Load testing was executed against the operational engine using a 2,000-concurren
 ### 150.4 Verification & Status
 - `npx tsc --noEmit` exited code 0 with 0 errors.
 - `npm run build` exited code 0 with clean production bundle emission.
+
+### 150.5 Proforma Invoice PDF Rendering, Metadata Sanitization & Commercial Scope Harmonization
+
+#### 1. Identified Defects from PDF Visual Audit (`PPS/PI/2026-27/0043`):
+- **Raw Metadata Pollution in Item Descriptions**: Parenthetical metadata blocks such as `(Model: ... | Type: hardware | Category: hardware)` or `(Make: Pacific | Board: HPL 12mm | Color: Not Confirmed | Size: ... | Type: cubicle | Category: cubicle)` leaked as literal text into the PDF product table.
+- **Title Reduplication**: Hardware item names were duplicated with em-dashes (e.g. `Stainless Steel Hardware Set (Grade 304) — Stainless Steel Hardware Set Including: a)...` and `Stainless Steel F Channel (Grade 304) — Stainless Steel F Channel (Grade 304) LENGTH : 1830mm`).
+- **Bare Thickness Title**: Board item displayed as bare `12mm` without indicating that it was an HPL compact laminate partition sheet.
+- **Commercial Terms Contradiction (Clause 5)**: Invoices itemizing individual hardware lines (e.g. Items 2 through 9 billing hinges, locks, channels, and screws for ₹1,51,140) paradoxically displayed default cubicle inclusions: `5. Standard Inclusions & Hardware Accessories: • Gravity Hinges: Self-closing SS 304... • Indicator Lock... • Supporting Shoe/Legs... • Coat Hook... • Fasteners...`, creating severe commercial risk and confusion.
+
+#### 2. Architectural Root Cause:
+- `cleanDescription` in `D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts` only matched strings starting with `(Board: ...)` or `(Hardware: ...)`. Multi-field specifications starting with `(Model: ...)` or `(Make: ...)` bypassed the regex and printed as literal text.
+- `enrichPiItemForSubmission` in `CreateProformaPage.tsx` unconditionally concatenated `modelTitle` and `baseDesc` even when `baseDesc` already began with or equaled `modelTitle`, and appended internal routing tags `(Type: ... | Category: ...)`.
+- Hardware items loaded in `EditProformaInvoicePage.tsx` were tagged with `isCustom: true`, forcing them to render inside `CustomPiItemCard` instead of the clean Hardware Fitting card.
+
+#### 3. Resolution & Synchronization:
+- **Backend PDF Renderer (`D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`)**:
+  - `cleanDescription`: Enhanced to strip all `(Model:...|Make:...|Board:...|Type:...|Category:...)` and any multi-property parenthetical metadata blocks.
+  - Prefix deduplication: Automatically removes duplicated prefix phrases separated by dashes (`Title — Title Rest` -> `Title Rest`).
+  - Bare thickness resolution: Automatically converts bare thickness patterns (`12mm`) to `${thickness} Compact Laminate Restroom Partition Board`.
+  - Item spec box: Identifies hardware items via HSN (`8302`, `7610`, `3925`), itemType, or description keywords and suppresses cubicle-specific bullets (Make, Board Type, Thickness, Color, Cubicle Size, Door Size, Overall Height).
+  - Commercial terms harmonization: Detects `hasItemizedHardware` and replaces the conflicting Clause 5 with:
+    `Hardware Scope: Architectural restroom hardware accessories, channels, fasteners, and fittings are itemized as individual billable lines in the product schedule above.`
+- **Frontend Submission & Form Controls (`CreateProformaPage.tsx` & `EditProformaInvoicePage.tsx`)**:
+  - Sanitized `enrichPiItemForSubmission`:
+    - Prevents duplicate titles when `baseDesc` already begins with or matches `modelTitle`.
+    - Eliminates internal `Type: hardware` / `Category: hardware` tags from item descriptions.
+    - Enhances bare thickness values for board sheet items.
+  - Corrected `isCustom: false` on hardware items in `handleAddHardwareItem` and during invoice loading in `EditProformaInvoicePage.tsx`, ensuring hardware lines open in the dedicated Hardware Fitting Card.
+- **Verification**:
+  - Backend: `npm run --prefix D:\PACIFIC-Backend build` exited with code 0; committed (`395232e`) and pushed to `main`.
+  - Frontend: `npx tsc --noEmit` exited with 0 errors; `npm run build` exited with code 0.
