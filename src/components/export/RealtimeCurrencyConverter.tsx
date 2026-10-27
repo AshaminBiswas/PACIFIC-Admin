@@ -18,7 +18,11 @@ import {
   WORLD_CURRENCIES,
   POPULAR_EXPORT_CURRENCIES,
   getCurrencyMeta,
+  getExchangeRateApiKey,
+  setCustomForexApiKey,
+  hasForexApiKey,
 } from '../../api/currencyApi';
+import { Key } from 'lucide-react';
 import type { ConvertedCurrencyResult } from '../../types/admin';
 
 export interface RealtimeCurrencyConverterProps {
@@ -61,6 +65,25 @@ export const RealtimeCurrencyConverter: React.FC<RealtimeCurrencyConverterProps>
   const [copied, setCopied] = useState(false);
   const [conversionResult, setConversionResult] = useState<ConvertedCurrencyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // API Key State
+  const [hasApiKey, setHasApiKey] = useState(() => hasForexApiKey());
+  const [showKeyConfig, setShowKeyConfig] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState(() => getExchangeRateApiKey());
+
+  const handleSaveApiKey = () => {
+    setCustomForexApiKey(apiKeyInput);
+    setHasApiKey(Boolean(apiKeyInput.trim()));
+    setShowKeyConfig(false);
+    performConversion(true);
+    loadMarketRates(true);
+  };
+
+  const handleClearApiKey = () => {
+    setCustomForexApiKey('');
+    setApiKeyInput('');
+    setHasApiKey(hasForexApiKey());
+  };
 
   // Bank spread / Forex margin calculator
   const [showMarginCalc, setShowMarginCalc] = useState(false);
@@ -179,12 +202,26 @@ export const RealtimeCurrencyConverter: React.FC<RealtimeCurrencyConverterProps>
           )}
           <button
             type="button"
+            onClick={() => setShowKeyConfig((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition active:scale-95 min-h-[38px] cursor-pointer ${
+              hasApiKey
+                ? 'bg-white/5 hover:bg-white/10 border-white/10 text-gray-300'
+                : 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 text-amber-300 animate-pulse'
+            }`}
+            title="Configure ExchangeRate-API Key"
+          >
+            <Key className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden sm:inline">{hasApiKey ? 'API Key' : 'Set API Key'}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => {
               performConversion(true);
               loadMarketRates(true);
             }}
             disabled={loading || loadingMarket}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white text-xs font-semibold transition active:scale-95 disabled:opacity-50 min-h-[38px]"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white text-xs font-semibold transition active:scale-95 disabled:opacity-50 min-h-[38px] cursor-pointer"
             title="Fetch Fresh Real-Time Rates"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#7FB706]' : ''}`} />
@@ -192,6 +229,56 @@ export const RealtimeCurrencyConverter: React.FC<RealtimeCurrencyConverterProps>
           </button>
         </div>
       </div>
+
+      {/* Dynamic API Key Configuration Panel */}
+      {(showKeyConfig || !hasApiKey) && (
+        <div className="bg-gradient-to-r from-amber-950/30 via-[#120d20] to-black/60 border border-amber-500/30 rounded-2xl p-4 space-y-3 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-amber-300 text-xs font-bold">
+              <Key className="w-4 h-4 text-amber-400" />
+              <span>ExchangeRate-API Key Configuration</span>
+            </div>
+            {hasApiKey && (
+              <button
+                type="button"
+                onClick={() => setShowKeyConfig(false)}
+                className="text-gray-400 hover:text-white text-xs cursor-pointer"
+              >
+                Close
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] text-gray-400">
+            Rates are fetched dynamically from ExchangeRate-API. Enter your API key below or set <code className="text-amber-300 font-mono">VITE_EXCHANGERATE_API_KEY</code> in your environment file.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="password"
+              value={apiKeyInput}
+              onChange={(e) => setApiKeyInput(e.target.value)}
+              placeholder="Paste rotated ExchangeRate-API Key here"
+              className="flex-1 bg-black/60 border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+            />
+            <button
+              type="button"
+              onClick={handleSaveApiKey}
+              className="px-4 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-[#030213] rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+            >
+              <Check className="w-3.5 h-3.5 stroke-[3]" />
+              <span>Save Key</span>
+            </button>
+            {apiKeyInput && (
+              <button
+                type="button"
+                onClick={handleClearApiKey}
+                className="px-3 py-2 bg-white/5 hover:bg-white/10 text-red-400 rounded-xl text-xs font-semibold transition cursor-pointer"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Main Converter Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">

@@ -8007,7 +8007,7 @@ Load testing was executed against the operational engine using a 2,000-concurren
 ## 149. Real-Time Interbank Currency Exchange Rate Converter & Forex Hub
 
 ### 149.1 Objective & User Request
-- Integrate ExchangeRate-API endpoint (`https://v6.exchangerate-api.com/v6/ca6f54ca0aad1a91516ef121`) to power a real-time, all-currency exchange rate converter.
+- Integrate ExchangeRate-API (via `VITE_EXCHANGERATE_API_KEY` environment variable / dynamic Forex Desk configuration) to power a real-time, all-currency exchange rate converter.
 - Implement the live converter across the Export domain, specifically:
   - Forex & eBRC Hub (`/admin/dashboard/export/realization`)
   - Create Realization Record (`/admin/dashboard/export/realization/new`)
@@ -8017,7 +8017,7 @@ Load testing was executed against the operational engine using a 2,000-concurren
 
 ### 149.2 Architectural Implementation
 1. **Live ExchangeRate-API Client (`src/api/currencyApi.ts`)**:
-   - Integrated live interbank feed from `https://v6.exchangerate-api.com/v6/ca6f54ca0aad1a91516ef121`.
+   - Integrated live interbank feed via `https://v6.exchangerate-api.com/v6/${VITE_EXCHANGERATE_API_KEY}`.
    - Dual-layer caching: in-memory map + 30-minute `localStorage` persistence (`pacific_forex_rates_*`) with automatic expiration and manual force-refresh capability.
    - Comprehensive dictionary of 166+ world currencies (`WORLD_CURRENCIES`) with ISO codes, symbols, country flags, and localized currency names.
    - Core API operations:

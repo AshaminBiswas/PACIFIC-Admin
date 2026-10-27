@@ -8,8 +8,40 @@ import type {
 // Real-time Currency Exchange Rate Service (ExchangeRate-API v6)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const API_KEY = 'ca6f54ca0aad1a91516ef121';
-const BASE_URL = `https://v6.exchangerate-api.com/v6/${API_KEY}`;
+/**
+ * Retrieve ExchangeRate-API v6 key dynamically:
+ * 1. Environment variable `VITE_EXCHANGERATE_API_KEY` (from .env or Vercel build environment)
+ * 2. In-browser `localStorage` key `pacific_forex_api_key` (configured by admin directly in UI)
+ */
+export function getExchangeRateApiKey(): string {
+  const envKey = (import.meta as any).env?.VITE_EXCHANGERATE_API_KEY;
+  if (typeof envKey === 'string' && envKey.trim().length > 0) {
+    return envKey.trim();
+  }
+  try {
+    const localKey = localStorage.getItem('pacific_forex_api_key');
+    if (typeof localKey === 'string' && localKey.trim().length > 0) {
+      return localKey.trim();
+    }
+  } catch {}
+  return '';
+}
+
+export function setCustomForexApiKey(key: string): void {
+  try {
+    const trimmed = (key || '').trim();
+    if (trimmed) {
+      localStorage.setItem('pacific_forex_api_key', trimmed);
+    } else {
+      localStorage.removeItem('pacific_forex_api_key');
+    }
+  } catch {}
+}
+
+export function hasForexApiKey(): boolean {
+  return Boolean(getExchangeRateApiKey());
+}
+
 const CACHE_KEY_PREFIX = 'pacific_forex_rates_';
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes cache for optimal API quota & performance
 
@@ -133,8 +165,27 @@ export const currencyApi = {
       } catch {}
     }
 
-    // 3. Fetch from ExchangeRate-API
-    const url = `${BASE_URL}/latest/${base}`;
+    // 3. Resolve API key
+    const apiKey = getExchangeRateApiKey();
+    if (!apiKey) {
+      // Graceful fallback to existing stored cache if available
+      try {
+        const stored = localStorage.getItem(cacheKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && parsed.data && parsed.data.conversion_rates) {
+            memoryCache.set(base, { data: parsed.data, timestamp: parsed.timestamp || Date.now() });
+            return parsed.data;
+          }
+        }
+      } catch {}
+      throw new Error(
+        'ExchangeRate-API key is not configured. Please set VITE_EXCHANGERATE_API_KEY in your .env or configure in the Forex Desk.'
+      );
+    }
+
+    // 4. Fetch from ExchangeRate-API
+    const url = `https://v6.exchangerate-api.com/v6/${apiKey}/latest/${base}`;
     const res = await fetch(url);
     if (!res.ok) {
       throw new Error(`Forex API error: ${res.status} ${res.statusText}`);
