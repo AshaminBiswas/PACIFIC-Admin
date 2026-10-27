@@ -8002,3 +8002,66 @@ Load testing was executed against the operational engine using a 2,000-concurren
 
 
 
+
+
+## 149. Real-Time Interbank Currency Exchange Rate Converter & Forex Hub
+
+### 149.1 Objective & User Request
+- Integrate ExchangeRate-API endpoint (`https://v6.exchangerate-api.com/v6/ca6f54ca0aad1a91516ef121`) to power a real-time, all-currency exchange rate converter.
+- Implement the live converter across the Export domain, specifically:
+  - Forex & eBRC Hub (`/admin/dashboard/export/realization`)
+  - Create Realization Record (`/admin/dashboard/export/realization/new`)
+  - Export Quotations Hub (`/admin/dashboard/export/quotations`)
+  - Create Export Quotation (`/admin/dashboard/export/quotations/new`)
+  - Create Export Order (`/admin/dashboard/export/orders/new`)
+
+### 149.2 Architectural Implementation
+1. **Live ExchangeRate-API Client (`src/api/currencyApi.ts`)**:
+   - Integrated live interbank feed from `https://v6.exchangerate-api.com/v6/ca6f54ca0aad1a91516ef121`.
+   - Dual-layer caching: in-memory map + 30-minute `localStorage` persistence (`pacific_forex_rates_*`) with automatic expiration and manual force-refresh capability.
+   - Comprehensive dictionary of 166+ world currencies (`WORLD_CURRENCIES`) with ISO codes, symbols, country flags, and localized currency names.
+   - Core API operations:
+     - `getExchangeRates(base, forceRefresh)`: Fetches conversion rates for all 166+ currencies against any base currency.
+     - `convertCurrency(amount, from, to, forceRefresh)`: Computes exact direct rate, inverse rate, and converted value.
+     - `getPairRate(from, to, forceRefresh)`: Fetches specific pair rate directly.
+     - `getExportMarketRates(base, forceRefresh)`: Returns snapshot of key trading partner currencies (USD, EUR, AED, SAR, GBP, QAR, OMR, KWD, BHD, SGD, AUD, CAD, JPY, CNY) vs INR.
+     - `getAllCurrencies()`: Lists all world currencies metadata sorted by code.
+
+2. **Interactive Realtime Currency Converter Widget (`src/components/export/RealtimeCurrencyConverter.tsx`)**:
+   - Modern, responsive card styled to match Pacific Dark UI theme (`#0c0b20` to `#070714`, `#7FB706` neon accents).
+   - Real-time conversion engine with amount input, currency selectors with flags, and 1-click rapid currency swap (`⇄`).
+   - Copy-to-clipboard for converted figures with visual check confirmation.
+   - Real-time rate pills showing direct rate (`1 USD = 86.84 INR`) and inverse rate (`1 INR = 0.0115 USD`).
+   - Quick export currency chips for instant 1-tap switching.
+   - Live Interbank Market Rates board displaying real-time exchange rates for major trade partners.
+   - Authorised Dealer (AD) Bank Realization Margin Calculator (0.15% - 0.75% slider) showing estimated net Nostro remittance credit in INR after bank spreads.
+   - `onApplyRate(from, to, rate)` and `onRateApplied(result)` callback props allowing 1-click application of live exchange rates directly into form fields.
+
+3. **Domain Integrations**:
+   - **Forex & eBRC Hub (`src/pages/export/ExportRealizationPage.tsx`)**:
+     - Added "Live Forex Desk" toggle button in the page header with live amber badge.
+     - Slides down the interactive `RealtimeCurrencyConverter` directly above KPI summary cards.
+   - **Create Realization Record (`src/pages/export/CreateExportRealizationPage.tsx`)**:
+     - Auto-calculates `realizedAmountInr` using real-time interbank rate upon currency or amount change.
+     - "Apply Live Rate" pill to instantly recalculate settled INR value.
+     - Expandable Live Forex Desk with 1-click rate sync into realization form.
+   - **Create Export Quotation (`src/pages/export/CreateExportQuotationPage.tsx`)**:
+     - Enhanced Export Currency selector with flag icons and symbols across 15+ trade currencies.
+     - Live rate auto-lookup on currency change (`currencyApi.getPairRate(currency, 'INR')`).
+     - Spin-animated "Sync Live Rate" button next to exchange rate input.
+     - Live rate status readout (`1 USD = ₹86.8400`).
+     - Expandable "Real-Time Exchange Rate & Quotation Costing Desk" with 1-click "Apply Rate" to update quotation pricing and INR equivalent.
+   - **Create Export Order (`src/pages/export/CreateExportOrderPage.tsx`)**:
+     - Added Order Currency and INR Exchange Rate fields with live API sync.
+     - Dynamic valuation summary in selected currency and approximate INR equivalent.
+     - Integrated expandable `RealtimeCurrencyConverter` with 1-click "Apply Rate".
+   - **Export Quotations Hub (`src/pages/export/ExportQuotationsPage.tsx`)**:
+     - Added "Live Forex Desk" toggle button in top action bar to review live benchmark rates while browsing multi-currency quotations.
+
+4. **Cross-Stack Type Safety & Facade Sync**:
+   - `src/types/admin.ts`: Added `ExchangeRateApiResponse`, `CurrencyMetadata`, and `ConvertedCurrencyResult`.
+   - `src/api/services.ts` & `src/api/index.ts`: Re-exported `currencyApi` and helper constants.
+
+### 149.3 Verification & Status
+- `npx tsc --noEmit` exited code 0 with 0 errors.
+- `npm run build` exited code 0 with clean production bundle emission.

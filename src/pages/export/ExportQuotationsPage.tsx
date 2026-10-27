@@ -31,6 +31,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { exportApi } from '../../api/exportApi';
+import RealtimeCurrencyConverter from '../../components/export/RealtimeCurrencyConverter';
 import type {
   ExportQuotation,
   ExportRfq,
@@ -43,6 +44,7 @@ import type {
 export const ExportQuotationsPage: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'quotations' | 'rfqs'>('quotations');
+  const [showForexDesk, setShowForexDesk] = useState<boolean>(false);
 
   // Quotations State
   const [quotations, setQuotations] = useState<ExportQuotation[]>([]);
@@ -321,6 +323,20 @@ export const ExportQuotationsPage: React.FC = () => {
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
             type="button"
+            onClick={() => setShowForexDesk((prev) => !prev)}
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer min-h-[44px] ${
+              showForexDesk
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                : 'bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10'
+            }`}
+            title="Toggle Live Forex & Currency Desk"
+          >
+            <DollarSign className="w-4 h-4 text-amber-400" />
+            <span className="hidden sm:inline">{showForexDesk ? 'Hide Forex Desk' : 'Live Forex Desk'}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={loadQuotations}
             className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
             title="Refresh List"
@@ -347,6 +363,17 @@ export const ExportQuotationsPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Live Forex Desk & Currency Converter Drawer */}
+      {showForexDesk && (
+        <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+          <RealtimeCurrencyConverter
+            defaultFrom="USD"
+            defaultTo="INR"
+            title="Export Currency Realtime Exchange Desk (Live Interbank Feed)"
+          />
+        </div>
+      )}
 
       {/* KPI Metrics Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Save, RotateCcw, CheckCircle2, Coins } from 'lucide-react';
+import { ArrowLeft, Save, RotateCcw, CheckCircle2, Coins, RefreshCw, Sparkles, Sliders } from 'lucide-react';
 import { exportApi } from '../../api/exportApi';
-import type { ExportOrder } from '../../types/admin';
+import { currencyApi, POPULAR_EXPORT_CURRENCIES, getCurrencyMeta } from '../../api/currencyApi';
+import { RealtimeCurrencyConverter } from '../../components/export/RealtimeCurrencyConverter';
+import type { ExportOrder, ConvertedCurrencyResult } from '../../types/admin';
 
 const LOCAL_STORAGE_KEY = 'pacific_create_export_realization_v1';
 
@@ -38,6 +40,9 @@ export default function CreateExportRealizationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [orders, setOrders] = useState<ExportOrder[]>([]);
+  const [liveRate, setLiveRate] = useState<number | null>(null);
+  const [loadingRate, setLoadingRate] = useState(false);
+  const [showLiveConverter, setShowLiveConverter] = useState(false);
 
   const [formData, setFormData] = useState<RealizationFormData>(() => {
     try {
@@ -46,6 +51,24 @@ export default function CreateExportRealizationPage() {
     } catch {}
     return INITIAL_FORM_DATA;
   });
+
+  const fetchLiveRate = async (curr = formData.currency, force = false) => {
+    try {
+      setLoadingRate(true);
+      const rate = await currencyApi.getPairRate(curr, 'INR', force);
+      setLiveRate(rate);
+      return rate;
+    } catch (err) {
+      console.warn('Failed to fetch live forex rate:', err);
+      return null;
+    } finally {
+      setLoadingRate(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveRate(formData.currency);
+  }, [formData.currency]);
 
   useEffect(() => {
     const loadOrders = async () => {
@@ -58,6 +81,36 @@ export default function CreateExportRealizationPage() {
     };
     loadOrders();
   }, []);
+
+  // When order changes, auto-fill currency and amount
+  const handleOrderChange = async (orderId: string) => {
+    const order = orders.find((o) => o.id === orderId);
+    if (order) {
+      const curr = order.currency || 'USD';
+      const amt = Number(order.totalOrderValue) || 0;
+      const rate = await fetchLiveRate(curr);
+      const inrAmt = rate ? Number((amt * rate).toFixed(2)) : amt * 85.0;
+      setFormData({
+        ...formData,
+        exportOrderId: orderId,
+        currency: curr,
+        realizedAmount: amt,
+        realizedAmountInr: inrAmt,
+      });
+    } else {
+      setFormData({ ...formData, exportOrderId: orderId });
+    }
+  };
+
+  const handleApplyLiveRate = (customRate?: number) => {
+    const rateToUse = customRate || liveRate;
+    if (rateToUse && formData.realizedAmount) {
+      setFormData({
+        ...formData,
+        realizedAmountInr: Number((formData.realizedAmount * rateToUse).toFixed(2)),
+      });
+    }
+  };
 
   // Auto-save to localStorage
   useEffect(() => {
@@ -112,6 +165,19 @@ export default function CreateExportRealizationPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowLiveConverter(!showLiveConverter)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 min-h-[40px] transition border ${
+              showLiveConverter
+                ? 'bg-[#7FB706]/20 border-[#7FB706] text-[#7FB706]'
+                : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border-white/10'
+            }`}
+          >
+            <Coins className="w-3.5 h-3.5" />
+            <span>{showLiveConverter ? 'Hide Currency Desk' : 'Live Currency Desk'}</span>
+          </button>
+
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs">
             <Save className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Saved in Local Storage</span>
@@ -124,6 +190,26 @@ export default function CreateExportRealizationPage() {
         </div>
       </div>
 
+      {/* Live Currency Desk / Realtime Converter */}
+      {showLiveConverter && (
+        <RealtimeCurrencyConverter
+          initialFrom={formData.currency}
+          initialTo="INR"
+          initialAmount={formData.realizedAmount || 1000}
+          showApplyButton={true}
+          onRateApplied={(res: ConvertedCurrencyResult) => {
+            setFormData({
+              ...formData,
+              currency: res.from,
+              realizedAmount: res.amount,
+              realizedAmountInr: res.result,
+            });
+            setLiveRate(res.rate);
+            setShowLiveConverter(false);
+          }}
+        />
+      )}
+
       {/* Form */}
       <form onSubmit={handleSubmit} className="bg-[#121226] border border-white/5 rounded-2xl p-5 sm:p-6 space-y-6">
         <h3 className="text-sm font-bold text-white border-b border-white/10 pb-2 mb-4">Realization Details</h3>
@@ -133,7 +219,7 @@ export default function CreateExportRealizationPage() {
             <select
               required
               value={formData.exportOrderId}
-              onChange={(e) => setFormData({ ...formData, exportOrderId: e.target.value })}
+              onChange={(e) => handleOrderChange(e.target.value)}
               className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
             >
               <option value="">Select Export Order</option>
@@ -147,28 +233,40 @@ export default function CreateExportRealizationPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1.5">Realized Forex Amount *</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-gray-300">Realized Forex Amount *</label>
+                {liveRate && (
+                  <span className="text-[11px] font-mono text-gray-400">
+                    1 {formData.currency} = ₹{liveRate.toFixed(2)}
+                  </span>
+                )}
+              </div>
               <div className="flex gap-2">
                 <select
                   value={formData.currency}
                   onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-                  className="bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
+                  className="bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706] min-w-[110px]"
                 >
-                  <option value="USD">USD</option>
-                  <option value="EUR">EUR</option>
-                  <option value="AED">AED</option>
-                  <option value="GBP">GBP</option>
+                  {POPULAR_EXPORT_CURRENCIES.map((code) => {
+                    const meta = getCurrencyMeta(code);
+                    return (
+                      <option key={code} value={code}>
+                        {meta.flag} {code}
+                      </option>
+                    );
+                  })}
                 </select>
                 <input
                   required
                   type="number"
+                  step="any"
                   value={formData.realizedAmount}
                   onChange={(e) => {
                     const rz = parseFloat(e.target.value) || 0;
                     setFormData({
                       ...formData,
                       realizedAmount: rz,
-                      realizedAmountInr: rz * 85.0, // simplified example
+                      realizedAmountInr: liveRate ? Number((rz * liveRate).toFixed(2)) : rz * 85.0,
                     });
                   }}
                   className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
@@ -176,10 +274,24 @@ export default function CreateExportRealizationPage() {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1.5">Settled INR Amount *</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-gray-300">Settled INR Amount *</label>
+                {liveRate && (
+                  <button
+                    type="button"
+                    onClick={() => handleApplyLiveRate()}
+                    className="text-[11px] font-mono text-[#7FB706] hover:underline flex items-center gap-1"
+                    title="Click to recalculate with live rate"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>Apply Live Rate (₹{liveRate.toFixed(2)})</span>
+                  </button>
+                )}
+              </div>
               <input
                 required
                 type="number"
+                step="0.01"
                 value={formData.realizedAmountInr}
                 onChange={(e) => setFormData({ ...formData, realizedAmountInr: parseFloat(e.target.value) || 0 })}
                 className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"

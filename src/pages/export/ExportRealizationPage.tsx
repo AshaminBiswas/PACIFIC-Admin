@@ -19,6 +19,7 @@ import {
   Coins,
 } from 'lucide-react';
 import { exportApi } from '../../api/exportApi';
+import { RealtimeCurrencyConverter } from '../../components/export/RealtimeCurrencyConverter';
 import type {
   ExportBankRealization,
   ExportIrm,
@@ -28,6 +29,7 @@ import type {
 
 export const ExportRealizationPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'realizations' | 'irms' | 'ebrc'>('realizations');
+  const [showConverter, setShowConverter] = useState(true);
 
   const [realizations, setRealizations] = useState<ExportBankRealization[]>([]);
   const [loading, setLoading] = useState(true);
@@ -160,6 +162,19 @@ export const ExportRealizationPage: React.FC = () => {
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
+            type="button"
+            onClick={() => setShowConverter(!showConverter)}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition active:scale-95 min-h-[44px] ${
+              showConverter
+                ? 'bg-[#7FB706]/20 border-[#7FB706] text-[#7FB706] shadow-lg shadow-[#7FB706]/10'
+                : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border-white/10'
+            }`}
+          >
+            <Coins className="w-4 h-4" />
+            <span>{showConverter ? 'Hide Forex Desk' : 'Live Forex Desk'}</span>
+          </button>
+
+          <button
             onClick={() => loadRealizations(true)}
             disabled={refreshing}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 text-xs font-semibold transition active:scale-95 min-h-[44px]"
@@ -177,6 +192,11 @@ export const ExportRealizationPage: React.FC = () => {
           </Link>
         </div>
       </div>
+
+      {/* Real-time Currency Converter & Forex Desk */}
+      {showConverter && (
+        <RealtimeCurrencyConverter initialFrom="USD" initialTo="INR" initialAmount={10000} />
+      )}
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

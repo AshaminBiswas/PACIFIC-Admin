@@ -3762,6 +3762,41 @@ export interface MailOperationalDiagnostics {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Real-time Currency Converter & Forex Exchange API Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ExchangeRateApiResponse {
+  result: string;
+  documentation: string;
+  terms_of_use: string;
+  time_last_update_unix: number;
+  time_last_update_utc: string;
+  time_next_update_unix: number;
+  time_next_update_utc: string;
+  base_code: string;
+  conversion_rates: Record<string, number>;
+}
+
+export interface CurrencyMetadata {
+  code: string;
+  name: string;
+  symbol: string;
+  flag: string;
+  country: string;
+}
+
+export interface ConvertedCurrencyResult {
+  from: string;
+  to: string;
+  amount: number;
+  result: number;
+  rate: number;
+  inverseRate: number;
+  lastUpdated: string;
+}
+
+
 
 
 

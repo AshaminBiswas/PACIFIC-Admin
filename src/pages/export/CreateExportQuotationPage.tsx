@@ -8,6 +8,8 @@ import {
 import { exportApi } from '../../api/exportApi';
 import { companiesApi } from '../../api/companyApi';
 import { productCatalogApi } from '../../api/productCatalogApi';
+import { currencyApi } from '../../api/currencyApi';
+import RealtimeCurrencyConverter from '../../components/export/RealtimeCurrencyConverter';
 import type {
   BusinessParty, ExportCountry, ExportIncoterm, ExportPort, ExportHsCode,
   CompanyProfile, ProductCatalogModel
@@ -15,6 +17,24 @@ import type {
 
 const QUOTATION_STORAGE_KEY = 'pacific_export_quotation_draft_v2';
 const RFQ_STORAGE_KEY = 'pacific_export_rfq_draft_v2';
+
+export const EXPORT_CURRENCIES = [
+  { code: 'USD', name: 'US Dollar', symbol: '$', flag: '🇺🇸' },
+  { code: 'EUR', name: 'Euro', symbol: '€', flag: '🇪🇺' },
+  { code: 'AED', name: 'UAE Dirham', symbol: 'د.إ', flag: '🇦🇪' },
+  { code: 'SAR', name: 'Saudi Riyal', symbol: '﷼', flag: '🇸🇦' },
+  { code: 'GBP', name: 'British Pound', symbol: '£', flag: '🇬🇧' },
+  { code: 'QAR', name: 'Qatari Riyal', symbol: '﷼', flag: '🇶🇦' },
+  { code: 'OMR', name: 'Omani Rial', symbol: '﷼', flag: '🇴🇲' },
+  { code: 'KWD', name: 'Kuwaiti Dinar', symbol: 'KD', flag: '🇰🇼' },
+  { code: 'BHD', name: 'Bahraini Dinar', symbol: 'BD', flag: '🇧🇭' },
+  { code: 'SGD', name: 'Singapore Dollar', symbol: '$', flag: '🇸🇬' },
+  { code: 'AUD', name: 'Australian Dollar', symbol: '$', flag: '🇦🇺' },
+  { code: 'CAD', name: 'Canadian Dollar', symbol: '$', flag: '🇨🇦' },
+  { code: 'JPY', name: 'Japanese Yen', symbol: '¥', flag: '🇯🇵' },
+  { code: 'CNY', name: 'Chinese Yuan', symbol: '¥', flag: '🇨🇳' },
+  { code: 'INR', name: 'Indian Rupee', symbol: '₹', flag: '🇮🇳' },
+];
 
 export type ExportScope = 'CUBICLE' | 'BOARD' | 'HARDWARE' | 'CUSTOM';
 
@@ -265,6 +285,10 @@ export default function CreateExportQuotationPage({ readOnly = false }: { readOn
   const [loadingInitial, setLoadingInitial] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
+  // Live Forex Desk State
+  const [showForexDesk, setShowForexDesk] = useState<boolean>(false);
+  const [isFetchingForexRate, setIsFetchingForexRate] = useState<boolean>(false);
+
   // Preset Selector Modal
   const [showPresetModal, setShowPresetModal] = useState<boolean>(false);
   const [presetItemIndex, setPresetItemIndex] = useState<number | null>(null);
@@ -495,6 +519,39 @@ export default function CreateExportQuotationPage({ readOnly = false }: { readOn
       portOfDestinationId: nextPortId,
     });
   };
+
+  // Sync live rate from ExchangeRate-API
+  const handleSyncLiveRate = useCallback(async (curr?: string) => {
+    const targetCurr = curr || quoteForm.currency;
+    if (!targetCurr || targetCurr === 'INR') {
+      setQuoteForm((prev) => ({ ...prev, exchangeRate: 1 }));
+      return;
+    }
+    setIsFetchingForexRate(true);
+    try {
+      const rate = await currencyApi.getPairRate(targetCurr, 'INR');
+      if (rate && !isNaN(rate)) {
+        setQuoteForm((prev) => ({ ...prev, exchangeRate: Math.round(rate * 10000) / 10000 }));
+      }
+    } catch (err) {
+      console.warn('Failed to fetch live forex rate:', err);
+    } finally {
+      setIsFetchingForexRate(false);
+    }
+  }, [quoteForm.currency]);
+
+  // Handle currency selection change with auto live rate lookup
+  const handleCurrencyChange = useCallback((newCurr: string) => {
+    setQuoteForm((prev) => ({ ...prev, currency: newCurr }));
+    handleSyncLiveRate(newCurr);
+  }, [handleSyncLiveRate]);
+
+  // Fetch live exchange rate on new draft initialization
+  useEffect(() => {
+    if (!isEditMode && !sourceId && quoteForm.currency && quoteForm.currency !== 'INR') {
+      handleSyncLiveRate(quoteForm.currency);
+    }
+  }, []);
 
   // Set validity days and auto-calculate validUntil
   const handleSetValidityDays = (days: number) => {
@@ -1173,32 +1230,65 @@ export default function CreateExportQuotationPage({ readOnly = false }: { readOn
 
               {/* Currency & Validity */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-white/5 text-xs">
-                {/* Currency & Exchange Rate */}
+                {/* Currency & Exchange Rate with Real-time Rate Sync */}
                 <div>
-                  <label className="block text-gray-300 font-semibold mb-1">Export Currency &amp; INR Rate</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-gray-300 font-semibold">Export Currency &amp; INR Rate</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowForexDesk((prev) => !prev)}
+                      className="text-[11px] text-[#7FB706] hover:text-[#97db0a] font-bold flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <DollarSign className="w-3 h-3" />
+                      <span>{showForexDesk ? 'Hide Converter' : 'Live Converter'}</span>
+                    </button>
+                  </div>
                   <div className="flex gap-2">
                     <select
                       value={quoteForm.currency}
-                      onChange={(e) => setQuoteForm({ ...quoteForm, currency: e.target.value })}
+                      onChange={(e) => handleCurrencyChange(e.target.value)}
                       className="bg-black/40 border border-white/10 rounded-xl px-2.5 py-2.5 text-white font-bold focus:outline-none focus:border-[#7FB706] min-h-[44px]"
                     >
-                      <option value="USD">USD ($)</option>
-                      <option value="EUR">EUR (€)</option>
-                      <option value="AED">AED (د.إ)</option>
-                      <option value="SAR">SAR (﷼)</option>
-                      <option value="GBP">GBP (£)</option>
-                      <option value="INR">INR (₹)</option>
+                      {EXPORT_CURRENCIES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.flag} {c.code} ({c.symbol})
+                        </option>
+                      ))}
                     </select>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={quoteForm.exchangeRate}
-                      onChange={(e) => setQuoteForm({ ...quoteForm, exchangeRate: parseFloat(e.target.value) || 1 })}
-                      className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-[#7FB706] min-h-[44px]"
-                      placeholder="Rate to INR"
-                      title="Current INR Conversion Rate"
-                    />
+                    <div className="relative flex-1">
+                      <input
+                        type="number"
+                        step="0.0001"
+                        value={quoteForm.exchangeRate}
+                        onChange={(e) => setQuoteForm({ ...quoteForm, exchangeRate: parseFloat(e.target.value) || 1 })}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl pl-3 pr-10 py-2.5 text-white font-mono font-bold focus:outline-none focus:border-[#7FB706] min-h-[44px]"
+                        placeholder="Rate to INR"
+                        title="Current INR Conversion Rate"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSyncLiveRate(quoteForm.currency)}
+                        disabled={isFetchingForexRate}
+                        title="Sync live rate from ExchangeRate-API"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-[#7FB706] rounded-lg hover:bg-white/5 transition cursor-pointer"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isFetchingForexRate ? 'animate-spin text-[#7FB706]' : ''}`} />
+                      </button>
+                    </div>
                   </div>
+                  {quoteForm.currency !== 'INR' && (
+                    <div className="flex items-center justify-between text-[11px] text-gray-400 mt-1 px-1">
+                      <span>1 {quoteForm.currency} = ₹{Number(quoteForm.exchangeRate || 1).toFixed(4)}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleSyncLiveRate(quoteForm.currency)}
+                        className="text-[10px] text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        Sync Live Rate
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Validity Days */}
@@ -1230,6 +1320,27 @@ export default function CreateExportQuotationPage({ readOnly = false }: { readOn
                   </div>
                 </div>
               </div>
+
+              {/* Expandable Live Forex Desk & Hedging Calculator */}
+              {showForexDesk && (
+                <div className="pt-3 border-t border-white/10 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <RealtimeCurrencyConverter
+                    defaultFrom={quoteForm.currency}
+                    defaultTo="INR"
+                    defaultAmount={calculatedTotalAmount > 0 ? calculatedTotalAmount : 10000}
+                    title="Real-Time Exchange Rate & Quotation Costing Desk"
+                    onApplyRate={(from: string, to: string, rate: number) => {
+                      if (to === 'INR') {
+                        setQuoteForm((prev) => ({ ...prev, currency: from, exchangeRate: rate }));
+                      } else if (from === 'INR') {
+                        setQuoteForm((prev) => ({ ...prev, currency: to, exchangeRate: Math.round((1 / rate) * 10000) / 10000 }));
+                      } else {
+                        setQuoteForm((prev) => ({ ...prev, currency: from, exchangeRate: rate }));
+                      }
+                    }}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Section 3: Line Items Manager & Product Presets */}

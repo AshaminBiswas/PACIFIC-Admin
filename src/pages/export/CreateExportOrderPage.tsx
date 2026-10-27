@@ -1,10 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Save, RotateCcw, CheckCircle2, Package } from 'lucide-react';
+import { ArrowLeft, Save, RotateCcw, CheckCircle2, Package, DollarSign, RefreshCw } from 'lucide-react';
+import { currencyApi } from '../../api/currencyApi';
+import RealtimeCurrencyConverter from '../../components/export/RealtimeCurrencyConverter';
 import { exportApi } from '../../api/exportApi';
 import type { BusinessParty, ExportCountry, ExportIncoterm } from '../../types/admin';
 
 const LOCAL_STORAGE_KEY = 'pacific_create_export_order_v1';
+
+const EXPORT_ORDER_CURRENCIES = [
+  { code: 'USD', name: 'US Dollar', symbol: '$', flag: '🇺🇸' },
+  { code: 'EUR', name: 'Euro', symbol: '€', flag: '🇪🇺' },
+  { code: 'AED', name: 'UAE Dirham', symbol: 'د.إ', flag: '🇦🇪' },
+  { code: 'SAR', name: 'Saudi Riyal', symbol: '﷼', flag: '🇸🇦' },
+  { code: 'GBP', name: 'British Pound', symbol: '£', flag: '🇬🇧' },
+  { code: 'QAR', name: 'Qatari Riyal', symbol: '﷼', flag: '🇶🇦' },
+  { code: 'OMR', name: 'Omani Rial', symbol: '﷼', flag: '🇴🇲' },
+  { code: 'KWD', name: 'Kuwaiti Dinar', symbol: 'KD', flag: '🇰🇼' },
+  { code: 'BHD', name: 'Bahraini Dinar', symbol: 'BD', flag: '🇧🇭' },
+  { code: 'SGD', name: 'Singapore Dollar', symbol: '$', flag: '🇸🇬' },
+  { code: 'AUD', name: 'Australian Dollar', symbol: '$', flag: '🇦🇺' },
+  { code: 'CAD', name: 'Canadian Dollar', symbol: '$', flag: '🇨🇦' },
+  { code: 'JPY', name: 'Japanese Yen', symbol: '¥', flag: '🇯🇵' },
+  { code: 'CNY', name: 'Chinese Yuan', symbol: '¥', flag: '🇨🇳' },
+  { code: 'INR', name: 'Indian Rupee', symbol: '₹', flag: '🇮🇳' },
+];
 
 interface ExportOrderFormData {
   partyId: string;
@@ -40,6 +60,8 @@ export default function CreateExportOrderPage() {
   const navigate = useNavigate();
   const [lastSavedTime, setLastSavedTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showForexDesk, setShowForexDesk] = useState(false);
+  const [isFetchingForexRate, setIsFetchingForexRate] = useState(false);
 
   const [buyers, setBuyers] = useState<BusinessParty[]>([]);
   const [countries, setCountries] = useState<ExportCountry[]>([]);
@@ -76,6 +98,36 @@ export default function CreateExportOrderPage() {
       }
     };
     loadLookups();
+  }, []);
+
+  const handleSyncLiveRate = async (curr?: string) => {
+    const targetCurr = curr || formData.currency;
+    if (!targetCurr || targetCurr === 'INR') {
+      setFormData(prev => ({ ...prev, exchangeRate: 1 }));
+      return;
+    }
+    setIsFetchingForexRate(true);
+    try {
+      const rate = await currencyApi.getPairRate(targetCurr, 'INR');
+      if (rate && !isNaN(rate)) {
+        setFormData(prev => ({ ...prev, exchangeRate: Math.round(rate * 10000) / 10000 }));
+      }
+    } catch (err) {
+      console.warn('Failed to fetch live forex rate', err);
+    } finally {
+      setIsFetchingForexRate(false);
+    }
+  };
+
+  const handleCurrencyChange = (newCurr: string) => {
+    setFormData(prev => ({ ...prev, currency: newCurr }));
+    handleSyncLiveRate(newCurr);
+  };
+
+  useEffect(() => {
+    if (formData.currency && formData.currency !== 'INR') {
+      handleSyncLiveRate(formData.currency);
+    }
   }, []);
 
   const handleReset = () => {
@@ -191,11 +243,89 @@ export default function CreateExportOrderPage() {
           </div>
         </div>
 
-        <h3 className="text-sm font-bold text-white border-b border-white/10 pb-2 mb-4 mt-6">Financials & Logistics</h3>
+        <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-4 mt-6">
+          <h3 className="text-sm font-bold text-white">Financials, Currency & Logistics</h3>
+          <button
+            type="button"
+            onClick={() => setShowForexDesk(prev => !prev)}
+            className="text-xs text-[#7FB706] hover:text-[#97db0a] font-bold flex items-center gap-1 transition cursor-pointer"
+          >
+            <DollarSign className="w-3.5 h-3.5" />
+            <span>{showForexDesk ? 'Hide Forex Desk' : 'Live Forex Desk'}</span>
+          </button>
+        </div>
+
+        {showForexDesk && (
+          <div className="mb-5 animate-in fade-in slide-in-from-top-2 duration-200">
+            <RealtimeCurrencyConverter
+              defaultFrom={formData.currency}
+              defaultTo="INR"
+              defaultAmount={(Number(formData.subtotal) || 0) + (Number(formData.freightCost) || 0) + (Number(formData.insuranceCost) || 0) || 10000}
+              title="Order Valuation & Interbank Exchange Desk"
+              onApplyRate={(from: string, to: string, rate: number) => {
+                if (to === 'INR') {
+                  setFormData(prev => ({ ...prev, currency: from, exchangeRate: rate }));
+                } else if (from === 'INR') {
+                  setFormData(prev => ({ ...prev, currency: to, exchangeRate: Math.round((1 / rate) * 10000) / 10000 }));
+                } else {
+                  setFormData(prev => ({ ...prev, currency: from, exchangeRate: rate }));
+                }
+              }}
+            />
+          </div>
+        )}
+
         <div className="space-y-4 text-xs">
+          {/* Currency and Live Forex Rate */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white/5 p-3 rounded-xl border border-white/10">
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 mb-1.5">Order Currency</label>
+              <select
+                value={formData.currency}
+                onChange={(e) => handleCurrencyChange(e.target.value)}
+                className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706]"
+              >
+                {EXPORT_ORDER_CURRENCIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.flag} {c.code} — {c.name} ({c.symbol})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-gray-300">INR Exchange Rate</label>
+                {formData.currency !== 'INR' && (
+                  <span className="text-[11px] text-emerald-400 font-medium">
+                    1 {formData.currency} = ₹{Number(formData.exchangeRate || 1).toFixed(4)}
+                  </span>
+                )}
+              </div>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={formData.exchangeRate}
+                  onChange={(e) => setFormData({ ...formData, exchangeRate: Number(e.target.value) || 1 })}
+                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl pl-3 pr-10 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706] font-mono"
+                  placeholder="Exchange Rate to INR"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleSyncLiveRate(formData.currency)}
+                  disabled={isFetchingForexRate}
+                  title="Sync live exchange rate"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-[#7FB706] rounded-lg transition cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isFetchingForexRate ? 'animate-spin text-[#7FB706]' : ''}`} />
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1.5">FOB Subtotal ($)</label>
+              <label className="block text-xs font-semibold text-gray-300 mb-1.5">FOB Subtotal ({formData.currency})</label>
               <input
                 type="number"
                 required
@@ -205,7 +335,7 @@ export default function CreateExportOrderPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1.5">Ocean Freight ($)</label>
+              <label className="block text-xs font-semibold text-gray-300 mb-1.5">Ocean Freight ({formData.currency})</label>
               <input
                 type="number"
                 value={formData.freightCost || ''}
@@ -214,13 +344,26 @@ export default function CreateExportOrderPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1.5">Insurance ($)</label>
+              <label className="block text-xs font-semibold text-gray-300 mb-1.5">Insurance ({formData.currency})</label>
               <input
                 type="number"
                 value={formData.insuranceCost || ''}
                 onChange={(e) => setFormData({ ...formData, insuranceCost: Number(e.target.value) })}
                 className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7FB706] font-mono"
               />
+            </div>
+          </div>
+
+          {/* Order Total Highlight */}
+          <div className="bg-gradient-to-r from-[#171738] to-[#0d0c1d] border border-white/10 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+            <div>
+              <span className="text-xs text-gray-400 font-semibold uppercase tracking-wider block">Total Order Valuation:</span>
+              <span className="text-xs text-emerald-400 font-mono">
+                Approx. ₹{Math.round(((Number(formData.subtotal) || 0) + (Number(formData.freightCost) || 0) + (Number(formData.insuranceCost) || 0)) * (Number(formData.exchangeRate) || 1)).toLocaleString('en-IN')} INR
+              </span>
+            </div>
+            <div className="text-lg sm:text-xl font-bold font-mono text-[#7FB706]">
+              {formData.currency} {(((Number(formData.subtotal) || 0) + (Number(formData.freightCost) || 0) + (Number(formData.insuranceCost) || 0))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
           </div>
 

@@ -5,4 +5,5 @@
 
 export * from './index';
 export { mailApi } from './mailApi';
+export { currencyApi } from './currencyApi';
 export { default } from './client';

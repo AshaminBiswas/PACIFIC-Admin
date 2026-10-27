@@ -24,4 +24,5 @@ export * from './employeeService';
 export * from './upApi';
 export * from './wacrmApi';
 export * from './mailApi';
+export * from './currencyApi';
 
