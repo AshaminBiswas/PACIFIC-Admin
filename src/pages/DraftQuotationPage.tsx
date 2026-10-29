@@ -438,9 +438,9 @@ export default function DraftQuotationPage() {
           {
             systemCategory: 'locker',
             description: 'Heavy-Duty Moisture-Resistant HPL Tier Lockers (12mm Carcass & Doors)',
-            unit: 'SET',
+            unit: '4',
             quantity: 1,
-            rate: 32000,
+            rate: 2500,
             boardType: 'HPL',
             cubicleSize: '300mm W × 450mm D × 1800mm H',
             boardColor: '',
@@ -775,15 +775,17 @@ export default function DraftQuotationPage() {
       const existingLocker = f.items.find(
         (it) => it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker'))
       );
-      const currentQty = existingLocker ? Number(existingLocker.quantity) || 1 : 1;
-      const currentRate = existingLocker && existingLocker.rate > 0 ? existingLocker.rate : 14500;
+      const defaultTier = String(selected.rowCount || selected.tierCount || 4);
+      const currentUnit = existingLocker?.unit && /^\d+$/.test(existingLocker.unit.trim()) ? existingLocker.unit.trim() : defaultTier;
+      const currentQty = existingLocker ? Number(existingLocker.quantity) || 1 : (Number(selected.columnCount) || 1);
+      const currentRate = existingLocker && existingLocker.rate > 0 ? existingLocker.rate : 2500;
 
       const updatedLockerItem: CreateItem = {
         modelId: selected.id,
         systemCategory: 'locker',
         description: `Pacific ${selected.title} (Lockers)`,
         quantity: currentQty,
-        unit: existingLocker?.unit || 'NOS',
+        unit: currentUnit,
         rate: currentRate,
         boardType: dims.boardType || 'HPL',
         boardThickness: dims.boardThickness || '12mm',
@@ -1006,11 +1008,12 @@ export default function DraftQuotationPage() {
     }
   };
 
-  // Live Math Computations
-  const basicPrice = form.items.reduce(
-    (sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.rate) || 0),
-    0
-  );
+  // Live Math Computations (For lockers: row/tier x column x rate = basic amount)
+  const basicPrice = form.items.reduce((sum, it) => {
+    const isLocker = it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker'));
+    const tierRows = isLocker ? (parseFloat(String(it.unit).replace(/[^0-9.]/g, '')) || 1) : 1;
+    return sum + tierRows * (Number(it.quantity) || 0) * (Number(it.rate) || 0);
+  }, 0);
 
   const detectedCubicleCount = useMemo(() => {
     return form.items
@@ -1249,13 +1252,19 @@ export default function DraftQuotationPage() {
               finalDesc = `${it.customModelName} - ${finalDesc}`;
             }
           }
+          const isLocker = it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker'));
+          const tierRows = isLocker ? (parseFloat(String(it.unit).replace(/[^0-9.]/g, '')) || 1) : 1;
+          const qty = Number(it.quantity);
+          const rate = Number(it.rate);
+          const amount = isLocker ? (tierRows * qty * rate) : (qty * rate);
+
           return {
             serialNumber: idx + 1,
             description: finalDesc,
-            unit: it.unit || 'NOS',
-            quantity: Number(it.quantity),
-            rate: Number(it.rate),
-            amount: Number(it.quantity) * Number(it.rate),
+            unit: it.unit || (isLocker ? '4' : 'NOS'),
+            quantity: qty,
+            rate: rate,
+            amount: amount,
             boardType: it.boardType || (form.quotationScope === 'HARDWARE' ? undefined : 'HPL'),
             cubicleSize: it.cubicleSize || undefined,
             boardColor: it.boardColor || undefined,
@@ -3187,33 +3196,37 @@ export default function DraftQuotationPage() {
                     <div className="space-y-3 pt-2 border-t border-purple-500/20">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
-                          <label className={labelCls}>Unit</label>
-                          <select
-                            value={lockerItem.unit}
+                          <label className={labelCls}>Unit (Tier / Rows) *</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="20"
+                            step="1"
+                            value={lockerItem.unit || ''}
                             onChange={(e) => handleLockerFieldChange('unit', e.target.value)}
+                            placeholder="e.g. 4 Tiers"
                             className={inputCls}
-                          >
-                            {['NOS', 'SET', 'BANK', 'BAY', 'LOT'].map((u) => (
-                              <option key={u} value={u}>{u}</option>
-                            ))}
-                          </select>
+                            required
+                          />
+                          <p className="text-[10px] text-purple-400/80 mt-1">Number of horizontal tiers / compartments per column (e.g. 1, 2, 3, 4, 5, 6)</p>
                         </div>
 
                         <div>
-                          <label className={labelCls}>Quantity *</label>
+                          <label className={labelCls}>Quantity (Columns) *</label>
                           <input
                             type="number"
-                            min="0.01"
-                            step="0.01"
+                            min="1"
+                            step="1"
                             value={lockerItem.quantity}
                             onChange={(e) => handleLockerFieldChange('quantity', Number(e.target.value) || 0)}
                             className={inputCls}
                             required
                           />
+                          <p className="text-[10px] text-purple-400/80 mt-1">Number of vertical columns / bays in locker bank</p>
                         </div>
 
                         <div>
-                          <label className={labelCls}>Rate (₹) *</label>
+                          <label className={labelCls}>Rate (₹ per Tier / Compartment) *</label>
                           <input
                             type="number"
                             min="0"
@@ -3223,6 +3236,7 @@ export default function DraftQuotationPage() {
                             className={inputCls}
                             required
                           />
+                          <p className="text-[10px] text-purple-400/80 mt-1">Rate per individual tier door compartment</p>
                         </div>
                       </div>
 
@@ -3316,16 +3330,24 @@ export default function DraftQuotationPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between text-xs pt-1">
-                        <span className="text-[11px] text-gray-400 italic">
-                          Modular Locker System (Auto-updates Hardware Accessories below)
-                        </span>
-                        <div className="font-mono text-xs text-gray-400">
-                          Line Total: <span className="font-bold text-purple-300 text-sm">
-                            ₹ {((Number(lockerItem.quantity) || 0) * (Number(lockerItem.rate) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                          </span>
-                        </div>
-                      </div>
+                      {(() => {
+                        const tierRows = parseFloat(String(lockerItem.unit).replace(/[^0-9.]/g, '')) || 1;
+                        const cols = Number(lockerItem.quantity) || 0;
+                        const rate = Number(lockerItem.rate) || 0;
+                        const lockerLineTotal = tierRows * cols * rate;
+                        return (
+                          <div className="flex flex-wrap items-center justify-between text-xs pt-1 gap-2">
+                            <span className="text-[11px] text-purple-300">
+                              Locker Formula: <strong>{tierRows} Tiers (Row)</strong> × <strong>{cols} Columns</strong> × <strong>₹ {rate.toLocaleString('en-IN')}</strong> = <strong>{tierRows * cols} Total Compartments / Doors</strong>
+                            </span>
+                            <div className="font-mono text-xs text-gray-400">
+                              Line Total: <span className="font-bold text-purple-300 text-sm">
+                                ₹ {lockerLineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>

@@ -259,28 +259,33 @@ export default function EditSalesQuotationPage() {
           drawingFileName: q.drawingFileName || '',
           drawingFileId: q.drawingFileId || '',
           drawingFileSize: q.drawingFileSize || 0,
-          items: (q.items || []).map((it: any) => ({
-            id: it.id,
-            modelId: it.modelId || it.productId || '',
-            customModelName: it.customModelName || it.modelName || it.customSpecsJson?.customModelName || it.customSpecsJson?.modelName || '',
-            description: it.description || it.itemDescription || '',
-            unit: it.unit || 'NOS',
-            quantity: Number(it.quantity) || 1,
-            rate: Number(it.rate ?? it.unitPrice) || 0,
-            boardType: it.boardType || it.customSpecsJson?.boardType || 'HPL',
-            cubicleSize: it.cubicleSize || '',
-            boardColor: it.boardColor || '',
-            boardThickness: it.boardThickness || '',
-            doorSize: it.doorSize || '',
-            overallHeight: it.overallHeight || '',
-            hardwarePackage: it.hardwarePackage || it.customSpecsJson?.hardwarePackage || '',
-            make: it.make || it.customSpecsJson?.make || 'Pacific',
-            systemCategory: (it.customSpecsJson?.systemCategory) ||
-              (it.description && it.description.toLowerCase().includes('locker') ? 'locker' :
-               it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump')) ? 'ump' : 'cubicle'),
-            modelImageUrl: it.modelImageUrl || it.customSpecsJson?.modelImageUrl || it.customSpecsJson?.imageUrl || '',
-            customSpecsJson: it.customSpecsJson,
-          })),
+          items: (q.items || []).map((it: any) => {
+            const isLocker = (it.customSpecsJson?.systemCategory === 'locker') || (it.description && it.description.toLowerCase().includes('locker'));
+            const defaultUnit = isLocker ? '4' : 'NOS';
+            const unitVal = it.unit && (isLocker ? (/^\d+$/.test(String(it.unit).trim()) ? String(it.unit).trim() : '4') : it.unit);
+            return {
+              id: it.id,
+              modelId: it.modelId || it.productId || '',
+              customModelName: it.customModelName || it.modelName || it.customSpecsJson?.customModelName || it.customSpecsJson?.modelName || '',
+              description: it.description || it.itemDescription || '',
+              unit: unitVal || defaultUnit,
+              quantity: Number(it.quantity) || 1,
+              rate: Number(it.rate ?? it.unitPrice) || 0,
+              boardType: it.boardType || it.customSpecsJson?.boardType || 'HPL',
+              cubicleSize: it.cubicleSize || '',
+              boardColor: it.boardColor || '',
+              boardThickness: it.boardThickness || '',
+              doorSize: it.doorSize || '',
+              overallHeight: it.overallHeight || '',
+              hardwarePackage: it.hardwarePackage || it.customSpecsJson?.hardwarePackage || '',
+              make: it.make || it.customSpecsJson?.make || 'Pacific',
+              systemCategory: (it.customSpecsJson?.systemCategory) ||
+                (isLocker ? 'locker' :
+                 it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump')) ? 'ump' : 'cubicle'),
+              modelImageUrl: it.modelImageUrl || it.customSpecsJson?.modelImageUrl || it.customSpecsJson?.imageUrl || '',
+              customSpecsJson: it.customSpecsJson,
+            };
+          }),
         };
 
         // Clean pre-fill strictly from authoritative server data
@@ -319,8 +324,12 @@ export default function EditSalesQuotationPage() {
     window.location.reload();
   };
 
-  // Live totals
-  const basicPrice = form.items.reduce((s, it) => s + it.quantity * it.rate, 0);
+  // Live totals (For lockers: row/tier x column x rate = basic amount)
+  const basicPrice = form.items.reduce((s, it) => {
+    const isLocker = it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker'));
+    const tierRows = isLocker ? (parseFloat(String(it.unit).replace(/[^0-9.]/g, '')) || 1) : 1;
+    return s + tierRows * (Number(it.quantity) || 0) * (Number(it.rate) || 0);
+  }, 0);
 
   const detectedCubicleCount = useMemo(() => {
     return form.items
@@ -755,14 +764,19 @@ export default function EditSalesQuotationPage() {
     const dims = extractModelDimensions(selected);
     setForm((f) => {
       const existingLocker = f.items.find((it) => it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker')));
+      const defaultTier = String(selected.rowCount || selected.tierCount || 4);
+      const currentUnit = existingLocker?.unit && /^\d+$/.test(existingLocker.unit.trim()) ? existingLocker.unit.trim() : defaultTier;
+      const currentQty = existingLocker ? Number(existingLocker.quantity) || 1 : (Number(selected.columnCount) || 1);
+      const currentRate = existingLocker && existingLocker.rate > 0 ? existingLocker.rate : 2500;
+
       const updatedLockerItem: EditItem = {
         modelId: selected.id,
         customModelName: selected.title,
         systemCategory: 'locker',
         description: `Pacific ${selected.title} (Lockers)`,
-        quantity: existingLocker ? Number(existingLocker.quantity) || 1 : 1,
-        unit: existingLocker?.unit || 'NOS',
-        rate: existingLocker && existingLocker.rate > 0 ? existingLocker.rate : 14500,
+        quantity: currentQty,
+        unit: currentUnit,
+        rate: currentRate,
         boardType: dims.boardType || 'HPL',
         boardThickness: dims.boardThickness || '12mm',
         boardColor: existingLocker?.boardColor || '',
@@ -1019,6 +1033,12 @@ export default function EditSalesQuotationPage() {
               finalDesc = `${it.customModelName} - ${finalDesc}`;
             }
           }
+          const isLocker = it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker'));
+          const tierRows = isLocker ? (parseFloat(String(it.unit).replace(/[^0-9.]/g, '')) || 1) : 1;
+          const qty = Number(it.quantity);
+          const rate = Number(it.rate);
+          const amount = isLocker ? (tierRows * qty * rate) : (qty * rate);
+
           return {
             ...it,
             serialNumber: idx + 1,
@@ -1026,9 +1046,10 @@ export default function EditSalesQuotationPage() {
             modelName: resolvedModelName,
             modelId: it.modelId || undefined,
             description: finalDesc,
-            unit: it.unit,
-            quantity: Number(it.quantity),
-            rate: Number(it.rate),
+            unit: it.unit || (isLocker ? '4' : 'NOS'),
+            quantity: qty,
+            rate: rate,
+            amount: amount,
             boardType: it.boardType || 'HPL',
             cubicleSize: it.cubicleSize || undefined,
             boardColor: it.boardColor || undefined,
@@ -2226,18 +2247,45 @@ export default function EditSalesQuotationPage() {
                     <div className="space-y-3 pt-2 border-t border-purple-500/20">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
-                          <label className={labelCls}>Unit</label>
-                          <select value={lockerItem.unit} onChange={(e) => handleLockerFieldChange('unit', e.target.value)} className={inputCls}>
-                            {['NOS', 'SET', 'BANK', 'BAY', 'LOT'].map((u) => <option key={u} value={u}>{u}</option>)}
-                          </select>
+                          <label className={labelCls}>Unit (Tier / Rows) *</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="20"
+                            step="1"
+                            value={lockerItem.unit || ''}
+                            onChange={(e) => handleLockerFieldChange('unit', e.target.value)}
+                            placeholder="e.g. 4 Tiers"
+                            className={inputCls}
+                            required
+                          />
+                          <p className="text-[10px] text-purple-400/80 mt-1">Number of horizontal tiers / compartments per column (e.g. 1, 2, 3, 4, 5, 6)</p>
                         </div>
                         <div>
-                          <label className={labelCls}>Quantity *</label>
-                          <input type="number" min="0.01" step="0.01" value={lockerItem.quantity} onChange={(e) => handleLockerFieldChange('quantity', Number(e.target.value) || 0)} className={inputCls} />
+                          <label className={labelCls}>Quantity (Columns) *</label>
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={lockerItem.quantity}
+                            onChange={(e) => handleLockerFieldChange('quantity', Number(e.target.value) || 0)}
+                            className={inputCls}
+                            required
+                          />
+                          <p className="text-[10px] text-purple-400/80 mt-1">Number of vertical columns / bays in locker bank</p>
                         </div>
                         <div>
-                          <label className={labelCls}>Rate (₹) *</label>
-                          <input type="number" min="0" step="0.01" value={lockerItem.rate} onChange={(e) => handleLockerFieldChange('rate', Number(e.target.value) || 0)} className={inputCls} />
+                          <label className={labelCls}>Rate (₹ per Tier / Compartment) *</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={lockerItem.rate}
+                            onChange={(e) => handleLockerFieldChange('rate', Number(e.target.value) || 0)}
+                            className={inputCls}
+                            required
+                          />
+                          <p className="text-[10px] text-purple-400/80 mt-1">Rate per individual tier door compartment</p>
                         </div>
                       </div>
                       <div className="bg-[#121226]/80 border border-white/5 rounded-xl p-3.5">
@@ -2258,9 +2306,24 @@ export default function EditSalesQuotationPage() {
                           <div className="sm:col-span-2 lg:col-span-3"><label className={labelCls}>Hardware Package</label><input type="text" value={lockerItem.hardwarePackage || ''} onChange={(e) => handleLockerFieldChange('hardwarePackage', e.target.value)} placeholder="e.g. Master-Keyed Cam Lock, Concealed Pivot Hinges" className={inputCls} /></div>
                         </div>
                       </div>
-                      <div className="text-right font-mono text-xs text-gray-400">
-                        Line Total: <span className="font-bold text-purple-300 text-sm">₹ {((Number(lockerItem.quantity) || 0) * (Number(lockerItem.rate) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                      </div>
+                      {(() => {
+                        const tierRows = parseFloat(String(lockerItem.unit).replace(/[^0-9.]/g, '')) || 1;
+                        const cols = Number(lockerItem.quantity) || 0;
+                        const rate = Number(lockerItem.rate) || 0;
+                        const lockerLineTotal = tierRows * cols * rate;
+                        return (
+                          <div className="flex flex-wrap items-center justify-between text-xs pt-1 gap-2">
+                            <span className="text-[11px] text-purple-300">
+                              Locker Formula: <strong>{tierRows} Tiers (Row)</strong> × <strong>{cols} Columns</strong> × <strong>₹ {rate.toLocaleString('en-IN')}</strong> = <strong>{tierRows * cols} Total Compartments / Doors</strong>
+                            </span>
+                            <div className="font-mono text-xs text-gray-400">
+                              Line Total: <span className="font-bold text-purple-300 text-sm">
+                                ₹ {lockerLineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>

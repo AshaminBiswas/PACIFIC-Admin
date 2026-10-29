@@ -8370,3 +8370,65 @@ Enhance the Product Catalog Model creation, editing, detail view, and catalog qu
 - **TypeScript**: `npx tsc --noEmit` passed with 0 errors.
 - **Production Build**: `npm run build` passed with exit code 0 (`vite v6.4.3 building for production... ✓ built in 1m 13s`).
 
+---
+
+## 154. Locker Pricing Engine & Unit/Quantity Synchronization (Quotation & PI Modules)
+
+### 154.1 Business Rules & Calculation Specification
+For Modular Lockers in both **Sales Quotation** and **Proforma Invoice (PI)** modules:
+1. **Unit**: Replaced generic units (`NOS`, `SET`, `BANK`, etc.) with **Tier** with a numeric value representing the number of horizontal tiers / rows (e.g., `1`, `2`, `3`, `4`, `5`, `6`).
+2. **Quantity**: Represents **Column** (the number of vertical bays / columns in the locker bank).
+3. **Rate**: Represents the rate per individual tier / door compartment.
+4. **Locker Price Calculation Formula**:
+   $$\text{Total Basic Amount} = (\text{Row/Tier} \times \text{Column} \times \text{Rate})$$
+   - Example: 4 Tiers (Rows) $\times$ 3 Columns $\times$ ₹ 2,500 = ₹ 30,000.00 basic amount (total 12 doors/compartments).
+   - Standard restroom cubicle, urinal partition, and raw board items strictly retain standard $\text{Quantity} \times \text{Rate}$ arithmetic.
+
+### 154.2 Key File & Architecture Modifications
+1. **Quotation Creation (`src/pages/DraftQuotationPage.tsx`)**:
+   - `applyBoilerplatePreset('LOCKER')`: Defaulted `unit: '4'` (numeric tier), `quantity: 1` (column), `rate: 2500`.
+   - `handleLockerModelChange`: Loaded selected model's `rowCount || tierCount || 4` into `unit` and `columnCount || 1` into `quantity`.
+   - `basicPrice`: Factored $(\text{tierRows} \times \text{qty} \times \text{rate})$ for locker items into the quotation subtotal.
+   - `handleSubmit`: Calculated item `amount: isLocker ? (tierRows * qty * rate) : (qty * rate)` before submitting to API.
+   - Locker Section UI: Replaced dropdown with numeric `Unit (Tier / Rows) *` input (`1`–`20`), labeled quantity as `Quantity (Columns) *`, labeled rate as `Rate (₹ per Tier / Compartment) *`, and added live formula display banner (`Tiers × Columns × Rate = Total Doors`).
+
+2. **Quotation Revision & Editing (`src/pages/EditSalesQuotationPage.tsx`)**:
+   - Normalized legacy and server locker unit values to numeric tier strings.
+   - Wired model selection with `rowCount` and `columnCount` defaults.
+   - Updated live `basicPrice` computation and `handleSubmit` submission payload with $(\text{tierRows} \times \text{qty} \times \text{rate})$.
+   - Rendered identical numeric Tier, Column, and live formula indicators in the edit form.
+
+3. **Quotation Detail Showcase (`src/pages/SalesQuotationDetailPage.tsx`)**:
+   - Line items table: Renders Unit as `${tierRows} Tier`, Quantity as `${qty} Col`, and Amount as $\text{Row} \times \text{Column} \times \text{Rate}$.
+   - Line item specifications: Displays `• Configuration: ${qty} Column(s) × ${tierRows} Tier(s) (${qty * tierRows} Total Doors)`.
+   - Mobile card view: Formats line details as `${tierRows} Tier × ${qty} Col @ ₹${rate}`.
+
+4. **Proforma Invoice Creation (`src/pages/CreateProformaPage.tsx`)**:
+   - `enrichPiItemForSubmission`: Computed `amount` and `taxableAmount` as $(\text{tierRows} \times \text{qty} \times \text{rate})$ for locker lines.
+   - `handleSelectLockerModel`: Populated `unit: currentUnit`, `quantity: currentQty`, `rate: 2500`.
+   - `basicPrice`: Synchronized live mathematical computation with $(\text{tierRows} \times \text{qty} \times \text{rate})$.
+   - Section 3 Locker Form: Updated Unit to numeric Tier input, Quantity to Column input, and live line formula.
+
+5. **Proforma Invoice Editing (`src/pages/EditProformaInvoicePage.tsx`)**:
+   - Normalized server items to numeric tier units for lockers.
+   - Synchronized live subtotal, GST split, and grand total calculations.
+   - Rendered numeric Tier, Column, and formula feedback in the edit form.
+
+6. **Proforma Invoice Detail Showcase (`src/pages/ProformaInvoiceDetailPage.tsx`)**:
+   - `parseItemSpecs`: Injected `Configuration: ${cols} Column(s) × ${tierRows} Tier(s) (${cols * tierRows} Total Doors)`.
+   - Table & Mobile views: Formatted Unit as `${tierRows} Tier` and Quantity as `${qty} Col`.
+
+7. **Custom Item Cards (`CustomQuotationItemCard.tsx` & `CustomPiItemCard.tsx`)**:
+   - Updated custom item line total calculation to recognize locker system category.
+
+8. **Backend Tax Engine & Services (`PACIFIC-Backend`)**:
+   - `tax.engine.ts`: Added `amount?: number` support to `TaxLineItemInput`. Pre-calculated locker line amounts $(\text{tierRows} \times \text{qty} \times \text{rate})$ are preserved throughout GST tax calculation.
+   - `pi.service.ts`: Computed locker item amount as $(\text{tierRows} \times \text{qty} \times \text{rate})$ during PI creation and update.
+   - `quotations.service.ts`: Ensured `amount` accounts for $(\text{tierRows} \times \text{qty} \times \text{rate})$ in quotation creation and update.
+   - `pdf.service.ts`: Updated `generateQuotationPdfHtml`, `generatePiHtml`, `generateSalesOrderPdfHtml`, and `generateTaxInvoicePdfHtml` to render `${tierRows} Tier`, `${qty} Col`, and configuration door count.
+
+### 154.3 Verification
+- **TypeScript**: `npx tsc --noEmit` passed with 0 errors.
+- **Backend Build**: `npm run --prefix D:\PACIFIC-Backend build` passed with exit code 0.
+- **Production Build**: `npm run build` passed with exit code 0 (`vite v6.4.3 building for production... ✓ built in 39.94s`).
+

@@ -50,6 +50,14 @@ function parseItemSpecs(item: any) {
   if (item.boardThickness) specs.push({ label: 'Thickness', value: item.boardThickness });
   else if (item.boardType) specs.push({ label: 'Board', value: item.boardType });
   if (item.doorSize) specs.push({ label: 'Door', value: item.doorSize });
+
+  const isLocker = item.systemCategory === 'locker' || (item.description && item.description.toLowerCase().includes('locker'));
+  if (isLocker) {
+    const tierRows = parseFloat(String(item.unit).replace(/[^0-9.]/g, '')) || 1;
+    const cols = Number(item.quantity) || 1;
+    specs.push({ label: 'Configuration', value: `${cols} Column(s) × ${tierRows} Tier(s) (${cols * tierRows} Total Doors)` });
+  }
+
   if (
     item.hardwarePackage &&
     !item.hardwarePackage.includes('Golden, Black, SS') &&
@@ -809,7 +817,9 @@ export default function ProformaInvoiceDetailPage() {
                 pi.items.map((it, idx) => {
                   const rate = Number(it.rate ?? 0);
                   const qty = Number(it.quantity ?? 0);
-                  const amount = Number(it.taxableAmount ?? (qty * rate));
+                  const isLocker = it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker'));
+                  const tierRows = isLocker ? (parseFloat(String(it.unit).replace(/[^0-9.]/g, '')) || 1) : 1;
+                  const amount = Number(it.taxableAmount ?? (isLocker ? tierRows * qty * rate : qty * rate));
                   const { mainDesc, specs } = parseItemSpecs(it);
                   return (
                     <tr key={it.id ?? idx} className="hover:bg-white/[0.02] transition-colors">
@@ -830,8 +840,8 @@ export default function ProformaInvoiceDetailPage() {
                       <td className="py-3 px-4 text-center font-mono text-xs text-[#7FB706]">
                         {it.hsnSac || '9403'}
                       </td>
-                      <td className="py-3 px-4 text-center text-gray-400">{it.unit || 'NOS'}</td>
-                      <td className="py-3 px-4 text-right font-mono">{qty}</td>
+                      <td className="py-3 px-4 text-center text-gray-400">{isLocker ? `${tierRows} Tier` : (it.unit || 'NOS')}</td>
+                      <td className="py-3 px-4 text-right font-mono">{isLocker ? `${qty} Col` : qty}</td>
                       <td className="py-3 px-4 text-right font-mono">
                         {rate.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </td>
@@ -855,7 +865,9 @@ export default function ProformaInvoiceDetailPage() {
             {pi.items?.map((it, idx) => {
               const rate = Number(it.rate ?? 0);
               const qty = Number(it.quantity ?? 0);
-              const amount = Number(it.taxableAmount ?? (qty * rate));
+              const isLocker = it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker'));
+              const tierRows = isLocker ? (parseFloat(String(it.unit).replace(/[^0-9.]/g, '')) || 1) : 1;
+              const amount = Number(it.taxableAmount ?? (isLocker ? tierRows * qty * rate : qty * rate));
               const { mainDesc, specs } = parseItemSpecs(it);
               return (
                 <div key={it.id ?? idx} className="p-4 space-y-1">
@@ -881,7 +893,7 @@ export default function ProformaInvoiceDetailPage() {
                     </div>
                   </div>
                   <div className="text-xs text-gray-500">
-                    {qty} {it.unit || 'NOS'} × ₹{rate.toLocaleString('en-IN')}
+                    {isLocker ? `${tierRows} Tier × ${qty} Col @ ₹${rate.toLocaleString('en-IN')}` : `${qty} ${it.unit || 'NOS'} × ₹${rate.toLocaleString('en-IN')}`}
                   </div>
                 </div>
               );

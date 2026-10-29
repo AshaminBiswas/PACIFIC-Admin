@@ -43,7 +43,9 @@ export const CustomQuotationItemCard: React.FC<CustomQuotationItemCardProps> = R
     Boolean(item.boardType || item.boardThickness || item.boardColor || item.cubicleSize || item.overallHeight || item.hardwarePackage)
   );
 
-  const lineTotal = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
+  const isLocker = item.systemCategory === 'locker' || (item.description && item.description.toLowerCase().includes('locker'));
+  const tierRows = isLocker ? (parseFloat(String(item.unit).replace(/[^0-9.]/g, '')) || 1) : 1;
+  const lineTotal = isLocker ? tierRows * (Number(item.quantity) || 0) * (Number(item.rate) || 0) : (Number(item.quantity) || 0) * (Number(item.rate) || 0);
 
   const handleApplyPreset = (preset: CustomItemPreset) => {
     onChange('customModelName', preset.title);

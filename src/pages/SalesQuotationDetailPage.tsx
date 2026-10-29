@@ -863,8 +863,10 @@ export default function SalesQuotationDetailPage() {
                 {items.map((item, idx) => {
                   const rate = Number(item.rate ?? item.unitPrice ?? 0);
                   const qty = Number(item.quantity ?? 0);
-                  const amount = Number(item.amount ?? item.totalAmount ?? qty * rate);
                   const desc = item.description || item.itemDescription || '—';
+                  const isLocker = (item as any).systemCategory === 'locker' || ((item as any).customSpecsJson?.systemCategory === 'locker') || (desc && desc.toLowerCase().includes('locker'));
+                  const tierRows = isLocker ? (parseFloat(String(item.unit).replace(/[^0-9.]/g, '')) || 1) : 1;
+                  const amount = Number(item.amount ?? item.totalAmount ?? (isLocker ? tierRows * qty * rate : qty * rate));
                   return (
                     <tr key={item.id ?? idx} className="hover:bg-white/[0.02]">
                       <td className="py-3 px-4 text-center font-mono text-gray-400">{item.serialNumber ?? idx + 1}</td>
@@ -875,8 +877,11 @@ export default function SalesQuotationDetailPage() {
                             • Model / System: {item.customModelName || item.modelName || (item as any).customSpecsJson?.customModelName}
                           </div>
                         )}
-                        {(item.cubicleSize || item.boardThickness || item.boardColor || item.doorSize || item.overallHeight || item.make) && (
+                        {(isLocker || item.cubicleSize || item.boardThickness || item.boardColor || item.doorSize || item.overallHeight || item.make) && (
                           <div className="mt-1 text-[11px] text-gray-500 space-y-0.5">
+                            {isLocker && (
+                              <div>• Configuration: <span className="text-purple-300 font-medium">{qty} Column(s) × {tierRows} Tier(s) ({qty * tierRows} Total Doors)</span></div>
+                            )}
                             {item.make && <div>• Make: <span className="text-gray-300 font-medium">{item.make}</span></div>}
                             {item.cubicleSize && <div>• Size: {item.cubicleSize}</div>}
                             {item.boardColor && <div>• Color: {item.boardColor}</div>}
@@ -886,8 +891,8 @@ export default function SalesQuotationDetailPage() {
                           </div>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-center text-gray-400">{item.unit || 'NOS'}</td>
-                      <td className="py-3 px-4 text-right font-mono">{qty}</td>
+                      <td className="py-3 px-4 text-center text-gray-400">{isLocker ? `${tierRows} Tier` : (item.unit || 'NOS')}</td>
+                      <td className="py-3 px-4 text-right font-mono">{isLocker ? `${qty} Col` : qty}</td>
                       <td className="py-3 px-4 text-right font-mono">
                         {rate.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </td>
@@ -905,8 +910,10 @@ export default function SalesQuotationDetailPage() {
             {items.map((item, idx) => {
               const rate = Number(item.rate ?? item.unitPrice ?? 0);
               const qty = Number(item.quantity ?? 0);
-              const amount = Number(item.amount ?? item.totalAmount ?? qty * rate);
               const desc = item.description || item.itemDescription || '—';
+              const isLocker = (item as any).systemCategory === 'locker' || ((item as any).customSpecsJson?.systemCategory === 'locker') || (desc && desc.toLowerCase().includes('locker'));
+              const tierRows = isLocker ? (parseFloat(String(item.unit).replace(/[^0-9.]/g, '')) || 1) : 1;
+              const amount = Number(item.amount ?? item.totalAmount ?? (isLocker ? tierRows * qty * rate : qty * rate));
               return (
                 <div key={item.id ?? idx} className="p-4 space-y-1">
                   <div className="flex justify-between items-start">
@@ -918,13 +925,18 @@ export default function SalesQuotationDetailPage() {
                           • Model / System: {item.customModelName || item.modelName || (item as any).customSpecsJson?.customModelName}
                         </div>
                       )}
+                      {isLocker && (
+                        <div className="text-xs text-purple-300 font-medium mt-0.5">
+                          • {qty} Column(s) × {tierRows} Tier(s) ({qty * tierRows} Total Doors)
+                        </div>
+                      )}
                     </div>
                     <div className="font-bold text-[#7FB706] font-mono text-sm ml-3">
                       ₹ {amount.toLocaleString('en-IN')}
                     </div>
                   </div>
                   <div className="text-xs text-gray-500">
-                    {qty} {item.unit || 'NOS'} × ₹{rate.toLocaleString('en-IN')}
+                    {isLocker ? `${tierRows} Tier × ${qty} Col @ ₹${rate.toLocaleString('en-IN')}` : `${qty} ${item.unit || 'NOS'} × ₹${rate.toLocaleString('en-IN')}`}
                   </div>
                 </div>
               );
