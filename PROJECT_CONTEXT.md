@@ -8473,4 +8473,63 @@ When product catalog models were selected or referenced in Quotation, Proforma I
 - **Backend Build**: `npm run --prefix D:\PACIFIC-Backend build` compiled and passed with exit code 0.
 - **Production Build**: `npm run build` compiled and passed with exit code 0 (`vite v6.4.3 building for production... ✓ built in 53.22s`).
 
+---
+
+## 156. Comprehensive Locker Model Dimensions Rendering in Generated PDFs & Showcases
+
+### 156.1 Problem Statement & Deep Architectural Diagnosis
+Following the model synchronization updates, the user reported that locker dimensions (height, width, depth) still did not render properly in generated PDFs. Comprehensive database inspection of existing quotations revealed three distinct root causes:
+1. **Compartment Label Interception in `extractModelDimensions`**:
+   - `rawDepth` matched pattern `'compartment'`, intercepting `{ label: "Total Compartments", value: "1 Col × 3 Row (3 Doors)" }`.
+   - As a consequence, legacy locker lines in quotations `PPS/QT/26-27/081` and `PPS/QT/26-27/080` had `cubicleSize` stored literally as `"1 Col × 3 Row (3 Doors)"` and `overallHeight` as `null`.
+2. **False Bypass in Backend PDF 3D Reconstruction**:
+   - In `D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`, the locker dimension check `!displaySize.includes('×')` returned `false` for `"1 Col × 3 Row (3 Doors)"` because the string contained `'×'`.
+   - The backend assumed `"1 Col × 3 Row (3 Doors)"` was already a valid architectural 3D dimension and bypassed dimension reconstruction, printing only the configuration string in place of the locker dimension.
+3. **Missing Individual Dimension Lines in Specification Box**:
+   - The specification box rendered a single composite line (`• Locker Dimension: ...`), omitting explicit individual lines for `Height`, `Width`, and `Depth`.
+4. **Quotation & PI PDF Item Mapping Gap**:
+   - In `quotations.service.ts` and `pi.service.ts`, `getPdfHtml` did not map `systemCategory` at the top level of `items`, and did not look up catalog models from `websiteProduct` for legacy items missing custom specs.
+
+### 156.2 Key File & Architecture Modifications
+1. **Frontend Dimension Extraction Engine (`src/utils/quotationProductPresets.ts`)**:
+   - Removed `'compartment'` from `rawDepth` search patterns (`['standard depth', 'carcass depth', 'depth', 'cubicle size']`).
+   - Filtered out `__hardware_meta` and `[object Object]` strings from `findSpec`.
+   - Added calculation for lockers when model height represents per-tier door height ($< 1000\text{mm}$):
+     $$\text{totalHeight} = (\text{numH} < 1000 \land \text{rows} \ge 2) \mathbin{?} (\text{numH} \times \text{rows}) : \text{numH}$$
+     $$\text{compHeight} = \left\lfloor \frac{\text{totalHeight}}{\text{rows}} \right\rfloor$$
+   - Cleanly formatted `cubicleSize = `${w} W × ${d} D × ${totalH}mm H``, `doorSize`, and `overallHeight`.
+
+2. **Backend Services Catalog Enrichment (`quotations.service.ts` & `pi.service.ts`)**:
+   - In `getPdfHtml`, queried `prisma.websiteProduct` for catalog models with category `Locker`.
+   - Enriched locker items missing dimensions with exact model measurements (`width: 300mm`, `depth: 450mm`, `height: 1800mm`, `boardThickness: 9mm`).
+   - Automatically detected and replaced configuration strings (e.g. `1 Col × 3 Row (3 Doors)`) with full 3D architectural dimensions.
+   - Preserved `systemCategory: 'locker'`, `width`, `depth`, and `height` in item mappings.
+
+3. **Backend PDF Generation Subsystem (`D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`)**:
+   - Updated `generateQuotationPdfHtml`, `generatePiHtml`, and `generateSalesOrderPdfHtml`:
+     - Hardened `isLocker` check to identify unit `'Tier'`, numeric units with locker descriptions, and catalog model names.
+     - Prevented `isUrinal` from misclassifying 450mm depth lockers as urinal partitions.
+     - Extracted explicit `widthStr`, `depthStr`, and `heightStr`.
+     - In the PDF technical specification box, explicitly printed:
+       - `• Configuration: <qty> Column(s) × <tierRows> Tier(s) (<doors> Total Doors)`
+       - `• Locker Dimension: <w> W × <d> D × <h> H`
+       - `• Height: <h> (plus 100mm plinth base)`
+       - `• Width: <w> (Per Column)`
+       - `• Depth: <d> (Standard Depth)`
+       - `• Board Type: <boardType>`
+       - `• Board Thickness: <thickness>`
+       - `• Compartment / Door Size: <tierRows> Tier Modular Doors (<w> W × <compH> H per door)`
+
+4. **360 Detail Showcase Views (`SalesQuotationDetailPage.tsx`, `ProformaInvoiceDetailPage.tsx`, `SalesOrderDetailPage.tsx`)**:
+   - Synchronized line item specification showcases to explicitly display `Locker Dimension`, `Height`, `Width`, and `Depth`.
+
+5. **Database Historical Item Patch**:
+   - Patched legacy locker items in PostgreSQL (`sales_quotation_items`) for `PPS/QT/26-27/081` and `PPS/QT/26-27/080` to replace `"1 Col × ..."` with `"300mm W × 450mm D × 1800mm H"`.
+
+### 156.3 Verification
+- **TypeScript**: `npx tsc --noEmit` passed with 0 errors across all frontend files.
+- **Backend Build**: `npm run --prefix D:\PACIFIC-Backend build` compiled and passed with exit code 0 (`tsc` + `prisma generate` + puppeteer chrome install).
+- **Production Build**: `npm run build` compiled and passed with exit code 0 (`vite v6.4.3 building for production... ✓ built in 1m 1s`).
+
+
 

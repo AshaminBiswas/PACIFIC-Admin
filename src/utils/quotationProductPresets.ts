@@ -104,10 +104,11 @@ export function extractModelDimensions(model: ProductCatalogModel): ExtractedMod
 
   const findSpec = (patterns: string[]): string => {
     for (const p of patterns) {
-      const match = specs.find((s) => s.label.toLowerCase().includes(p.toLowerCase()));
+      const match = specs.find((s) => s.label && typeof s.label === 'string' && s.label.toLowerCase().includes(p.toLowerCase()));
       if (match && match.value !== undefined && match.value !== null) {
-        const valStr = typeof match.value === 'string' ? match.value : String(match.value);
-        if (valStr.trim()) return valStr.trim();
+        if (typeof match.value === 'object') continue;
+        const valStr = String(match.value).trim();
+        if (valStr && valStr !== '[object Object]') return valStr;
       }
     }
     return '';
@@ -116,20 +117,25 @@ export function extractModelDimensions(model: ProductCatalogModel): ExtractedMod
   const cleanDim = (val: string | number | undefined, defaultSuffix: string = 'mm'): string => {
     if (val === undefined || val === null) return '';
     const s = String(val).trim();
-    if (!s) return '';
+    if (!s || s === '[object Object]') return '';
     if (/^\d+(\.\d+)?$/.test(s)) {
       return `${s}${defaultSuffix}`;
     }
     return s.replace(/\s+(mm|cm|m|in|ft)\b/gi, '$1');
   };
 
-  const rawWidth = model.width || findSpec(['unit / column width', 'column width', 'unit width', 'door width', 'door size', 'standard width', 'width']);
-  const rawDepth = model.depth || findSpec(['standard depth', 'depth', 'cubicle size', 'compartment']);
-  const rawHeight = model.height || findSpec(['standard height', 'overall height', 'height']);
-  const rawThickness = model.boardThickness || findSpec(['board thickness', 'thickness']);
-  const rawDoor = findSpec(['door size', 'door width', 'door', 'compartment size', 'compartment', 'configuration']);
-  const rawRows = model.rowCount || model.tierCount || findSpec(['number of rows / tiers', 'number of rows', 'tiers', 'rows', 'row']);
-  const rawCols = model.columnCount || findSpec(['number of columns', 'columns', 'column']);
+  // Check hardware metadata object if present in specifications
+  const hwMeta = specs.find((s) => s.label === '__hardware_meta')?.value;
+  const metaObj = (hwMeta && typeof hwMeta === 'object') ? hwMeta as Record<string, any> : {};
+
+  const rawWidth = model.width || metaObj.width || findSpec(['unit / column width', 'column width', 'unit width', 'standard width', 'width', 'bay width']);
+  const rawDepth = model.depth || metaObj.depth || findSpec(['standard depth', 'carcass depth', 'depth', 'cubicle size']);
+  const rawHeight = model.height || metaObj.height || findSpec(['standard height', 'overall height', 'total height', 'height']);
+  const rawThickness = model.boardThickness || metaObj.boardThickness || findSpec(['board thickness', 'panel thickness', 'thickness']);
+  const rawDoorCandidate = findSpec(['door size', 'door width', 'compartment size']);
+  const rawDoor = (rawDoorCandidate && !rawDoorCandidate.toLowerCase().includes('doors') && !rawDoorCandidate.toLowerCase().includes('col')) ? rawDoorCandidate : '';
+  const rawRows = model.rowCount || model.tierCount || metaObj.rowCount || metaObj.tierCount || findSpec(['number of rows / tiers', 'number of rows', 'tiers', 'rows', 'tier count']);
+  const rawCols = model.columnCount || metaObj.columnCount || findSpec(['number of columns', 'columns', 'column count', 'column']);
 
   let cubicleSize = '';
   let doorSize = '';
@@ -139,23 +145,40 @@ export function extractModelDimensions(model: ProductCatalogModel): ExtractedMod
   if (model.category === 'Lockers') {
     const w = cleanDim(rawWidth) || '300mm';
     const d = cleanDim(rawDepth) || '450mm';
-    const h = cleanDim(rawHeight) || '1800mm';
-    const rows = Number(rawRows) || 4;
+    const rawHStr = cleanDim(rawHeight);
+    const rows = Number(rawRows) || (model.title.includes('3 Tier') ? 3 : model.title.includes('4 Tier') ? 4 : model.title.includes('2 Tier') ? 2 : model.title.includes('1 Tier') ? 1 : 4);
+    const numH = parseInt(rawHStr.replace(/[^0-9]/g, '')) || 1800;
+    // If the height defined on the model is per-compartment (e.g. 600mm, 443mm, 450mm) and rows >= 2, total architectural height is rows * numH
+    const totalH = (numH < 1000 && rows >= 2) ? (numH * rows) : (numH >= 1000 ? numH : 1800);
+    const compH = Math.round(totalH / rows);
+    const h = `${totalH}mm`;
 
     // Full 3D architectural dimension mentioned in model: Width W × Depth D × Height H
     cubicleSize = `${w} W × ${d} D × ${h} H`;
 
-    // Door / Compartment size
-    const numH = parseInt(h.replace(/[^0-9]/g, '')) || 1800;
-    const compH = Math.round(numH / rows);
     if (rawDoor && (rawDoor.includes('×') || rawDoor.includes('x') || rawDoor.toLowerCase().includes('mm'))) {
       doorSize = rawDoor;
     } else {
       doorSize = `${rows} Tier Modular Doors (${w} W × ${compH}mm H per door)`;
     }
 
-    overallHeight = h.toLowerCase().includes('plinth') ? h : `${h} (plus 100mm plinth base)`;
-    boardThickness = rawThickness ? String(rawThickness) : '12mm Solid Compact Phenolic Laminate';
+    overallHeight = `${h} (plus 100mm plinth base)`;
+    boardThickness = rawThickness ? String(rawThickness) : '9mm / 12mm Solid Compact Phenolic Laminate';
+
+    return {
+      cubicleSize,
+      doorSize,
+      overallHeight,
+      boardThickness,
+      boardType: 'HPL',
+      hardwarePackage: 'Heavy-Duty Uniform Standard Locker Hardware',
+      make: model.features?.find(f => f.toLowerCase().includes('make')) || 'Pacific',
+      width: w,
+      depth: d,
+      height: h,
+      rowCount: rows,
+      columnCount: Number(rawCols) || 1,
+    };
   } else if (model.category === 'Cubicle') {
     const w = cleanDim(rawWidth);
     const d = cleanDim(rawDepth) || '1500mm';
@@ -221,8 +244,6 @@ export function extractModelDimensions(model: ProductCatalogModel): ExtractedMod
   let hardwarePackage = '';
   if (model.category === 'Cubicle') {
     hardwarePackage = '';
-  } else if (model.category === 'Lockers') {
-    hardwarePackage = 'Heavy-Duty Uniform Standard Locker Hardware';
   } else if (model.category === 'Urinal Partitions') {
     hardwarePackage = model.hasExtraLeg
       ? 'Grade 304 Wall Clamps + Extra Floor Supporting Leg'

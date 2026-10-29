@@ -45,9 +45,21 @@ function parseItemSpecs(item: any) {
   let mainDesc = item.description || item.itemDescription || 'Pacific Restroom Cubicle Item';
   const specs: { label: string; value: string }[] = [];
 
-  const specsJson = item.specsJson || {};
-  const isUrinal = mainDesc.toLowerCase().includes('urinal') || mainDesc.toLowerCase().includes('ump') || (item.cubicleSize && item.cubicleSize.includes('450mm'));
-  const isLocker = mainDesc.toLowerCase().includes('locker') || item.systemCategory === 'locker';
+  const specsJson = item.specsJson || item.customSpecsJson || {};
+  const descLower = mainDesc.toLowerCase();
+  const isLocker = (
+    item.systemCategory === 'locker' ||
+    specsJson.systemCategory === 'locker' ||
+    descLower.includes('locker') ||
+    descLower.includes('tier') ||
+    String(item.unit || '').toLowerCase().includes('tier') ||
+    (/^\d+$/.test(String(item.unit || '').trim()) && !descLower.includes('cubicle'))
+  );
+  const isUrinal = !isLocker && (
+    item.systemCategory === 'ump' ||
+    descLower.includes('urinal') ||
+    descLower.includes('ump')
+  );
   const sizeLabel = isUrinal ? 'Partition Size' : isLocker ? 'Locker Dimension' : 'Cubicle / Depth Size';
   const doorLabel = isLocker ? 'Compartment / Door' : 'Door Size';
 
@@ -59,12 +71,33 @@ function parseItemSpecs(item: any) {
   const overallHeight = item.overallHeight || specsJson.overallHeight;
   const hardwarePackage = item.hardwarePackage || specsJson.hardwarePackage;
 
-  if (boardType) specs.push({ label: 'Board Type', value: boardType });
-  if (boardThickness) specs.push({ label: 'Board Thickness', value: boardThickness });
-  if (boardColor) specs.push({ label: 'Board Color', value: boardColor });
-  if (cubicleSize) specs.push({ label: sizeLabel, value: cubicleSize });
-  if (doorSize && (!isUrinal || doorSize.trim() !== 'N/A')) specs.push({ label: doorLabel, value: doorSize });
-  if (overallHeight) specs.push({ label: 'Overall Height', value: overallHeight });
+  if (isLocker) {
+    const tierRows = parseFloat(String(item.unit).replace(/[^0-9.]/g, '')) || 1;
+    const cols = Number(item.quantity) || 1;
+    const widthVal = specsJson.width || (cubicleSize && cubicleSize.match(/(\d+)\s*(?:mm)?\s*w/i)?.[1] ? `${cubicleSize.match(/(\d+)\s*(?:mm)?\s*w/i)![1]}mm` : '') || '300mm';
+    const depthVal = specsJson.depth || (cubicleSize && cubicleSize.match(/(\d+)\s*(?:mm)?\s*d/i)?.[1] ? `${cubicleSize.match(/(\d+)\s*(?:mm)?\s*d/i)![1]}mm` : '') || '450mm';
+    const heightVal = overallHeight || specsJson.height || (cubicleSize && cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)?.[1] ? `${cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)![1]}mm` : '') || `${tierRows * 600}mm`;
+    const lockerDim = (cubicleSize && cubicleSize.includes('W') && !cubicleSize.toLowerCase().includes('doors'))
+      ? cubicleSize
+      : `${widthVal} W × ${depthVal} D × ${heightVal} H`;
+
+    specs.push({ label: 'Configuration', value: `${cols} Column(s) × ${tierRows} Tier(s) (${cols * tierRows} Total Doors)` });
+    specs.push({ label: 'Locker Dimension', value: lockerDim });
+    specs.push({ label: 'Height', value: heightVal });
+    specs.push({ label: 'Width', value: widthVal });
+    specs.push({ label: 'Depth', value: depthVal });
+    if (boardType) specs.push({ label: 'Board Type', value: boardType });
+    if (boardThickness) specs.push({ label: 'Board Thickness', value: boardThickness });
+    if (boardColor) specs.push({ label: 'Board Color', value: boardColor });
+    if (doorSize) specs.push({ label: doorLabel, value: doorSize });
+  } else {
+    if (boardType) specs.push({ label: 'Board Type', value: boardType });
+    if (boardThickness) specs.push({ label: 'Board Thickness', value: boardThickness });
+    if (boardColor) specs.push({ label: 'Board Color', value: boardColor });
+    if (cubicleSize) specs.push({ label: sizeLabel, value: cubicleSize });
+    if (doorSize && (!isUrinal || doorSize.trim() !== 'N/A')) specs.push({ label: doorLabel, value: doorSize });
+    if (overallHeight) specs.push({ label: 'Overall Height', value: overallHeight });
+  }
   if (
     hardwarePackage &&
     !hardwarePackage.includes('Golden, Black, SS') &&

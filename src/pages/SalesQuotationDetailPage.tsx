@@ -864,12 +864,20 @@ export default function SalesQuotationDetailPage() {
                   const rate = Number(item.rate ?? item.unitPrice ?? 0);
                   const qty = Number(item.quantity ?? 0);
                   const desc = item.description || item.itemDescription || '—';
-                  const isLocker = (item as any).systemCategory === 'locker' || ((item as any).customSpecsJson?.systemCategory === 'locker') || (desc && desc.toLowerCase().includes('locker'));
+                  const isLocker = (item as any).systemCategory === 'locker' || ((item as any).customSpecsJson?.systemCategory === 'locker') || (desc && desc.toLowerCase().includes('locker')) || (desc && desc.toLowerCase().includes('tier')) || String(item.unit || '').toLowerCase().includes('tier') || (/^\d+$/.test(String(item.unit || '').trim()) && !desc.toLowerCase().includes('cubicle'));
                   const tierRows = isLocker ? (parseFloat(String(item.unit).replace(/[^0-9.]/g, '')) || 1) : 1;
                   const amount = Number(item.amount ?? item.totalAmount ?? (isLocker ? tierRows * qty * rate : qty * rate));
-                  const isUrinal = (desc || '').toLowerCase().includes('urinal') || (desc || '').toLowerCase().includes('ump') || (item.cubicleSize && item.cubicleSize.includes('450mm'));
+                  const isUrinal = !isLocker && ((desc || '').toLowerCase().includes('urinal') || (desc || '').toLowerCase().includes('ump'));
                   const sizeLabel = isUrinal ? 'Partition Size' : isLocker ? 'Locker Dimension' : 'Cubicle / Depth Size';
                   const doorLabel = isLocker ? 'Compartment / Door' : 'Door Size';
+
+                  const customSpecs = ((item as any).customSpecsJson as any) || {};
+                  const widthVal = customSpecs.width || (item.cubicleSize && item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*w/i)?.[1] ? `${item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*w/i)![1]}mm` : '') || '300mm';
+                  const depthVal = customSpecs.depth || (item.cubicleSize && item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*d/i)?.[1] ? `${item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*d/i)![1]}mm` : '') || '450mm';
+                  const heightVal = item.overallHeight || customSpecs.height || (item.cubicleSize && item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)?.[1] ? `${item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)![1]}mm` : '') || `${tierRows * 600}mm`;
+                  const lockerDim = (item.cubicleSize && item.cubicleSize.includes('W') && !item.cubicleSize.toLowerCase().includes('doors'))
+                    ? item.cubicleSize
+                    : `${widthVal} W × ${depthVal} D × ${heightVal} H`;
 
                   return (
                     <tr key={item.id ?? idx} className="hover:bg-white/[0.02]">
@@ -883,15 +891,27 @@ export default function SalesQuotationDetailPage() {
                         )}
                         {(isLocker || item.cubicleSize || item.boardThickness || item.boardColor || item.doorSize || item.overallHeight || item.make) && (
                           <div className="mt-1 text-[11px] text-gray-500 space-y-0.5">
-                            {isLocker && (
-                              <div>• Configuration: <span className="text-purple-300 font-medium">{qty} Column(s) × {tierRows} Tier(s) ({qty * tierRows} Total Doors)</span></div>
+                            {isLocker ? (
+                              <>
+                                <div>• Configuration: <span className="text-purple-300 font-medium">{qty} Column(s) × {tierRows} Tier(s) ({qty * tierRows} Total Doors)</span></div>
+                                <div>• Locker Dimension: <span className="text-gray-300 font-medium">{lockerDim}</span></div>
+                                <div>• Height: <span className="text-gray-300 font-medium">{heightVal}</span></div>
+                                <div>• Width: <span className="text-gray-300 font-medium">{widthVal}</span></div>
+                                <div>• Depth: <span className="text-gray-300 font-medium">{depthVal}</span></div>
+                                {item.boardThickness && <div>• Thickness: <span className="text-gray-300 font-medium">{item.boardThickness}</span></div>}
+                                {item.boardColor && <div>• Color: <span className="text-gray-300 font-medium">{item.boardColor}</span></div>}
+                                {item.doorSize && <div>• Compartment / Door: <span className="text-gray-300 font-medium">{item.doorSize}</span></div>}
+                              </>
+                            ) : (
+                              <>
+                                {item.make && <div>• Make: <span className="text-gray-300 font-medium">{item.make}</span></div>}
+                                {item.cubicleSize && <div>• {sizeLabel}: <span className="text-gray-300 font-medium">{item.cubicleSize}</span></div>}
+                                {item.boardColor && <div>• Color: <span className="text-gray-300 font-medium">{item.boardColor}</span></div>}
+                                {item.boardThickness && <div>• Thickness: <span className="text-gray-300 font-medium">{item.boardThickness}</span></div>}
+                                {item.doorSize && (!isUrinal || item.doorSize.trim() !== 'N/A') && <div>• {doorLabel}: <span className="text-gray-300 font-medium">{item.doorSize}</span></div>}
+                                {item.overallHeight && <div>• Height: <span className="text-gray-300 font-medium">{item.overallHeight}</span></div>}
+                              </>
                             )}
-                            {item.make && <div>• Make: <span className="text-gray-300 font-medium">{item.make}</span></div>}
-                            {item.cubicleSize && <div>• {sizeLabel}: <span className="text-gray-300 font-medium">{item.cubicleSize}</span></div>}
-                            {item.boardColor && <div>• Color: <span className="text-gray-300 font-medium">{item.boardColor}</span></div>}
-                            {item.boardThickness && <div>• Thickness: <span className="text-gray-300 font-medium">{item.boardThickness}</span></div>}
-                            {item.doorSize && (!isUrinal || item.doorSize.trim() !== 'N/A') && <div>• {doorLabel}: <span className="text-gray-300 font-medium">{item.doorSize}</span></div>}
-                            {item.overallHeight && <div>• Height: <span className="text-gray-300 font-medium">{item.overallHeight}</span></div>}
                           </div>
                         )}
                       </td>
