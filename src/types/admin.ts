@@ -1410,11 +1410,32 @@ export interface QuotationContentTemplate {
   isActive: boolean;
 }
 
+export type QuotationScope = 'CUBICLE' | 'BOARD' | 'HARDWARE' | 'CUSTOM_ITEM';
+export type QuotationType = 'cubicle' | 'custom_board' | 'custom_hardware' | 'custom_item';
+
+export function scopeToType(scope?: QuotationScope | string): QuotationType {
+  const s = String(scope || '').toUpperCase();
+  if (s === 'HARDWARE' || s === 'CUSTOM_HARDWARE') return 'custom_hardware';
+  if (s === 'BOARD' || s === 'CUSTOM_BOARD') return 'custom_board';
+  if (s === 'CUSTOM_ITEM' || s === 'CUSTOM') return 'custom_item';
+  return 'cubicle';
+}
+
+export function typeToScope(type?: string): QuotationScope {
+  const t = String(type || '').toLowerCase();
+  if (t === 'custom_hardware' || t === 'hardware') return 'HARDWARE';
+  if (t === 'custom_board' || t === 'board') return 'BOARD';
+  if (t === 'custom_item' || t === 'custom') return 'CUSTOM_ITEM';
+  return 'CUBICLE';
+}
+
 export interface SalesQuotation {
   id: string;
   quotationNumber: string;
   referenceNumber?: string;
   revisionNumber: number;
+  quotationScope?: QuotationScope;
+  quotationType?: QuotationType;
   date: string;
   validUntil?: string;
   customerId: string;

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   FileText, ArrowLeft, Save, Plus, Trash2, RefreshCw,
   AlertTriangle, RotateCcw, Wrench, Sparkles, Layers,
-  UploadCloud, ExternalLink, Eye, History,
+  UploadCloud, ExternalLink, Eye, History, Package,
 } from 'lucide-react';
 import { salesQuotationsApi } from '../api/salesQuotationsApi';
 import { companiesApi } from '../api/companyApi';
@@ -17,7 +17,8 @@ import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import BranchSelector from '../components/common/BranchSelector';
 import ModelImageField from '../components/quotations/ModelImageField';
 import { CustomQuotationItemCard } from '../components/common/CustomQuotationItemCard';
-import type { ProductCatalogModel, CompanyProfile } from '../types/admin';
+import type { ProductCatalogModel, CompanyProfile, QuotationScope, QuotationType } from '../types/admin';
+import { scopeToType, typeToScope } from '../types/admin';
 import { calculateGstSplit, isRestroomCubicleItem } from '../utils/tax';
 import { uploadToImageKit } from '../lib/imagekit';
 import {
@@ -45,7 +46,7 @@ interface EditItem {
   hardwareType?: string;
   colorFinish?: string;
   notes?: string;
-  systemCategory?: 'cubicle' | 'ump' | 'locker' | 'custom' | string;
+  systemCategory?: 'cubicle' | 'ump' | 'locker' | 'board' | 'hardware' | 'custom' | string;
   description: string;
   unit: string;
   quantity: number;
@@ -63,6 +64,8 @@ interface EditItem {
 
 interface EditFormData {
   companyProfileId?: string;
+  quotationScope?: QuotationScope;
+  quotationType?: QuotationType;
   recipientSalutation: string;
   recipientName: string;
   recipientCompany: string;
@@ -111,6 +114,7 @@ function getStorageKey(id: string) {
 export default function EditSalesQuotationPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -162,6 +166,8 @@ export default function EditSalesQuotationPage() {
 
   const [form, setForm] = useState<EditFormData>({
     companyProfileId: '',
+    quotationScope: typeToScope(searchParams.get('type') || 'cubicle'),
+    quotationType: (searchParams.get('type') as QuotationType) || 'cubicle',
     recipientSalutation: 'Mr.',
     recipientName: '',
     recipientCompany: '',
@@ -221,9 +227,80 @@ export default function EditSalesQuotationPage() {
         setInstallationMode(initialMode);
         const initialOption = q.installationOption || (initialCharge === 0 ? detectInstallationOption(q.generalTerms, q.otherTerms) : 'Included');
 
+        // Determine Quotation Scope & Module
+        const rawScopeTerm = (String(q.generalTerms || '') + '\n' + String(q.otherTerms || '')).match(/\[(?:QUOTATION_SCOPE|QUOTATION_TYPE|PI_SCOPE|SCOPE):([A-Z_a-z]+)\]/i)?.[1];
+        let loadedScope: QuotationScope = 'CUBICLE';
+        const typeParam = searchParams.get('type')?.toLowerCase();
+
+        if (q.quotationScope) {
+          loadedScope = q.quotationScope as QuotationScope;
+        } else if (q.quotationType) {
+          loadedScope = typeToScope(q.quotationType);
+        } else if (rawScopeTerm) {
+          const upper = rawScopeTerm.toUpperCase();
+          if (upper.includes('HARDWARE')) loadedScope = 'HARDWARE';
+          else if (upper.includes('BOARD')) loadedScope = 'BOARD';
+          else if (upper.includes('CUSTOM')) loadedScope = 'CUSTOM_ITEM';
+          else loadedScope = 'CUBICLE';
+        } else if (typeParam) {
+          loadedScope = typeToScope(typeParam);
+        } else {
+          const itemScope = q.items?.find((it: any) => it.customSpecsJson?.quotationScope)?.customSpecsJson?.quotationScope;
+          const itemType = q.items?.find((it: any) => it.customSpecsJson?.quotationType)?.customSpecsJson?.quotationType;
+          if (itemScope) {
+            const us = String(itemScope).toUpperCase();
+            loadedScope = us === 'HARDWARE' ? 'HARDWARE' : us === 'BOARD' ? 'BOARD' : us.includes('CUSTOM') ? 'CUSTOM_ITEM' : 'CUBICLE';
+          } else if (itemType) {
+            loadedScope = typeToScope(itemType);
+          } else if (Array.isArray(q.items) && q.items.length > 0) {
+            const hasCubicleSpecs = q.items.some((it: any) => {
+              const d = (it.description || '').toLowerCase();
+              return (it.cubicleSize && !it.cubicleSize.includes('4ft × 8ft') && !it.cubicleSize.includes('1220mm')) ||
+                it.doorSize ||
+                it.overallHeight ||
+                d.includes('cubicle') ||
+                d.includes('restroom') ||
+                d.includes('urinal') ||
+                d.includes('locker');
+            });
+
+            const allHardware = q.items.every((it: any) => {
+              const d = (it.description || '').toLowerCase();
+              const cat = (it.customSpecsJson?.systemCategory || it.systemCategory || '').toLowerCase();
+              const u = (it.unit || '').toUpperCase();
+              return cat === 'hardware' || u === 'PAIR' || u === 'SET' || it.hsnSac === '8302' ||
+                (/hinge|indicator lock|leg|handle|hook|u-channel|screw|fastener/i.test(d) && !d.includes('cubicle'));
+            });
+
+            const allBoard = q.items.every((it: any) => {
+              const d = (it.description || '').toLowerCase();
+              const cat = (it.customSpecsJson?.systemCategory || it.systemCategory || '').toLowerCase();
+              const u = (it.unit || '').toUpperCase();
+              return cat === 'board' || u === 'SQFT' || u === 'SQM' || (/board|sheet|compact laminate/i.test(d) && !d.includes('cubicle') && !hasCubicleSpecs);
+            });
+
+            const allCustom = q.items.every((it: any) => {
+              const cat = (it.customSpecsJson?.systemCategory || it.systemCategory || '').toLowerCase();
+              return it.isCustom || it.customSpecsJson?.isCustom || cat === 'custom' || it.modelId === 'CUSTOM';
+            });
+
+            if (allHardware && !hasCubicleSpecs) loadedScope = 'HARDWARE';
+            else if (allBoard && !hasCubicleSpecs) loadedScope = 'BOARD';
+            else if (allCustom && !hasCubicleSpecs) loadedScope = 'CUSTOM_ITEM';
+            else loadedScope = 'CUBICLE';
+          }
+        }
+
+        const properType = scopeToType(loadedScope);
+        if (searchParams.get('type') !== properType) {
+          setSearchParams({ type: properType }, { replace: true });
+        }
+
         // Build form data from API response
         const serverForm: EditFormData = {
           companyProfileId: q.companyProfileId || q.companyProfile?.id || '',
+          quotationScope: loadedScope,
+          quotationType: properType,
           recipientSalutation: q.recipientSalutation || 'Mr.',
           recipientName: q.recipientName || q.customer?.legalName || '',
           recipientCompany: q.recipientCompany || q.customer?.tradeName || '',
@@ -260,30 +337,46 @@ export default function EditSalesQuotationPage() {
           drawingFileId: q.drawingFileId || '',
           drawingFileSize: q.drawingFileSize || 0,
           items: (q.items || []).map((it: any) => {
-            const isLocker = (it.customSpecsJson?.systemCategory === 'locker') || (it.description && it.description.toLowerCase().includes('locker'));
+            const specs = (typeof it.customSpecsJson === 'object' ? it.customSpecsJson : {}) || {};
+            const isLocker = (specs.systemCategory === 'locker') || (it.systemCategory === 'locker') || (it.description && it.description.toLowerCase().includes('locker'));
             const defaultUnit = isLocker ? '4' : 'NOS';
             const unitVal = it.unit && (isLocker ? (/^\d+$/.test(String(it.unit).trim()) ? String(it.unit).trim() : '4') : it.unit);
+            const detectedCat = specs.systemCategory || it.systemCategory ||
+              (isLocker ? 'locker' :
+               it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump')) ? 'ump' :
+               loadedScope === 'HARDWARE' ? 'hardware' :
+               loadedScope === 'BOARD' ? 'board' :
+               loadedScope === 'CUSTOM_ITEM' || it.isCustom || specs.isCustom ? 'custom' : 'cubicle');
+
             return {
               id: it.id,
               modelId: it.modelId || it.productId || '',
-              customModelName: it.customModelName || it.modelName || it.customSpecsJson?.customModelName || it.customSpecsJson?.modelName || '',
+              customModelName: it.customModelName || it.modelName || specs.customModelName || specs.modelName || '',
+              modelName: it.modelName || specs.modelName || '',
+              modelImageUrl: it.modelImageUrl || specs.modelImageUrl || specs.imageUrl || '',
+              isCustom: Boolean(it.isCustom || specs.isCustom || detectedCat === 'custom' || it.modelId === 'CUSTOM'),
+              hsnSac: it.hsnSac || specs.hsnSac || '',
+              width: specs.width || '',
+              depth: specs.depth || '',
+              height: specs.height || '',
+              boardMaterial: specs.boardMaterial || it.boardType || specs.boardType || '',
+              hardwareType: specs.hardwareType || it.hardwarePackage || specs.hardwarePackage || '',
+              colorFinish: specs.colorFinish || it.boardColor || specs.boardColor || '',
+              notes: specs.notes || it.notes || '',
               description: it.description || it.itemDescription || '',
               unit: unitVal || defaultUnit,
               quantity: Number(it.quantity) || 1,
               rate: Number(it.rate ?? it.unitPrice) || 0,
-              boardType: it.boardType || it.customSpecsJson?.boardType || 'HPL',
-              cubicleSize: it.cubicleSize || '',
-              boardColor: it.boardColor || '',
-              boardThickness: it.boardThickness || '',
-              doorSize: it.doorSize || '',
-              overallHeight: it.overallHeight || '',
-              hardwarePackage: it.hardwarePackage || it.customSpecsJson?.hardwarePackage || '',
-              make: it.make || it.customSpecsJson?.make || 'Pacific',
-              systemCategory: (it.customSpecsJson?.systemCategory) ||
-                (isLocker ? 'locker' :
-                 it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump')) ? 'ump' : 'cubicle'),
-              modelImageUrl: it.modelImageUrl || it.customSpecsJson?.modelImageUrl || it.customSpecsJson?.imageUrl || '',
-              customSpecsJson: it.customSpecsJson,
+              boardType: it.boardType || specs.boardType || 'HPL',
+              cubicleSize: it.cubicleSize || (specs.width && specs.depth ? `${specs.width} × ${specs.depth}` : ''),
+              boardColor: it.boardColor || specs.boardColor || specs.colorFinish || '',
+              boardThickness: it.boardThickness || specs.boardThickness || '',
+              doorSize: it.doorSize || specs.doorSize || '',
+              overallHeight: it.overallHeight || specs.overallHeight || '',
+              hardwarePackage: it.hardwarePackage || specs.hardwarePackage || specs.hardwareType || '',
+              make: it.make || specs.make || 'Pacific',
+              systemCategory: detectedCat,
+              customSpecsJson: specs,
             };
           }),
         };
@@ -428,14 +521,18 @@ export default function EditSalesQuotationPage() {
   };
 
   // Quick Boilerplate Presets
-  const applyBoilerplatePreset = (type: 'STANDARD' | 'URINAL_PARTITION' | 'LOCKER') => {
+  const applyBoilerplatePreset = (type: 'STANDARD' | 'URINAL_PARTITION' | 'LOCKER' | 'BOARD_ONLY' | 'HARDWARE_ONLY' | 'CUSTOM_ITEM') => {
     if (type === 'STANDARD') {
       setForm((f) => ({
         ...f,
+        quotationScope: 'CUBICLE',
+        quotationType: 'cubicle',
         subject: 'Quotation for Supply of Restroom Cubicle System',
         title: 'Quotation for Supply of Restroom Cubicle System',
+        accessoriesText: DEFAULT_ACCESSORIES_TEXT,
         items: [
           {
+            systemCategory: 'cubicle',
             description: 'Pacific Restroom Cubicle System (12mm Compact Laminate)',
             unit: 'NOS',
             quantity: 1,
@@ -447,16 +544,123 @@ export default function EditSalesQuotationPage() {
             doorSize: '600mm × 1785mm',
             overallHeight: '1980mm (incl. 100mm ground clearance)',
             hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
+            make: 'Pacific',
           },
         ],
       }));
+      setSearchParams({ type: 'cubicle' }, { replace: true });
+    } else if (type === 'BOARD_ONLY') {
+      setForm((f) => ({
+        ...f,
+        quotationScope: 'BOARD',
+        quotationType: 'custom_board',
+        subject: 'Quotation for Supply of Compact Laminate / HPL Boards',
+        title: 'Quotation for Supply of Compact Laminate / HPL Boards',
+        warrantyText: 'We provide ten (10) years of warranty for compact laminate boards against delamination, moisture ingress, and swelling defects under standard operational use.',
+        accessoriesText: '• Scope of Supply: Raw material compact laminate / HPL board sheets only.\n• Hardware & Accessories: Not included in this quotation.\n• Safe Packaging: Protected in export-grade wooden pallet crates.',
+        items: [
+          {
+            systemCategory: 'board',
+            description: '12mm High Pressure Compact Laminate (HPL) Board Sheet',
+            unit: 'SQFT',
+            quantity: 100,
+            rate: 185,
+            boardType: 'HPL',
+            boardThickness: '12mm',
+            boardColor: '',
+            cubicleSize: '1220mm × 2440mm (4ft × 8ft)',
+          },
+        ],
+      }));
+      setSearchParams({ type: 'custom_board' }, { replace: true });
+    } else if (type === 'HARDWARE_ONLY') {
+      setForm((f) => ({
+        ...f,
+        quotationScope: 'HARDWARE',
+        quotationType: 'custom_hardware',
+        subject: 'Quotation for Supply of Restroom Cubicle Hardware & Accessories',
+        title: 'Quotation for Supply of Restroom Cubicle Hardware & Accessories',
+        warrantyText: 'We provide one (1) year replacement warranty for all stainless steel and virgin nylon hardware fittings against manufacturing defects.',
+        accessoriesText: DEFAULT_ACCESSORIES_TEXT,
+        items: [
+          {
+            systemCategory: 'hardware',
+            description: 'SS 304 Gravity Hinges (Self-Closing Pair with Nylon Cam Mechanism)',
+            unit: 'PAIR',
+            quantity: 10,
+            rate: 450,
+            hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
+          },
+          {
+            systemCategory: 'hardware',
+            description: 'SS 304 Occupancy Indicator Privacy Lock with Emergency Release',
+            unit: 'SET',
+            quantity: 5,
+            rate: 650,
+            hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
+          },
+          {
+            systemCategory: 'hardware',
+            description: 'SS 304 Adjustable Supporting Legs (100mm to 150mm Ground Clearance)',
+            unit: 'NOS',
+            quantity: 10,
+            rate: 350,
+            hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
+          },
+          {
+            systemCategory: 'hardware',
+            description: 'SS 304 Ergonomic Door Pull Handle / Knob',
+            unit: 'NOS',
+            quantity: 5,
+            rate: 180,
+            hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
+          },
+          {
+            systemCategory: 'hardware',
+            description: 'SS 304 Heavy Duty Coat Hook with Integrated Rubber Buffer Stop',
+            unit: 'NOS',
+            quantity: 5,
+            rate: 120,
+            hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
+          },
+        ],
+      }));
+      setSearchParams({ type: 'custom_hardware' }, { replace: true });
+    } else if (type === 'CUSTOM_ITEM') {
+      setForm((f) => ({
+        ...f,
+        quotationScope: 'CUSTOM_ITEM',
+        quotationType: 'custom_item',
+        subject: 'Quotation for Supply of Bespoke / Custom Architectural Items',
+        title: 'Quotation for Supply of Bespoke / Custom Architectural Items',
+        warrantyText: 'We provide five (5) years warranty for bespoke fabricated items against material and workmanship defects.',
+        accessoriesText: '• Scope of Supply: Custom engineered architectural items and bespoke models as itemized below.\n• Fasteners & Installation Hardware: Included as per approved fabrication shop drawings.',
+        items: [
+          {
+            systemCategory: 'custom',
+            isCustom: true,
+            customModelName: 'Custom Bespoke Model',
+            description: 'Custom Engineered Partition & Architectural Fabricated Item',
+            unit: 'NOS',
+            quantity: 1,
+            rate: 15000,
+            boardType: 'HPL',
+            cubicleSize: 'Custom Dimensions as per site drawing',
+            hardwarePackage: 'Heavy-Duty Hardware Fittings',
+          },
+        ],
+      }));
+      setSearchParams({ type: 'custom_item' }, { replace: true });
     } else if (type === 'URINAL_PARTITION') {
       setForm((f) => ({
         ...f,
+        quotationScope: 'CUBICLE',
+        quotationType: 'cubicle',
         subject: 'Quotation for Supply of Urinal Privacy Partition Panels',
         title: 'Quotation for Supply of Urinal Privacy Partition Panels',
         items: [
           {
+            systemCategory: 'ump',
             description: 'Solid Compact Laminate Urinal Privacy Divider Screen',
             unit: 'NOS',
             quantity: 1,
@@ -471,17 +675,21 @@ export default function EditSalesQuotationPage() {
           },
         ],
       }));
+      setSearchParams({ type: 'cubicle' }, { replace: true });
     } else if (type === 'LOCKER') {
       setForm((f) => ({
         ...f,
+        quotationScope: 'CUBICLE',
+        quotationType: 'cubicle',
         subject: 'Quotation for Supply of Heavy Duty HPL Tier Lockers',
         title: 'Quotation for Supply of Heavy Duty HPL Tier Lockers',
         items: [
           {
+            systemCategory: 'locker',
             description: 'Heavy-Duty Moisture-Resistant HPL Tier Lockers (12mm Carcass & Doors)',
-            unit: 'SET',
+            unit: '4',
             quantity: 1,
-            rate: 32000,
+            rate: 2500,
             boardType: 'HPL',
             cubicleSize: '300mm W × 450mm D × 1800mm H',
             boardColor: '',
@@ -492,6 +700,7 @@ export default function EditSalesQuotationPage() {
           },
         ],
       }));
+      setSearchParams({ type: 'cubicle' }, { replace: true });
     }
   };
 
@@ -933,6 +1142,43 @@ export default function EditSalesQuotationPage() {
     }));
   };
 
+  const addBoardItem = () => {
+    setForm((f) => ({
+      ...f,
+      items: [
+        ...f.items,
+        {
+          systemCategory: 'board',
+          description: '12mm High Pressure Compact Laminate (HPL) Board Sheet',
+          unit: 'SQFT',
+          quantity: 100,
+          rate: 185,
+          boardType: 'HPL',
+          boardThickness: '12mm',
+          boardColor: '',
+          cubicleSize: '1220mm × 2440mm (4ft × 8ft)',
+        },
+      ],
+    }));
+  };
+
+  const addHardwareItem = (name = '', unit = 'NOS', rate = 0) => {
+    setForm((f) => ({
+      ...f,
+      items: [
+        ...f.items,
+        {
+          systemCategory: 'hardware',
+          description: name || 'SS 304 Restroom Cubicle Fitting',
+          unit,
+          quantity: 1,
+          rate,
+          hardwarePackage: 'SS 304 Stainless Steel (Satin/Brushed)',
+        },
+      ],
+    }));
+  };
+
   const removeItem = (idx: number) => {
     setForm((f) => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
   };
@@ -1026,9 +1272,16 @@ export default function EditSalesQuotationPage() {
       );
       const syncedGeneralTerms = syncInstallationToGeneralTerms(form.generalTerms, currentClause);
 
+      const cleanedOtherTerms = (form.otherTerms || '').replace(/\[QUOTATION_SCOPE:[^\]]+\]\s*/g, '').trim();
+      const currentScope = form.quotationScope || 'CUBICLE';
+      const syncedOtherTerms = `[QUOTATION_SCOPE:${currentScope}] ${cleanedOtherTerms}`.trim();
+
       await salesQuotationsApi.update(id, {
         ...form,
+        quotationScope: currentScope,
+        quotationType: scopeToType(currentScope),
         generalTerms: syncedGeneralTerms,
+        otherTerms: syncedOtherTerms,
         drawingUrl: form.drawingUrl || undefined,
         drawingFileName: form.drawingFileName || undefined,
         drawingFileId: form.drawingFileId || undefined,
@@ -1059,7 +1312,7 @@ export default function EditSalesQuotationPage() {
             quantity: qty,
             rate: rate,
             amount: amount,
-            boardType: it.boardType || 'HPL',
+            boardType: it.boardType || (currentScope === 'HARDWARE' ? undefined : 'HPL'),
             cubicleSize: it.cubicleSize || undefined,
             boardColor: it.boardColor || undefined,
             boardThickness: it.boardThickness || undefined,
@@ -1077,7 +1330,7 @@ export default function EditSalesQuotationPage() {
               isCustom: Boolean(it.isCustom || it.modelId === 'CUSTOM' || it.systemCategory === 'custom'),
               hardwarePackage: it.hardwarePackage || it.hardwareType || undefined,
               hardwareType: it.hardwareType || it.hardwarePackage || undefined,
-              boardType: it.boardType || it.boardMaterial || 'HPL',
+              boardType: it.boardType || it.boardMaterial || (currentScope === 'HARDWARE' ? undefined : 'HPL'),
               boardMaterial: it.boardMaterial || it.boardType || undefined,
               colorFinish: it.colorFinish || it.boardColor || undefined,
               boardColor: it.boardColor || it.colorFinish || undefined,
@@ -1087,6 +1340,8 @@ export default function EditSalesQuotationPage() {
               notes: it.notes || undefined,
               hsnSac: it.hsnSac || undefined,
               make: it.make || undefined,
+              quotationScope: currentScope,
+              quotationType: scopeToType(currentScope),
             },
           };
         }),
@@ -1160,7 +1415,26 @@ export default function EditSalesQuotationPage() {
               <FileText className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">Edit Quotation</h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl font-bold text-white">Edit Quotation</h1>
+                {form.quotationScope === 'HARDWARE' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                    <Wrench className="w-3 h-3 text-cyan-400" /> Custom Hardware Module
+                  </span>
+                ) : form.quotationScope === 'BOARD' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    <Package className="w-3 h-3 text-amber-400" /> Custom Board Module
+                  </span>
+                ) : form.quotationScope === 'CUSTOM_ITEM' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                    <Sparkles className="w-3 h-3 text-indigo-400" /> Custom Item Module
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#7FB706]/15 text-[#7FB706] border border-[#7FB706]/30">
+                    <Layers className="w-3 h-3 text-[#7FB706]" /> Cubicle Module
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-gray-400 font-mono">{quotationNum}</p>
             </div>
           </div>
@@ -1285,7 +1559,11 @@ export default function EditSalesQuotationPage() {
           <button
             type="button"
             onClick={() => applyBoilerplatePreset('STANDARD')}
-            className="px-3 py-1.5 text-xs font-semibold bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-lg min-h-[36px] transition cursor-pointer"
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg min-h-[36px] transition cursor-pointer ${
+              (!form.quotationScope || form.quotationScope === 'CUBICLE')
+                ? 'bg-[#7FB706]/20 text-[#7FB706] border border-[#7FB706]/40 font-bold'
+                : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white'
+            }`}
           >
             Standard Cubicle
           </button>
@@ -1302,6 +1580,39 @@ export default function EditSalesQuotationPage() {
             className="px-3 py-1.5 text-xs font-semibold bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-lg min-h-[36px] transition cursor-pointer"
           >
             Hpl Locker
+          </button>
+          <button
+            type="button"
+            onClick={() => applyBoilerplatePreset('BOARD_ONLY')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg min-h-[36px] transition cursor-pointer ${
+              form.quotationScope === 'BOARD'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold'
+                : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white'
+            }`}
+          >
+            Board Only
+          </button>
+          <button
+            type="button"
+            onClick={() => applyBoilerplatePreset('HARDWARE_ONLY')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg min-h-[36px] transition cursor-pointer ${
+              form.quotationScope === 'HARDWARE'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
+                : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white'
+            }`}
+          >
+            Hardware Only
+          </button>
+          <button
+            type="button"
+            onClick={() => applyBoilerplatePreset('CUSTOM_ITEM')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg min-h-[36px] transition cursor-pointer ${
+              form.quotationScope === 'CUSTOM_ITEM'
+                ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-bold'
+                : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white'
+            }`}
+          >
+            Custom Item
           </button>
         </div>
       </div>
@@ -1860,41 +2171,583 @@ export default function EditSalesQuotationPage() {
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => {
-                addItem();
-                clearFieldError('items');
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] border border-[#7FB706]/30 rounded-lg text-xs font-bold cursor-pointer transition-colors"
-              title="Add another catalog cubicle model system"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              ＋ Add Cubicle System
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                addCustomModelItem();
-                clearFieldError('items');
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors"
-              title="Write custom model name and technical specifications"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              ＋ Add Custom Item &amp; Model
-            </button>
+            {(!form.quotationScope || form.quotationScope === 'CUBICLE') && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    addItem();
+                    clearFieldError('items');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] border border-[#7FB706]/30 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                  title="Add another catalog cubicle model system"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  ＋ Add Cubicle System
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    addCustomModelItem();
+                    clearFieldError('items');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                  title="Write custom model name and technical specifications"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  ＋ Add Custom Item &amp; Model
+                </button>
+              </>
+            )}
+            {form.quotationScope === 'BOARD' && (
+              <button
+                type="button"
+                onClick={() => {
+                  addBoardItem();
+                  clearFieldError('items');
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Board Sheet
+              </button>
+            )}
+            {form.quotationScope === 'HARDWARE' && (
+              <button
+                type="button"
+                onClick={() => {
+                  addHardwareItem();
+                  clearFieldError('items');
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Hardware Item
+              </button>
+            )}
+            {form.quotationScope === 'CUSTOM_ITEM' && (
+              <button
+                type="button"
+                onClick={() => {
+                  addCustomModelItem();
+                  clearFieldError('items');
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Custom Item
+              </button>
+            )}
           </div>
+        </div>
+
+        {/* 4-Way Mode / Scope Selector */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-1.5 bg-[#0a0a1a] rounded-xl border border-white/10">
+          <button
+            type="button"
+            onClick={() => {
+              if (form.quotationScope !== 'CUBICLE') {
+                if (window.confirm('Switch quotation mode to Restroom Cubicle System?')) {
+                  applyBoilerplatePreset('STANDARD');
+                }
+              }
+            }}
+            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+              (!form.quotationScope || form.quotationScope === 'CUBICLE')
+                ? 'bg-[#7FB706] text-black shadow-md'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Layers className="w-4 h-4" /> Restroom Cubicles
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (form.quotationScope !== 'BOARD') {
+                if (window.confirm('Switch quotation mode to Board Only (HPL/HDF)? This will configure items for raw board sheet supply.')) {
+                  applyBoilerplatePreset('BOARD_ONLY');
+                }
+              }
+            }}
+            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+              form.quotationScope === 'BOARD'
+                ? 'bg-[#7FB706] text-black shadow-md'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Package className="w-4 h-4" /> Custom Board
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (form.quotationScope !== 'HARDWARE') {
+                if (window.confirm('Switch quotation mode to Custom Hardware Only? This will configure items for hardware fittings supply.')) {
+                  applyBoilerplatePreset('HARDWARE_ONLY');
+                }
+              }
+            }}
+            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+              form.quotationScope === 'HARDWARE'
+                ? 'bg-[#7FB706] text-black shadow-md'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Wrench className="w-4 h-4" /> Custom Hardware
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (form.quotationScope !== 'CUSTOM_ITEM') {
+                if (window.confirm('Switch quotation mode to Custom Item & Bespoke Works? This allows configuring custom items, bespoke models, and specialized fabrication.')) {
+                  applyBoilerplatePreset('CUSTOM_ITEM');
+                }
+              }
+            }}
+            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+              form.quotationScope === 'CUSTOM_ITEM'
+                ? 'bg-[#7FB706] text-black shadow-md'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" /> Custom Item
+          </button>
         </div>
 
         {form.items.length === 0 && (
           <div className="text-center py-6 text-gray-500 text-sm">
-            No line items yet. Click "Add Item" to add cubicle specifications.
+            No line items yet. Click &quot;Add Item&quot; to configure quotation items.
           </div>
         )}
 
         <div className="space-y-5">
-          {(() => {
+          {form.quotationScope === 'CUSTOM_ITEM' ? (
+            <div className="space-y-4">
+              <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-indigo-300">
+                <span className="flex items-center gap-2 font-medium">
+                  <Sparkles className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+                  <span><strong>Custom Item &amp; Bespoke Works Mode Active:</strong> Configure custom items, bespoke models, vanity counters, glass partitions, and specialized fabrication freely without requiring a standard cubicle model.</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={addCustomModelItem}
+                  className="px-3 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer transition self-start sm:self-auto"
+                >
+                  <Plus className="w-3.5 h-3.5" /> + Add Custom Item
+                </button>
+              </div>
+
+              {form.items.length === 0 && (
+                <div className="text-center py-8 border border-dashed border-indigo-500/30 rounded-xl bg-indigo-500/5">
+                  <p className="text-xs text-gray-400 mb-3">No custom items added yet.</p>
+                  <button
+                    type="button"
+                    onClick={addCustomModelItem}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition"
+                  >
+                    <Plus className="w-4 h-4" /> Add First Custom Item
+                  </button>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {form.items.map((item, idx) => (
+                  <CustomQuotationItemCard
+                    key={idx}
+                    index={idx}
+                    item={item}
+                    fieldErrors={fieldErrors}
+                    onChange={(field, val) => handleItemChange(idx, field as keyof EditItem, val)}
+                    onRemove={() => removeItem(idx)}
+                    canRemove={form.items.length > 1}
+                  />
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={addCustomModelItem}
+                className="w-full py-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-dashed border-indigo-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Add Another Custom Item
+              </button>
+            </div>
+          ) : form.quotationScope === 'BOARD' ? (
+            <div className="space-y-4">
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-300">
+                <span className="flex items-center gap-2 font-medium">
+                  <Package className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  <span><strong>Board Supply Mode Active:</strong> Quoting for raw compact laminate / HDF sheets only. Cubicle model is not required.</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={addBoardItem}
+                  className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg font-semibold flex items-center gap-1 cursor-pointer transition self-start sm:self-auto"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Board Sheet
+                </button>
+              </div>
+
+              {form.items.map((item, idx) => {
+                const lineTotal = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
+                return (
+                  <div key={idx} className="bg-[#0a0a1a] border border-amber-500/30 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-amber-400">Board Item #{idx + 1}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                          <Package className="w-3 h-3 text-amber-400" /> Raw Board Supply
+                        </span>
+                      </div>
+                      {form.items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeItem(idx)}
+                          className="p-1 text-red-400 hover:text-red-300 cursor-pointer transition-colors"
+                          title="Remove Board Item"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                      <div className="sm:col-span-6 space-y-1">
+                        <label className={labelCls}>Board Description *</label>
+                        <input
+                          type="text"
+                          value={item.description}
+                          onChange={(e) => {
+                            handleItemChange(idx, 'description', e.target.value);
+                            clearFieldError(`item_${idx}_desc`);
+                          }}
+                          placeholder="e.g. 12mm High Pressure Compact Laminate (HPL) Board Sheet"
+                          className={getInputCls(`item_${idx}_desc`)}
+                          required
+                        />
+                        {fieldErrors[`item_${idx}_desc`] && (
+                          <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_desc`]}</p>
+                        )}
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className={labelCls}>Board Type *</label>
+                        <select
+                          value={item.boardType || 'HPL'}
+                          onChange={(e) => handleItemChange(idx, 'boardType', e.target.value)}
+                          className={inputCls}
+                        >
+                          <option value="HPL">HPL (Compact Laminate)</option>
+                          <option value="HDF">HDF (High Density Board)</option>
+                          <option value="WOODEN">Wooden Core Panel</option>
+                        </select>
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className={labelCls}>Thickness</label>
+                        <input
+                          type="text"
+                          value={item.boardThickness || ''}
+                          onChange={(e) => handleItemChange(idx, 'boardThickness', e.target.value)}
+                          placeholder="e.g. 12mm"
+                          className={inputCls}
+                        />
+                        <div className="flex gap-1 pt-0.5">
+                          {['12mm', '18mm', '25mm'].map((th) => (
+                            <button
+                              key={th}
+                              type="button"
+                              onClick={() => handleItemChange(idx, 'boardThickness', th)}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition cursor-pointer"
+                            >
+                              {th}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className={labelCls}>Color / Decor Code</label>
+                        <input
+                          type="text"
+                          value={item.boardColor || ''}
+                          onChange={(e) => handleItemChange(idx, 'boardColor', e.target.value)}
+                          placeholder="e.g. D.No. 123 – Oyster White"
+                          className={inputCls}
+                        />
+                      </div>
+
+                      <div className="sm:col-span-5 space-y-1">
+                        <label className={labelCls}>Sheet Dimensions / Size</label>
+                        <input
+                          type="text"
+                          value={item.cubicleSize || ''}
+                          onChange={(e) => handleItemChange(idx, 'cubicleSize', e.target.value)}
+                          placeholder="e.g. 1220mm × 2440mm (4ft × 8ft)"
+                          className={inputCls}
+                        />
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {[
+                            { label: '4ft × 8ft', val: '1220mm × 2440mm (4ft × 8ft)' },
+                            { label: '6ft × 6ft', val: '1830mm × 1830mm (6ft × 6ft)' },
+                            { label: '6ft × 9ft', val: '1830mm × 2740mm (6ft × 9ft)' },
+                          ].map((preset) => (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => handleItemChange(idx, 'cubicleSize', preset.val)}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition cursor-pointer"
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className={labelCls}>Unit</label>
+                        <select
+                          value={item.unit || 'SQFT'}
+                          onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                          className={inputCls}
+                        >
+                          {['SQFT', 'SQM', 'NOS', 'SHEET', 'LOT'].map((u) => (
+                            <option key={u} value={u}>{u}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className={labelCls}>Quantity *</label>
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={item.quantity}
+                          onChange={(e) => {
+                            handleItemChange(idx, 'quantity', Number(e.target.value) || 0);
+                            clearFieldError(`item_${idx}_qty`);
+                          }}
+                          className={getInputCls(`item_${idx}_qty`)}
+                          required
+                        />
+                        {fieldErrors[`item_${idx}_qty`] && (
+                          <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_qty`]}</p>
+                        )}
+                      </div>
+
+                      <div className="sm:col-span-3 space-y-1">
+                        <label className={labelCls}>Rate (₹) *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.rate}
+                          onChange={(e) => {
+                            handleItemChange(idx, 'rate', Number(e.target.value) || 0);
+                            clearFieldError(`item_${idx}_rate`);
+                          }}
+                          className={getInputCls(`item_${idx}_rate`)}
+                          required
+                        />
+                        {fieldErrors[`item_${idx}_rate`] && (
+                          <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_rate`]}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-right text-xs text-gray-400 font-mono pt-1 border-t border-white/5">
+                      Line Total: <span className="font-bold text-white text-sm">
+                        ₹ {lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={addBoardItem}
+                className="w-full py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-dashed border-amber-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Add Another Board Line Item
+              </button>
+            </div>
+          ) : form.quotationScope === 'HARDWARE' ? (
+            <div className="space-y-4">
+              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-cyan-300">
+                <span className="flex items-center gap-2 font-medium">
+                  <Wrench className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                  <span><strong>Custom Hardware Only Mode Active:</strong> Quoting for individual restroom cubicle hardware fittings. Cubicle model is not required.</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => addHardwareItem()}
+                  className="px-3 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded-lg font-semibold flex items-center gap-1 cursor-pointer transition self-start sm:self-auto"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Hardware Item
+                </button>
+              </div>
+
+              {/* Quick Insert Hardware Chips */}
+              <div className="flex flex-wrap items-center gap-1.5 p-2.5 rounded-xl bg-[#0a0a1a] border border-white/5">
+                <span className="text-[11px] text-gray-400 mr-1 flex items-center gap-1 font-semibold">
+                  <Sparkles className="w-3 h-3 text-cyan-400" /> Quick Add:
+                </span>
+                {[
+                  { name: 'SS 304 Gravity Hinges (Pair)', unit: 'PAIR', rate: 450 },
+                  { name: 'SS 304 Occupancy Indicator Lock with Release', unit: 'SET', rate: 650 },
+                  { name: 'SS 304 Adjustable Supporting Legs (100-150mm)', unit: 'NOS', rate: 350 },
+                  { name: 'SS 304 Door Pull Handle / Knob', unit: 'NOS', rate: 180 },
+                  { name: 'SS 304 Heavy Duty Coat Hook with Buffer', unit: 'NOS', rate: 120 },
+                  { name: 'Continuous Top Headrail Extrusion (Mtr)', unit: 'MTR', rate: 550 },
+                  { name: 'Aluminium U-Channel Wall Profile (Mtr)', unit: 'MTR', rate: 220 },
+                  { name: 'Grade 304 Screws & Anchor Fasteners Pack', unit: 'SET', rate: 150 },
+                ].map((hw) => (
+                  <button
+                    key={hw.name}
+                    type="button"
+                    onClick={() => addHardwareItem(hw.name, hw.unit, hw.rate)}
+                    className="text-[11px] px-2 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition cursor-pointer flex items-center gap-1"
+                  >
+                    <Plus className="w-2.5 h-2.5" /> {hw.name}
+                  </button>
+                ))}
+              </div>
+
+              {form.items.map((item, idx) => {
+                const lineTotal = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
+                return (
+                  <div key={idx} className="bg-[#0a0a1a] border border-cyan-500/30 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-cyan-400">Hardware Item #{idx + 1}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                          <Wrench className="w-3 h-3 text-cyan-400" /> Fitting / Accessory
+                        </span>
+                      </div>
+                      {form.items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeItem(idx)}
+                          className="p-1 text-red-400 hover:text-red-300 cursor-pointer transition-colors"
+                          title="Remove Hardware Item"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                      <div className="sm:col-span-6 space-y-1">
+                        <label className={labelCls}>Item Name &amp; Description *</label>
+                        <input
+                          type="text"
+                          value={item.description}
+                          onChange={(e) => {
+                            handleItemChange(idx, 'description', e.target.value);
+                            clearFieldError(`item_${idx}_desc`);
+                          }}
+                          placeholder="e.g. SS 304 Grade Privacy Lock &amp; Indicator"
+                          className={getInputCls(`item_${idx}_desc`)}
+                          required
+                        />
+                        {fieldErrors[`item_${idx}_desc`] && (
+                          <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_desc`]}</p>
+                        )}
+                      </div>
+
+                      <div className="sm:col-span-3 space-y-1">
+                        <label className={labelCls}>Hardware Spec / Material</label>
+                        <input
+                          type="text"
+                          value={item.hardwarePackage || ''}
+                          onChange={(e) => handleItemChange(idx, 'hardwarePackage', e.target.value)}
+                          placeholder="e.g. Grade 304 Stainless Steel"
+                          className={inputCls}
+                        />
+                      </div>
+
+                      <div className="sm:col-span-3 space-y-1">
+                        <label className={labelCls}>HSN / SAC Code</label>
+                        <input
+                          type="text"
+                          value={item.hsnSac || ''}
+                          onChange={(e) => handleItemChange(idx, 'hsnSac', e.target.value)}
+                          placeholder="e.g. 8302"
+                          className={inputCls}
+                        />
+                      </div>
+
+                      <div className="sm:col-span-3 space-y-1">
+                        <label className={labelCls}>Unit</label>
+                        <select
+                          value={item.unit || 'NOS'}
+                          onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                          className={inputCls}
+                        >
+                          {['NOS', 'SET', 'PAIR', 'MTR', 'KG', 'PKT', 'LOT'].map((u) => (
+                            <option key={u} value={u}>{u}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="sm:col-span-3 space-y-1">
+                        <label className={labelCls}>Quantity *</label>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={item.quantity}
+                          onChange={(e) => {
+                            handleItemChange(idx, 'quantity', Number(e.target.value) || 0);
+                            clearFieldError(`item_${idx}_qty`);
+                          }}
+                          className={getInputCls(`item_${idx}_qty`)}
+                          required
+                        />
+                        {fieldErrors[`item_${idx}_qty`] && (
+                          <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_qty`]}</p>
+                        )}
+                      </div>
+
+                      <div className="sm:col-span-3 space-y-1">
+                        <label className={labelCls}>Rate (₹) *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.rate}
+                          onChange={(e) => {
+                            handleItemChange(idx, 'rate', Number(e.target.value) || 0);
+                            clearFieldError(`item_${idx}_rate`);
+                          }}
+                          className={getInputCls(`item_${idx}_rate`)}
+                          required
+                        />
+                        {fieldErrors[`item_${idx}_rate`] && (
+                          <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_rate`]}</p>
+                        )}
+                      </div>
+
+                      <div className="sm:col-span-3 space-y-1 flex flex-col justify-end">
+                        <div className="text-right text-xs text-gray-400 font-mono pb-2">
+                          Item Total: <span className="font-bold text-white text-sm">
+                            ₹ {lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={() => addHardwareItem()}
+                className="w-full py-2.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-dashed border-cyan-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Add Another Hardware Line Item
+              </button>
+            </div>
+          ) : (
+            (() => {
             const customItems = form.items.filter(
               (it) => it.systemCategory === 'custom' || it.modelId === 'CUSTOM' || (it as any).isCustom
             );
@@ -2636,7 +3489,7 @@ export default function EditSalesQuotationPage() {
                 </div>
               </>
             );
-          })()}
+          })())}
         </div>
       </div>
 

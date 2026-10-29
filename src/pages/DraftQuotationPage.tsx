@@ -19,7 +19,8 @@ import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import BranchSelector from '../components/common/BranchSelector';
 import ModelImageField from '../components/quotations/ModelImageField';
 import { CustomQuotationItemCard } from '../components/common/CustomQuotationItemCard';
-import type { BusinessParty, CompanyProfile, ProductCatalogModel } from '../types/admin';
+import type { BusinessParty, CompanyProfile, ProductCatalogModel, QuotationScope, QuotationType } from '../types/admin';
+import { scopeToType } from '../types/admin';
 import { calculateGstSplit, isRestroomCubicleItem } from '../utils/tax';
 import {
   INSTALLATION_OPTIONS,
@@ -30,7 +31,7 @@ import {
   type InstallationPricingMode,
 } from '../utils/quotationInstallation';
 
-export type QuotationScope = 'CUBICLE' | 'BOARD' | 'HARDWARE';
+export type { QuotationScope };
 
 export interface CreateItem {
   id?: string;
@@ -307,7 +308,7 @@ export default function DraftQuotationPage() {
   };
 
   // Quick Boilerplate Presets
-  const applyBoilerplatePreset = (type: 'STANDARD' | 'URINAL_PARTITION' | 'LOCKER' | 'BOARD_ONLY' | 'HARDWARE_ONLY') => {
+  const applyBoilerplatePreset = (type: 'STANDARD' | 'URINAL_PARTITION' | 'LOCKER' | 'BOARD_ONLY' | 'HARDWARE_ONLY' | 'CUSTOM_ITEM') => {
     if (type === 'STANDARD') {
       setForm((f) => ({
         ...f,
@@ -448,6 +449,29 @@ export default function DraftQuotationPage() {
             doorSize: 'Tier Configuration as per drawing',
             overallHeight: '1800mm (plus 100mm plinth base)',
             hardwarePackage: 'SS 304 Continuous Piano Hinges & Cam Locks',
+          },
+        ],
+      }));
+    } else if (type === 'CUSTOM_ITEM') {
+      setForm((f) => ({
+        ...f,
+        quotationScope: 'CUSTOM_ITEM',
+        subject: 'Quotation for Supply of Bespoke / Custom Architectural Items',
+        title: 'Quotation for Supply of Bespoke / Custom Architectural Items',
+        warrantyText: 'We provide five (5) years warranty for bespoke fabricated items against material and workmanship defects.',
+        accessoriesText: '• Scope of Supply: Custom engineered architectural items and bespoke models as itemized below.\n• Fasteners & Installation Hardware: Included as per approved fabrication shop drawings.',
+        items: [
+          {
+            systemCategory: 'custom',
+            isCustom: true,
+            customModelName: 'Custom Bespoke Model',
+            description: 'Custom Engineered Partition & Architectural Fabricated Item',
+            unit: 'NOS',
+            quantity: 1,
+            rate: 15000,
+            boardType: 'HPL',
+            cubicleSize: 'Custom Dimensions as per site drawing',
+            hardwarePackage: 'Heavy-Duty Hardware Fittings',
           },
         ],
       }));
@@ -1211,6 +1235,8 @@ export default function DraftQuotationPage() {
       const res = await salesQuotationsApi.create({
         customerId: form.customerId,
         companyProfileId: form.companyProfileId || companies[0]?.id,
+        quotationScope: form.quotationScope || 'CUBICLE',
+        quotationType: scopeToType(form.quotationScope || 'CUBICLE'),
         recipientSalutation: form.recipientSalutation,
         recipientName: form.recipientName,
         recipientCompany: form.recipientCompany || customer?.tradeName || customer?.legalName || '',
@@ -1302,6 +1328,7 @@ export default function DraftQuotationPage() {
               systemCategory: it.systemCategory || (it.modelId === 'CUSTOM' ? 'custom' : undefined),
               isCustom: Boolean(it.isCustom || it.modelId === 'CUSTOM' || it.systemCategory === 'custom'),
               quotationScope: form.quotationScope || 'CUBICLE',
+              quotationType: scopeToType(form.quotationScope || 'CUBICLE'),
               make: it.make || undefined,
               customModelName: resolvedModelName,
               modelName: resolvedModelName,
@@ -1484,6 +1511,17 @@ export default function DraftQuotationPage() {
             }`}
           >
             <Wrench className="w-3.5 h-3.5" /> Custom Hardware Only
+          </button>
+          <button
+            type="button"
+            onClick={() => applyBoilerplatePreset('CUSTOM_ITEM')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg min-h-[36px] transition cursor-pointer flex items-center gap-1.5 ${
+              form.quotationScope === 'CUSTOM_ITEM'
+                ? 'bg-[#7FB706]/20 text-[#7FB706] border border-[#7FB706]/40'
+                : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" /> Custom Item / Bespoke
           </button>
           <button
             type="button"
@@ -2164,11 +2202,23 @@ export default function DraftQuotationPage() {
                 <Plus className="w-3.5 h-3.5" /> Add Hardware Item
               </button>
             )}
+            {form.quotationScope === 'CUSTOM_ITEM' && (
+              <button
+                type="button"
+                onClick={() => {
+                  addCustomModelItem();
+                  clearFieldError('items');
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Custom Item
+              </button>
+            )}
           </div>
         </div>
 
-        {/* 3-Way Mode / Scope Selector */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 bg-[#0a0a1a] rounded-xl border border-white/10">
+        {/* 4-Way Mode / Scope Selector */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-1.5 bg-[#0a0a1a] rounded-xl border border-white/10">
           <button
             type="button"
             onClick={() => {
@@ -2184,7 +2234,7 @@ export default function DraftQuotationPage() {
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Layers className="w-4 h-4" /> Restroom Cubicle System
+            <Layers className="w-4 h-4" /> Restroom Cubicles
           </button>
           <button
             type="button"
@@ -2201,7 +2251,7 @@ export default function DraftQuotationPage() {
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Package className="w-4 h-4" /> Board Only (HPL / HDF)
+            <Package className="w-4 h-4" /> Custom Board
           </button>
           <button
             type="button"
@@ -2218,7 +2268,24 @@ export default function DraftQuotationPage() {
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Wrench className="w-4 h-4" /> Custom Hardware Only
+            <Wrench className="w-4 h-4" /> Custom Hardware
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (form.quotationScope !== 'CUSTOM_ITEM') {
+                if (window.confirm('Switch quotation mode to Custom Item & Bespoke Works? This allows configuring custom items, bespoke models, and specialized fabrication.')) {
+                  applyBoilerplatePreset('CUSTOM_ITEM');
+                }
+              }
+            }}
+            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+              form.quotationScope === 'CUSTOM_ITEM'
+                ? 'bg-[#7FB706] text-black shadow-md'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" /> Custom Item
           </button>
         </div>
 
@@ -2229,7 +2296,58 @@ export default function DraftQuotationPage() {
         )}
 
         <div className="space-y-5">
-          {form.quotationScope === 'BOARD' ? (
+          {form.quotationScope === 'CUSTOM_ITEM' ? (
+            <div className="space-y-4">
+              <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-indigo-300">
+                <span className="flex items-center gap-2 font-medium">
+                  <Sparkles className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+                  <span><strong>Custom Item &amp; Bespoke Works Mode Active:</strong> Configure custom items, bespoke models, vanity counters, glass partitions, and specialized fabrication freely without requiring a standard cubicle model.</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={addCustomModelItem}
+                  className="px-3 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer transition self-start sm:self-auto"
+                >
+                  <Plus className="w-3.5 h-3.5" /> + Add Custom Item
+                </button>
+              </div>
+
+              {form.items.length === 0 && (
+                <div className="text-center py-8 border border-dashed border-indigo-500/30 rounded-xl bg-indigo-500/5">
+                  <p className="text-xs text-gray-400 mb-3">No custom items added yet.</p>
+                  <button
+                    type="button"
+                    onClick={addCustomModelItem}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition"
+                  >
+                    <Plus className="w-4 h-4" /> Add First Custom Item
+                  </button>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {form.items.map((item, idx) => (
+                  <CustomQuotationItemCard
+                    key={idx}
+                    index={idx}
+                    item={item}
+                    fieldErrors={fieldErrors}
+                    onChange={(field, val) => handleItemChange(idx, field as keyof CreateItem, val)}
+                    onRemove={() => removeItem(idx)}
+                    canRemove={form.items.length > 1}
+                  />
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={addCustomModelItem}
+                className="w-full py-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-dashed border-indigo-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Add Another Custom Item
+              </button>
+            </div>
+          ) : form.quotationScope === 'BOARD' ? (
             <div className="space-y-4">
               <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-300">
                 <span className="flex items-center gap-2 font-medium">

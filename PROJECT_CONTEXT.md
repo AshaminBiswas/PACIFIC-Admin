@@ -8531,5 +8531,79 @@ Following the model synchronization updates, the user reported that locker dimen
 - **Backend Build**: `npm run --prefix D:\PACIFIC-Backend build` compiled and passed with exit code 0 (`tsc` + `prisma generate` + puppeteer chrome install).
 - **Production Build**: `npm run build` compiled and passed with exit code 0 (`vite v6.4.3 building for production... ✓ built in 1m 1s`).
 
+---
+
+## 157. Quotation-Type-Aware Editing & Architectural Module State Preservation
+
+### 157.1 Problem Statement & Requirements
+Previously, editing any quotation invariably opened the standard Restroom Cubicle Quotation form (`EditSalesQuotationPage.tsx`), even when the quotation was originally created for Custom Hardware, Custom Board, or Custom Item & Bespoke Works. This caused mismatch of specifications, dropped custom attributes, and degraded user experience.
+
+The user required:
+1. **Custom Hardware Quotation**: Re-opens in Custom Hardware module with all fittings, accessories, rates, units, quantities, and quick-add actions restored.
+2. **Custom Board Quotation**: Re-opens in Custom Board module with raw board sheet specifications, thicknesses, colors, sheet dimensions, units (SQFT/SQM), quantities, and rates restored.
+3. **Custom Item Quotation**: Re-opens in Custom Item module with `CustomQuotationItemCard`, bespoke models, dimensions, and custom pricing restored.
+4. **Cubicle Quotation**: Re-opens in standard Restroom Cubicle module without alteration or regression.
+5. **Quotation Identity Preservation**: In-place revision updates using `salesQuotationsApi.update(id, payload)` preserving the original quotation number, customer details, revision control history, and ImageKit CDN drawings.
+6. **Legacy Quotation Compatibility**: Automatic quotation type detection via terms metadata `[QUOTATION_SCOPE:...]`, line item specifications, or item-level heuristics when explicit tags are absent.
+
+### 157.2 Key Architectural Modifications
+
+1. **Shared Types (`d:\PACIFIC-Admin\src\types\admin.ts`)**:
+   - Defined `QuotationScope` (`'CUBICLE' | 'BOARD' | 'HARDWARE' | 'CUSTOM_ITEM'`) and `QuotationType` (`'cubicle' | 'custom_board' | 'custom_hardware' | 'custom_item'`).
+   - Added mapping helpers `scopeToType(scope: QuotationScope): QuotationType` and `typeToScope(type?: string | null): QuotationScope`.
+   - Extended `SalesQuotation` interface to include `quotationScope?: QuotationScope; quotationType?: QuotationType;`.
+
+2. **Backend Persistence & Scope Resolution (`D:\PACIFIC-Backend\src\modules\quotations\quotations.service.ts`)**:
+   - Implemented `determineQuotationScopeAndType(q)`:
+     - Extracts explicit `[QUOTATION_SCOPE:...]` tag from `generalTerms` or `otherTerms`.
+     - Inspects each item's `customSpecsJson.quotationScope` or `customSpecsJson.quotationType`.
+     - Falls back to heuristic item inspection (hardware units/HSN `8302`, board units `SQFT/SQM` & compact laminate descriptors, custom model flags).
+   - Updated `formatQuotationOutput(q)`: injects `quotationScope` and `quotationType` into the top-level output for all quotation API responses.
+   - Updated `createQuotation`, `updateQuotation`, and `revise`: embeds `[QUOTATION_SCOPE:${scope}]` in `otherTerms` and persists `quotationScope` & `quotationType` in each item's `customSpecsJson`.
+
+3. **Backend PDF Generation Subsystem (`D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`)**:
+   - Updated `generateQuotationPdfHtml`, `generatePiHtml`, and `generateSalesOrderPdfHtml` to format technical spec-box for lockers precisely matching client requirements:
+     - Replaced `"Partition Size"` with `"Locker Dimension: <w> W × <d> D × <h> H"`.
+     - Removed redundant separate `Height:`, `Width:`, and `Depth:` lines.
+
+4. **Creation Module (`d:\PACIFIC-Admin\src\pages\DraftQuotationPage.tsx`)**:
+   - Enhanced 4-way scope selector (`CUBICLE`, `BOARD`, `HARDWARE`, `CUSTOM_ITEM`).
+   - Added dedicated Custom Item module UI utilizing `CustomQuotationItemCard`.
+   - Propagated `quotationScope` and `quotationType` to root payload and each line item's `customSpecsJson`.
+
+5. **Editing Module (`d:\PACIFIC-Admin\src\pages\EditSalesQuotationPage.tsx`)**:
+   - Integrated `useSearchParams` to inspect `?type=` query parameter.
+   - On data loading: detects `loadedScope` via backend response `quotationScope`, `quotationType`, terms tag `[QUOTATION_SCOPE:...]`, or item-level heuristics.
+   - Preserves all custom line item attributes: `customSpecsJson`, `systemCategory`, `unit`, `hsnSac`, `hardwarePackage`, `boardType`, `boardThickness`, `boardColor`, and dimensions.
+   - Added Header Module Badge:
+     - Cyan badge with Wrench icon for `Custom Hardware Module`.
+     - Amber badge with Package icon for `Custom Board Module`.
+     - Indigo badge with Sparkles icon for `Custom Item Module`.
+     - Green badge with Layers icon for `Cubicle Module`.
+   - Updated Quick Boilerplate Presets to support all 6 presets (`STANDARD`, `URINAL_PARTITION`, `LOCKER`, `BOARD_ONLY`, `HARDWARE_ONLY`, `CUSTOM_ITEM`) with active highlight states.
+   - Updated Section 4: Line Items:
+     - Adaptive action buttons in header according to active scope.
+     - 4-Way Mode Selector (`Restroom Cubicles`, `Custom Board`, `Custom Hardware`, `Custom Item`).
+     - Conditional view switching:
+       - `CUSTOM_ITEM` $\rightarrow$ Dedicated Custom Item & Bespoke Works module with `CustomQuotationItemCard`.
+       - `BOARD` $\rightarrow$ Dedicated Custom Board module for raw board sheet supply.
+       - `HARDWARE` $\rightarrow$ Dedicated Custom Hardware module with fittings, accessories, and quick-add chips.
+       - `CUBICLE` $\rightarrow$ Standard Restroom Cubicle system module.
+   - In `handleSubmit`:
+     - Injects `quotationScope` and `quotationType` into update payload.
+     - Preserves scope attributes in each item's `customSpecsJson`.
+     - Synchronizes `[QUOTATION_SCOPE:${scope}]` in `otherTerms`.
+     - In-place update preserving quotation number, revision number, customer link, and ImageKit CDN drawing.
+
+6. **List & Detail Navigation (`SalesQuotationsPage.tsx` & `SalesQuotationDetailPage.tsx`)**:
+   - Added contextual badges for `Hardware`, `Board`, and `Custom Item` in quotation list table and mobile cards.
+   - Updated all Edit buttons and links to pass `?type=${targetType}` dynamically.
+
+### 157.3 Verification
+- **TypeScript**: `npx tsc --noEmit` passed with 0 errors across `PACIFIC-Admin`.
+- **Backend Build**: `npm run build` passed with exit code 0 in `D:\PACIFIC-Backend`.
+- **Production Build**: `npm run build` compiled and passed with exit code 0 (`vite v6.4.3 building for production... ✓ built in 1m`).
+
+
 
 

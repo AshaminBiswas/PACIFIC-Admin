@@ -4,7 +4,7 @@ import {
   FileText, ArrowLeft, Printer, Edit, CheckCircle2, Send,
   MapPin, Calendar, User, Building2, Hash, RefreshCw, Trash2,
   AlertTriangle, Clock, Mail, X, Phone, MessageCircle, MessageSquare, Sparkles,
-  Eye, ExternalLink, Download, Link2, Check,
+  Eye, ExternalLink, Download, Link2, Check, Layers, Package, Wrench,
 } from 'lucide-react';
 import { salesQuotationsApi } from '../api/salesQuotationsApi';
 import { useAdminAuth } from '../context/AdminAuthContext';
@@ -13,11 +13,15 @@ import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import DocumentRevisionHistoryCard from '../components/common/DocumentRevisionHistoryCard';
 import { calculateGstSplit } from '../utils/tax';
 import { isKolkataBranch } from '../utils/branchHelper';
+import type { QuotationScope, QuotationType } from '../types/admin';
+import { scopeToType } from '../types/admin';
 
 interface QuotationDetail {
   id: string;
   referenceNumber?: string;
   quotationNumber?: string;
+  quotationScope?: QuotationScope;
+  quotationType?: QuotationType;
   revisionNumber: number;
   date: string;
   validUntil?: string;
@@ -385,6 +389,23 @@ export default function SalesQuotationDetailPage() {
                 <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${statusStyle}`}>
                   {quotation.status}
                 </span>
+                {quotation.quotationScope === 'HARDWARE' || quotation.quotationType === 'custom_hardware' ? (
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 flex items-center gap-1 font-semibold">
+                    <Wrench className="w-3 h-3 text-cyan-400" /> Custom Hardware
+                  </span>
+                ) : quotation.quotationScope === 'BOARD' || quotation.quotationType === 'custom_board' ? (
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1 font-semibold">
+                    <Package className="w-3 h-3 text-amber-400" /> Custom Board
+                  </span>
+                ) : quotation.quotationScope === 'CUSTOM_ITEM' || quotation.quotationType === 'custom_item' ? (
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 flex items-center gap-1 font-semibold">
+                    <Sparkles className="w-3 h-3 text-indigo-400" /> Custom Item
+                  </span>
+                ) : (
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#7FB706]/15 text-[#7FB706] border border-[#7FB706]/30 flex items-center gap-1 font-semibold">
+                    <Layers className="w-3 h-3 text-[#7FB706]" /> Cubicle System
+                  </span>
+                )}
                 {isSez && (
                   <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
                     SEZ 0% IGST
@@ -498,7 +519,7 @@ export default function SalesQuotationDetailPage() {
           )}
 
           <Link
-            to={`/admin/dashboard/sales-quotations/${id}/edit`}
+            to={`/admin/dashboard/sales-quotations/${id}/edit?type=${quotation.quotationType || (quotation.quotationScope ? scopeToType(quotation.quotationScope) : 'cubicle')}`}
             className="inline-flex items-center gap-2 px-4 py-2.5 min-h-[44px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-xl text-sm font-semibold transition-all cursor-pointer"
           >
             <Edit className="w-4 h-4" /> Edit

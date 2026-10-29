@@ -11,6 +11,7 @@ import {
 import { salesQuotationsApi } from '../api/services';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import type { SalesQuotation, QuotationFollowupStatus, QuotationFollowupChannel } from '../types/admin';
+import { scopeToType } from '../types/admin';
 import QuotationFollowupModal from '../components/quotations/QuotationFollowupModal';
 import { isKolkataBranch, filterByBranch } from '../utils/branchHelper';
 
@@ -581,7 +582,7 @@ export default function SalesQuotationsPage() {
                         {(page - 1) * pageSize + idx + 1}
                       </td>
                       <td className="py-2.5 sm:py-3 px-3 sm:px-4">
-                        <div className="font-mono font-semibold text-white flex items-center gap-1.5">
+                        <div className="font-mono font-semibold text-white flex items-center gap-1.5 flex-wrap">
                           {q.referenceNumber || q.quotationNumber || '—'}
                           {isKolkataBranch(q) ? (
                             <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
@@ -592,6 +593,19 @@ export default function SalesQuotationsPage() {
                               Main
                             </span>
                           )}
+                          {q.quotationScope === 'HARDWARE' || q.quotationType === 'custom_hardware' ? (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                              Hardware
+                            </span>
+                          ) : q.quotationScope === 'BOARD' || q.quotationType === 'custom_board' ? (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                              Board
+                            </span>
+                          ) : q.quotationScope === 'CUSTOM_ITEM' || q.quotationType === 'custom_item' ? (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                              Custom Item
+                            </span>
+                          ) : null}
                         </div>
                         {q.isSez && (
                           <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
@@ -680,7 +694,10 @@ export default function SalesQuotationsPage() {
                           </button>
 
                           <button
-                            onClick={() => navigate(`/admin/dashboard/sales-quotations/${q.id}/edit`)}
+                            onClick={() => {
+                              const targetType = q.quotationType || (q.quotationScope ? scopeToType(q.quotationScope) : 'cubicle');
+                              navigate(`/admin/dashboard/sales-quotations/${q.id}/edit?type=${targetType}`);
+                            }}
                             className="p-1.5 sm:p-2 rounded-lg bg-white/5 hover:bg-white/10 text-amber-300 cursor-pointer min-h-[34px] min-w-[34px] sm:min-h-[38px] sm:min-w-[38px] flex items-center justify-center transition-colors"
                             title="Edit Quotation"
                           >
@@ -727,6 +744,19 @@ export default function SalesQuotationsPage() {
                           Main
                         </span>
                       )}
+                      {q.quotationScope === 'HARDWARE' || q.quotationType === 'custom_hardware' ? (
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                          Hardware
+                        </span>
+                      ) : q.quotationScope === 'BOARD' || q.quotationType === 'custom_board' ? (
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          Board
+                        </span>
+                      ) : q.quotationScope === 'CUSTOM_ITEM' || q.quotationType === 'custom_item' ? (
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                          Custom Item
+                        </span>
+                      ) : null}
                       {q.isSez && (
                         <span className="text-[9px] font-semibold text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded flex-shrink-0">
                           SEZ
@@ -823,7 +853,10 @@ export default function SalesQuotationsPage() {
                     </button>
 
                     <button
-                      onClick={() => navigate(`/admin/dashboard/sales-quotations/${q.id}/edit`)}
+                      onClick={() => {
+                        const targetType = q.quotationType || (q.quotationScope ? scopeToType(q.quotationScope) : 'cubicle');
+                        navigate(`/admin/dashboard/sales-quotations/${q.id}/edit?type=${targetType}`);
+                      }}
                       className="min-h-[34px] sm:min-h-[36px] flex items-center justify-center gap-1 px-1.5 py-1 text-[11px] font-medium bg-white/5 hover:bg-white/10 text-amber-300 rounded-lg transition-colors cursor-pointer"
                       title="Edit Quotation"
                     >
