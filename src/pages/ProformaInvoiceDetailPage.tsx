@@ -42,16 +42,21 @@ function parseItemSpecs(item: any) {
   let mainDesc = item.description || item.itemDescription || '—';
   const specs: { label: string; value: string }[] = [];
 
+  const isUrinal = item.systemCategory === 'ump' || (item.description && (item.description.toLowerCase().includes('urinal') || item.description.toLowerCase().includes('ump')));
+  const isLocker = item.systemCategory === 'locker' || (item.description && item.description.toLowerCase().includes('locker'));
+  const sizeLabel = isUrinal ? 'Partition Size' : isLocker ? 'Locker Dimension' : 'Cubicle / Depth Size';
+  const doorLabel = isLocker ? 'Compartment / Door' : 'Door Size';
+
   // Direct properties
   const customModel = item.customModelName || item.modelName || item.customSpecsJson?.customModelName || item.product?.title;
   if (customModel) specs.push({ label: 'Model / System', value: customModel });
-  if (item.cubicleSize) specs.push({ label: 'Size', value: item.cubicleSize });
+  if (item.cubicleSize) specs.push({ label: sizeLabel, value: item.cubicleSize });
   if (item.boardColor) specs.push({ label: 'Color', value: item.boardColor });
   if (item.boardThickness) specs.push({ label: 'Thickness', value: item.boardThickness });
   else if (item.boardType) specs.push({ label: 'Board', value: item.boardType });
-  if (item.doorSize) specs.push({ label: 'Door', value: item.doorSize });
+  if (item.doorSize && (!isUrinal || item.doorSize.trim() !== 'N/A')) specs.push({ label: doorLabel, value: item.doorSize });
+  if (item.overallHeight) specs.push({ label: 'Height', value: item.overallHeight });
 
-  const isLocker = item.systemCategory === 'locker' || (item.description && item.description.toLowerCase().includes('locker'));
   if (isLocker) {
     const tierRows = parseFloat(String(item.unit).replace(/[^0-9.]/g, '')) || 1;
     const cols = Number(item.quantity) || 1;

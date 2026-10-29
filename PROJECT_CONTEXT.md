@@ -8432,3 +8432,45 @@ For Modular Lockers in both **Sales Quotation** and **Proforma Invoice (PI)** mo
 - **Backend Build**: `npm run --prefix D:\PACIFIC-Backend build` passed with exit code 0.
 - **Production Build**: `npm run build` passed with exit code 0 (`vite v6.4.3 building for production... ✓ built in 39.94s`).
 
+---
+
+## 155. Model Dimensions Synchronization in Generated PDFs & Detail Showcase
+
+### 155.1 Problem Statement & Architectural Root Cause
+When product catalog models were selected or referenced in Quotation, Proforma Invoice, and Sales Order generation:
+1. `extractModelDimensions` in `src/utils/quotationProductPresets.ts` previously bypassed direct model properties (`model.height`, `model.depth`, `model.width`, `model.boardThickness`, `model.columnCount`, `model.rowCount`), relying only on pattern-matching labels in `specifications`.
+2. For modular lockers, the keyword match on `depth` intercepted `'Standard Depth'` (`"450 mm"`), leaving `cubicleSize` as a bare single number (`"450 mm"`) and omitting model width (`300 mm`) and height (`1800 mm`).
+3. In PDF generation (`D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`), `customDims` appended a redundant `mm` suffix (e.g., `300mmmm W`), `generateSalesOrderPdfHtml` hardcoded `Cubicle / Depth Size:` for all items, and detail showcases did not differentiate between `Locker Dimension`, `Partition Size`, and `Cubicle / Depth Size`.
+
+### 155.2 Key File & Architecture Modifications
+1. **Dimension Extraction Engine (`src/utils/quotationProductPresets.ts`)**:
+   - Upgraded `extractModelDimensions(model: ProductCatalogModel)`:
+     - Directly reads model attributes: `model.width`, `model.depth`, `model.height`, `model.boardThickness`, `model.rowCount`, `model.columnCount`, `model.tierCount`.
+     - Normalizes unit values via `cleanDim(val, 'mm')`.
+     - **Lockers**: Formats `cubicleSize` as `${width} W × ${depth} D × ${height} H` (e.g. `300mm W × 450mm D × 1800mm H`), `doorSize` as `${rows} Tier Modular Doors (${width} W × ${compHeight}mm H per door)`, `overallHeight` as `${height} (plus 100mm plinth base)`, and preserves board thickness.
+     - **Restroom Cubicles**: Extracts depth and door width, formatting `cubicleSize` as `${width} W × ${depth} D` (e.g. `1000mm W × 1500mm D`), `doorSize` as `${doorWidth} × 1785mm (Standard)`, and `overallHeight` with floor clearance.
+     - **Urinal Partitions**: Formats `cubicleSize` as `${width} W × ${height} H` (e.g. `450mm W × 900mm H`) and `overallHeight` with floor clearance or extra leg support.
+     - **Kids Toilet**: Formats `cubicleSize` as `900mm W × ${depth} D`, ergonomic low door, and child-safe height.
+     - Returns extended type `ExtractedModelDimensions` with `width`, `depth`, `height`, `rowCount`, and `columnCount`.
+
+2. **Quotation & PI Builders (`DraftQuotationPage.tsx`, `EditSalesQuotationPage.tsx`, `CreateProformaPage.tsx`, `EditProformaInvoicePage.tsx`)**:
+   - Bound extracted dimensions (`cubicleSize`, `doorSize`, `overallHeight`, `boardThickness`, `width`, `depth`, `height`) on model selection for cubicles, lockers, and urinal partitions.
+   - Synchronized line item submission payloads and localStorage drafts so dimensions are persisted to backend models and `customSpecsJson`.
+
+3. **Backend PDF Generation Subsystem (`D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`)**:
+   - Added `formatDimPart(val, suffix)` to eliminate duplicate `mm` suffixes in `customDims`.
+   - Updated `generateQuotationPdfHtml`, `generatePiHtml`, and `generateSalesOrderPdfHtml`:
+     - Dynamically classifies item as `isUrinal`, `isLocker`, or `isCubicle`.
+     - Sets contextual labels: `Locker Dimension` vs `Partition Size` vs `Cubicle / Depth Size`, and `Compartment / Door` vs `Door Size`.
+     - Reconstructs full 3D dimensions for locker items if legacy single-dimension strings are encountered.
+     - Renders itemized specifications box with exact model measurements.
+
+4. **360 Detail Views (`SalesQuotationDetailPage.tsx`, `ProformaInvoiceDetailPage.tsx`, `SalesOrderDetailPage.tsx`)**:
+   - Contextualized line item dimension badges with `Locker Dimension`, `Partition Size`, and `Cubicle / Depth Size`.
+
+### 155.3 Verification
+- **TypeScript**: `npx tsc --noEmit` passed with 0 errors across all frontend files.
+- **Backend Build**: `npm run --prefix D:\PACIFIC-Backend build` compiled and passed with exit code 0.
+- **Production Build**: `npm run build` compiled and passed with exit code 0 (`vite v6.4.3 building for production... ✓ built in 53.22s`).
+
+

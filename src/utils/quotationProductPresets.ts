@@ -79,54 +79,143 @@ export function formatModelHardwareInclusions(model: ProductCatalogModel): strin
   return lines.join('\n');
 }
 
+export interface ExtractedModelDimensions {
+  cubicleSize: string;
+  doorSize: string;
+  overallHeight: string;
+  boardThickness: string;
+  boardType: string;
+  hardwarePackage: string;
+  make: string;
+  width?: string;
+  depth?: string;
+  height?: string;
+  rowCount?: number;
+  columnCount?: number;
+}
+
 /**
  * Extracts cubicleSize, doorSize, overallHeight, boardThickness, boardType from a model.
+ * Faithfully preserves exact architectural dimensions (Width, Depth, Height, Thickness, Tiers, Columns)
+ * defined on the catalog model.
  */
-export function extractModelDimensions(model: ProductCatalogModel) {
+export function extractModelDimensions(model: ProductCatalogModel): ExtractedModelDimensions {
   const specs = model.specifications || [];
 
   const findSpec = (patterns: string[]): string => {
     for (const p of patterns) {
       const match = specs.find((s) => s.label.toLowerCase().includes(p.toLowerCase()));
-      if (match && match.value.trim()) return match.value.trim();
+      if (match && match.value !== undefined && match.value !== null) {
+        const valStr = typeof match.value === 'string' ? match.value : String(match.value);
+        if (valStr.trim()) return valStr.trim();
+      }
     }
     return '';
   };
 
-  let cubicleSize = findSpec(['cubicle size', 'compartment', 'standard depth', 'depth']);
-  let doorSize = findSpec(['door size', 'door width', 'door', 'configuration']);
-  let overallHeight = findSpec(['overall height', 'standard height', 'height']);
-  let boardThickness = findSpec(['board thickness', 'thickness']);
+  const cleanDim = (val: string | number | undefined, defaultSuffix: string = 'mm'): string => {
+    if (val === undefined || val === null) return '';
+    const s = String(val).trim();
+    if (!s) return '';
+    if (/^\d+(\.\d+)?$/.test(s)) {
+      return `${s}${defaultSuffix}`;
+    }
+    return s.replace(/\s+(mm|cm|m|in|ft)\b/gi, '$1');
+  };
 
-  // Defaults per category if missing in custom model
-  if (model.category === 'Kids Toilet') {
-    if (!cubicleSize) {
-      cubicleSize = '900mm W × 1200mm D';
-    } else if (!cubicleSize.toLowerCase().includes('w') && !cubicleSize.includes('×') && !cubicleSize.includes('x')) {
-      cubicleSize = `900mm W × ${cubicleSize}`;
+  const rawWidth = model.width || findSpec(['unit / column width', 'column width', 'unit width', 'door width', 'door size', 'standard width', 'width']);
+  const rawDepth = model.depth || findSpec(['standard depth', 'depth', 'cubicle size', 'compartment']);
+  const rawHeight = model.height || findSpec(['standard height', 'overall height', 'height']);
+  const rawThickness = model.boardThickness || findSpec(['board thickness', 'thickness']);
+  const rawDoor = findSpec(['door size', 'door width', 'door', 'compartment size', 'compartment', 'configuration']);
+  const rawRows = model.rowCount || model.tierCount || findSpec(['number of rows / tiers', 'number of rows', 'tiers', 'rows', 'row']);
+  const rawCols = model.columnCount || findSpec(['number of columns', 'columns', 'column']);
+
+  let cubicleSize = '';
+  let doorSize = '';
+  let overallHeight = '';
+  let boardThickness = '';
+
+  if (model.category === 'Lockers') {
+    const w = cleanDim(rawWidth) || '300mm';
+    const d = cleanDim(rawDepth) || '450mm';
+    const h = cleanDim(rawHeight) || '1800mm';
+    const rows = Number(rawRows) || 4;
+
+    // Full 3D architectural dimension mentioned in model: Width W × Depth D × Height H
+    cubicleSize = `${w} W × ${d} D × ${h} H`;
+
+    // Door / Compartment size
+    const numH = parseInt(h.replace(/[^0-9]/g, '')) || 1800;
+    const compH = Math.round(numH / rows);
+    if (rawDoor && (rawDoor.includes('×') || rawDoor.includes('x') || rawDoor.toLowerCase().includes('mm'))) {
+      doorSize = rawDoor;
+    } else {
+      doorSize = `${rows} Tier Modular Doors (${w} W × ${compH}mm H per door)`;
     }
-    if (!doorSize) doorSize = '500mm × 1050mm (Child Ergonomic Safety Door)';
-    if (!overallHeight) overallHeight = '1200 mm – 1500 mm (Child-Friendly Ergonomic Height)';
-    if (!boardThickness) boardThickness = '12mm Solid Compact Phenolic Laminate';
+
+    overallHeight = h.toLowerCase().includes('plinth') ? h : `${h} (plus 100mm plinth base)`;
+    boardThickness = rawThickness ? String(rawThickness) : '12mm Solid Compact Phenolic Laminate';
   } else if (model.category === 'Cubicle') {
-    if (!cubicleSize) {
-      cubicleSize = '1000mm W × 1500mm D';
-    } else if (!cubicleSize.toLowerCase().includes('w') && !cubicleSize.includes('×') && !cubicleSize.includes('x')) {
-      cubicleSize = `1000mm W × ${cubicleSize}`;
+    const w = cleanDim(rawWidth);
+    const d = cleanDim(rawDepth) || '1500mm';
+    const h = cleanDim(rawHeight) || '1980 mm / 2000 mm';
+
+    const explicitCubicleSize = findSpec(['cubicle size']);
+    if (explicitCubicleSize && (explicitCubicleSize.includes('×') || explicitCubicleSize.includes('x'))) {
+      cubicleSize = explicitCubicleSize;
+    } else {
+      const cubicleW = (w && !w.includes('600') && !w.toLowerCase().includes('door')) ? w : '1000mm';
+      cubicleSize = `${cubicleW} W × ${d} D`;
     }
-    if (!doorSize) doorSize = '600mm × 1785mm (Standard)';
-    if (!overallHeight) overallHeight = '1980 mm / 2000 mm (incl. 150mm ground clearance)';
-    if (!boardThickness) boardThickness = '12mm / 18mm Solid Compact Phenolic Laminate';
-  } else if (model.category === 'Lockers') {
-    if (!cubicleSize) cubicleSize = '300mm W × 450mm D × 1800mm H';
-    if (!doorSize) doorSize = 'Tier Modular Doors as per drawing';
-    if (!overallHeight) overallHeight = '1800mm (plus 100mm plinth base)';
-    if (!boardThickness) boardThickness = '12mm Solid Compact Phenolic Laminate';
+
+    if (rawDoor && (rawDoor.includes('×') || rawDoor.includes('x'))) {
+      doorSize = rawDoor;
+    } else {
+      const doorW = cleanDim(w) || '600mm';
+      doorSize = `${doorW} × 1785mm (Standard)`;
+    }
+
+    overallHeight = h.toLowerCase().includes('ground') ? h : `${h} (incl. 150mm ground clearance)`;
+    boardThickness = rawThickness ? String(rawThickness) : '12mm / 18mm Solid Compact Phenolic Laminate';
   } else if (model.category === 'Urinal Partitions') {
-    if (!cubicleSize) cubicleSize = '450mm W × 900mm H';
-    if (!doorSize) doorSize = 'N/A (Divider Screen)';
-    if (!overallHeight) overallHeight = model.hasExtraLeg ? '900mm – 1200mm (floor & wall supported)' : '900mm (with 300mm floor clearance)';
-    if (!boardThickness) boardThickness = '12mm Solid Compact Phenolic Laminate';
+    const w = cleanDim(rawWidth) || '450mm';
+    const h = cleanDim(rawHeight) || '900mm';
+
+    cubicleSize = `${w} W × ${h} H`;
+    doorSize = 'N/A (Divider Screen)';
+    overallHeight = model.hasExtraLeg
+      ? `${h} – 1200mm (floor & wall supported with extra leg)`
+      : `${h} (affixed 300mm above finished floor)`;
+    boardThickness = rawThickness ? String(rawThickness) : '12mm Solid Compact Phenolic Laminate';
+  } else if (model.category === 'Kids Toilet') {
+    const w = cleanDim(rawWidth) || '500mm';
+    const d = cleanDim(rawDepth) || '1200mm';
+    const h = cleanDim(rawHeight) || '1200 mm – 1500 mm';
+
+    cubicleSize = `900mm W × ${d} D`;
+    doorSize = `${w} × 1050mm (Child Ergonomic Safety Door)`;
+    overallHeight = h.toLowerCase().includes('height') ? h : `${h} (Child-Friendly Ergonomic Height)`;
+    boardThickness = rawThickness ? String(rawThickness) : '12mm Solid Compact Phenolic Laminate';
+  } else {
+    // Custom / other category
+    const w = cleanDim(rawWidth);
+    const d = cleanDim(rawDepth);
+    const h = cleanDim(rawHeight);
+    if (w && d && h) {
+      cubicleSize = `${w} W × ${d} D × ${h} H`;
+    } else if (w && d) {
+      cubicleSize = `${w} W × ${d} D`;
+    } else if (w && h) {
+      cubicleSize = `${w} W × ${h} H`;
+    } else if (d) {
+      cubicleSize = `${d} D`;
+    } else {
+      cubicleSize = findSpec(['size', 'dimension']);
+    }
+    doorSize = rawDoor || '';
+    overallHeight = h || '';
+    boardThickness = rawThickness ? String(rawThickness) : '';
   }
 
   let hardwarePackage = '';
@@ -152,6 +241,11 @@ export function extractModelDimensions(model: ProductCatalogModel) {
     boardType: 'HPL',
     hardwarePackage,
     make,
+    width: cleanDim(rawWidth),
+    depth: cleanDim(rawDepth),
+    height: cleanDim(rawHeight),
+    rowCount: Number(rawRows) || undefined,
+    columnCount: Number(rawCols) || undefined,
   };
 }
 

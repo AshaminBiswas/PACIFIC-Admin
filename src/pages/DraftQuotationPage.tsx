@@ -549,6 +549,9 @@ export default function DraftQuotationPage() {
         hardwarePackage: dims.hardwarePackage,
         make: dims.make || nextItems[idx].make || 'Pacific',
         modelImageUrl: selected.imageUrl || '',
+        width: dims.width,
+        depth: dims.depth,
+        height: dims.height,
       };
 
       const cubicleItems = nextItems.filter(
@@ -658,13 +661,16 @@ export default function DraftQuotationPage() {
         unit: existingUmp?.unit || 'NOS',
         rate: currentRate,
         boardType: dims.boardType || 'HPL',
-        boardThickness: dims.boardThickness || '12mm',
+        boardThickness: dims.boardThickness || '12mm Solid Compact Phenolic Laminate',
         boardColor: existingUmp?.boardColor || '',
         cubicleSize: dims.cubicleSize || '450mm W × 900mm H',
-        doorSize: 'N/A',
-        overallHeight: dims.overallHeight || '1200mm (affixed 300mm above finished floor)',
+        doorSize: dims.doorSize || 'N/A',
+        overallHeight: dims.overallHeight || '900mm (affixed 300mm above finished floor)',
         hardwarePackage: dims.hardwarePackage || 'Grade 304 Wall Mount Cantilever Clamps',
         modelImageUrl: selected.imageUrl || '',
+        width: dims.width,
+        depth: dims.depth,
+        height: dims.height,
       };
 
       const remainingItems = f.items.filter(
@@ -775,26 +781,30 @@ export default function DraftQuotationPage() {
       const existingLocker = f.items.find(
         (it) => it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker'))
       );
-      const defaultTier = String(selected.rowCount || selected.tierCount || 4);
+      const defaultTier = String(selected.rowCount || selected.tierCount || dims.rowCount || 4);
       const currentUnit = existingLocker?.unit && /^\d+$/.test(existingLocker.unit.trim()) ? existingLocker.unit.trim() : defaultTier;
-      const currentQty = existingLocker ? Number(existingLocker.quantity) || 1 : (Number(selected.columnCount) || 1);
+      const currentQty = existingLocker ? Number(existingLocker.quantity) || 1 : (Number(selected.columnCount || dims.columnCount) || 1);
       const currentRate = existingLocker && existingLocker.rate > 0 ? existingLocker.rate : 2500;
 
       const updatedLockerItem: CreateItem = {
         modelId: selected.id,
+        customModelName: selected.title,
         systemCategory: 'locker',
         description: `Pacific ${selected.title} (Lockers)`,
         quantity: currentQty,
         unit: currentUnit,
         rate: currentRate,
         boardType: dims.boardType || 'HPL',
-        boardThickness: dims.boardThickness || '12mm',
+        boardThickness: dims.boardThickness || '12mm Solid Compact Phenolic Laminate',
         boardColor: existingLocker?.boardColor || '',
         cubicleSize: dims.cubicleSize || '300mm W × 450mm D × 1800mm H',
-        doorSize: dims.doorSize || 'Tier Modular Doors as per drawing',
-        overallHeight: dims.overallHeight || '1900mm (including 100mm plinth base)',
+        doorSize: dims.doorSize || `${currentUnit} Tier Modular Doors`,
+        overallHeight: dims.overallHeight || '1800mm (plus 100mm plinth base)',
         hardwarePackage: dims.hardwarePackage || 'Heavy-Duty Uniform Standard Locker Hardware',
         modelImageUrl: selected.imageUrl || '',
+        width: dims.width,
+        depth: dims.depth,
+        height: dims.height,
       };
 
       const remainingItems = f.items.filter(

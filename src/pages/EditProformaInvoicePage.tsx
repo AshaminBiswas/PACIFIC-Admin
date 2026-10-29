@@ -756,12 +756,15 @@ export default function EditProformaInvoicePage() {
         itemType: 'cubicle',
         systemCategory: 'cubicle',
         description: `Pacific ${selected.title} (${selected.category})`,
-        cubicleSize: current?.cubicleSize || dims.cubicleSize,
-        doorSize: current?.doorSize || dims.doorSize,
-        overallHeight: current?.overallHeight || dims.overallHeight,
-        boardThickness: current?.boardThickness || dims.boardThickness,
-        boardType: current?.boardType || dims.boardType,
-        hardwarePackage: current?.hardwarePackage || dims.hardwarePackage,
+        cubicleSize: dims.cubicleSize,
+        doorSize: dims.doorSize,
+        overallHeight: dims.overallHeight,
+        boardThickness: dims.boardThickness,
+        boardType: dims.boardType,
+        hardwarePackage: dims.hardwarePackage,
+        width: dims.width,
+        depth: dims.depth,
+        height: dims.height,
       };
 
       // Filter out auto-generated hardware items previously linked to this model
@@ -823,6 +826,7 @@ export default function EditProformaInvoicePage() {
       const updatedUmpItem: CreateItem = {
         id: existingUmp?.id,
         modelId: selected.id,
+        customModelName: selected.title,
         systemCategory: 'ump',
         itemType: 'cubicle',
         description: `Pacific ${selected.title} (Urinal Partitions)`,
@@ -832,12 +836,15 @@ export default function EditProformaInvoicePage() {
         rate: currentRate,
         gstRate: 18,
         boardType: dims.boardType || 'HPL',
-        boardThickness: dims.boardThickness || '12mm',
+        boardThickness: dims.boardThickness || '12mm Solid Compact Phenolic Laminate',
         boardColor: existingUmp?.boardColor || '',
         cubicleSize: dims.cubicleSize || '450mm W × 900mm H',
-        doorSize: 'N/A',
-        overallHeight: dims.overallHeight || '1200mm (affixed 300mm above finished floor)',
+        doorSize: dims.doorSize || 'N/A',
+        overallHeight: dims.overallHeight || '900mm (affixed 300mm above finished floor)',
         hardwarePackage: dims.hardwarePackage || 'Grade 304 Wall Mount Cantilever Clamps',
+        width: dims.width,
+        depth: dims.depth,
+        height: dims.height,
       };
 
       const remainingItems = prev.filter((it) => {
@@ -920,15 +927,16 @@ export default function EditProformaInvoicePage() {
         (it) => it.systemCategory === 'locker' || (it.itemType !== 'hardware' && it.description.toLowerCase().includes('locker'))
       );
       const prevModelId = existingLocker?.modelId;
-      const defaultTier = String(selected.rowCount || selected.tierCount || 4);
+      const defaultTier = String(selected.rowCount || selected.tierCount || dims.rowCount || 4);
       const currentUnit = existingLocker?.unit && /^\d+$/.test(existingLocker.unit.trim()) ? existingLocker.unit.trim() : defaultTier;
-      const currentQty = existingLocker ? Number(existingLocker.quantity) || 1 : (Number(selected.columnCount) || 1);
+      const currentQty = existingLocker ? Number(existingLocker.quantity) || 1 : (Number(selected.columnCount || dims.columnCount) || 1);
       const currentRate = existingLocker && existingLocker.rate > 0 ? existingLocker.rate : 2500;
       const currentHsn = existingLocker?.hsnSac || '9403';
 
       const updatedLockerItem: CreateItem = {
         id: existingLocker?.id,
         modelId: selected.id,
+        customModelName: selected.title,
         systemCategory: 'locker',
         itemType: 'cubicle',
         description: `Pacific ${selected.title} (Lockers)`,
@@ -938,12 +946,15 @@ export default function EditProformaInvoicePage() {
         rate: currentRate,
         gstRate: 18,
         boardType: dims.boardType || 'HPL',
-        boardThickness: dims.boardThickness || '12mm',
+        boardThickness: dims.boardThickness || '12mm Solid Compact Phenolic Laminate',
         boardColor: existingLocker?.boardColor || '',
         cubicleSize: dims.cubicleSize || '300mm W × 450mm D × 1800mm H',
-        doorSize: dims.doorSize || 'Tier Modular Doors as per drawing',
-        overallHeight: dims.overallHeight || '1900mm (including 100mm plinth base)',
+        doorSize: dims.doorSize || `${currentUnit} Tier Modular Doors`,
+        overallHeight: dims.overallHeight || '1800mm (plus 100mm plinth base)',
         hardwarePackage: dims.hardwarePackage || 'Heavy-Duty Uniform Standard Locker Hardware',
+        width: dims.width,
+        depth: dims.depth,
+        height: dims.height,
       };
 
       const remainingItems = prev.filter((it) => {

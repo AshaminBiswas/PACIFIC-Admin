@@ -46,6 +46,10 @@ function parseItemSpecs(item: any) {
   const specs: { label: string; value: string }[] = [];
 
   const specsJson = item.specsJson || {};
+  const isUrinal = mainDesc.toLowerCase().includes('urinal') || mainDesc.toLowerCase().includes('ump') || (item.cubicleSize && item.cubicleSize.includes('450mm'));
+  const isLocker = mainDesc.toLowerCase().includes('locker') || item.systemCategory === 'locker';
+  const sizeLabel = isUrinal ? 'Partition Size' : isLocker ? 'Locker Dimension' : 'Cubicle / Depth Size';
+  const doorLabel = isLocker ? 'Compartment / Door' : 'Door Size';
 
   const boardType = item.boardType || specsJson.boardType;
   const boardThickness = item.boardThickness || specsJson.boardThickness;
@@ -58,8 +62,9 @@ function parseItemSpecs(item: any) {
   if (boardType) specs.push({ label: 'Board Type', value: boardType });
   if (boardThickness) specs.push({ label: 'Board Thickness', value: boardThickness });
   if (boardColor) specs.push({ label: 'Board Color', value: boardColor });
-  if (cubicleSize) specs.push({ label: 'Cubicle Size', value: cubicleSize });
-  if (doorSize) specs.push({ label: 'Door Size', value: doorSize });
+  if (cubicleSize) specs.push({ label: sizeLabel, value: cubicleSize });
+  if (doorSize && (!isUrinal || doorSize.trim() !== 'N/A')) specs.push({ label: doorLabel, value: doorSize });
+  if (overallHeight) specs.push({ label: 'Overall Height', value: overallHeight });
   if (
     hardwarePackage &&
     !hardwarePackage.includes('Golden, Black, SS') &&
