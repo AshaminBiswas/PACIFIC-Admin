@@ -118,6 +118,19 @@ export default function EditProductModelPage() {
   const [fireRating, setFireRating] = useState('Class 1 / BS 476 Part 7');
   const [waterResistance, setWaterResistance] = useState('100% Moisture, Water & Humidity Proof');
 
+  // ── Locker Specifications & Hardware State ──
+  const [lockerHeight, setLockerHeight] = useState('1800 mm');
+  const [lockerDepth, setLockerDepth] = useState('450 mm');
+  const [lockerWidth, setLockerWidth] = useState('300 mm');
+  const [lockerBoardThickness, setLockerBoardThickness] = useState('12mm Solid Compact Phenolic Laminate');
+  const [lockerColumns, setLockerColumns] = useState<string | number>(1);
+  const [lockerRows, setLockerRows] = useState<string | number>(4);
+  const [lockerLockTypes, setLockerLockTypes] = useState<string[]>([
+    'Keyed Cam Lock (Master Key Compatible)',
+    'Digital RFID / Electronic Password Lock',
+    'Stainless Steel Padlock Hasp Latch',
+  ]);
+
   // Hardware options
   const [ssEnabled, setSsEnabled] = useState(true);
   const [ssColors, setSsColors] = useState<SSHardwareColor[]>(['golden', 'Black', 'stainless steel']);
@@ -265,6 +278,23 @@ export default function EditProductModelPage() {
             setBoardThickness(getSpec('Board Thickness', isKids ? '12mm Solid Compact Phenolic Laminate' : '12mm / 18mm Solid Compact Phenolic Laminate'));
             setFireRating(getSpec('Fire Rating', 'Class 1 / BS 476 Part 7'));
             setWaterResistance(getSpec('Water Resistance', '100% Moisture, Water & Humidity Proof'));
+          } else if (found.category === 'Lockers') {
+            setDescription(
+              found.description ||
+              'Heavy-duty modular compact laminate locker storage system engineered for sports clubs, fitness gyms, corporate offices, and educational institutions.'
+            );
+            setLockerHeight(found.height ? String(found.height) : getSpec('Standard Height', '1800 mm'));
+            setLockerDepth(found.depth ? String(found.depth) : getSpec('Standard Depth', '450 mm'));
+            setLockerWidth(found.width ? String(found.width) : getSpec('Unit / Column Width', getSpec('Column Width', '300 mm')));
+            setLockerBoardThickness(found.boardThickness ? String(found.boardThickness) : getSpec('Board Thickness', '12mm Solid Compact Phenolic Laminate'));
+            setLockerColumns(found.columnCount !== undefined ? found.columnCount : getSpec('Number of Columns', '1'));
+            setLockerRows(found.rowCount !== undefined ? found.rowCount : (found.tierCount || getSpec('Number of Rows / Tiers', '4')));
+            setTierCount(found.tierCount || found.rowCount || '4');
+            const lockSpec = getSpec('Lock Mechanism Options', '');
+            if (lockSpec) {
+              const types = lockSpec.split(',').map((s) => s.trim()).filter(Boolean);
+              if (types.length > 0) setLockerLockTypes(types);
+            }
           } else {
             setDescription(found.description);
           }
@@ -841,6 +871,25 @@ export default function EditProductModelPage() {
             colors: [],
           });
         }
+      } else if (category === 'Lockers') {
+        hardwareOptions.push({
+          material: 'Standard',
+          enabled: true,
+        });
+        if (ssEnabled) {
+          hardwareOptions.push({
+            material: 'SS Hardware',
+            enabled: true,
+            colors: ssColors.length > 0 ? ssColors : ['stainless steel', 'Black'],
+          });
+        }
+        if (aluminiumEnabled) {
+          hardwareOptions.push({
+            material: 'Aluminium Profile',
+            enabled: true,
+            colors: [],
+          });
+        }
       } else {
         hardwareOptions.push({
           material: 'Standard',
@@ -860,6 +909,22 @@ export default function EditProductModelPage() {
               ...(category === 'Kids Toilet'
                 ? [{ label: 'Safety Clearance', value: 'Anti-Finger Pinch Hinge Gap & Outside Emergency Coin Release' }]
                 : []),
+            ]
+          : category === 'Lockers'
+          ? [
+              { label: 'Standard Height', value: lockerHeight },
+              { label: 'Standard Depth', value: lockerDepth },
+              { label: 'Unit / Column Width', value: lockerWidth },
+              { label: 'Board Thickness', value: lockerBoardThickness },
+              { label: 'Number of Columns', value: String(lockerColumns) },
+              { label: 'Number of Rows / Tiers', value: String(lockerRows) },
+              {
+                label: 'Total Compartments',
+                value: `${lockerColumns} Col × ${lockerRows} Row (${Number(lockerColumns) * (parseInt(String(lockerRows)) || 1)} Doors)`
+              },
+              { label: 'Water Resistance', value: '100% Moisture, Water & Humidity Proof' },
+              { label: 'Fire Rating', value: 'Class 1 / BS 476 Part 7' },
+              ...(lockerLockTypes.length > 0 ? [{ label: 'Lock Mechanism Options', value: lockerLockTypes.join(', ') }] : []),
             ]
           : model?.specifications || [
               { label: 'Category', value: category },
@@ -901,7 +966,13 @@ export default function EditProductModelPage() {
           'Public Washrooms',
         ],
         hasExtraLeg: category === 'Urinal Partitions' ? hasExtraLeg : false,
-        tierCount: category === 'Lockers' ? tierCount : undefined,
+        tierCount: category === 'Lockers' ? lockerRows : undefined,
+        height: category === 'Lockers' ? lockerHeight : (category === 'Cubicle' || category === 'Kids Toilet' ? stdHeight : undefined),
+        depth: category === 'Lockers' ? lockerDepth : (category === 'Cubicle' || category === 'Kids Toilet' ? stdDepth : undefined),
+        width: category === 'Lockers' ? lockerWidth : (category === 'Cubicle' || category === 'Kids Toilet' ? doorWidth : undefined),
+        boardThickness: category === 'Lockers' ? lockerBoardThickness : boardThickness,
+        columnCount: category === 'Lockers' ? lockerColumns : undefined,
+        rowCount: category === 'Lockers' ? lockerRows : undefined,
         sortOrder: model?.sortOrder ?? 1,
         published: model?.published ?? true,
         isFeatured: isFeatured,
@@ -1026,6 +1097,20 @@ export default function EditProductModelPage() {
                       setBoardThickness('12mm / 18mm Solid Compact Phenolic Laminate');
                       setFireRating('Class 1 / BS 476 Part 7');
                       setWaterResistance('100% Moisture, Water & Humidity Proof');
+                    } else if (cat === 'Lockers') {
+                      setDescription('Heavy-duty modular compact laminate locker storage system engineered for sports clubs, fitness gyms, corporate offices, and educational institutions. Features moisture-proof Phenolic core, tamper-resistant locking, and modular column and tier configurations.');
+                      setLockerHeight('1800 mm');
+                      setLockerDepth('450 mm');
+                      setLockerWidth('300 mm');
+                      setLockerBoardThickness('12mm Solid Compact Phenolic Laminate');
+                      setLockerColumns(1);
+                      setLockerRows(4);
+                      setTierCount(4);
+                      setLockerLockTypes([
+                        'Keyed Cam Lock (Master Key Compatible)',
+                        'Digital RFID / Electronic Password Lock',
+                        'Stainless Steel Padlock Hasp Latch',
+                      ]);
                     } else if (cat === 'Kids Toilet') {
                       setDescription('Child-friendly ergonomic restroom cubicle partitions engineered with rounded safety corners, low-height doors, and anti-finger trap gaps. Ideal for kindergartens, primary schools, and play zones.');
                       setStdHeight('1200 mm – 1500 mm (Child-Friendly Ergonomic Height)');
@@ -1225,6 +1310,134 @@ export default function EditProductModelPage() {
                     onChange={(e) => setWaterResistance(e.target.value)}
                     className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
                   />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {category === 'Lockers' && (
+            <div className="pt-3 border-t border-white/5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="text-xs font-bold text-indigo-400 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Locker Dimensions &amp; Architectural Grid Structure
+                </div>
+                <div className="text-[11px] px-2.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 font-semibold self-start sm:self-auto">
+                  Total Compartments: {Number(lockerColumns) || 1} Col × {Number(lockerRows) || 1} Row = {(Number(lockerColumns) || 1) * (parseInt(String(lockerRows)) || 1)} Doors
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                    Standard Height <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={lockerHeight}
+                    onChange={(e) => setLockerHeight(e.target.value)}
+                    placeholder="e.g. 1800 mm or 1980 mm (with base)"
+                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">Cabinet vertical height</p>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                    Standard Depth <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={lockerDepth}
+                    onChange={(e) => setLockerDepth(e.target.value)}
+                    placeholder="e.g. 450 mm or 500 mm"
+                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">Front-to-back clearance depth</p>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                    Standard Width <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={lockerWidth}
+                    onChange={(e) => setLockerWidth(e.target.value)}
+                    placeholder="e.g. 300 mm (per column) / 900 mm (3-bank)"
+                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">Column or total bank width</p>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                    Board Thickness <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={lockerBoardThickness}
+                    onChange={(e) => setLockerBoardThickness(e.target.value)}
+                    placeholder="e.g. 12mm Solid Compact Phenolic Laminate"
+                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">Compact laminate thickness</p>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                    Number of Columns <span className="text-rose-400">*</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={lockerColumns}
+                      onChange={(e) => setLockerColumns(e.target.value)}
+                      className="w-20 bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                    />
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5, 6].map((col) => (
+                        <button
+                          key={col}
+                          type="button"
+                          onClick={() => setLockerColumns(col)}
+                          className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition ${
+                            Number(lockerColumns) === col
+                              ? 'bg-indigo-500 text-white'
+                              : 'bg-white/5 text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          {col}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-1">Vertical columns (bays) in cluster</p>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                    Number of Rows / Tiers <span className="text-rose-400">*</span>
+                  </label>
+                  <select
+                    value={lockerRows}
+                    onChange={(e) => {
+                      setLockerRows(e.target.value);
+                      setTierCount(e.target.value);
+                    }}
+                    className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400 min-h-[38px]"
+                  >
+                    <option value="1">1 Row / Tier (Single Full Height Door)</option>
+                    <option value="2">2 Rows / Tiers (2 Stacked Doors)</option>
+                    <option value="3">3 Rows / Tiers (3 Stacked Doors)</option>
+                    <option value="4">4 Rows / Tiers (4 Stacked Doors)</option>
+                    <option value="5">5 Rows / Tiers (5 Stacked Doors)</option>
+                    <option value="6">6 Rows / Tiers (6 Stacked Doors)</option>
+                    <option value="Z-2">Z-Shape (2 Interlocking Z-Doors)</option>
+                  </select>
+                  <p className="text-[10px] text-gray-500 mt-1">Doors stacked per vertical column</p>
                 </div>
               </div>
             </div>
@@ -1581,27 +1794,94 @@ export default function EditProductModelPage() {
             </div>
           )}
 
-          {/* Locker rules */}
+          {/* Locker rules: Hardware & Locking Options */}
           {category === 'Lockers' && (
-            <div className="space-y-3">
-              <div className="p-3.5 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-xs text-indigo-300">
-                Every locker model uses uniform standard hardware (no color options).
+            <div className="space-y-4">
+              <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-indigo-300">
+                  <Shield className="w-4 h-4" />
+                  Locker Hardware Options &amp; Compatible Locking Systems
+                </div>
+                <p className="text-xs text-gray-300 leading-relaxed">
+                  Select available hardware material finishes and compatible lock mechanisms supported by this locker model. Customers and architectural specifiers can configure these options when requesting quotes.
+                </p>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1">Tier Count</label>
-                <select
-                  value={tierCount}
-                  onChange={(e) => setTierCount(e.target.value)}
-                  className="bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white min-h-[44px]"
-                >
-                  <option value="1">Tier 1</option>
-                  <option value="2">Tier 2</option>
-                  <option value="3">Tier 3</option>
-                  <option value="4">Tier 4</option>
-                  <option value="5">Tier 5</option>
-                  <option value="6">Tier 6</option>
-                  <option value="Z-2">Z-Shape</option>
-                </select>
+
+              {/* Supported Lock Mechanism Options */}
+              <div className="p-4 bg-black/40 border border-white/5 rounded-2xl space-y-3">
+                <div className="text-xs font-bold text-white flex items-center justify-between">
+                  <span>Supported Lock Mechanism Options</span>
+                  <span className="text-[11px] text-indigo-400 font-mono font-semibold">
+                    {lockerLockTypes.length} Selected
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {[
+                    { key: 'Keyed Cam Lock (Master Key Compatible)', desc: 'Dual user keys + master management key override' },
+                    { key: 'Digital RFID / Electronic Password Lock', desc: 'Keyless smart card & PIN keypad system' },
+                    { key: '3/4-Digit Mechanical Combination Lock', desc: 'Dial combination with emergency override key' },
+                    { key: 'Stainless Steel Padlock Hasp Latch', desc: 'User brings own padlock for gyms, schools & clubs' },
+                    { key: 'Coin Return / Deposit Lock', desc: 'Public transit & recreational facility system' },
+                  ].map((lock) => {
+                    const isChecked = lockerLockTypes.includes(lock.key);
+                    return (
+                      <label
+                        key={lock.key}
+                        className={`p-3 rounded-xl border flex items-start gap-2.5 cursor-pointer transition ${
+                          isChecked
+                            ? 'bg-indigo-500/10 border-indigo-500/40 text-white'
+                            : 'bg-white/[0.02] border-white/5 text-gray-400 hover:border-white/10'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setLockerLockTypes([...lockerLockTypes, lock.key]);
+                            } else {
+                              setLockerLockTypes(lockerLockTypes.filter((k) => k !== lock.key));
+                            }
+                          }}
+                          className="w-4 h-4 accent-indigo-500 rounded mt-0.5 cursor-pointer"
+                        />
+                        <div className="text-xs">
+                          <div className="font-semibold">{lock.key}</div>
+                          <div className="text-[10px] text-gray-400 mt-0.5">{lock.desc}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Hardware Finishes */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3.5 bg-black/40 border border-white/5 rounded-2xl flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-white">
+                    <input
+                      type="checkbox"
+                      checked={ssEnabled}
+                      onChange={(e) => setSsEnabled(e.target.checked)}
+                      className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+                    />
+                    <span>Grade 304 Stainless Steel Hardware</span>
+                  </label>
+                  <span className="text-[11px] text-indigo-300">Satin / Matt</span>
+                </div>
+
+                <div className="p-3.5 bg-black/40 border border-white/5 rounded-2xl flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-white">
+                    <input
+                      type="checkbox"
+                      checked={aluminiumEnabled}
+                      onChange={(e) => setAluminiumEnabled(e.target.checked)}
+                      className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+                    />
+                    <span>Anodized Aluminium Trims &amp; Louvers</span>
+                  </label>
+                  <span className="text-[11px] text-indigo-300">Structural Profiles</span>
+                </div>
               </div>
             </div>
           )}
@@ -2028,6 +2308,58 @@ export default function EditProductModelPage() {
             <span className="text-xs font-mono text-[#7FB706] bg-[#7FB706]/10 px-2.5 py-1 rounded-xl border border-[#7FB706]/20 font-bold">
               {hardwareList.length} Components
             </span>
+          </div>
+
+          {/* Quick presets for Hardware Components */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="text-[11px] text-gray-400 font-medium">Quick Add Presets:</span>
+            {(category === 'Lockers'
+              ? [
+                  'Heavy-Duty Concealed Hinges (Self-Closing Pair)',
+                  'SS 304 Continuous Piano Hinge',
+                  'Keyed Cam Lock with Dual Keys',
+                  'Digital RFID / Electronic Password Lock',
+                  'Heavy-Duty Padlock Hasp Latch',
+                  'Stainless Steel Number Plate ID Tag',
+                  'Concealed Architectural Ventilation Louvers',
+                  'Die-Cast Ergonomic Door Pull Handle',
+                  'Internal Coat Hook with Buffer Stop',
+                  'Supporting Base Plinth / SS Feet (50–100mm)',
+                  'Master Override Key System',
+                ]
+              : [
+                  'Gravity Hinges (Self-Closing Pair)',
+                  'Occupancy Indicator Lock with Emergency Release',
+                  'Ergonomic Door Pull Handle / Knob',
+                  'Coat Hook with Integrated Buffer Stop',
+                  'Adjustable Supporting Legs (100–150mm)',
+                  'Continuous Top Stabilizing Headrail Bar',
+                  'Wall Fixing U-Channels & Fasteners Pack',
+                ]
+            ).map((preset) => {
+              const alreadyExists = hardwareList.some((h) => h.name.toLowerCase() === preset.toLowerCase());
+              if (alreadyExists) return null;
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => {
+                    setHardwareList((prev) => [
+                      ...prev,
+                      {
+                        id: `hw-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                        name: preset,
+                        material: category === 'Lockers' ? 'Standard' : 'Both',
+                      },
+                    ]);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 text-[11px] flex items-center gap-1 transition"
+                >
+                  <Plus className="w-3 h-3 text-[#7FB706]" />
+                  <span>{preset}</span>
+                </button>
+              );
+            })}
           </div>
 
           <div className="bg-[#0a0a1a] border border-white/10 rounded-2xl overflow-hidden">

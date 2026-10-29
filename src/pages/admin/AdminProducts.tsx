@@ -162,6 +162,12 @@ export default function AdminProducts() {
 
   // Locker-specific form states
   const [formTierCount, setFormTierCount] = useState<string | number>(1);
+  const [formLockerHeight, setFormLockerHeight] = useState('1800 mm');
+  const [formLockerDepth, setFormLockerDepth] = useState('450 mm');
+  const [formLockerWidth, setFormLockerWidth] = useState('300 mm');
+  const [formLockerBoardThickness, setFormLockerBoardThickness] = useState('12mm Solid Compact Phenolic Laminate');
+  const [formLockerColumns, setFormLockerColumns] = useState<string | number>(1);
+  const [formLockerRows, setFormLockerRows] = useState<string | number>(4);
 
   // Urinal-specific form states
   const [formHasExtraLeg, setFormHasExtraLeg] = useState(false);
@@ -331,7 +337,13 @@ export default function AdminProducts() {
     setFormSsColors(['golden', 'Black', 'stainless steel']);
     setFormNylonEnabled(false);
     setFormAluminiumEnabled(false);
-    setFormTierCount(1);
+    setFormTierCount(targetCat === 'Lockers' ? 4 : 1);
+    setFormLockerHeight('1800 mm');
+    setFormLockerDepth('450 mm');
+    setFormLockerWidth('300 mm');
+    setFormLockerBoardThickness('12mm Solid Compact Phenolic Laminate');
+    setFormLockerColumns(1);
+    setFormLockerRows(4);
     setFormHasExtraLeg(false);
 
     // Initial hardware items
@@ -426,7 +438,13 @@ export default function AdminProducts() {
     setFormSsColors(ssOpt?.colors || ['golden', 'Black', 'stainless steel']);
     setFormNylonEnabled(Boolean(nylonOpt?.enabled));
     setFormAluminiumEnabled(Boolean(alumOpt?.enabled));
-    setFormTierCount(model.tierCount || 1);
+    setFormTierCount(model.tierCount || model.rowCount || 1);
+    setFormLockerHeight(String(model.height || '1800 mm'));
+    setFormLockerDepth(String(model.depth || '450 mm'));
+    setFormLockerWidth(String(model.width || '300 mm'));
+    setFormLockerBoardThickness(String(model.boardThickness || '12mm Solid Compact Phenolic Laminate'));
+    setFormLockerColumns(model.columnCount !== undefined ? model.columnCount : 1);
+    setFormLockerRows(model.rowCount !== undefined ? model.rowCount : (model.tierCount || 4));
     setFormHasExtraLeg(Boolean(model.hasExtraLeg));
 
     setFormHardwareList(model.hardwareList ? [...model.hardwareList] : []);
@@ -785,6 +803,21 @@ export default function AdminProducts() {
               { label: 'Fire Rating', value: 'Class 1 / BS 476 Part 7' },
               { label: 'Water Resistance', value: '100% Moisture, Water & Humidity Proof' },
             ]
+          : formCategory === 'Lockers'
+          ? [
+              { label: 'Standard Height', value: formLockerHeight },
+              { label: 'Standard Depth', value: formLockerDepth },
+              { label: 'Unit / Column Width', value: formLockerWidth },
+              { label: 'Board Thickness', value: formLockerBoardThickness },
+              { label: 'Number of Columns', value: String(formLockerColumns) },
+              { label: 'Number of Rows / Tiers', value: String(formLockerRows) },
+              {
+                label: 'Total Compartments',
+                value: `${formLockerColumns} Col × ${formLockerRows} Row (${Number(formLockerColumns) * (parseInt(String(formLockerRows)) || 1)} Doors)`
+              },
+              { label: 'Water Resistance', value: '100% Moisture, Water & Humidity Proof' },
+              { label: 'Fire Rating', value: 'Class 1 / BS 476 Part 7' },
+            ]
           : [
               { label: 'Board Thickness', value: '12mm / 18mm Compact Laminate' },
               { label: 'Category', value: formCategory },
@@ -803,7 +836,13 @@ export default function AdminProducts() {
         'Public Washrooms',
       ],
       hasExtraLeg: formCategory === 'Urinal Partitions' ? formHasExtraLeg : false,
-      tierCount: formCategory === 'Lockers' ? formTierCount : undefined,
+      tierCount: formCategory === 'Lockers' ? formLockerRows : undefined,
+      height: formCategory === 'Lockers' ? formLockerHeight : undefined,
+      depth: formCategory === 'Lockers' ? formLockerDepth : undefined,
+      width: formCategory === 'Lockers' ? formLockerWidth : undefined,
+      boardThickness: formCategory === 'Lockers' ? formLockerBoardThickness : undefined,
+      columnCount: formCategory === 'Lockers' ? formLockerColumns : undefined,
+      rowCount: formCategory === 'Lockers' ? formLockerRows : undefined,
       sortOrder: formSortOrder,
       published: formPublished,
       isFeatured: formIsFeatured,
@@ -2102,34 +2141,86 @@ export default function AdminProducts() {
                   </div>
                 )}
 
-                {/* 2. Locker Rule: Every locker uses the same hardwares, NO color options */}
+                {/* 2. Locker Rule: Full Dimension Grid & Hardware Suite */}
                 {formCategory === 'Lockers' && (
-                  <div className="space-y-3">
-                    <div className="p-3 bg-indigo-500/5 border border-indigo-500/20 rounded-xl text-xs text-indigo-300">
-                      <strong>Locker Hardware Rule:</strong> All locker models use uniform standard heavy-duty hardware (Concealed Pivot Hinges, Key Cam Lock, Louver Grilles, Number Plates). <strong>There are no color options for locker hardware.</strong>
+                  <div className="space-y-4">
+                    <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-xs text-indigo-300 flex items-center justify-between">
+                      <span><strong>Locker Architecture:</strong> Configure modular locker dimensions, columns &amp; tiers.</span>
+                      <span className="font-mono font-bold bg-indigo-500/20 px-2 py-0.5 rounded">
+                        {Number(formLockerColumns) || 1} Col × {Number(formLockerRows) || 1} Tier = {(Number(formLockerColumns) || 1) * (parseInt(String(formLockerRows)) || 1)} Doors
+                      </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-gray-300 mb-1.5">
-                          Locker Tier / Compartment Type
-                        </label>
+                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">Standard Height</label>
+                        <input
+                          type="text"
+                          value={formLockerHeight}
+                          onChange={(e) => setFormLockerHeight(e.target.value)}
+                          placeholder="e.g. 1800 mm"
+                          className="w-full bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">Standard Depth</label>
+                        <input
+                          type="text"
+                          value={formLockerDepth}
+                          onChange={(e) => setFormLockerDepth(e.target.value)}
+                          placeholder="e.g. 450 mm"
+                          className="w-full bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">Standard Width</label>
+                        <input
+                          type="text"
+                          value={formLockerWidth}
+                          onChange={(e) => setFormLockerWidth(e.target.value)}
+                          placeholder="e.g. 300 mm"
+                          className="w-full bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">Board Thickness</label>
+                        <input
+                          type="text"
+                          value={formLockerBoardThickness}
+                          onChange={(e) => setFormLockerBoardThickness(e.target.value)}
+                          placeholder="e.g. 12mm Compact Board"
+                          className="w-full bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">Number of Columns</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="20"
+                          value={formLockerColumns}
+                          onChange={(e) => setFormLockerColumns(e.target.value)}
+                          className="w-full bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">Number of Rows / Tiers</label>
                         <select
-                          value={formTierCount}
-                          onChange={(e) => setFormTierCount(e.target.value)}
-                          className="w-full bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-xs text-white min-h-[44px] focus:outline-none focus:border-[#7FB706]"
+                          value={formLockerRows}
+                          onChange={(e) => {
+                            setFormLockerRows(e.target.value);
+                            setFormTierCount(e.target.value);
+                          }}
+                          className="w-full bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-xs text-white min-h-[38px] focus:outline-none focus:border-indigo-400"
                         >
-                          <option value="1">Tier 1 (Single Full Height Door)</option>
-                          <option value="2">Tier 2 (2 Stacked Doors)</option>
-                          <option value="3">Tier 3 (3 Stacked Doors)</option>
-                          <option value="4">Tier 4 (4 Stacked Doors)</option>
-                          <option value="5">Tier 5 (5 Stacked Doors)</option>
-                          <option value="6">Tier 6 (6 Stacked Doors)</option>
+                          <option value="1">1 Row / Tier (Single Full Height Door)</option>
+                          <option value="2">2 Rows / Tiers (2 Stacked Doors)</option>
+                          <option value="3">3 Rows / Tiers (3 Stacked Doors)</option>
+                          <option value="4">4 Rows / Tiers (4 Stacked Doors)</option>
+                          <option value="5">5 Rows / Tiers (5 Stacked Doors)</option>
+                          <option value="6">6 Rows / Tiers (6 Stacked Doors)</option>
                           <option value="Z-2">Z-Shape (Dual Interlocking Z Doors)</option>
                         </select>
-                      </div>
-                      <div className="flex items-center p-3 bg-white/5 border border-white/5 rounded-xl text-xs text-gray-300">
-                        Cam Lock & Number Plate count automatically matches tier count.
                       </div>
                     </div>
                   </div>
@@ -2251,6 +2342,58 @@ export default function AdminProducts() {
                   <span className="text-xs font-mono text-[#7FB706] bg-[#7FB706]/10 px-2.5 py-1 rounded-xl border border-[#7FB706]/20">
                     {formHardwareList.length} items
                   </span>
+                </div>
+
+                {/* Quick Presets for Hardware Items */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <span className="text-[11px] text-gray-400 font-medium">Quick Add Presets:</span>
+                  {(formCategory === 'Lockers'
+                    ? [
+                        'Heavy-Duty Concealed Hinges (Pair)',
+                        'SS 304 Continuous Piano Hinge',
+                        'Keyed Cam Lock with Dual Keys',
+                        'Digital RFID / Electronic Password Lock',
+                        'Heavy-Duty Padlock Hasp Latch',
+                        'Stainless Steel Number Plate ID Tag',
+                        'Concealed Architectural Ventilation Louvers',
+                        'Die-Cast Ergonomic Door Pull Handle',
+                        'Internal Coat Hook with Buffer Stop',
+                        'Supporting Base Plinth / SS Feet (50–100mm)',
+                        'Master Override Key System',
+                      ]
+                    : [
+                        'Gravity Hinges (Rise & Fall Pair)',
+                        'Occupancy Indicator Lock & Turn Bolt',
+                        'Door Pull Handle / Knob',
+                        'Coat Hook with Rubber Buffer Stop',
+                        'Adjustable Supporting Legs (100–150mm)',
+                        'Continuous Top Headrail Stabilizer Bar',
+                        'Wall Fixing U-Channels & Fasteners Pack',
+                      ]
+                  ).map((preset) => {
+                    const alreadyExists = formHardwareList.some((h) => h.name.toLowerCase() === preset.toLowerCase());
+                    if (alreadyExists) return null;
+                    return (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => {
+                          setFormHardwareList((prev) => [
+                            ...prev,
+                            {
+                              id: `hw-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                              name: preset,
+                              material: formCategory === 'Lockers' ? 'Standard' : 'Both',
+                            },
+                          ]);
+                        }}
+                        className="px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 text-[10px] flex items-center gap-1 transition"
+                      >
+                        <Plus className="w-3 h-3 text-[#7FB706]" />
+                        <span>{preset}</span>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Table of items */}

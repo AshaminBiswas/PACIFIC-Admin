@@ -126,6 +126,31 @@ export default function ProductModelDetailPage() {
     const hasDoor = specs.some((s) => s.label.toLowerCase().includes('door'));
     const hasThickness = specs.some((s) => s.label.toLowerCase().includes('thickness'));
 
+    if (model.category === 'Lockers') {
+      const merged = [...specs.filter((s) => !['category'].includes(s.label.toLowerCase()))];
+      const h = model.height || '1800 mm';
+      const d = model.depth || '450 mm';
+      const w = model.width || '300 mm';
+      const t = model.boardThickness || '12mm Solid Compact Phenolic Laminate';
+      const col = model.columnCount !== undefined ? model.columnCount : 1;
+      const row = model.rowCount !== undefined ? model.rowCount : (model.tierCount || 4);
+
+      if (!hasHeight) merged.push({ label: 'Standard Height', value: String(h) });
+      if (!hasDepth) merged.push({ label: 'Standard Depth', value: String(d) });
+      if (!specs.some((s) => s.label.toLowerCase().includes('width'))) merged.push({ label: 'Unit / Column Width', value: String(w) });
+      if (!hasThickness) merged.push({ label: 'Board Thickness', value: String(t) });
+      if (!specs.some((s) => s.label.toLowerCase().includes('column'))) merged.push({ label: 'Number of Columns', value: String(col) });
+      if (!specs.some((s) => s.label.toLowerCase().includes('row') || s.label.toLowerCase().includes('tier'))) merged.push({ label: 'Number of Rows / Tiers', value: String(row) });
+      if (!specs.some((s) => s.label.toLowerCase().includes('compartment'))) {
+        merged.push({
+          label: 'Total Compartments',
+          value: `${col} Col × ${row} Row (${Number(col) * (parseInt(String(row)) || 1)} Doors)`
+        });
+      }
+      if (!specs.some((s) => s.label.toLowerCase().includes('water'))) merged.push({ label: 'Water Resistance', value: '100% Moisture, Water & Humidity Proof' });
+      if (!specs.some((s) => s.label.toLowerCase().includes('fire'))) merged.push({ label: 'Fire Rating', value: 'Class 1 / BS 476 Part 7' });
+      return merged;
+    }
     if (model.category === 'Kids Toilet' && (!hasHeight || !hasDepth || !hasDoor)) {
       const merged = [...specs.filter((s) => !['category'].includes(s.label.toLowerCase()))];
       if (!hasHeight) merged.push({ label: 'Standard Height', value: '1200 mm – 1500 mm (Child-Friendly Ergonomic Height)' });
@@ -409,16 +434,58 @@ export default function ProductModelDetailPage() {
               </div>
             )}
 
-            {/* 2. Locker Rules: Uniform Hardware */}
+            {/* 2. Locker Rules: Dimensions & Hardware Suite */}
             {model.category === 'Lockers' && (
-              <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-2">
-                <div className="flex items-center gap-2 text-indigo-300 font-bold text-xs">
-                  <Shield className="w-4 h-4" />
-                  Uniform Standard Heavy-Duty Locker Hardware
+              <div className="space-y-4">
+                <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-indigo-300 font-bold text-xs">
+                      <Shield className="w-4 h-4 text-indigo-400" />
+                      Locker Structural &amp; Hardware Configuration
+                    </div>
+                    <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30">
+                      {Number(model.columnCount) || 1} Col × {Number(model.rowCount || model.tierCount) || 4} Tiers
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <div className="bg-[#0a0a1a] p-2.5 rounded-xl border border-white/5">
+                      <div className="text-[10px] text-gray-500 uppercase font-semibold">Height</div>
+                      <div className="text-white font-medium mt-0.5">{model.height || '1800 mm'}</div>
+                    </div>
+                    <div className="bg-[#0a0a1a] p-2.5 rounded-xl border border-white/5">
+                      <div className="text-[10px] text-gray-500 uppercase font-semibold">Depth</div>
+                      <div className="text-white font-medium mt-0.5">{model.depth || '450 mm'}</div>
+                    </div>
+                    <div className="bg-[#0a0a1a] p-2.5 rounded-xl border border-white/5">
+                      <div className="text-[10px] text-gray-500 uppercase font-semibold">Width</div>
+                      <div className="text-white font-medium mt-0.5">{model.width || '300 mm'}</div>
+                    </div>
+                    <div className="bg-[#0a0a1a] p-2.5 rounded-xl border border-white/5">
+                      <div className="text-[10px] text-gray-500 uppercase font-semibold">Board</div>
+                      <div className="text-white font-medium mt-0.5">{model.boardThickness || '12mm Solid Compact'}</div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-gray-300 leading-relaxed pt-1">
+                    All Pacific locker models use standardized uniform hardware including heavy-duty concealed hinges, cam locks with master key overrides, ventilation louver grilles, number plates, and base plinth levelers.
+                  </p>
                 </div>
-                <p className="text-xs text-gray-300 leading-relaxed">
-                  All Pacific locker models use standardized uniform hardware including heavy-duty concealed hinges, cam locks with master key overrides, ventilation louver grilles, number plates, and base plinth levelers. There are no color variations required.
-                </p>
+
+                {/* Available Hardware Finishes */}
+                {model.hardwareOptions && model.hardwareOptions.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {model.hardwareOptions.map((opt, i) => (
+                      <span
+                        key={i}
+                        className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-gray-200 font-medium flex items-center gap-1.5"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />
+                        {opt.material}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

@@ -2528,6 +2528,12 @@ export interface ProductCatalogModel {
   applications?: string[];
   hasExtraLeg?: boolean;
   tierCount?: number | string;
+  height?: string | number;
+  depth?: string | number;
+  width?: string | number;
+  boardThickness?: string;
+  columnCount?: number | string;
+  rowCount?: number | string;
   sortOrder?: number;
   published?: boolean;
   isFeatured?: boolean;

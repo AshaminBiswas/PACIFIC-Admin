@@ -45,6 +45,12 @@ function mapDbRowToModel(row: any): ProductCatalogModel {
   let hardwareList = hardwareMeta?.value?.hardwareList;
   let hasExtraLeg = hardwareMeta?.value?.hasExtraLeg;
   let tierCount = hardwareMeta?.value?.tierCount;
+  let height = hardwareMeta?.value?.height;
+  let depth = hardwareMeta?.value?.depth;
+  let width = hardwareMeta?.value?.width;
+  let boardThickness = hardwareMeta?.value?.boardThickness;
+  let columnCount = hardwareMeta?.value?.columnCount;
+  let rowCount = hardwareMeta?.value?.rowCount;
   let videos = Array.isArray(row.videos) ? row.videos : (hardwareMeta?.value?.videos || []);
   const boqUrl = row.boq_url || hardwareMeta?.value?.boqUrl || row.metadata?.boqUrl || '';
   const boqFileName = row.boq_file_name || hardwareMeta?.value?.boqFileName || row.metadata?.boqFileName || '';
@@ -69,6 +75,33 @@ function mapDbRowToModel(row: any): ProductCatalogModel {
   // Filter out internal metadata keys from public specifications
   const cleanSpecs = specs.filter((s: any) => !s.label.startsWith('__'));
 
+  // Fallback checks from specs if not directly in hardwareMeta
+  if (!height) {
+    const s = cleanSpecs.find((x: any) => x.label.toLowerCase().includes('height'));
+    if (s) height = s.value;
+  }
+  if (!depth) {
+    const s = cleanSpecs.find((x: any) => x.label.toLowerCase().includes('depth'));
+    if (s) depth = s.value;
+  }
+  if (!width) {
+    const s = cleanSpecs.find((x: any) => x.label.toLowerCase().includes('width'));
+    if (s) width = s.value;
+  }
+  if (!boardThickness) {
+    const s = cleanSpecs.find((x: any) => x.label.toLowerCase().includes('thickness'));
+    if (s) boardThickness = s.value;
+  }
+  if (!columnCount) {
+    const s = cleanSpecs.find((x: any) => x.label.toLowerCase().includes('column'));
+    if (s) columnCount = s.value;
+  }
+  if (!rowCount) {
+    const s = cleanSpecs.find((x: any) => x.label.toLowerCase().includes('row') || x.label.toLowerCase().includes('tier'));
+    if (s) rowCount = s.value;
+    else if (tierCount) rowCount = tierCount;
+  }
+
   // Ensure cleanSpecs includes essential technical specifications if empty or incomplete
   let finalSpecs = [...cleanSpecs];
   const hasHeight = finalSpecs.some((s: any) => s.label.toLowerCase().includes('height'));
@@ -76,7 +109,50 @@ function mapDbRowToModel(row: any): ProductCatalogModel {
   const hasDoor = finalSpecs.some((s: any) => s.label.toLowerCase().includes('door'));
   const hasThickness = finalSpecs.some((s: any) => s.label.toLowerCase().includes('thickness'));
 
-  if (category === 'Kids Toilet') {
+  if (category === 'Lockers') {
+    if (!height) height = '1800 mm';
+    if (!depth) depth = '450 mm';
+    if (!width) width = '300 mm';
+    if (!boardThickness) boardThickness = '12mm Solid Compact Phenolic Laminate';
+    if (!columnCount) columnCount = 1;
+    if (!rowCount) rowCount = tierCount || 4;
+
+    if (!hasHeight) finalSpecs.push({ label: 'Standard Height', value: String(height) });
+    if (!hasDepth) finalSpecs.push({ label: 'Standard Depth', value: String(depth) });
+    if (!finalSpecs.some((s: any) => s.label.toLowerCase().includes('width'))) {
+      finalSpecs.push({ label: 'Column Width', value: String(width) });
+    }
+    if (!hasThickness) finalSpecs.push({ label: 'Board Thickness', value: String(boardThickness) });
+    if (!finalSpecs.some((s: any) => s.label.toLowerCase().includes('column'))) {
+      finalSpecs.push({ label: 'Number of Columns', value: String(columnCount) });
+    }
+    if (!finalSpecs.some((s: any) => s.label.toLowerCase().includes('row') || s.label.toLowerCase().includes('tier'))) {
+      finalSpecs.push({ label: 'Number of Rows / Tiers', value: String(rowCount) });
+    }
+    if (!finalSpecs.some((s: any) => s.label.toLowerCase().includes('water'))) {
+      finalSpecs.push({ label: 'Water Resistance', value: '100% Moisture, Water & Humidity Proof' });
+    }
+    if (!finalSpecs.some((s: any) => s.label.toLowerCase().includes('fire'))) {
+      finalSpecs.push({ label: 'Fire Rating', value: 'Class 1 / BS 476 Part 7' });
+    }
+
+    if (!hardwareOptions || hardwareOptions.length === 0) {
+      hardwareOptions = [
+        { material: 'Standard', enabled: true },
+        { material: 'SS Hardware', enabled: true, colors: ['stainless steel', 'Black'] },
+      ];
+    }
+    if (!hardwareList || hardwareList.length === 0) {
+      hardwareList = [
+        { id: '1', name: 'Heavy-Duty Concealed Hinges / SS Continuous Piano Hinge', quantity: 2, unit: 'Pair', material: 'Standard' },
+        { id: '2', name: 'Keyed Cam Lock with Dual Keys & Master Key Override', quantity: 1, unit: 'Set', material: 'Standard' },
+        { id: '3', name: 'Locker Door Number Plate Holder & Key Tag', quantity: 1, unit: 'Pc', material: 'Standard' },
+        { id: '4', name: 'Architectural Ventilation Louver Grille', quantity: 1, unit: 'Set', material: 'Standard' },
+        { id: '5', name: 'Internal Coat Hook with Buffer Stop', quantity: 1, unit: 'Pc', material: 'Standard' },
+        { id: '6', name: 'Supporting Base Plinth / Adjustable Feet (50-100mm)', quantity: 4, unit: 'Pcs', material: 'Standard' },
+      ];
+    }
+  } else if (category === 'Kids Toilet') {
     if (!hasHeight) finalSpecs.push({ label: 'Standard Height', value: '1200 mm – 1500 mm (Child-Friendly Ergonomic Height)' });
     if (!hasDepth) finalSpecs.push({ label: 'Standard Depth', value: '1200 mm – 1500 mm' });
     if (!hasDoor) finalSpecs.push({ label: 'Door Width', value: '500 mm – 600 mm (Child Ergonomic Safety Door)' });
@@ -141,6 +217,12 @@ function mapDbRowToModel(row: any): ProductCatalogModel {
       : [],
     hasExtraLeg: Boolean(hasExtraLeg),
     tierCount: tierCount || '',
+    height: height ? String(height) : undefined,
+    depth: depth ? String(depth) : undefined,
+    width: width ? String(width) : undefined,
+    boardThickness: boardThickness ? String(boardThickness) : undefined,
+    columnCount: columnCount !== undefined ? columnCount : undefined,
+    rowCount: rowCount !== undefined ? rowCount : undefined,
     sortOrder: row.sort_order ?? 0,
     published: row.published !== false,
     isFeatured: Boolean(row.is_featured),
@@ -174,6 +256,12 @@ function mapModelToDbRow(model: ProductCatalogModel) {
         hardwareList: model.hardwareList,
         hasExtraLeg: model.hasExtraLeg,
         tierCount: model.tierCount,
+        height: model.height,
+        depth: model.depth,
+        width: model.width,
+        boardThickness: model.boardThickness,
+        columnCount: model.columnCount,
+        rowCount: model.rowCount,
         videos: cleanVideos,
         boqUrl: model.boqUrl || '',
         boqFileName: model.boqFileName || '',

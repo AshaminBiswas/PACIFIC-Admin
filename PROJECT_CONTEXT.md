@@ -8321,3 +8321,52 @@ Per user request, permanently purged 5 deprecated/legacy modules from PACIFIC-Ad
 ### 152.3 Verification & Status
 - **TypeScript**: `npx tsc --noEmit` exited with 0 errors.
 - **Production Build**: `npm run build` exited with code 0.
+
+---
+
+## 153. Locker Model Dimensions & Hardware Configuration Suite
+
+### 153.1 Objective
+Enhance the Product Catalog Model creation, editing, detail view, and catalog quick-modal workflows for the **Lockers** product line. Previously, locker models were constrained to a single `tierCount` selector and a static "uniform standard hardware" notice without dimension fields or hardware list choices. Per user requirements, added dedicated editable fields for:
+1. `height` (e.g., 1800 mm / 1980 mm with base plinth)
+2. `depth` (e.g., 450 mm / 500 mm)
+3. `width` (e.g., 300 mm per column / 900 mm 3-bay cluster)
+4. `boardThickness` (e.g., 12mm Solid Compact Phenolic Laminate)
+5. `columnCount` (Number of vertical bays/columns: 1–20 with quick presets 1..6)
+6. `rowCount` (Number of tiers/doors per column: 1–6, Z-Shape)
+7. Dynamic **Total Compartments** computation (`Columns × Rows = Doors`).
+8. Comprehensive **Hardware List Options & Locking Mechanisms** (Keyed Cam Lock, Digital RFID / Password Lock, Mechanical Combination Lock, Padlock Hasp Latch, Coin Deposit Lock, Heavy-Duty Concealed Hinges, Piano Hinges, Ventilation Louvers, Number Plates, Plinth/Legs).
+
+### 153.2 Key Architecture & File Modifications
+1. **Type Definition (`src/types/admin.ts`)**:
+   - Updated `ProductCatalogModel` with `height?: string | number`, `depth?: string | number`, `width?: string | number`, `boardThickness?: string`, `columnCount?: number | string`, `rowCount?: number | string`.
+
+2. **Persistence Layer (`src/api/productCatalogApi.ts`)**:
+   - `mapModelToDbRow`: Serialized `height`, `depth`, `width`, `boardThickness`, `columnCount`, `rowCount` safely into `__hardware_meta.value` inside the `specifications` JSONB array, guaranteeing backward and forward database compatibility without database migration friction.
+   - `mapDbRowToModel`: Deserialized all 6 locker attributes and provided clean fallbacks from public technical specifications. Automatically injected locker technical specifications and default hardware BOM items if unpopulated.
+
+3. **Model Creation (`src/pages/admin/CreateAdminProductPage.tsx`)**:
+   - Added locker configuration states: `lockerHeight`, `lockerDepth`, `lockerWidth`, `lockerBoardThickness`, `lockerColumns`, `lockerRows`, and `lockerLockTypes`.
+   - Wired category selection (`cat === 'Lockers'`) with professional architectural locker defaults.
+   - Rendered Section 3 Locker Dimensions & Architectural Grid Card with auto-calculating total compartments badge.
+   - Replaced static locker hardware notice in Section 6 with full Locker Hardware Options (Lock Mechanism multi-selector & SS 304 / Aluminium hardware finish toggles).
+   - Added Quick Add Presets in Section 10 (Hardware BOM) tailored for locker components.
+   - Integrated with localStorage auto-save draft system and form submission.
+
+4. **Model Editing (`src/pages/admin/EditProductModelPage.tsx`)**:
+   - Mirrored all locker state variables, dimension controls, locking mechanism selection, and hardware BOM quick presets.
+   - Loaded existing locker values from database row / specifications on model retrieval and persisted upon saving.
+
+5. **Detail Showcase (`src/pages/admin/ProductModelDetailPage.tsx`)**:
+   - Updated `effectiveSpecifications` to format locker dimensions, board thickness, column count, row count, and total compartments.
+   - Updated hardware suite presentation card to display height, depth, width, board thickness, grid summary (`Columns × Tiers`), and itemized hardware BOM table.
+
+6. **Catalog List & Quick Edit Modal (`src/pages/admin/AdminProducts.tsx`)**:
+   - Added locker dimension inputs to the modal form.
+   - Added quick presets to the hardware item builder.
+   - Updated catalog card pills to display locker column/tier configuration and height badges.
+
+### 153.3 Verification
+- **TypeScript**: `npx tsc --noEmit` passed with 0 errors.
+- **Production Build**: `npm run build` passed with exit code 0 (`vite v6.4.3 building for production... ✓ built in 1m 13s`).
+
