@@ -29,6 +29,7 @@ import {
   ChevronRight,
   HelpCircle,
   Wrench,
+  RefreshCw,
 } from 'lucide-react';
 import { piApi } from '../api/proformaApi';
 import { financeApi } from '../api/financeApi';
@@ -69,20 +70,32 @@ function parseItemSpecs(item: any) {
     const customSpecs = item.customSpecsJson || {};
     const widthVal = customSpecs.width || (item.cubicleSize && item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*w/i)?.[1] ? `${item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*w/i)![1]}mm` : '') || '300mm';
     const depthVal = customSpecs.depth || (item.cubicleSize && item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*d/i)?.[1] ? `${item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*d/i)![1]}mm` : '') || '450mm';
-    const heightVal = item.overallHeight || customSpecs.height || (item.cubicleSize && item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)?.[1] ? `${item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)![1]}mm` : '') || `${tierRows * 600}mm`;
-    const lockerDim = (item.cubicleSize && item.cubicleSize.includes('W') && !item.cubicleSize.toLowerCase().includes('doors'))
-      ? item.cubicleSize
-      : `${widthVal} W × ${depthVal} D × ${heightVal} H`;
+    const rawHVal = item.overallHeight || customSpecs.height || (item.cubicleSize && item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)?.[1] ? `${item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)![1]}mm` : '') || '600mm';
+    const parsedNumH = parseInt(String(rawHVal).replace(/[^0-9]/g, '')) || 600;
+    const compHVal = parsedNumH < 1000 ? parsedNumH : (tierRows > 1 ? Math.round(parsedNumH / tierRows) : parsedNumH);
+    const totalHVal = parsedNumH < 1000 ? (tierRows > 1 ? compHVal * tierRows : compHVal) : parsedNumH;
+
+    const compDim = `${widthVal} W × ${depthVal} D × ${compHVal}mm H`;
+    const overallDim = `${widthVal} W × ${depthVal} D × ${totalHVal}mm H`;
+    const lockerDoorDisplay = item.doorSize || (tierRows > 1 ? `${tierRows} Tier Modular Doors (${widthVal} W × ${compHVal}mm H per door)` : `1 Tier Modular Door (${widthVal} W × ${compHVal}mm H)`);
 
     specs.push({ label: 'Configuration', value: `${cols} Column(s) × ${tierRows} Tier(s) (${cols * tierRows} Total Doors)` });
-    specs.push({ label: 'Locker Dimension', value: lockerDim });
-    specs.push({ label: 'Height', value: heightVal });
+    if (tierRows > 1) {
+      specs.push({ label: 'Overall Locker Dimension', value: overallDim });
+      specs.push({ label: 'Compartment Dimension', value: compDim });
+    } else {
+      specs.push({ label: 'Locker Dimension', value: compDim });
+    }
+    specs.push({ label: 'Compartment / Door', value: lockerDoorDisplay });
+    specs.push({ label: 'Compartment Height', value: `${compHVal}mm` });
+    if (tierRows > 1) {
+      specs.push({ label: 'Overall Height', value: `${totalHVal}mm` });
+    }
     specs.push({ label: 'Width', value: widthVal });
     specs.push({ label: 'Depth', value: depthVal });
     if (item.boardThickness) specs.push({ label: 'Thickness', value: item.boardThickness });
     else if (item.boardType) specs.push({ label: 'Board', value: item.boardType });
     if (item.boardColor) specs.push({ label: 'Color', value: item.boardColor });
-    if (item.doorSize) specs.push({ label: doorLabel, value: item.doorSize });
   } else {
     if (item.cubicleSize) specs.push({ label: sizeLabel, value: item.cubicleSize });
     if (item.boardColor) specs.push({ label: 'Color', value: item.boardColor });
@@ -326,12 +339,20 @@ export default function ProformaInvoiceDetailPage() {
         <AlertTriangle className="w-12 h-12 text-red-400 mx-auto" />
         <h2 className="text-xl font-bold text-white">Error Loading Proforma Invoice</h2>
         <p className="text-sm text-gray-400">{error || 'Record could not be found or has been deleted.'}</p>
-        <Link
-          to="/admin/dashboard/proforma-invoices"
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-semibold"
-        >
-          <ArrowLeft className="w-4 h-4" /> Return to Proforma Invoices
-        </Link>
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <button
+            onClick={loadPi}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#7FB706]/20 hover:bg-[#7FB706]/30 text-[#7FB706] border border-[#7FB706]/40 rounded-xl text-xs font-bold transition-all cursor-pointer"
+          >
+            <RefreshCw className="w-4 h-4" /> Try Again
+          </button>
+          <Link
+            to="/admin/dashboard/proforma-invoices"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-semibold"
+          >
+            <ArrowLeft className="w-4 h-4" /> Return to Proforma Invoices
+          </Link>
+        </div>
       </div>
     );
   }

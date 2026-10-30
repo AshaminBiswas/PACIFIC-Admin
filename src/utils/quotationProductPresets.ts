@@ -147,22 +147,24 @@ export function extractModelDimensions(model: ProductCatalogModel): ExtractedMod
     const d = cleanDim(rawDepth) || '450mm';
     const rawHStr = cleanDim(rawHeight);
     const rows = Number(rawRows) || (model.title.includes('3 Tier') ? 3 : model.title.includes('4 Tier') ? 4 : model.title.includes('2 Tier') ? 2 : model.title.includes('1 Tier') ? 1 : 4);
-    const numH = parseInt(rawHStr.replace(/[^0-9]/g, '')) || 1800;
-    // If the height defined on the model is per-compartment (e.g. 600mm, 443mm, 450mm) and rows >= 2, total architectural height is rows * numH
-    const totalH = (numH < 1000 && rows >= 2) ? (numH * rows) : (numH >= 1000 ? numH : 1800);
-    const compH = Math.round(totalH / rows);
-    const h = `${totalH}mm`;
+    const numH = parseInt(rawHStr.replace(/[^0-9]/g, '')) || 600;
+    
+    // In multi-tier lockers, model height (<1000mm) is standard compartment height
+    const compH = numH < 1000 ? numH : (rows > 1 ? Math.round(numH / rows) : numH);
+    const totalH = numH < 1000 ? (rows > 1 ? compH * rows : compH) : numH;
 
-    // Full 3D architectural dimension mentioned in model: Width W × Depth D × Height H
-    cubicleSize = `${w} W × ${d} D × ${h} H`;
+    // Full 3D architectural dimension: Width W × Depth D × Height H
+    cubicleSize = `${w} W × ${d} D × ${totalH}mm H`;
 
     if (rawDoor && (rawDoor.includes('×') || rawDoor.includes('x') || rawDoor.toLowerCase().includes('mm'))) {
       doorSize = rawDoor;
     } else {
-      doorSize = `${rows} Tier Modular Doors (${w} W × ${compH}mm H per door)`;
+      doorSize = rows > 1
+        ? `${rows} Tier Modular Doors (${w} W × ${compH}mm H per door)`
+        : `1 Tier Modular Door (${w} W × ${compH}mm H)`;
     }
 
-    overallHeight = `${h} (plus 100mm plinth base)`;
+    overallHeight = `${totalH}mm`;
     boardThickness = rawThickness ? String(rawThickness) : '9mm / 12mm Solid Compact Phenolic Laminate';
 
     return {
@@ -175,7 +177,7 @@ export function extractModelDimensions(model: ProductCatalogModel): ExtractedMod
       make: model.features?.find(f => f.toLowerCase().includes('make')) || 'Pacific',
       width: w,
       depth: d,
-      height: h,
+      height: `${compH}mm`,
       rowCount: rows,
       columnCount: Number(rawCols) || 1,
     };

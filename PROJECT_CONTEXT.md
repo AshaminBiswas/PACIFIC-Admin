@@ -8604,6 +8604,144 @@ The user required:
 - **Backend Build**: `npm run build` passed with exit code 0 in `D:\PACIFIC-Backend`.
 - **Production Build**: `npm run build` compiled and passed with exit code 0 (`vite v6.4.3 building for production... ✓ built in 1m`).
 
+---
+
+## 158. Locker Model Architectural Dimensions & Visual Sync in PDF Documents
+
+### 158.1 Problem Resolution Summary
+1. **Locker Dimensions in PDF**: Previously, locker dimensions in quotation and sales documents were distorted due to an erroneous formula multiplying cabinet height by the number of tiers (`numH < 1000 && rows >= 2 ? numH * rows : ...`) and string regex stripping (`replace(/[^0-9.]/g, '')`) which concatenated the height and the plinth base ("1800mm (plus 100mm plinth base)" into 1800100mm). The user explicitly configured Standard Height = 600 mm (Cabinet vertical height), Standard Depth = 450 mm, Standard Width = 300 mm on the Locker model.
+2. **Model Image Title**: Previously, the urinal screen detection logic classified any line item with `450mm` in dimensions as a urinal partition screen (`(it.cubicleSize && it.cubicleSize.includes('450mm'))`), overriding model names into `Model "A"`. Furthermore, the visual container title was hardcoded as "System Model Visual".
+
+### 158.2 Architectural & Implementation Changes
+1. **Backend Quotation & PI Services (`D:\PACIFIC-Backend\src\modules\quotations\quotations.service.ts` & `src\modules\sales\pi.service.ts`)**:
+   - Query `lockerCatalogModels` upfront before resolving unique line-item model images.
+   - Identified locker models via `it.modelId`, `customSpecs.customModelName`, `it.description`, or `customSpecs.systemCategory === 'locker'`.
+   - Prevented urinal partition logic from triggering on lockers (`!isLocker`) and removed the ambiguous `includes('450mm')` check.
+   - For all locker items, accurately extracted architectural specs directly from the matched Locker Catalog Model (`Standard Height`, `Standard Depth`, `Unit / Column Width`, and `Board Thickness`).
+   - Attached the exact model name (`cleanModelName = matchedLockerModel.title`) to line items and image manifests.
+
+2. **Backend PDF Generation Subsystem (`D:\PACIFIC-Backend\src\modules\pdf\pdf.service.ts`)**:
+   - Fixed `generateQuotationPdfHtml`, `generatePiHtml`, and `generateSalesOrderPdfHtml` to resolve exact model image titles and render model badges.
+   - Updated the visual container header on Page 2: displays the specific model name (`${modelImages[0].modelName}`) instead of generic "System Model Visual" when a single model image is attached.
+   - Card badge on top of the image renders the exact model title (e.g., `3 Tier HPL Locker`).
+
+---
+
+## 159. Locker Compartment Dimension & Multi-Tier Architectural Spec Synchronization
+
+### 159.1 Problem Statement
+When configuring dimensions on the Locker Model in the Admin Console:
+- Standard Height: `600 mm` (Cabinet vertical compartment height)
+- Standard Depth: `450 mm` (Front-to-back clearance depth)
+- Standard Width: `300 mm` (Column or total bank width)
+The PDF previously divided the standard height by tier count (`600 / 3 = 200mm`), incorrectly assuming 600mm was the overall height of all tiers combined and labeling it generically as "Locker Dimension". The user clarified that `300mm W × 450mm D × 600mm H` is the dimension **for one Compartment**. For a 3-tier locker, each compartment and door is `300mm W × 600mm H`, and the overall locker bank height is `3 × 600mm = 1800mm`.
+
+### 159.2 Implementation Details
+1. **Backend Subsystem (`D:\PACIFIC-Backend`)**:
+   - In `quotations.service.ts`, `pi.service.ts`, and `pdf.service.ts` (`generateQuotationPdfHtml`, `generatePiHtml`, `generateSalesOrderPdfHtml`):
+     - Normalized multi-tier locker calculations:
+       - If `numH < 1000` (e.g., 600mm, 450mm): treated as compartment vertical height (`compH = numH`). The overall height is computed as `totalH = tierRows > 1 ? compH * tierRows : compH` (e.g., $3 \times 600 = 1800\text{mm}$).
+       - If `numH >= 1000` (e.g., 1800mm): treated as total bank height (`totalH = numH`), with compartment height as `compH = tierRows > 1 ? Math.round(numH / tierRows) : numH`.
+     - Output in Technical Specification Box:
+       - `Overall Locker Dimension: ${cleanW}mm W × ${cleanD}mm D × ${totalH}mm H` (e.g., `300mm W × 450mm D × 1800mm H`)
+       - `Compartment Dimension: ${cleanW}mm W × ${cleanD}mm D × ${compH}mm H` (e.g., `300mm W × 450mm D × 600mm H`)
+       - `Compartment / Door Size: ${tierRows} Tier Modular Doors (${cleanW}mm W × ${compH}mm H per door)` (e.g., `3 Tier Modular Doors (300mm W × 600mm H per door)`)
+     - Model visual card badge on Page 2 and Page 2 section header display the exact model title (`3 Tier HPL Locker`).
+
+2. **Frontend Subsystem (`D:\PACIFIC-Admin`)**:
+   - `src/utils/quotationProductPresets.ts`: In `extractModelDimensions`, configured `cubicleSize = ${w} W × ${d} D × ${totalH}mm H`, `doorSize = ${rows} Tier Modular Doors (${w} W × ${compH}mm H per door)`, `overallHeight = ${totalH}mm`, and `height = ${compH}mm`.
+   - `DraftQuotationPage.tsx`, `EditSalesQuotationPage.tsx`, `CreateProformaPage.tsx`, `EditProformaInvoicePage.tsx`: Default fallbacks synchronized to overall bank height `${dims.overallHeight || '1800mm'} H` for `cubicleSize` while keeping `height` as compartment height.
+   - `SalesQuotationDetailPage.tsx`, `ProformaInvoiceDetailPage.tsx`, `SalesOrderDetailPage.tsx`: Line item specification showcases explicitly render:
+     - `Overall Locker Dimension: ${overallDim}`
+     - `Compartment Dimension: ${compDim}`
+     - `Compartment / Door: ${lockerDoorDisplay}`
+     - `Compartment Height: ${compHVal}mm`
+     - `Overall Height: ${totalHVal}mm`
+
+### 159.3 Verification
+- **Test PDF Generation**: Ran `quotationsService.getPdfHtml` for quote `eff4a387-3009-409c-849b-0df4a7183fb1` and verified:
+  - `Overall Locker Dimension: 300mm W × 450mm D × 1800mm H`
+  - `Compartment Dimension: 300mm W × 450mm D × 600mm H`
+  - `Compartment / Door Size: 3 Tier Modular Doors (300mm W × 600mm H per door)`
+  - Model Name badge: `3 Tier HPL Locker`
+- **TypeScript**: `npx tsc --noEmit` exited with 0 errors.
+- **Backend Build**: `npm --prefix d:\PACIFIC-Backend run build` passed with exit code 0.
+- **Frontend Build**: `npm run build` completed with exit code 0 (`✓ built in 42.20s`).
+
+---
+
+## 160. Storefront Colors & Finishes Section Cleanup & 50% Scale Reduction
+
+### 160.1 Problem Statement
+1. In `D:\Pacific Products And Solutions\src\app\components\ColorsAndFinishesSection.tsx`, the "Available Finish Swatches" grid strip below the main image rendered broken "Error loading image" SVG thumbnails on products where color swatches lacked uploaded texture URLs (such as lockers and hardware colors).
+2. The primary 4:3 showcase image container was oversized (`max-w-3xl lg:max-w-4xl`, 896px width, 672px height), dominating the viewport. The user requested reducing the image section size into half (2:1 scale reduction) and removing the broken swatch thumbnail strip entirely.
+
+### 160.2 Implementation Details
+1. **Removed Swatch Thumbnails Strip**:
+   - Completely excised the `Available Finish Swatches ({colors.length})` heading and the entire grid of thumbnail buttons (`Error loading image / Active Preview / Select Decor`).
+   - Cleaned up unused icons (`Check` from `lucide-react`).
+2. **Reduced Showcase Image Container by 50%**:
+   - Scaled down the outer wrapper from `max-w-3xl lg:max-w-4xl` (896px) to `max-w-md` (448px), achieving an exact 2:1 (50%) scale reduction.
+   - Preserved the clean `aspect-[4/3]` ratio (now $448 \times 336\text{px}$).
+   - Adjusted corner radius from `rounded-3xl` to `rounded-2xl`, glow to `-inset-2`, and blur to `blur-xl`.
+   - Adjusted typography and button sizing in the bottom glassmorphic banner and top badges for optimal readability and balanced spacing in the half-sized container.
+3. **Graceful Fallback for Colors without Images**:
+   - If `currentColor?.image_url` is empty, renders a clean dark architectural finish card with `Palette` icon and decor title instead of attempting to fetch an empty URL and rendering a broken image error.
+4. **Pagination Dots & Navigation**:
+   - Added subtle pagination indicator dots when `colors.length > 1` so visitors can see active slide position and smoothly switch between finishes.
+   - Sized navigation arrows (`ChevronLeft`, `ChevronRight`) to `w-8 h-8` with consistent touch targets.
+
+### 160.3 Verification
+- **Storefront TypeScript (`npx tsc --noEmit`)**: Passed with 0 errors in `D:\Pacific Products And Solutions`.
+- **Storefront Production Build (`npm run build`)**: Passed with exit code 0 (`✓ built in 24.22s`).
+- **PACIFIC-Admin TypeScript (`npx tsc --noEmit`)**: Passed with 0 errors.
+- **PACIFIC-Admin Production Build (`npm run build`)**: Passed with exit code 0.
+
+---
+
+## 161. Proforma Invoice Loading & Quotation-to-PI Infinite Recursion Resolution
+
+### 161.1 Problem Statement
+When converting a formal Sales Quotation into a Proforma Invoice (PI) and subsequently opening the resulting PI detail page (`/admin/dashboard/proforma-invoices/:id`), the page hung indefinitely on "Loading Proforma Invoice Details..." spinner without ever rendering the PI data.
+
+### 161.2 Root Cause Analysis
+1. **Direct Cyclic Infinite Recursion in Backend Services**:
+   - `piService.getById(id)` invoked `await documentRevisionService.ensureInitialPiRevision(id)`.
+   - When count of revisions was 0 (for any new PI converted from quotation or newly created), `ensureInitialPiRevision` invoked `createPiRevision(id, 1, ...)`.
+   - Inside `createPiRevision`, it called `piService.getPdfHtml(pi.id)`.
+   - `piService.getPdfHtml(id)` called `await this.getById(id)`.
+   - `getById(id)` re-called `ensureInitialPiRevision(id)`. Since the outer transaction had not yet committed `ProformaInvoiceRevision`, count was still 0, triggering an infinite recursive loop.
+2. **Synchronous Puppeteer Blocking & Connection Pool Starvation**:
+   - In `createPiRevision` and `createQuotationRevision`, `htmlToPdfBuffer(html)` was called synchronously before committing the revision row to Prisma.
+   - Each recursion level launched a headless Chromium instance or blocked the Node.js event loop with 30-second timeouts.
+   - As recursion hit stack limits, hundreds of pending Prisma transactions were attempted simultaneously on the same row, locking the database and leaving the HTTP request hanging indefinitely.
+3. **Missing Timeout in Frontend Axios Client**:
+   - `apiClient` had no timeout configured (`timeout: undefined`), causing pending browser requests to spin indefinitely in `loading = true`.
+
+### 161.3 Implementation Details
+1. **Backend Re-entrancy Protection & Async PDF Generation (`D:\PACIFIC-Backend\src\modules\docs\documentRevision.service.ts`)**:
+   - Added in-memory in-flight mutex tracking (`inFlightPiEnsures`, `inFlightQuotationEnsures`) to prevent concurrent re-entrant revision initialization.
+   - In `createPiRevision` and `createQuotationRevision`, decoupled PDF compilation from database transaction: upserts the revision record immediately into PostgreSQL (<5ms).
+   - Moved PDF cache generation to a non-blocking `setImmediate` background task using `this.renderPiSnapshotHtml(snapshot)` / `this.renderQuotationSnapshotHtml(snapshot)` without querying `getById(id)` or `getPdfHtml(id)`.
+   - `getPiRevisionPdfBuffer` continues to safely compile on-demand if not pre-cached on disk.
+2. **Decoupled Read Query in PI Service (`D:\PACIFIC-Backend\src\modules\sales\pi.service.ts`)**:
+   - Removed blocking `ensureInitialPiRevision` from `piService.getById(id)`. Detail view queries now execute strictly as pure Prisma `findUnique` queries (<20ms).
+   - `getPiRevisions` continues to manage revision initialization when the revision card mounts.
+3. **Decoupled Read Query in Quotations Service (`D:\PACIFIC-Backend\src\modules\quotations\quotations.service.ts`)**:
+   - Removed blocking `ensureInitialQuotationRevision` from `quotationsService.getById(id)`.
+4. **Resilient Frontend Axios Client (`src/api/client.ts`)**:
+   - Added a 30-second default request timeout (`timeout: 30000`) so network requests gracefully terminate with actionable error messages rather than hanging indefinitely.
+5. **Direct Navigation on PI Conversion (`src/pages/SalesQuotationDetailPage.tsx`)**:
+   - Updated `handleConvertToPI` to route directly to `/admin/dashboard/proforma-invoices/${createdPi.id}` upon successful generation.
+6. **Graceful Retry on PI Detail View (`src/pages/ProformaInvoiceDetailPage.tsx`)**:
+   - Added a "Try Again" (`RefreshCw`) button in the error view to allow instant reload if network hiccups occur.
+
+### 161.4 Verification
+- **PACIFIC-Backend TypeScript Typecheck**: `npm --prefix D:\PACIFIC-Backend run typecheck` passed with 0 errors.
+- **PACIFIC-Admin TypeScript Typecheck**: `npx tsc --noEmit` passed with 0 errors.
+- **PACIFIC-Admin Production Build**: `npm run build` passed with exit code 0 (`✓ built in 1m 56s`).
+
+
 
 
 

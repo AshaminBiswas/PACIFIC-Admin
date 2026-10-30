@@ -292,9 +292,14 @@ export default function SalesQuotationDetailPage() {
     setConverting(true);
     try {
       const res = await salesQuotationsApi.convertToPI(id);
-      const piNumber = (res.data?.data as any)?.piNumber || 'Proforma Invoice';
+      const createdPi = res.data?.data as any;
+      const piNumber = createdPi?.piNumber || 'Proforma Invoice';
       alert(`Successfully generated Proforma Invoice: ${piNumber}`);
-      navigate('/admin/dashboard/proforma-invoices');
+      if (createdPi?.id) {
+        navigate(`/admin/dashboard/proforma-invoices/${createdPi.id}`);
+      } else {
+        navigate('/admin/dashboard/proforma-invoices');
+      }
     } catch (err: any) {
       alert(err?.response?.data?.message || err?.message || 'Conversion to PI failed');
     } finally {
@@ -895,10 +900,14 @@ export default function SalesQuotationDetailPage() {
                   const customSpecs = ((item as any).customSpecsJson as any) || {};
                   const widthVal = customSpecs.width || (item.cubicleSize && item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*w/i)?.[1] ? `${item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*w/i)![1]}mm` : '') || '300mm';
                   const depthVal = customSpecs.depth || (item.cubicleSize && item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*d/i)?.[1] ? `${item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*d/i)![1]}mm` : '') || '450mm';
-                  const heightVal = item.overallHeight || customSpecs.height || (item.cubicleSize && item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)?.[1] ? `${item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)![1]}mm` : '') || `${tierRows * 600}mm`;
-                  const lockerDim = (item.cubicleSize && item.cubicleSize.includes('W') && !item.cubicleSize.toLowerCase().includes('doors'))
-                    ? item.cubicleSize
-                    : `${widthVal} W × ${depthVal} D × ${heightVal} H`;
+                  const rawHVal = item.overallHeight || customSpecs.height || (item.cubicleSize && item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)?.[1] ? `${item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)![1]}mm` : '') || '600mm';
+                  const parsedNumH = parseInt(String(rawHVal).replace(/[^0-9]/g, '')) || 600;
+                  const compHVal = parsedNumH < 1000 ? parsedNumH : (tierRows > 1 ? Math.round(parsedNumH / tierRows) : parsedNumH);
+                  const totalHVal = parsedNumH < 1000 ? (tierRows > 1 ? compHVal * tierRows : compHVal) : parsedNumH;
+
+                  const compDim = `${widthVal} W × ${depthVal} D × ${compHVal}mm H`;
+                  const overallDim = `${widthVal} W × ${depthVal} D × ${totalHVal}mm H`;
+                  const lockerDoorDisplay = item.doorSize || (tierRows > 1 ? `${tierRows} Tier Modular Doors (${widthVal} W × ${compHVal}mm H per door)` : `1 Tier Modular Door (${widthVal} W × ${compHVal}mm H)`);
 
                   return (
                     <tr key={item.id ?? idx} className="hover:bg-white/[0.02]">
@@ -915,13 +924,15 @@ export default function SalesQuotationDetailPage() {
                             {isLocker ? (
                               <>
                                 <div>• Configuration: <span className="text-purple-300 font-medium">{qty} Column(s) × {tierRows} Tier(s) ({qty * tierRows} Total Doors)</span></div>
-                                <div>• Locker Dimension: <span className="text-gray-300 font-medium">{lockerDim}</span></div>
-                                <div>• Height: <span className="text-gray-300 font-medium">{heightVal}</span></div>
+                                {tierRows > 1 && <div>• Overall Locker Dimension: <span className="text-gray-300 font-medium">{overallDim}</span></div>}
+                                <div>• {tierRows > 1 ? 'Compartment Dimension' : 'Locker Dimension'}: <span className="text-gray-300 font-medium">{compDim}</span></div>
+                                <div>• Compartment / Door: <span className="text-gray-300 font-medium">{lockerDoorDisplay}</span></div>
+                                <div>• Compartment Height: <span className="text-gray-300 font-medium">{compHVal}mm</span></div>
+                                {tierRows > 1 && <div>• Overall Height: <span className="text-gray-300 font-medium">{totalHVal}mm</span></div>}
                                 <div>• Width: <span className="text-gray-300 font-medium">{widthVal}</span></div>
                                 <div>• Depth: <span className="text-gray-300 font-medium">{depthVal}</span></div>
                                 {item.boardThickness && <div>• Thickness: <span className="text-gray-300 font-medium">{item.boardThickness}</span></div>}
                                 {item.boardColor && <div>• Color: <span className="text-gray-300 font-medium">{item.boardColor}</span></div>}
-                                {item.doorSize && <div>• Compartment / Door: <span className="text-gray-300 font-medium">{item.doorSize}</span></div>}
                               </>
                             ) : (
                               <>

@@ -76,20 +76,32 @@ function parseItemSpecs(item: any) {
     const cols = Number(item.quantity) || 1;
     const widthVal = specsJson.width || (cubicleSize && cubicleSize.match(/(\d+)\s*(?:mm)?\s*w/i)?.[1] ? `${cubicleSize.match(/(\d+)\s*(?:mm)?\s*w/i)![1]}mm` : '') || '300mm';
     const depthVal = specsJson.depth || (cubicleSize && cubicleSize.match(/(\d+)\s*(?:mm)?\s*d/i)?.[1] ? `${cubicleSize.match(/(\d+)\s*(?:mm)?\s*d/i)![1]}mm` : '') || '450mm';
-    const heightVal = overallHeight || specsJson.height || (cubicleSize && cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)?.[1] ? `${cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)![1]}mm` : '') || `${tierRows * 600}mm`;
-    const lockerDim = (cubicleSize && cubicleSize.includes('W') && !cubicleSize.toLowerCase().includes('doors'))
-      ? cubicleSize
-      : `${widthVal} W × ${depthVal} D × ${heightVal} H`;
+    const rawHVal = overallHeight || specsJson.height || (cubicleSize && cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)?.[1] ? `${cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)![1]}mm` : '') || '600mm';
+    const parsedNumH = parseInt(String(rawHVal).replace(/[^0-9]/g, '')) || 600;
+    const compHVal = parsedNumH < 1000 ? parsedNumH : (tierRows > 1 ? Math.round(parsedNumH / tierRows) : parsedNumH);
+    const totalHVal = parsedNumH < 1000 ? (tierRows > 1 ? compHVal * tierRows : compHVal) : parsedNumH;
+
+    const compDim = `${widthVal} W × ${depthVal} D × ${compHVal}mm H`;
+    const overallDim = `${widthVal} W × ${depthVal} D × ${totalHVal}mm H`;
+    const lockerDoorDisplay = doorSize || (tierRows > 1 ? `${tierRows} Tier Modular Doors (${widthVal} W × ${compHVal}mm H per door)` : `1 Tier Modular Door (${widthVal} W × ${compHVal}mm H)`);
 
     specs.push({ label: 'Configuration', value: `${cols} Column(s) × ${tierRows} Tier(s) (${cols * tierRows} Total Doors)` });
-    specs.push({ label: 'Locker Dimension', value: lockerDim });
-    specs.push({ label: 'Height', value: heightVal });
+    if (tierRows > 1) {
+      specs.push({ label: 'Overall Locker Dimension', value: overallDim });
+      specs.push({ label: 'Compartment Dimension', value: compDim });
+    } else {
+      specs.push({ label: 'Locker Dimension', value: compDim });
+    }
+    specs.push({ label: 'Compartment / Door', value: lockerDoorDisplay });
+    specs.push({ label: 'Compartment Height', value: `${compHVal}mm` });
+    if (tierRows > 1) {
+      specs.push({ label: 'Overall Height', value: `${totalHVal}mm` });
+    }
     specs.push({ label: 'Width', value: widthVal });
     specs.push({ label: 'Depth', value: depthVal });
     if (boardType) specs.push({ label: 'Board Type', value: boardType });
     if (boardThickness) specs.push({ label: 'Board Thickness', value: boardThickness });
     if (boardColor) specs.push({ label: 'Board Color', value: boardColor });
-    if (doorSize) specs.push({ label: doorLabel, value: doorSize });
   } else {
     if (boardType) specs.push({ label: 'Board Type', value: boardType });
     if (boardThickness) specs.push({ label: 'Board Thickness', value: boardThickness });
