@@ -258,7 +258,7 @@ export const AsyncReportExportModal: React.FC<AsyncReportExportModalProps> = ({ 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {[
                     { id: 'TRANSACTIONS', title: 'Complete Transaction Ledger', desc: 'All Sales, Purchases & Collections' },
-                    { id: 'SALES_SUMMARY', title: 'Sales & Proforma Invoices', desc: 'Customer invoices, GST & totals' },
+                    { id: 'SALES_SUMMARY', title: 'Sales & Proforma Invoices', desc: 'Customer invoices (Converted PIs), GST & totals' },
                     { id: 'PURCHASE_SUMMARY', title: 'Procurement & POs', desc: 'Vendor orders, GST & costs' },
                     { id: 'PROFIT_LOSS', title: 'Profit & Loss Statement', desc: 'Revenue, direct costs & gross margins' },
                     { id: 'OUTSTANDING_RECEIVABLES', title: 'Outstanding Aging Report', desc: 'Receivables & payables aging' },

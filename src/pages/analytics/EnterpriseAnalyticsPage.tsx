@@ -137,7 +137,7 @@ export const EnterpriseAnalyticsPage: React.FC = () => {
             </h1>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Real-time financial performance, multi-period comparative analytics, and enterprise transaction intelligence.
+            Real-time financial performance, multi-period comparative analytics, and enterprise transaction intelligence (Sales strictly considers Converted PIs).
           </p>
         </div>
 
@@ -188,7 +188,12 @@ export const EnterpriseAnalyticsPage: React.FC = () => {
         {/* KPI 1: Gross Sales / Revenue */}
         <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 shadow-lg relative overflow-hidden group hover:border-slate-700 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Sales & Invoiced Revenue</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs font-medium text-slate-400">Sales Revenue</span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-lime-500/15 text-lime-400 border border-lime-500/30">
+                Converted PIs
+              </span>
+            </div>
             <div className="p-2 rounded-xl bg-lime-500/10 text-lime-400 border border-lime-500/20">
               <DollarSign className="w-4 h-4" />
             </div>
@@ -435,8 +440,8 @@ export const EnterpriseAnalyticsPage: React.FC = () => {
                 <Users className="w-4 h-4" />
               </span>
               <div>
-                <h3 className="text-sm font-bold text-white">Top 10 Clients by Invoiced Revenue</h3>
-                <p className="text-xs text-slate-400">Ranked by proforma invoice volume in selected period</p>
+                <h3 className="text-sm font-bold text-white">Top 10 Clients by Converted Revenue</h3>
+                <p className="text-xs text-slate-400">Ranked by converted proforma invoice volume in selected period</p>
               </div>
             </div>
           </div>
@@ -532,9 +537,12 @@ export const EnterpriseAnalyticsPage: React.FC = () => {
       <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
               <Receipt className="w-4 h-4 text-lime-400" />
               <span>Synchronized Transaction Ledger</span>
+              <span className="text-[10px] font-semibold text-lime-400 bg-lime-500/10 px-2 py-0.5 rounded border border-lime-500/20">
+                Sales: Converted PIs Only
+              </span>
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
               Filtered to exact period: {resolvedPeriod.startDateLocal} to {resolvedPeriod.endDateLocal}

@@ -8852,6 +8852,38 @@ Implemented an enterprise-grade reporting and high-concurrency analytics archite
   9. Asynchronous queue prevents heavy report exports from blocking ERP threads.
   10. P95 latency targets ($< 2$s dashboard, $< 3$s filtered analytics) and metrics instrumented.
 
+---
+
+## 164. Strict Converted PI Status Enforcement in Enterprise Analytics & Reporting
+
+### 164.1 Requirement & Business Logic
+Enforced that the **Enterprise Analytics & Reporting** engine only considers **Converted Proforma Invoices** (`status: 'CONVERTED'`). Draft, Issued, and Cancelled PIs are strictly excluded from all sales aggregations, revenue trends, customer rankings, transaction ledgers, and exports to reflect only realized and converted B2B orders.
+
+### 164.2 Backend Implementation (`D:\PACIFIC-Backend`)
+1. **Current & Prior Period Sales Aggregates (`analytics.service.ts`)**:
+   - Updated `prisma.proformaInvoice.aggregate` filters to enforce `status: 'CONVERTED'` for both current and prior periods.
+2. **Product Category Distribution**:
+   - Filtered `prisma.proformaInvoiceItem.findMany` where `proformaInvoice: { status: 'CONVERTED' }`.
+3. **Top 10 Clients by Revenue**:
+   - Filtered `prisma.proformaInvoice.groupBy` where `status: 'CONVERTED'`.
+4. **Time-Series Financial Trend Buckets**:
+   - Filtered `subPis` where `status: 'CONVERTED'`.
+5. **Synchronized Transaction Ledger Query**:
+   - Filtered `prisma.proformaInvoice.findMany` where `status: 'CONVERTED'`.
+6. **Asynchronous Report Queue Worker (`reportQueue.service.ts`)**:
+   - Heavy Excel and CSV report queries now filter `proformaInvoice` where `status: 'CONVERTED'`.
+
+### 164.3 Admin Console UI Reflectivity (`d:\PACIFIC-Admin`)
+1. **Sales Revenue KPI Card**: Added clear visual badge `Converted PIs` indicating verified conversion.
+2. **Top Clients Ranking**: Updated title to **Top 10 Clients by Converted Revenue**.
+3. **Transaction Ledger Table**: Added badge indicator `Sales: Converted PIs Only`.
+4. **Async Export Modal**: Clarified `Sales & Proforma Invoices (Converted PIs)`.
+
+### 164.4 Verification
+- **PACIFIC-Backend TypeScript Typecheck**: Passed with 0 errors (`tsc --noEmit`).
+- **PACIFIC-Admin TypeScript Typecheck**: Passed with 0 errors (`npx tsc --noEmit`).
+- **PACIFIC-Admin Production Build**: Passed with exit code 0.
+
 
 
 
