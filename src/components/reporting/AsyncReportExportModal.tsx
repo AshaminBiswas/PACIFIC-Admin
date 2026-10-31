@@ -257,9 +257,9 @@ export const AsyncReportExportModal: React.FC<AsyncReportExportModalProps> = ({ 
                 <label className="text-xs font-semibold text-slate-300 block mb-1.5">Select Report Type</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {[
-                    { id: 'TRANSACTIONS', title: 'Complete Transaction Ledger', desc: 'All Sales, Purchases & Collections' },
-                    { id: 'SALES_SUMMARY', title: 'Sales & Proforma Invoices', desc: 'Customer invoices (Converted PIs), GST & totals' },
-                    { id: 'PURCHASE_SUMMARY', title: 'Procurement & POs', desc: 'Vendor orders, GST & costs' },
+                    { id: 'TRANSACTIONS', title: 'Complete Transaction Ledger', desc: 'All Daily Sales, Purchases & Collections' },
+                    { id: 'SALES_SUMMARY', title: 'Daily Sales Report', desc: 'Direct customer sales, GST & revenue (Delinked from PI)' },
+                    { id: 'PURCHASE_SUMMARY', title: 'Daily Purchases Report', desc: 'Direct vendor purchases, GST & procurement costs' },
                     { id: 'PROFIT_LOSS', title: 'Profit & Loss Statement', desc: 'Revenue, direct costs & gross margins' },
                     { id: 'OUTSTANDING_RECEIVABLES', title: 'Outstanding Aging Report', desc: 'Receivables & payables aging' },
                     { id: 'GST_RECONCILIATION', title: 'GST Tax Summary', desc: 'CGST, SGST, IGST tax breakdown' },

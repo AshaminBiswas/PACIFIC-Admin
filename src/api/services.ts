@@ -7,4 +7,5 @@ export * from './index';
 export { mailApi } from './mailApi';
 export { currencyApi } from './currencyApi';
 export { analyticsApi } from './analyticsApi';
+export { dailySalesPurchasesApi } from './dailySalesPurchasesApi';
 export { default } from './client';

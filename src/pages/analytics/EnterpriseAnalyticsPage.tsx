@@ -23,6 +23,7 @@ import {
   RefreshCw,
   SlidersHorizontal,
   ShieldCheck,
+  PlusCircle,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -43,6 +44,7 @@ import { useReportingPeriod } from '../../context/ReportingPeriodContext';
 import { ReportingPeriodBar } from '../../components/reporting/ReportingPeriodBar';
 import { PeriodComparisonBadge } from '../../components/reporting/PeriodComparisonBadge';
 import { AsyncReportExportModal } from '../../components/reporting/AsyncReportExportModal';
+import { AddEditDailySalesPurchaseModal } from '../../components/daily-reports/AddEditDailySalesPurchaseModal';
 import { analyticsApi } from '../../api/analyticsApi';
 import {
   DashboardAnalyticsResponse,
@@ -54,7 +56,7 @@ import { formatCurrency, formatDate } from '../../utils/formatters';
 const PIE_COLORS = ['#84cc16', '#10b981', '#06b6d4', '#6366f1', '#f59e0b', '#ec4899', '#8b5cf6'];
 
 export const EnterpriseAnalyticsPage: React.FC = () => {
-  const { selection, resolvedPeriod, refreshCount, isRefreshing } = useReportingPeriod();
+  const { selection, resolvedPeriod, refreshCount, isRefreshing, triggerRefresh } = useReportingPeriod();
 
   const [analyticsData, setAnalyticsData] = useState<DashboardAnalyticsResponse | null>(null);
   const [ledgerData, setLedgerData] = useState<TransactionLedgerResponse | null>(null);
@@ -65,6 +67,7 @@ export const EnterpriseAnalyticsPage: React.FC = () => {
   const [ledgerType, setLedgerType] = useState<'ALL' | 'SALES' | 'PURCHASE' | 'PAYMENT'>('ALL');
   const [ledgerPage, setLedgerPage] = useState<number>(1);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+  const [isDailyModalOpen, setIsDailyModalOpen] = useState<boolean>(false);
 
   // Fetch Dashboard Analytics whenever selected period changes
   const loadAnalytics = useCallback(async () => {
@@ -137,12 +140,12 @@ export const EnterpriseAnalyticsPage: React.FC = () => {
             </h1>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Real-time financial performance, multi-period comparative analytics, and enterprise transaction intelligence (Sales strictly considers Converted PIs).
+            Real-time financial performance, multi-period comparative analytics, and enterprise transaction intelligence (Daily Sales & Purchases delinked from PI).
           </p>
         </div>
 
-        {/* Scalability & Timing Badges */}
-        <div className="flex items-center gap-2 self-start md:self-auto">
+        {/* Scalability & Action Badges */}
+        <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
           {analyticsData && (
             <span
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-800/80 border border-slate-700/80 text-slate-300"
@@ -158,17 +161,21 @@ export const EnterpriseAnalyticsPage: React.FC = () => {
             </span>
           )}
 
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-950/40 border border-emerald-500/30 text-emerald-400">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>P95 &lt; 2s Target</span>
-          </span>
+          <button
+            type="button"
+            onClick={() => setIsDailyModalOpen(true)}
+            className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-lime-500 hover:bg-lime-400 text-slate-950 shadow-md shadow-lime-500/20 flex items-center gap-1.5 transition-all"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>+ Add Daily Entry</span>
+          </button>
 
           <button
             type="button"
             onClick={() => setIsExportModalOpen(true)}
-            className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-lime-500 hover:bg-lime-400 text-slate-950 shadow-md shadow-lime-500/20 flex items-center gap-1.5 transition-all"
+            className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 flex items-center gap-1.5 transition-all"
           >
-            <FileSpreadsheet className="w-4 h-4" />
+            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
             <span>Export Report</span>
           </button>
         </div>
@@ -191,7 +198,7 @@ export const EnterpriseAnalyticsPage: React.FC = () => {
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-xs font-medium text-slate-400">Sales Revenue</span>
               <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-lime-500/15 text-lime-400 border border-lime-500/30">
-                Converted PIs
+                Daily Sales (Delinked from PI)
               </span>
             </div>
             <div className="p-2 rounded-xl bg-lime-500/10 text-lime-400 border border-lime-500/20">
@@ -440,8 +447,8 @@ export const EnterpriseAnalyticsPage: React.FC = () => {
                 <Users className="w-4 h-4" />
               </span>
               <div>
-                <h3 className="text-sm font-bold text-white">Top 10 Clients by Converted Revenue</h3>
-                <p className="text-xs text-slate-400">Ranked by converted proforma invoice volume in selected period</p>
+                <h3 className="text-sm font-bold text-white">Top 10 Clients by Sales Revenue</h3>
+                <p className="text-xs text-slate-400">Ranked by manual daily sales volume in selected period (Delinked from PI)</p>
               </div>
             </div>
           </div>
@@ -541,7 +548,7 @@ export const EnterpriseAnalyticsPage: React.FC = () => {
               <Receipt className="w-4 h-4 text-lime-400" />
               <span>Synchronized Transaction Ledger</span>
               <span className="text-[10px] font-semibold text-lime-400 bg-lime-500/10 px-2 py-0.5 rounded border border-lime-500/20">
-                Sales: Converted PIs Only
+                Daily Sales & Purchases (Delinked from PI)
               </span>
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -662,6 +669,19 @@ export const EnterpriseAnalyticsPage: React.FC = () => {
       <AsyncReportExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
+      />
+
+      {/* Manual Daily Entry Modal */}
+      <AddEditDailySalesPurchaseModal
+        isOpen={isDailyModalOpen}
+        onClose={() => setIsDailyModalOpen(false)}
+        onSuccess={() => {
+          loadAnalytics();
+          loadLedger();
+          triggerRefresh();
+        }}
+        initialType="SALES"
+        initialDate={selection.date}
       />
     </div>
   );

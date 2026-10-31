@@ -11,6 +11,7 @@ const AdminLogin = lazyWithRetry(() => import('./pages/AdminLoginPage'));
 const AdminDashboard = lazyWithRetry(() => import('./pages/admin/AdminDashboard'));
 const AdminOverview = lazyWithRetry(() => import('./pages/admin/AdminOverview'));
 const EnterpriseAnalyticsPage = lazyWithRetry(() => import('./pages/analytics/EnterpriseAnalyticsPage'));
+const DailySalesPurchasePage = lazyWithRetry(() => import('./pages/daily-reports/DailySalesPurchasePage'));
 const AdminProducts = lazyWithRetry(() => import('./pages/admin/AdminProducts'));
 const AdminBlogs = lazyWithRetry(() => import('./pages/admin/AdminBlogs'));
 const AdminSolutions = lazyWithRetry(() => import('./pages/admin/AdminSolutions'));
@@ -184,6 +185,16 @@ export default function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <EnterpriseAnalyticsPage />
+                </Suspense>
+              }
+            />
+
+            {/* Daily Sales & Purchase Reporting & Manual Entry Hub */}
+            <Route
+              path="daily-reports"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <DailySalesPurchasePage />
                 </Suspense>
               }
             />

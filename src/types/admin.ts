@@ -4021,6 +4021,96 @@ export interface AsyncReportJob {
   completedAt?: string;
 }
 
+export interface DailySalesPurchaseItem {
+  id: string;
+  entryDate: string;
+  type: 'SALES' | 'PURCHASE';
+  amount: number;
+  taxAmount: number;
+  totalAmount: number;
+  referenceNo?: string | null;
+  partyName?: string | null;
+  customerId?: string | null;
+  customer?: {
+    id: string;
+    party: {
+      id: string;
+      tradeName?: string | null;
+      legalName?: string | null;
+      gstin?: string | null;
+      phone?: string | null;
+      email?: string | null;
+    };
+  } | null;
+  vendorId?: string | null;
+  vendor?: {
+    id: string;
+    party: {
+      id: string;
+      tradeName?: string | null;
+      legalName?: string | null;
+      gstin?: string | null;
+      phone?: string | null;
+      email?: string | null;
+    };
+  } | null;
+  category?: string | null;
+  description?: string | null;
+  paymentMode: string;
+  paymentStatus: string;
+  companyProfileId?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateDailySalesPurchasePayload {
+  entryDate: string;
+  type: 'SALES' | 'PURCHASE';
+  amount: number;
+  taxAmount?: number;
+  totalAmount?: number;
+  referenceNo?: string;
+  partyName?: string;
+  customerId?: string;
+  vendorId?: string;
+  category?: string;
+  description?: string;
+  paymentMode?: string;
+  paymentStatus?: string;
+  companyProfileId?: string;
+}
+
+export interface DailySalesPurchaseSummaryResponse {
+  totalSales: number;
+  salesCount: number;
+  totalPurchases: number;
+  purchaseCount: number;
+  grossProfit: number;
+  marginPct: number;
+  dailyBreakdown: Array<{
+    date: string;
+    sales: number;
+    purchases: number;
+    netProfit: number;
+  }>;
+  categoryBreakdown: Array<{
+    name: string;
+    amount: number;
+    percentage: number;
+  }>;
+}
+
+export interface DailySalesPurchaseListResponse {
+  items: DailySalesPurchaseItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 
 
 
