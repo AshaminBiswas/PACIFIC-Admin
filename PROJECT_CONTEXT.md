@@ -9118,7 +9118,10 @@ Enforced that the **Enterprise Analytics & Reporting** engine only considers **C
    - Dynamic branch creation & editing modal with opening balance and status.
 3. **`AddEditBranchTransactionModal.tsx` (`src/components/branch-ledger/`)**:
    - Quick toggle between **Credit (+ Inflow)** and **Debit (- Outflow)**.
-   - Branch selector, date picker (Today/Yesterday quick buttons), amount, category chips, party name, reference #, payment mode, and narration.
+   - **Dual-Mode Party Selector ("Received From (Payer)" & "Paid To (Payee)")**:
+     - **Mode 1 ("Search B2B Customer / Vendor")**: Searchable combobox querying active B2B Customers (`crmApi.listCustomers`) and Vendors (`vendorsApi.listVendors`) in real time by Trade Name, Legal Name, GSTIN, Phone, and City. Selecting a customer presents a badge card with legal/trade name, GSTIN, and change options.
+     - **Mode 2 ("Custom Write Name")**: Direct text input allowing manual/custom payer/payee entry with one-click suggestion preset chips (e.g. *Head Office Remittance, Cash Client, Scrap Buyer, Bank Deposit* for Credits; *Site Transporter, Office Landlord, Daily Labor Contractor, Electricity Board, Petty Cash Incharge* for Debits).
+   - Branch selector, date picker (Today/Yesterday quick buttons), amount, category chips, reference #, payment mode, and narration.
 4. **`BranchLedgerPdfModal.tsx` (`src/components/branch-ledger/`)**:
    - Live A4 preview modal with "Download PDF" (Blob download) and "Print / Save as PDF".
 5. **`BranchLedgerPage.tsx` (`src/pages/branch-ledger/`)**:
