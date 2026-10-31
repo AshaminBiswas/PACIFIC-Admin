@@ -8,4 +8,5 @@ export { mailApi } from './mailApi';
 export { currencyApi } from './currencyApi';
 export { analyticsApi } from './analyticsApi';
 export { dailySalesPurchasesApi } from './dailySalesPurchasesApi';
+export { branchLedgerApi } from './branchLedgerApi';
 export { default } from './client';

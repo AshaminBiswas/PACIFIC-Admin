@@ -4111,6 +4111,137 @@ export interface DailySalesPurchaseListResponse {
   };
 }
 
+// ─── Dynamic Branch & Debit/Credit Ledger Types ─────────────────────────────
+
+export interface BranchItem {
+  id: string;
+  code: string;
+  name: string;
+  city: string;
+  state: string;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  contactPerson?: string | null;
+  openingBalance: number;
+  currentBalance: number;
+  totalCredits?: number;
+  totalDebits?: number;
+  netFlow?: number;
+  transactionCount?: number;
+  isDefault: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateBranchPayload {
+  name: string;
+  code?: string;
+  city: string;
+  state: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  contactPerson?: string;
+  openingBalance?: number;
+  isDefault?: boolean;
+  isActive?: boolean;
+}
+
+export interface BranchTransactionItem {
+  id: string;
+  branchId: string;
+  branchName?: string;
+  branchCode?: string;
+  branchCity?: string;
+  entryDate: string;
+  type: 'CREDIT' | 'DEBIT';
+  amount: number;
+  runningBalance: number;
+  category: string;
+  partyName: string;
+  partyType?: string | null;
+  referenceNo?: string | null;
+  paymentMode: string;
+  paymentStatus: string;
+  description?: string | null;
+  voucherUrl?: string | null;
+  createdAt: string;
+}
+
+export interface CreateBranchTransactionPayload {
+  branchId: string;
+  entryDate: string;
+  type: 'CREDIT' | 'DEBIT';
+  amount: number;
+  category: string;
+  partyName: string;
+  partyType?: string;
+  referenceNo?: string;
+  paymentMode?: string;
+  paymentStatus?: string;
+  description?: string;
+  voucherUrl?: string;
+}
+
+export interface BranchLedgerSummaryResponse {
+  branchId: string;
+  branchName: string;
+  openingBalance: number;
+  totalCredits: number;
+  totalDebits: number;
+  netCashFlow: number;
+  closingBalance: number;
+  totalTransactions: number;
+  cashPosition: {
+    credits: number;
+    debits: number;
+    net: number;
+  };
+  bankPosition: {
+    credits: number;
+    debits: number;
+    net: number;
+  };
+  creditCategories: Array<{
+    name: string;
+    amount: number;
+    percentage: number;
+  }>;
+  debitCategories: Array<{
+    name: string;
+    amount: number;
+    percentage: number;
+  }>;
+  dailyTimeline: Array<{
+    date: string;
+    credit: number;
+    debit: number;
+  }>;
+  branchesOverview: Array<{
+    id: string;
+    code: string;
+    name: string;
+    city: string;
+    credits: number;
+    debits: number;
+    netFlow: number;
+    currentBalance: number;
+  }>;
+}
+
+export interface BranchTransactionListResponse {
+  items: BranchTransactionItem[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
+
 
 
 

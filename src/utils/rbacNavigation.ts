@@ -40,6 +40,9 @@ export const PATH_PERMISSIONS: Record<string, UserRole[]> = {
   '/admin/dashboard/inventory/store': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'PROCUREMENT_MANAGER', 'VIEWER'],
 
   // ─── CRM & Finance ────────────────────────────────────────────────────────
+  '/admin/dashboard/analytics': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'SALES_MANAGER', 'VIEWER'],
+  '/admin/dashboard/daily-reports': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'SALES_MANAGER', 'VIEWER'],
+  '/admin/dashboard/branch-ledger': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'SALES_MANAGER', 'VIEWER'],
   '/admin/dashboard/customers': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'FINANCE_OFFICER', 'VIEWER'],
   '/admin/dashboard/payments': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'VIEWER'],
   '/admin/dashboard/installer-payments': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'SALES_MANAGER', 'VIEWER'],

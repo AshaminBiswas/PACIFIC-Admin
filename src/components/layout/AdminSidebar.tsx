@@ -77,6 +77,7 @@ export const procurementNavItems = [
 export const crmFinanceNavItems = [
   { name: 'Analytics & Reporting', path: '/admin/dashboard/analytics', icon: BarChart3 },
   { name: 'Daily Sales & Purchase', path: '/admin/dashboard/daily-reports', icon: Receipt },
+  { name: 'Branch Debit & Credit', path: '/admin/dashboard/branch-ledger', icon: Building2 },
   { name: 'B2B Customers', path: '/admin/dashboard/customers', icon: Users },
   { name: 'Pacific Mail', path: '/admin/dashboard/mail', icon: Mail },
   { name: 'Payments & Ledger', path: '/admin/dashboard/payments', icon: CreditCard },

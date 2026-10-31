@@ -12,6 +12,7 @@ const AdminDashboard = lazyWithRetry(() => import('./pages/admin/AdminDashboard'
 const AdminOverview = lazyWithRetry(() => import('./pages/admin/AdminOverview'));
 const EnterpriseAnalyticsPage = lazyWithRetry(() => import('./pages/analytics/EnterpriseAnalyticsPage'));
 const DailySalesPurchasePage = lazyWithRetry(() => import('./pages/daily-reports/DailySalesPurchasePage'));
+const BranchLedgerPage = lazyWithRetry(() => import('./pages/branch-ledger/BranchLedgerPage'));
 const AdminProducts = lazyWithRetry(() => import('./pages/admin/AdminProducts'));
 const AdminBlogs = lazyWithRetry(() => import('./pages/admin/AdminBlogs'));
 const AdminSolutions = lazyWithRetry(() => import('./pages/admin/AdminSolutions'));
@@ -195,6 +196,16 @@ export default function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <DailySalesPurchasePage />
+                </Suspense>
+              }
+            />
+
+            {/* Branch Debit & Credit Management Hub */}
+            <Route
+              path="branch-ledger"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <BranchLedgerPage />
                 </Suspense>
               }
             />

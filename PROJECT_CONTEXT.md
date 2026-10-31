@@ -9044,6 +9044,102 @@ Enforced that the **Enterprise Analytics & Reporting** engine only considers **C
 - **Production Build (`npm run build`)**: Vite production bundle built successfully in 28.73s with exit code 0.
 - **Cross-Stack Sync**: Endpoints documented in `src/api/dailySalesPurchasesApi.ts`, exported in `src/api/services.ts`, and types mapped in `src/types/admin.ts`.
 
+---
+
+## 168. Dynamic Branch Debit & Credit Management System & PDF Reporting Engine
+
+### 168.1 Business Requirements & Architectural Design
+1. **Dynamic Regional Branch Management**:
+   - Multi-branch accounting enabling on-the-fly branch creation and modification (Branch Name, Unique Code, City, State, Full Address, Phone, Email, Contact Person / Branch Manager, Starting Opening Balance, Active toggle, and Central Default HQ toggle).
+   - Pre-seeded with regional operations hubs: Delhi Main Plant & Central Warehouse (`DELHI`), Kolkata Regional Hub (`KOLKATA`), Mumbai Western Branch (`MUMBAI`), and Bengaluru South Branch (`BLR`).
+2. **Branch Debit & Credit Book Ledger**:
+   - **Credit (+ Inflow)**: Sales collections, Head Office fund remittances, Customer advances, Scrap/asset sales, Bank interest, and miscellaneous receipts.
+   - **Debit (- Outflow)**: Local material purchases, Transporters & freight, Site installation expenses, Branch rent & electricity, Petty cash operational expenses, Labor & fabrication wages, Office stationary, and staff travel.
+   - **Progressive Running Balance**: Every transaction computes and records the progressive running book balance:
+     $$\text{Running Balance} = \text{Previous Balance} + \text{Credit Amount} - \text{Debit Amount}$$
+   - **Cash vs Digital Position**: Tracks Cash / Petty Cash vs Digital Bank instruments (UPI, IMPS, NEFT/RTGS, Cheque).
+3. **Consolidated Multi-Branch & Individual View**:
+   - Dedicated Branch Switcher allowing users to toggle between **Consolidated All Branches** and any specific dynamic branch with live current balance badges.
+4. **Interactive & Downloadable Reporting**:
+   - Presentation-grade vector A4 PDF export with embedded SVG Pie Chart, SVG Comparison Bar Chart, Financial Realization Flow Diagram, and high-contrast color-coded tables.
+   - One-click CSV and Excel spreadsheet download of the current ledger dataset.
+
+### 168.2 Database Architecture & Prisma Models
+- **`branches` Table**:
+  - `id`: Text (Primary Key)
+  - `code`: Text (Unique uppercase branch code)
+  - `name`, `city`, `state`, `address`, `phone`, `email`, `contact_person`
+  - `opening_balance`: Numeric(14, 2)
+  - `current_balance`: Numeric(14, 2)
+  - `is_default`, `is_active`, `company_profile_id`, `created_at`, `updated_at`
+- **`branch_transactions` Table**:
+  - `id`: UUID (Primary Key, `gen_random_uuid()`)
+  - `branch_id`: Text (Foreign Key referencing `branches(id)` on delete cascade)
+  - `entry_date`: Date (`@db.Date`)
+  - `type`: `CREDIT` | `DEBIT`
+  - `amount`: Numeric(14, 2)
+  - `running_balance`: Numeric(14, 2)
+  - `category`: Text
+  - `party_name`: Text (Customer / Vendor / Employee / Bank / HO)
+  - `party_type`: Text?
+  - `reference_no`: Text? (Voucher / Bill / UTR / Cheque #)
+  - `payment_mode`: `BANK_TRANSFER`, `UPI`, `CASH`, `CHEQUE`, `NEFT_RTGS`
+  - `payment_status`: `CLEARED`, `PENDING`, `RECONCILED`
+  - `description`: Text (Particulars / Narration)
+  - `voucher_url`, `created_by`, `company_profile_id`, `created_at`, `updated_at`, `deleted_at`
+- **Database Indexes**:
+  - `idx_branch_tx_branch_id`, `idx_branch_tx_entry_date`, `idx_branch_tx_branch_date`, `idx_branch_tx_type`, `idx_branch_tx_branch_type`, `idx_branch_tx_category`, `idx_branch_tx_deleted_at`.
+- Synced into both `D:\PACIFIC-Backend\prisma\schema.prisma` and `d:\PACIFIC-Admin\prisma\schema.prisma`.
+
+### 168.3 Backend Implementation (`D:\PACIFIC-Backend\src\modules\branch-ledger`)
+- **`branchLedger.service.ts`**:
+  - `getBranches()`: Live balance calculation and transaction count for each branch.
+  - `createBranch()` / `updateBranch()`: Dynamic branch provisioning with mirror sync to `hardware_branches`.
+  - `getTransactions()`: Multi-filtered query with date range, branch, type, category, mode, and search.
+  - `createTransaction()`: Atomic database transaction (`$transaction`) updating branch `currentBalance` and stamping `runningBalance`.
+  - `updateTransaction()` / `deleteTransaction()`: Dynamic adjustment and soft-delete balance reversal.
+  - `getSummary()`: Financial period opening balance, credits, debits, net flow, closing balance, payment mode split, category distribution, and daily timelines.
+- **`branchLedgerPdf.service.ts`**:
+  - Generates standalone vector A4 HTML document featuring:
+    - Pure vector SVG Pie Chart (PIChart) for inflow and expense categories.
+    - Pure vector SVG Bar Graph for Daily Credits (Green `#16a34a`) vs Daily Debits (Red `#e11d48`).
+    - Flow Diagram: Opening Balance $\rightarrow$ Add Credits $\rightarrow$ Deduct Debits $\rightarrow$ Closing Balance.
+    - Distinctly color-coded ledger table (Green rows for Credits, Red/Rose rows for Debits, Running Balance column, summary footer).
+    - Sticky print toolbar for direct browser printing and binary PDF download.
+- **`branchLedger.controller.ts` & `branchLedger.routes.ts`**:
+  - Endpoints mounted at `/api/v1/branch-ledger`.
+
+### 168.4 Frontend Implementation (`d:\PACIFIC-Admin`)
+1. **API Layer (`src/api/branchLedgerApi.ts`)**:
+   - `getBranches()`, `getBranchById()`, `createBranch()`, `updateBranch()`, `getTransactions()`, `createTransaction()`, `updateTransaction()`, `deleteTransaction()`, `getSummary()`, `getPdfUrl()`, `getPdfHtml()`, `downloadPdfBlob()`.
+   - Exported in `src/api/services.ts` and `src/api/index.ts` (satisfying Directive 4).
+   - Types defined in `src/types/admin.ts`.
+2. **`AddEditBranchModal.tsx` (`src/components/branch-ledger/`)**:
+   - Dynamic branch creation & editing modal with opening balance and status.
+3. **`AddEditBranchTransactionModal.tsx` (`src/components/branch-ledger/`)**:
+   - Quick toggle between **Credit (+ Inflow)** and **Debit (- Outflow)**.
+   - Branch selector, date picker (Today/Yesterday quick buttons), amount, category chips, party name, reference #, payment mode, and narration.
+4. **`BranchLedgerPdfModal.tsx` (`src/components/branch-ledger/`)**:
+   - Live A4 preview modal with "Download PDF" (Blob download) and "Print / Save as PDF".
+5. **`BranchLedgerPage.tsx` (`src/pages/branch-ledger/`)**:
+   - Master hub mounted at `/admin/dashboard/branch-ledger`.
+   - Dynamic branch pill switcher with live balance badges and "+ Add New Branch" action.
+   - Synchronized with `ReportingPeriodBar` (Today, Yesterday, Current Week, Month, Quarter, FY, Custom Range).
+   - 5 KPI Cards: Opening Balance, Total Credits, Total Debits, Net Cash Flow, Closing Book Balance.
+   - Cash vs Digital position gauges.
+   - Search, category filter, payment mode filter, tabs (`ALL`, `CREDIT`, `DEBIT`), table with green/red row styling, running balance, and CSV export.
+6. **Navigation & RBAC Sync**:
+   - Route registered in `App.tsx` (`/admin/dashboard/branch-ledger`).
+   - Added to `crmFinanceNavItems` in `AdminSidebar.tsx`.
+   - Mapped in `rbacNavigation.ts` for authorized access.
+
+### 168.5 Quality Assurance & Directive Verification
+- **Zero TypeScript Errors (`npx tsc --noEmit`)**: Frontend passed with 0 errors.
+- **Backend Typecheck (`npm --prefix D:\PACIFIC-Backend run typecheck`)**: Passed with 0 errors.
+- **Frontend Production Build (`npm run build`)**: Vite production bundle built successfully in 31.96s with exit code 0 (`dist/assets/BranchLedgerPage-*.js`).
+- **Cross-Stack Sync**: Endpoints in `src/api/branchLedgerApi.ts`, exported in `src/api/services.ts`, and types mapped in `src/types/admin.ts`.
+
+
 
 
 
