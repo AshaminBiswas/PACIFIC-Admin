@@ -5,6 +5,7 @@ import {
   TrendingUp,
   PlusCircle,
   FileSpreadsheet,
+  Download,
   Search,
   Filter,
   Calendar,
@@ -24,6 +25,7 @@ import { useReportingPeriod } from '../../context/ReportingPeriodContext';
 import { ReportingPeriodBar } from '../../components/reporting/ReportingPeriodBar';
 import { AsyncReportExportModal } from '../../components/reporting/AsyncReportExportModal';
 import { AddEditDailySalesPurchaseModal } from '../../components/daily-reports/AddEditDailySalesPurchaseModal';
+import { DailyReportPdfModal } from '../../components/daily-reports/DailyReportPdfModal';
 import { dailySalesPurchasesApi } from '../../api/dailySalesPurchasesApi';
 import {
   DailySalesPurchaseItem,
@@ -53,6 +55,7 @@ export const DailySalesPurchasePage: React.FC = () => {
   const [modalInitialType, setModalInitialType] = useState<'SALES' | 'PURCHASE'>('SALES');
   const [editingItem, setEditingItem] = useState<DailySalesPurchaseItem | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
 
   // Fetch summary and list
   const loadData = useCallback(async () => {
@@ -162,11 +165,20 @@ export const DailySalesPurchasePage: React.FC = () => {
 
           <button
             type="button"
+            onClick={() => setIsPdfModalOpen(true)}
+            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md shadow-emerald-950/40 border border-emerald-500/30 flex items-center gap-1.5 transition-all"
+          >
+            <Download className="w-4 h-4" />
+            <span>Download PDF Report</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setIsExportModalOpen(true)}
             className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 flex items-center gap-1.5 transition-all"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-            <span>Export</span>
+            <span>Excel / CSV</span>
           </button>
         </div>
       </div>
@@ -518,6 +530,16 @@ export const DailySalesPurchasePage: React.FC = () => {
       <AsyncReportExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
+      />
+
+      {/* PDF Report Preview & Download Modal */}
+      <DailyReportPdfModal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        startDate={resolvedPeriod.startDate}
+        endDate={resolvedPeriod.endDate}
+        date={selection.date}
+        periodLabel={resolvedPeriod.label}
       />
     </div>
   );

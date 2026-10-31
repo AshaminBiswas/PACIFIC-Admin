@@ -8992,6 +8992,59 @@ Enforced that the **Enterprise Analytics & Reporting** engine only considers **C
 - **Frontend Production Build (`npm run build`)**: Passed with exit code 0 (`✓ built in 27.64s`).
 - **End-to-End Database & Calculation Verification**: Verified manual daily sale and purchase insertion, party resolution, period aggregations, and delinked analytics revenue calculation.
 
+---
+
+## 167. Advanced Vector PDF Report Engine for Daily Sales & Purchases (SVG Charts, Flow Diagram & Color-Coded Tables)
+
+### 167.1 Business Requirements & Visual Specifications
+1. **Interactive & Downloadable PDF Report**: Provision an executive, presentation-grade vector PDF export for Daily Sales and Purchases across any selected reporting period (Daily, Weekly, Monthly, Quarterly, Half-Yearly, Yearly, Financial Year, Custom Range).
+2. **Pure Vector SVG PIChart (Pie Chart)**:
+   - High-definition embedded SVG Donut/Pie Chart representing category sales distribution (Restroom Cubicles, Urinal Modesty Partitions, Modular Lockers, Hardware, Raw Materials, etc.).
+   - Exact mathematical arc calculation with slice hover/title tags, donut center cutout, and categorical legend with percentage shares and currency values.
+3. **Pure Vector SVG Comparison Bar Graph**:
+   - Visual timeline comparing Daily Sales (Emerald Green `#16a34a`) vs Daily Purchases (Amber `#f59e0b`) side-by-side.
+   - Dynamic Y-axis scale with dashed grid lines and formatted currency ticks (e.g., `₹50k`, `₹100k`).
+4. **Financial Realization Flow Diagram**:
+   - High-level executive flowchart showing Gross Sales Volume $\rightarrow$ Direct Procurement Spend $\rightarrow$ Gross Margin & Retained Profitability with margin percentage.
+5. **Distinct Color-Coded Tables**:
+   - **Daily Sales Table**: Deep Forest Green header (`#14532d` / `#166534`), light emerald alternating row striping (`#f0fdf4`), green borders, and bold customer names.
+   - **Daily Purchases Table**: Rust Amber header (`#7c2d12` / `#9a3412`), warm amber alternating row striping (`#fffbeb`), orange borders, and bold vendor names.
+   - **Product Category Distribution Table**: Royal Indigo header (`#312e81` / `#3730a3`), soft indigo alternating row striping (`#eef2ff`), and color swatch pills.
+   - Summary total footer rows with double borders and dark charcoal text.
+   - Payment status badges: Paid (Green), Partial (Amber), Unpaid (Red).
+
+### 167.2 Backend PDF Generation Engine (`D:\PACIFIC-Backend\src\modules\daily-sales-purchases`)
+- **`dailySalesPurchasesPdf.service.ts`**:
+  - `generateSvgPieChart(categories)`: Generates pure vector SVG pie/donut slices with trigonometric radian projection.
+  - `generateSvgBarChart(dailyBreakdown)`: Builds responsive SVG multi-bar comparison timeline with automatic scaling.
+  - `generateDailyReportHtml(params)`: Queries `DailySalesPurchase` where `deletedAt: null` across `entryDate` bounds and aggregates sales, purchases, gross profit, margin %, category breakdowns, and company branding (Company Legal Name, GSTIN, Address, Contacts).
+  - Produces standard A4 `@page` print stylesheet with `-webkit-print-color-adjust: exact`, page break avoidance, and floating sticky print toolbar.
+- **`dailySalesPurchases.controller.ts`**:
+  - `getPdf`: Dual mode endpoint. Serves binary PDF buffer via `htmlToPdfBuffer` (`?dl=1` or `?download=true`) with `Content-Disposition: attachment; filename="Daily_Sales_Purchase_Report_*.pdf"`, or returns standalone HTML preview document.
+- **`dailySalesPurchases.routes.ts`**: Mounted authenticated endpoint `GET /api/v1/daily-sales-purchases/pdf`.
+
+### 167.3 Frontend PDF Modal & Integration (`d:\PACIFIC-Admin`)
+1. **API Layer (`src/api/dailySalesPurchasesApi.ts`)**:
+   - `getPdfUrl(params)`: Generates authenticated PDF endpoint URL with query parameters (`startDate`, `endDate`, `date`, `dl`, `token`).
+   - `downloadPdfBlob(params)`: Direct Axios binary Blob download with auto-injected JWT Authorization header, generating a temporary object URL and programmatic trigger.
+   - `getPdfHtml(params)`: Fetches HTML text for direct iframe rendering.
+2. **`DailyReportPdfModal.tsx` (`src/components/daily-reports/`)**:
+   - High-fidelity modal displaying live A4 vector preview in an embedded iframe.
+   - Action controls:
+     - **"Print / Save as PDF"**: Direct `window.print()` trigger targeting the isolated iframe document.
+     - **"Download PDF"**: Blob download triggering direct `.pdf` file save with loading spinner and popup fallback.
+   - Responsive header displaying date range, active period label, and visual features badge.
+3. **Hub Integrations**:
+   - **`DailySalesPurchasePage.tsx`**: Prominent "Download PDF Report" action in header, passing active reporting period bounds.
+   - **`EnterpriseAnalyticsPage.tsx`**: Added "Download PDF Report" button alongside "+ Add Daily Entry" and "Export Excel/CSV", allowing immediate PDF report generation from the main analytics dashboard.
+
+### 167.4 Quality Assurance & Directive Verification
+- **Zero TypeScript Errors (`npx tsc --noEmit`)**: Frontend passed with 0 errors.
+- **Backend Typecheck (`npm --prefix D:\PACIFIC-Backend run typecheck`)**: Passed with 0 errors.
+- **Production Build (`npm run build`)**: Vite production bundle built successfully in 28.73s with exit code 0.
+- **Cross-Stack Sync**: Endpoints documented in `src/api/dailySalesPurchasesApi.ts`, exported in `src/api/services.ts`, and types mapped in `src/types/admin.ts`.
+
+
 
 
 

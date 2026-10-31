@@ -24,6 +24,7 @@ import {
   SlidersHorizontal,
   ShieldCheck,
   PlusCircle,
+  Download,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -45,6 +46,7 @@ import { ReportingPeriodBar } from '../../components/reporting/ReportingPeriodBa
 import { PeriodComparisonBadge } from '../../components/reporting/PeriodComparisonBadge';
 import { AsyncReportExportModal } from '../../components/reporting/AsyncReportExportModal';
 import { AddEditDailySalesPurchaseModal } from '../../components/daily-reports/AddEditDailySalesPurchaseModal';
+import { DailyReportPdfModal } from '../../components/daily-reports/DailyReportPdfModal';
 import { analyticsApi } from '../../api/analyticsApi';
 import {
   DashboardAnalyticsResponse,
@@ -68,6 +70,7 @@ export const EnterpriseAnalyticsPage: React.FC = () => {
   const [ledgerPage, setLedgerPage] = useState<number>(1);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [isDailyModalOpen, setIsDailyModalOpen] = useState<boolean>(false);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
 
   // Fetch Dashboard Analytics whenever selected period changes
   const loadAnalytics = useCallback(async () => {
@@ -172,11 +175,20 @@ export const EnterpriseAnalyticsPage: React.FC = () => {
 
           <button
             type="button"
+            onClick={() => setIsPdfModalOpen(true)}
+            className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/20 flex items-center gap-1.5 transition-all"
+          >
+            <Download className="w-4 h-4" />
+            <span>Download PDF Report</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setIsExportModalOpen(true)}
             className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 flex items-center gap-1.5 transition-all"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-            <span>Export Report</span>
+            <span>Export Excel/CSV</span>
           </button>
         </div>
       </div>
@@ -682,6 +694,16 @@ export const EnterpriseAnalyticsPage: React.FC = () => {
         }}
         initialType="SALES"
         initialDate={selection.date}
+      />
+
+      {/* Visual Vector PDF Report Modal with Graphs, Diagram, & Colored Tables */}
+      <DailyReportPdfModal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        startDate={resolvedPeriod.startDate}
+        endDate={resolvedPeriod.endDate}
+        date={selection.date}
+        periodLabel={resolvedPeriod.label}
       />
     </div>
   );
