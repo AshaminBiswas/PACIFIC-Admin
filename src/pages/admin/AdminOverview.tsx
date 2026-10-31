@@ -6,10 +6,13 @@ import {
   Package, FileText, Lightbulb, ImageIcon, MonitorPlay, Layers,
   LayoutTemplate, MessageSquare, Star, HelpCircle, Users, FileDown,
   ArrowRight, TrendingUp, ShoppingBag, Receipt, Truck, CreditCard,
-  Briefcase, QrCode, Building2
+  Briefcase, QrCode, Building2, BarChart3, FileSpreadsheet, Zap
 } from "lucide-react";
+import { ReportingPeriodBar } from "../../components/reporting/ReportingPeriodBar";
+import { useReportingPeriod } from "../../context/ReportingPeriodContext";
 
 export default function AdminOverview() {
+  const { resolvedPeriod } = useReportingPeriod();
   const [counts, setCounts] = useState<Record<string, number>>({
     products: 0,
     blogs: 0,
@@ -119,6 +122,36 @@ export default function AdminOverview() {
           <TrendingUp className="w-4 h-4 text-[#7FB706]" />
           <span>{allCards.reduce((sum, c) => sum + c.count, 0)} total items</span>
         </div>
+      </div>
+
+      {/* Centralized Reporting Period Selector */}
+      <ReportingPeriodBar className="mb-6" />
+
+      {/* Enterprise Analytics Hub Hero Link */}
+      <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-lime-950/40 via-slate-900 to-emerald-950/40 border border-lime-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-lime-500/20 text-lime-400 border border-lime-500/30">
+            <BarChart3 className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-white">Enterprise Reporting & Scalable Analytics Hub</h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-lime-500 text-slate-950">
+                10k-User Ready
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Active Period: <strong className="text-lime-300">{resolvedPeriod.label}</strong> ({resolvedPeriod.startDateLocal} to {resolvedPeriod.endDateLocal}). Synchronized across all financial cards.
+            </p>
+          </div>
+        </div>
+        <Link
+          to="/admin/dashboard/analytics"
+          className="self-start md:self-auto px-4 py-2 rounded-xl text-xs font-bold bg-lime-500 hover:bg-lime-400 text-slate-950 shadow-md shadow-lime-500/20 flex items-center gap-2 transition-all shrink-0"
+        >
+          <span>Open Full Analytics</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
       </div>
 
       {/* Section: Enterprise ERP Operations */}

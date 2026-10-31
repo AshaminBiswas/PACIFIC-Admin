@@ -45,6 +45,19 @@ function parseItemSpecs(item: any) {
   let mainDesc = item.description || item.itemDescription || 'Pacific Restroom Cubicle Item';
   const specs: { label: string; value: string }[] = [];
 
+  // Strip "| Door: N/A (Divider Screen)" and "| Hardware: Grade 304 Wall Clamps..." from mainDesc immediately
+  mainDesc = mainDesc
+    .replace(/\s*\|\s*Door:\s*N\/A(?:\s*\(Divider\s*Screen\))?/gi, '')
+    .replace(/Door:\s*N\/A(?:\s*\(Divider\s*Screen\))?\s*\|\s*/gi, '')
+    .replace(/Door:\s*N\/A(?:\s*\(Divider\s*Screen\))?/gi, '')
+    .replace(/\s*\|\s*Hardware:\s*Grade\s*304\s*Wall\s*Clamps[^\)|]*/gi, '')
+    .replace(/Hardware:\s*Grade\s*304\s*Wall\s*Clamps[^\)|]*\s*\|\s*/gi, '')
+    .replace(/Hardware:\s*Grade\s*304\s*Wall\s*Clamps[^\)|]*/gi, '')
+    .replace(/\(\s*\|\s*/g, '(')
+    .replace(/\s*\|\s*\)/g, ')')
+    .replace(/\(\s*\)/g, '')
+    .trim();
+
   const specsJson = item.specsJson || item.customSpecsJson || {};
   const descLower = mainDesc.toLowerCase();
   const isLocker = (
@@ -58,7 +71,8 @@ function parseItemSpecs(item: any) {
   const isUrinal = !isLocker && (
     item.systemCategory === 'ump' ||
     descLower.includes('urinal') ||
-    descLower.includes('ump')
+    descLower.includes('ump') ||
+    descLower.includes('divider screen')
   );
   const sizeLabel = isUrinal ? 'Partition Size' : isLocker ? 'Locker Dimension' : 'Cubicle / Depth Size';
   const doorLabel = isLocker ? 'Compartment / Door' : 'Door Size';
@@ -107,32 +121,54 @@ function parseItemSpecs(item: any) {
     if (boardThickness) specs.push({ label: 'Board Thickness', value: boardThickness });
     if (boardColor) specs.push({ label: 'Board Color', value: boardColor });
     if (cubicleSize) specs.push({ label: sizeLabel, value: cubicleSize });
-    if (doorSize && (!isUrinal || doorSize.trim() !== 'N/A')) specs.push({ label: doorLabel, value: doorSize });
+    if (
+      !isUrinal &&
+      doorSize &&
+      !doorSize.toLowerCase().includes('n/a') &&
+      !doorSize.toLowerCase().includes('divider screen')
+    ) {
+      specs.push({ label: doorLabel, value: doorSize });
+    }
     if (overallHeight) specs.push({ label: 'Overall Height', value: overallHeight });
   }
   if (
+    !isUrinal &&
     hardwarePackage &&
     !hardwarePackage.includes('Golden, Black, SS') &&
     !hardwarePackage.includes('SS 304 Stainless Steel (Satin/Brushed)') &&
     !hardwarePackage.includes('SS 304 Stainless Steel') &&
     !hardwarePackage.toLowerCase().includes('satin/brushed') &&
-    !hardwarePackage.toLowerCase().includes('ss 304')
+    !hardwarePackage.toLowerCase().includes('ss 304') &&
+    !hardwarePackage.toLowerCase().includes('wall clamps') &&
+    !hardwarePackage.toLowerCase().includes('cantilever')
   ) {
     specs.push({ label: 'Hardware Package', value: hardwarePackage });
   }
 
-  if (specs.length === 0 && mainDesc.includes('(') && mainDesc.includes(')')) {
+  // Always strip serialized spec parenthetical block from mainDesc
+  if (mainDesc.includes('(') && mainDesc.includes(')')) {
+    const hasSpecs = specs.length > 0;
     const match = mainDesc.match(/^(.*?)(?:\n|\s*)\((.*?)\)$/s);
     if (match) {
       mainDesc = match[1].trim();
-      const parts = match[2].split('|').map((s: string) => s.trim());
-      for (const part of parts) {
-        const colonIdx = part.indexOf(':');
-        if (colonIdx > -1) {
-          specs.push({
-            label: part.substring(0, colonIdx).trim(),
-            value: part.substring(colonIdx + 1).trim(),
-          });
+      if (!hasSpecs) {
+        const parts = match[2].split('|').map((s: string) => s.trim());
+        for (const part of parts) {
+          const colonIdx = part.indexOf(':');
+          if (colonIdx > -1) {
+            const label = part.substring(0, colonIdx).trim();
+            const value = part.substring(colonIdx + 1).trim();
+            const labelLower = label.toLowerCase();
+            const valLower = value.toLowerCase();
+
+            if (labelLower.includes('door') && (isUrinal || valLower.includes('n/a') || valLower.includes('divider screen'))) {
+              continue;
+            }
+            if (labelLower.includes('hardware') && (isUrinal || valLower.includes('wall clamps') || valLower.includes('cantilever') || valLower.includes('ss 304') || valLower.includes('satin/brushed'))) {
+              continue;
+            }
+            specs.push({ label, value });
+          }
         }
       }
     }

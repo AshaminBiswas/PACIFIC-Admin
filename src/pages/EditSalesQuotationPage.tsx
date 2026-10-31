@@ -860,9 +860,9 @@ export default function EditSalesQuotationPage() {
           boardThickness: existingUmp?.boardThickness || '12mm',
           boardColor: existingUmp?.boardColor || '',
           cubicleSize: existingUmp?.cubicleSize || '450mm W × 900mm H',
-          doorSize: 'N/A',
+          doorSize: '',
           overallHeight: existingUmp?.overallHeight || '1200mm',
-          hardwarePackage: existingUmp?.hardwarePackage || 'Grade 304 Wall Mount Cantilever Clamps',
+          hardwarePackage: '',
         };
 
         const remainingItems = f.items.filter((it) => it !== existingUmp && it.systemCategory !== 'ump' && !(it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump'))));
@@ -888,9 +888,9 @@ export default function EditSalesQuotationPage() {
         boardThickness: dims.boardThickness || '12mm Solid Compact Phenolic Laminate',
         boardColor: existingUmp?.boardColor || '',
         cubicleSize: dims.cubicleSize || '450mm W × 900mm H',
-        doorSize: dims.doorSize || 'N/A',
+        doorSize: '',
         overallHeight: dims.overallHeight || '900mm (affixed 300mm above finished floor)',
-        hardwarePackage: dims.hardwarePackage || 'Grade 304 Wall Mount Cantilever Clamps',
+        hardwarePackage: '',
         modelImageUrl: selected.imageUrl || '',
         width: dims.width,
         depth: dims.depth,

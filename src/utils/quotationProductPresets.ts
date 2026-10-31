@@ -208,7 +208,7 @@ export function extractModelDimensions(model: ProductCatalogModel): ExtractedMod
     const h = cleanDim(rawHeight) || '900mm';
 
     cubicleSize = `${w} W × ${h} H`;
-    doorSize = 'N/A (Divider Screen)';
+    doorSize = ''; // Urinal partitions / divider screens do not have doors
     overallHeight = model.hasExtraLeg
       ? `${h} – 1200mm (floor & wall supported with extra leg)`
       : `${h} (affixed 300mm above finished floor)`;
@@ -247,9 +247,7 @@ export function extractModelDimensions(model: ProductCatalogModel): ExtractedMod
   if (model.category === 'Cubicle') {
     hardwarePackage = '';
   } else if (model.category === 'Urinal Partitions') {
-    hardwarePackage = model.hasExtraLeg
-      ? 'Grade 304 Wall Clamps + Extra Floor Supporting Leg'
-      : 'Grade 304 Wall Mount Cantilever Clamps';
+    hardwarePackage = ''; // Hardware is exploded into individual lines or not required as a cubicle package
   } else if (model.category === 'Kids Toilet') {
     hardwarePackage = 'Child Safety Ergonomic Hardware (Anti-Finger Pinch & Emergency Release)';
   }

@@ -3,12 +3,14 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import { PageLoader } from './components/common/PageLoader';
 import { AdminAuthProvider } from './context/AdminAuthContext';
+import { ReportingPeriodProvider } from './context/ReportingPeriodContext';
 import { lazyWithRetry } from './utils/lazyWithRetry';
 
 // Lazy-loaded Admin Pages ported from PACIFIC RESTROOM CUBICLE with auto-retry
 const AdminLogin = lazyWithRetry(() => import('./pages/AdminLoginPage'));
 const AdminDashboard = lazyWithRetry(() => import('./pages/admin/AdminDashboard'));
 const AdminOverview = lazyWithRetry(() => import('./pages/admin/AdminOverview'));
+const EnterpriseAnalyticsPage = lazyWithRetry(() => import('./pages/analytics/EnterpriseAnalyticsPage'));
 const AdminProducts = lazyWithRetry(() => import('./pages/admin/AdminProducts'));
 const AdminBlogs = lazyWithRetry(() => import('./pages/admin/AdminBlogs'));
 const AdminSolutions = lazyWithRetry(() => import('./pages/admin/AdminSolutions'));
@@ -113,8 +115,9 @@ const CreateInvoicePage = lazyWithRetry(() => import('./pages/CreateInvoicePage'
 export default function App() {
   return (
     <AdminAuthProvider>
-      <BrowserRouter>
-        <Routes>
+      <ReportingPeriodProvider>
+        <BrowserRouter>
+          <Routes>
           {/* Root redirects to dashboard */}
           <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
 
@@ -171,6 +174,16 @@ export default function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <AdminOverview />
+                </Suspense>
+              }
+            />
+
+            {/* Enterprise Analytics & Reporting Hub */}
+            <Route
+              path="analytics"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <EnterpriseAnalyticsPage />
                 </Suspense>
               }
             />
@@ -985,6 +998,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
+      </ReportingPeriodProvider>
   </AdminAuthProvider>
   );
 }

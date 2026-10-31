@@ -98,10 +98,19 @@ export function enrichPiItemForSubmission(it: CreateItem) {
   let baseDesc = it.description?.trim() || '';
   let modelTitle = it.customModelName?.trim() || '';
 
-  // 1. Strip any embedded parenthetical spec block from baseDesc to prevent nested or repeated blocks
+  // 1. Strip any embedded parenthetical spec block or unwanted door/hardware strings
   baseDesc = baseDesc
+    .replace(/\s*\|\s*Door:\s*N\/A(?:\s*\(Divider\s*Screen\))?/gi, '')
+    .replace(/Door:\s*N\/A(?:\s*\(Divider\s*Screen\))?\s*\|\s*/gi, '')
+    .replace(/Door:\s*N\/A(?:\s*\(Divider\s*Screen\))?/gi, '')
+    .replace(/\s*\|\s*Hardware:\s*Grade\s*304\s*Wall\s*Clamps[^\)|]*/gi, '')
+    .replace(/Hardware:\s*Grade\s*304\s*Wall\s*Clamps[^\)|]*\s*\|\s*/gi, '')
+    .replace(/Hardware:\s*Grade\s*304\s*Wall\s*Clamps[^\)|]*/gi, '')
     .replace(/\s*\(\s*(?:Model|Make|Board|Material|Color|Size|Door|Height|Hardware|Type|Category)\s*:[\s\S]*?\)/gi, '')
     .replace(/\s*\([^)]{4,}?:[^)]*?\|[^)]*?\)/gi, '')
+    .replace(/\(\s*\|\s*/g, '(')
+    .replace(/\s*\|\s*\)/g, ')')
+    .replace(/\(\s*\)/g, '')
     .trim();
 
   // 2. Remove duplicate titles separated by dash inside baseDesc
@@ -179,6 +188,10 @@ export function enrichPiItemForSubmission(it: CreateItem) {
     };
   }
 
+  const isUrinal =
+    it.systemCategory === 'ump' ||
+    (it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump') || it.description.toLowerCase().includes('divider screen')));
+
   const specParts: string[] = [];
   if (modelTitle && modelTitle !== titleLine) {
     specParts.push(`Model: ${modelTitle}`);
@@ -195,11 +208,25 @@ export function enrichPiItemForSubmission(it: CreateItem) {
   if (it.cubicleSize) {
     specParts.push(`Size: ${it.cubicleSize}`);
   }
+  if (!isBoard && !isUrinal) {
+    if (it.doorSize && !it.doorSize.toLowerCase().includes('n/a') && !it.doorSize.toLowerCase().includes('divider screen')) {
+      specParts.push(`Door: ${it.doorSize}`);
+    }
+  }
   if (!isBoard) {
-    if (it.doorSize) specParts.push(`Door: ${it.doorSize}`);
     if (it.overallHeight) specParts.push(`Height: ${it.overallHeight}`);
   }
-  if (it.hardwarePackage) {
+  if (
+    it.hardwarePackage &&
+    !isUrinal &&
+    !it.hardwarePackage.includes('Golden, Black, SS') &&
+    !it.hardwarePackage.includes('SS 304 Stainless Steel (Satin/Brushed)') &&
+    !it.hardwarePackage.includes('SS 304 Stainless Steel') &&
+    !it.hardwarePackage.toLowerCase().includes('satin/brushed') &&
+    !it.hardwarePackage.toLowerCase().includes('ss 304') &&
+    !it.hardwarePackage.toLowerCase().includes('wall clamps') &&
+    !it.hardwarePackage.toLowerCase().includes('cantilever')
+  ) {
     specParts.push(`Hardware: ${it.hardwarePackage}`);
   }
 
@@ -230,9 +257,9 @@ export function enrichPiItemForSubmission(it: CreateItem) {
     boardThickness: it.boardThickness || undefined,
     boardColor: it.boardColor || undefined,
     cubicleSize: it.cubicleSize || undefined,
-    doorSize: it.doorSize || undefined,
+    doorSize: (!isUrinal && it.doorSize && !it.doorSize.toLowerCase().includes('n/a') && !it.doorSize.toLowerCase().includes('divider screen')) ? it.doorSize : undefined,
     overallHeight: it.overallHeight || undefined,
-    hardwarePackage: it.hardwarePackage || undefined,
+    hardwarePackage: (!isUrinal && it.hardwarePackage && !it.hardwarePackage.toLowerCase().includes('wall clamps') && !it.hardwarePackage.toLowerCase().includes('cantilever')) ? it.hardwarePackage : undefined,
     customModelName: it.customModelName || undefined,
     modelName: it.customModelName || undefined,
     make: it.make || undefined,
@@ -677,7 +704,14 @@ export default function CreateProformaPage() {
             modelId: matchedModel.id,
             itemType: 'cubicle',
             systemCategory: sysCat,
-            description: it.description || it.itemDescription || `Pacific ${matchedModel.title} (${matchedModel.category})`,
+            description: (it.description || it.itemDescription || `Pacific ${matchedModel.title} (${matchedModel.category})`)
+              .replace(/\s*\|\s*Door:\s*N\/A(?:\s*\(Divider\s*Screen\))?/gi, '')
+              .replace(/Door:\s*N\/A(?:\s*\(Divider\s*Screen\))?\s*\|\s*/gi, '')
+              .replace(/Door:\s*N\/A(?:\s*\(Divider\s*Screen\))?/gi, '')
+              .replace(/\s*\|\s*Hardware:\s*Grade\s*304\s*Wall\s*Clamps[^\)|]*/gi, '')
+              .replace(/Hardware:\s*Grade\s*304\s*Wall\s*Clamps[^\)|]*\s*\|\s*/gi, '')
+              .replace(/Hardware:\s*Grade\s*304\s*Wall\s*Clamps[^\)|]*/gi, '')
+              .trim(),
             hsnSac: it.hsnSac || it.hsnCode || '9403',
             quantity: qty,
             unit: it.unit || 'NOS',
@@ -687,9 +721,9 @@ export default function CreateProformaPage() {
             boardThickness: it.boardThickness || dims.boardThickness || '12mm',
             boardColor: it.boardColor || '',
             cubicleSize: it.cubicleSize || dims.cubicleSize,
-            doorSize: it.doorSize || dims.doorSize,
+            doorSize: sysCat === 'ump' ? '' : (it.doorSize || dims.doorSize),
             overallHeight: it.overallHeight || dims.overallHeight,
-            hardwarePackage: it.hardwarePackage || dims.hardwarePackage,
+            hardwarePackage: sysCat === 'ump' ? '' : (it.hardwarePackage || dims.hardwarePackage),
           };
           const modelHwItems: CreateItem[] = extractModelHardwareItems(matchedModel, qty).map((h) => ({
             ...h,
@@ -906,9 +940,9 @@ export default function CreateProformaPage() {
         boardThickness: dims.boardThickness || '12mm Solid Compact Phenolic Laminate',
         boardColor: existingUmp?.boardColor || '',
         cubicleSize: dims.cubicleSize || '450mm W × 900mm H',
-        doorSize: dims.doorSize || 'N/A',
+        doorSize: '',
         overallHeight: dims.overallHeight || '900mm (affixed 300mm above finished floor)',
-        hardwarePackage: dims.hardwarePackage || 'Grade 304 Wall Mount Cantilever Clamps',
+        hardwarePackage: '',
         width: dims.width,
         depth: dims.depth,
         height: dims.height,

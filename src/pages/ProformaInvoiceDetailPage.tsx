@@ -43,6 +43,19 @@ function parseItemSpecs(item: any) {
   let mainDesc = item.description || item.itemDescription || '—';
   const specs: { label: string; value: string }[] = [];
 
+  // Strip "| Door: N/A (Divider Screen)" and "| Hardware: Grade 304 Wall Clamps..." from mainDesc immediately
+  mainDesc = mainDesc
+    .replace(/\s*\|\s*Door:\s*N\/A(?:\s*\(Divider\s*Screen\))?/gi, '')
+    .replace(/Door:\s*N\/A(?:\s*\(Divider\s*Screen\))?\s*\|\s*/gi, '')
+    .replace(/Door:\s*N\/A(?:\s*\(Divider\s*Screen\))?/gi, '')
+    .replace(/\s*\|\s*Hardware:\s*Grade\s*304\s*Wall\s*Clamps[^\)|]*/gi, '')
+    .replace(/Hardware:\s*Grade\s*304\s*Wall\s*Clamps[^\)|]*\s*\|\s*/gi, '')
+    .replace(/Hardware:\s*Grade\s*304\s*Wall\s*Clamps[^\)|]*/gi, '')
+    .replace(/\(\s*\|\s*/g, '(')
+    .replace(/\s*\|\s*\)/g, ')')
+    .replace(/\(\s*\)/g, '')
+    .trim();
+
   const descLower = (item.description || '').toLowerCase();
   const isLocker = (
     item.systemCategory === 'locker' ||
@@ -55,7 +68,8 @@ function parseItemSpecs(item: any) {
   const isUrinal = !isLocker && (
     item.systemCategory === 'ump' ||
     descLower.includes('urinal') ||
-    descLower.includes('ump')
+    descLower.includes('ump') ||
+    descLower.includes('divider screen')
   );
   const sizeLabel = isUrinal ? 'Partition Size' : isLocker ? 'Locker Dimension' : 'Cubicle / Depth Size';
   const doorLabel = isLocker ? 'Compartment / Door' : 'Door Size';
@@ -101,34 +115,55 @@ function parseItemSpecs(item: any) {
     if (item.boardColor) specs.push({ label: 'Color', value: item.boardColor });
     if (item.boardThickness) specs.push({ label: 'Thickness', value: item.boardThickness });
     else if (item.boardType) specs.push({ label: 'Board', value: item.boardType });
-    if (item.doorSize && (!isUrinal || item.doorSize.trim() !== 'N/A')) specs.push({ label: doorLabel, value: item.doorSize });
+    if (
+      !isUrinal &&
+      item.doorSize &&
+      !item.doorSize.toLowerCase().includes('n/a') &&
+      !item.doorSize.toLowerCase().includes('divider screen')
+    ) {
+      specs.push({ label: doorLabel, value: item.doorSize });
+    }
     if (item.overallHeight) specs.push({ label: 'Height', value: item.overallHeight });
   }
 
   if (
+    !isUrinal &&
     item.hardwarePackage &&
     !item.hardwarePackage.includes('Golden, Black, SS') &&
     !item.hardwarePackage.includes('SS 304 Stainless Steel (Satin/Brushed)') &&
     !item.hardwarePackage.includes('SS 304 Stainless Steel') &&
     !item.hardwarePackage.toLowerCase().includes('satin/brushed') &&
-    !item.hardwarePackage.toLowerCase().includes('ss 304')
+    !item.hardwarePackage.toLowerCase().includes('ss 304') &&
+    !item.hardwarePackage.toLowerCase().includes('wall clamps') &&
+    !item.hardwarePackage.toLowerCase().includes('cantilever')
   ) {
     specs.push({ label: 'Hardware', value: item.hardwarePackage });
   }
 
-  // If specs were serialized into the description string, e.g. "Pacific ...\n(Board: ... | Color: ...)"
-  if (specs.length === 0 && mainDesc.includes('(') && mainDesc.includes(')')) {
+  // Always strip serialized spec parenthetical block from mainDesc so it doesn't display raw string in title
+  if (mainDesc.includes('(') && mainDesc.includes(')')) {
+    const hasSpecs = specs.length > 0;
     const match = mainDesc.match(/^(.*?)(?:\n|\s*)\((.*?)\)$/s);
     if (match) {
       mainDesc = match[1].trim();
-      const parts = match[2].split('|').map((s: string) => s.trim());
-      for (const part of parts) {
-        const colonIdx = part.indexOf(':');
-        if (colonIdx > -1) {
-          specs.push({
-            label: part.substring(0, colonIdx).trim(),
-            value: part.substring(colonIdx + 1).trim(),
-          });
+      if (!hasSpecs) {
+        const parts = match[2].split('|').map((s: string) => s.trim());
+        for (const part of parts) {
+          const colonIdx = part.indexOf(':');
+          if (colonIdx > -1) {
+            const label = part.substring(0, colonIdx).trim();
+            const value = part.substring(colonIdx + 1).trim();
+            const labelLower = label.toLowerCase();
+            const valLower = value.toLowerCase();
+
+            if (labelLower.includes('door') && (isUrinal || valLower.includes('n/a') || valLower.includes('divider screen'))) {
+              continue;
+            }
+            if (labelLower.includes('hardware') && (isUrinal || valLower.includes('wall clamps') || valLower.includes('cantilever') || valLower.includes('ss 304') || valLower.includes('satin/brushed'))) {
+              continue;
+            }
+            specs.push({ label, value });
+          }
         }
       }
     }

@@ -403,13 +403,35 @@ export default function EditProformaInvoicePage() {
               } else if (k.includes('size') && !cubicleSize) {
                 cubicleSize = v;
               } else if (k.includes('door') && !doorSize) {
-                doorSize = v;
+                if (!v.toLowerCase().includes('n/a') && !v.toLowerCase().includes('divider screen')) {
+                  doorSize = v;
+                }
               } else if (k.includes('height') && !overallHeight) {
                 overallHeight = v;
               } else if (k.includes('hardware') && !hardwarePackage) {
-                hardwarePackage = v;
+                if (!v.toLowerCase().includes('wall clamps') && !v.toLowerCase().includes('cantilever') && !v.includes('SS Hardware')) {
+                  hardwarePackage = v;
+                }
               }
             });
+          }
+
+          mainDesc = mainDesc
+            .replace(/\s*\|\s*Door:\s*N\/A(?:\s*\(Divider\s*Screen\))?/gi, '')
+            .replace(/Door:\s*N\/A(?:\s*\(Divider\s*Screen\))?\s*\|\s*/gi, '')
+            .replace(/Door:\s*N\/A(?:\s*\(Divider\s*Screen\))?/gi, '')
+            .replace(/\s*\|\s*Hardware:\s*Grade\s*304\s*Wall\s*Clamps[^\)|]*/gi, '')
+            .replace(/Hardware:\s*Grade\s*304\s*Wall\s*Clamps[^\)|]*\s*\|\s*/gi, '')
+            .replace(/Hardware:\s*Grade\s*304\s*Wall\s*Clamps[^\)|]*/gi, '')
+            .trim();
+
+          const isUrinal = parsedSysCat === 'ump' ||
+            (rawDesc && (rawDesc.toLowerCase().includes('urinal') || rawDesc.toLowerCase().includes('ump') || rawDesc.toLowerCase().includes('divider screen')));
+          if (isUrinal) {
+            doorSize = '';
+            if (hardwarePackage && (hardwarePackage.toLowerCase().includes('wall clamps') || hardwarePackage.toLowerCase().includes('cantilever'))) {
+              hardwarePackage = '';
+            }
           }
 
           // Separate "ModelTitle — Description" if formatted into mainDesc
@@ -839,9 +861,9 @@ export default function EditProformaInvoicePage() {
         boardThickness: dims.boardThickness || '12mm Solid Compact Phenolic Laminate',
         boardColor: existingUmp?.boardColor || '',
         cubicleSize: dims.cubicleSize || '450mm W × 900mm H',
-        doorSize: dims.doorSize || 'N/A',
+        doorSize: '',
         overallHeight: dims.overallHeight || '900mm (affixed 300mm above finished floor)',
-        hardwarePackage: dims.hardwarePackage || 'Grade 304 Wall Mount Cantilever Clamps',
+        hardwarePackage: '',
         width: dims.width,
         depth: dims.depth,
         height: dims.height,

@@ -41,6 +41,7 @@ import {
   MapPin,
   UserCheck,
   Wallet,
+  BarChart3,
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -74,6 +75,7 @@ export const procurementNavItems = [
 ];
 
 export const crmFinanceNavItems = [
+  { name: 'Analytics & Reporting', path: '/admin/dashboard/analytics', icon: BarChart3 },
   { name: 'B2B Customers', path: '/admin/dashboard/customers', icon: Users },
   { name: 'Pacific Mail', path: '/admin/dashboard/mail', icon: Mail },
   { name: 'Payments & Ledger', path: '/admin/dashboard/payments', icon: CreditCard },

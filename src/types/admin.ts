@@ -2,6 +2,7 @@
 
 export type AdminView =
   | 'dashboard'
+  | 'analytics'
   | 'products'
   | 'product-categories'
   | 'customers'
@@ -3863,6 +3864,163 @@ export interface ConvertedCurrencyResult {
   inverseRate: number;
   lastUpdated: string;
 }
+
+// ==========================================
+// 163. ADVANCED REPORTING PERIODS & ANALYTICS
+// ==========================================
+
+export type ReportingPeriodType =
+  | 'DAILY'
+  | 'WEEKLY'
+  | 'MONTHLY'
+  | 'QUARTERLY'
+  | 'HALF_YEARLY'
+  | 'YEARLY'
+  | 'FINANCIAL_YEAR'
+  | 'CUSTOM';
+
+export type ComparisonMode = 'PREVIOUS_PERIOD' | 'MANUAL_CUSTOM' | 'NONE';
+
+export interface ReportingPeriodSelection {
+  periodType: ReportingPeriodType;
+  customStart?: string;
+  customEnd?: string;
+  compareCustomStart?: string;
+  compareCustomEnd?: string;
+  comparisonMode?: ComparisonMode;
+}
+
+export interface ResolvedDateRange {
+  periodType: ReportingPeriodType;
+  label: string;
+  current: {
+    startDate: string;
+    endDate: string;
+    label: string;
+  };
+  previous: {
+    startDate: string;
+    endDate: string;
+    label: string;
+  } | null;
+  bucketType: 'HOURLY' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  subPeriods: Array<{
+    startDate: string;
+    endDate: string;
+    label: string;
+  }>;
+}
+
+export interface ComparisonResult {
+  current: number;
+  previous: number;
+  absoluteDiff: number;
+  percentageChange: number | null;
+  trend: 'INCREASE' | 'DECREASE' | 'NEUTRAL';
+}
+
+export interface DashboardAnalyticsResponse {
+  resolvedPeriod: ResolvedDateRange;
+  kpis: {
+    revenue: ComparisonResult;
+    purchases: ComparisonResult;
+    grossProfit: ComparisonResult;
+    marginPct: number;
+    prevMarginPct: number;
+    collections: ComparisonResult;
+    netReceivables: number;
+    netPayables: number;
+    quotationsCount: ComparisonResult;
+    quoteConversionPct: number;
+    ordersCount: ComparisonResult;
+  };
+  charts: {
+    revenueTrend: Array<{
+      bucket: string;
+      label: string;
+      revenue: number;
+      purchases: number;
+      profit: number;
+      collections: number;
+    }>;
+    categoryDistribution: Array<{
+      category: string;
+      amount: number;
+      percentage: number;
+    }>;
+    agingBreakdown: Array<{
+      bucket: string;
+      label: string;
+      amount: number;
+      count: number;
+    }>;
+  };
+  topCustomers: Array<{
+    id: string;
+    name: string;
+    revenue: number;
+    ordersCount: number;
+  }>;
+  topSuppliers: Array<{
+    id: string;
+    name: string;
+    spend: number;
+    ordersCount: number;
+  }>;
+  cached: boolean;
+  serverTimingMs: number;
+}
+
+export interface TransactionLedgerItem {
+  id: string;
+  docNumber: string;
+  type: 'SALES' | 'PURCHASE' | 'PAYMENT';
+  date: string;
+  partyName: string;
+  amount: number;
+  taxAmount: number;
+  grandTotal: number;
+  status: string;
+}
+
+export interface TransactionLedgerResponse {
+  transactions: TransactionLedgerItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  summary: {
+    totalSales: number;
+    totalPurchases: number;
+    totalPayments: number;
+  };
+}
+
+export interface AsyncReportJob {
+  id: string;
+  idempotencyKey?: string;
+  reportType: 'SALES_SUMMARY' | 'PURCHASE_SUMMARY' | 'TRANSACTIONS' | 'PROFIT_LOSS' | 'OUTSTANDING_RECEIVABLES' | 'GST_RECONCILIATION';
+  format: 'xlsx' | 'csv' | 'pdf';
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  progress: number;
+  startDate: string;
+  endDate: string;
+  companyProfileId?: string;
+  userId?: string;
+  fileName?: string;
+  filePath?: string;
+  fileSizeBytes?: number;
+  downloadToken?: string;
+  downloadUrl?: string;
+  expiresAt?: string;
+  error?: string;
+  createdAt: string;
+  startedAt?: string;
+  completedAt?: string;
+}
+
 
 
 
