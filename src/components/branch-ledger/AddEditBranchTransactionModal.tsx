@@ -201,21 +201,10 @@ export const AddEditBranchTransactionModal: React.FC<AddEditBranchTransactionMod
     setError(null);
   }, [transactionToEdit, isOpen, defaultBranchId, initialType, branches]);
 
-  if (!isOpen) return null;
-
-  const handleTypeChange = (newType: 'CREDIT' | 'DEBIT') => {
-    setType(newType);
-    if (!isEditing) {
-      setCategory(newType === 'CREDIT' ? CREDIT_CATEGORIES[0] : DEBIT_CATEGORIES[0]);
-      setPartyType(newType === 'CREDIT' ? 'CUSTOMER' : 'VENDOR');
-    }
-  };
-
-  const setDatePreset = (offsetDays: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() - offsetDays);
-    setEntryDate(d.toISOString().slice(0, 10));
-  };
+  // Compute active branch
+  const activeBranch = useMemo(() => {
+    return branches.find((b) => b.id === branchId) || null;
+  }, [branches, branchId]);
 
   // Filter customers by search term
   const filteredCustomers = useMemo(() => {
@@ -240,6 +229,20 @@ export const AddEditBranchTransactionModal: React.FC<AddEditBranchTransactionMod
       return name.includes(q) || gstin.includes(q) || phone.includes(q);
     }).slice(0, 15);
   }, [vendors, partySearchTerm]);
+
+  const handleTypeChange = (newType: 'CREDIT' | 'DEBIT') => {
+    setType(newType);
+    if (!isEditing) {
+      setCategory(newType === 'CREDIT' ? CREDIT_CATEGORIES[0] : DEBIT_CATEGORIES[0]);
+      setPartyType(newType === 'CREDIT' ? 'CUSTOMER' : 'VENDOR');
+    }
+  };
+
+  const setDatePreset = (offsetDays: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - offsetDays);
+    setEntryDate(d.toISOString().slice(0, 10));
+  };
 
   // Select customer handler
   const handleSelectCustomer = (cust: any) => {
@@ -291,6 +294,8 @@ export const AddEditBranchTransactionModal: React.FC<AddEditBranchTransactionMod
       referenceNo: referenceNo.trim() || undefined,
       paymentMode,
       paymentStatus,
+      bankName: activeBranch?.bankName || undefined,
+      accountNumber: activeBranch?.accountNumber || undefined,
       description: description.trim() || undefined,
     };
 
@@ -309,6 +314,8 @@ export const AddEditBranchTransactionModal: React.FC<AddEditBranchTransactionMod
       setIsSubmitting(false);
     }
   };
+
+  if (!isOpen) return null;
 
   const activeCategories = type === 'CREDIT' ? CREDIT_CATEGORIES : DEBIT_CATEGORIES;
   const quickParties = type === 'CREDIT' ? QUICK_CREDIT_PAYERS : QUICK_DEBIT_PAYEES;
@@ -839,6 +846,36 @@ export const AddEditBranchTransactionModal: React.FC<AddEditBranchTransactionMod
               />
             </div>
           </div>
+
+          {/* Branch Linked Bank Account Info Banner */}
+          {activeBranch?.bankName && paymentMode !== 'CASH' && (
+            <div className="p-3 rounded-xl bg-slate-950 border border-cyan-500/30 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2.5">
+                <span className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 shrink-0">
+                  <Building2 className="w-4 h-4" />
+                </span>
+                <div>
+                  <span className="text-slate-400 text-[10px] block font-semibold">
+                    {activeBranch.name} — Linked Bank Account:
+                  </span>
+                  <div className="text-white font-bold flex items-center gap-2 flex-wrap">
+                    <span>{activeBranch.bankName}</span>
+                    <span className="text-slate-300 font-mono text-[11px]">
+                      A/C: {activeBranch.accountNumber || '—'}
+                    </span>
+                    <span className="text-slate-400 font-mono text-[10px]">
+                      IFSC: {activeBranch.ifscCode || '—'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {activeBranch.upiId && (
+                <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-mono shrink-0">
+                  UPI: {activeBranch.upiId}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Particulars / Narration */}
           <div className="space-y-1">

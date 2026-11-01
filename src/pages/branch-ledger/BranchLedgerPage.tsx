@@ -25,6 +25,9 @@ import {
   Sparkles,
   Printer,
   SlidersHorizontal,
+  Landmark,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { useReportingPeriod } from '../../context/ReportingPeriodContext';
 import { ReportingPeriodBar } from '../../components/reporting/ReportingPeriodBar';
@@ -71,6 +74,13 @@ export const BranchLedgerPage: React.FC = () => {
   const [txToEdit, setTxToEdit] = useState<BranchTransactionItem | null>(null);
 
   const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const handleCopy = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
 
   // Load branches
   const loadBranches = useCallback(async () => {
@@ -383,6 +393,104 @@ export const BranchLedgerPage: React.FC = () => {
             );
           })}
         </div>
+
+        {/* Selected Branch Bank Account Details Card */}
+        {currentBranch && (
+          <div className="mt-3.5 pt-3.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
+            <div className="flex items-center gap-3">
+              <span className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                <Landmark className="w-4 h-4" />
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-white text-xs">{currentBranch.bankName || 'Branch Dedicated Bank Account'}</span>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    Official Branch A/C
+                  </span>
+                  {currentBranch.accountName && (
+                    <span className="text-[10px] text-slate-400">({currentBranch.accountName})</span>
+                  )}
+                </div>
+                <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-2 mt-1">
+                  <span className="flex items-center gap-1">
+                    <span>A/C No:</span>
+                    <strong className="font-mono text-lime-400 font-bold">{currentBranch.accountNumber || '—'}</strong>
+                    {currentBranch.accountNumber && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(currentBranch.accountNumber!, 'ac')}
+                        className="text-slate-400 hover:text-white p-0.5 transition-colors"
+                        title="Copy Account Number"
+                      >
+                        {copiedKey === 'ac' ? <Check className="w-3 h-3 text-lime-400" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    )}
+                  </span>
+                  <span className="text-slate-600">·</span>
+                  <span className="flex items-center gap-1">
+                    <span>IFSC:</span>
+                    <strong className="font-mono text-slate-200">{currentBranch.ifscCode || '—'}</strong>
+                    {currentBranch.ifscCode && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(currentBranch.ifscCode!, 'ifsc')}
+                        className="text-slate-400 hover:text-white p-0.5 transition-colors"
+                        title="Copy IFSC Code"
+                      >
+                        {copiedKey === 'ifsc' ? <Check className="w-3 h-3 text-lime-400" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    )}
+                  </span>
+                  {currentBranch.bankBranch && (
+                    <>
+                      <span className="text-slate-600">·</span>
+                      <span className="text-slate-400">{currentBranch.bankBranch}</span>
+                    </>
+                  )}
+                  {currentBranch.upiId && (
+                    <>
+                      <span className="text-slate-600">·</span>
+                      <span className="font-mono text-cyan-400">UPI: {currentBranch.upiId}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setBranchToEdit(currentBranch);
+                setIsBranchModalOpen(true);
+              }}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors flex items-center gap-1.5 border border-slate-700/60"
+            >
+              <Edit2 className="w-3 h-3 text-slate-400" />
+              <span>Configure Bank A/C</span>
+            </button>
+          </div>
+        )}
+
+        {/* Multi-Branch Consolidated Bank Account Summary Strip */}
+        {!currentBranch && branches.length > 0 && (
+          <div className="mt-3.5 pt-3.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs bg-slate-950/40 p-3 rounded-xl border border-slate-800/60">
+            <div className="flex items-center gap-2 text-slate-300">
+              <Landmark className="w-4 h-4 text-indigo-400" />
+              <span className="font-semibold text-xs text-white">Branch Bank Accounts:</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {branches.map((b) => (
+                <div key={b.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-[11px]">
+                  <span className="font-bold text-white">{b.city}:</span>
+                  <span className="text-slate-300">{b.bankName || 'A/C'}</span>
+                  {b.accountNumber && (
+                    <span className="font-mono font-bold text-lime-400">({b.accountNumber})</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Centralized Global Reporting Period Controller */}

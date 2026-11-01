@@ -4123,6 +4123,12 @@ export interface BranchItem {
   phone?: string | null;
   email?: string | null;
   contactPerson?: string | null;
+  bankName?: string | null;
+  accountNumber?: string | null;
+  accountName?: string | null;
+  ifscCode?: string | null;
+  bankBranch?: string | null;
+  upiId?: string | null;
   openingBalance: number;
   currentBalance: number;
   totalCredits?: number;
@@ -4144,6 +4150,12 @@ export interface CreateBranchPayload {
   phone?: string;
   email?: string;
   contactPerson?: string;
+  bankName?: string;
+  accountNumber?: string;
+  accountName?: string;
+  ifscCode?: string;
+  bankBranch?: string;
+  upiId?: string;
   openingBalance?: number;
   isDefault?: boolean;
   isActive?: boolean;
@@ -4165,6 +4177,8 @@ export interface BranchTransactionItem {
   referenceNo?: string | null;
   paymentMode: string;
   paymentStatus: string;
+  bankName?: string | null;
+  accountNumber?: string | null;
   description?: string | null;
   voucherUrl?: string | null;
   createdAt: string;
@@ -4181,6 +4195,8 @@ export interface CreateBranchTransactionPayload {
   referenceNo?: string;
   paymentMode?: string;
   paymentStatus?: string;
+  bankName?: string;
+  accountNumber?: string;
   description?: string;
   voucherUrl?: string;
 }

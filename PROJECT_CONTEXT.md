@@ -9142,6 +9142,106 @@ Enforced that the **Enterprise Analytics & Reporting** engine only considers **C
 - **Frontend Production Build (`npm run build`)**: Vite production bundle built successfully in 31.96s with exit code 0 (`dist/assets/BranchLedgerPage-*.js`).
 - **Cross-Stack Sync**: Endpoints in `src/api/branchLedgerApi.ts`, exported in `src/api/services.ts`, and types mapped in `src/types/admin.ts`.
 
+---
+
+## 169. Branch Ledger: React Error #310 Fix, 2-Branch Exclusivity (Delhi & Kolkata) & Per-Branch Dedicated Bank Accounts
+
+### 169.1 Root Cause & Resolution of React Minified Error #310
+1. **Root Cause**:
+   - In `src/components/branch-ledger/AddEditBranchTransactionModal.tsx`, `useMemo` hooks (`filteredCustomers`, `filteredVendors`, `activeBranch`) were placed *after* the early return guard `if (!isOpen) return null;`.
+   - When the modal toggled from closed (`isOpen === false`, returning `null` before evaluating those hooks) to open (`isOpen === true`, evaluating 3 additional hooks), React detected an inconsistent number of hooks across renders, triggering runtime crash `Minified React error #310` (Rendered more hooks than during the previous render).
+2. **Fix**:
+   - Hoisted all `useMemo` hooks before the early `if (!isOpen) return null;` guard.
+   - Guaranteed identical hook execution sequence regardless of modal open/closed state.
+
+### 169.2 Business Requirement: 2-Branch Exclusivity (Delhi & Kolkata Only)
+1. **Purged Dummy Branch Data**:
+   - Completely deleted dummy branches (`branch-mumbai` / Mumbai Western Branch and `branch-bengaluru` / Bengaluru South Branch) from both `branches` and `hardware_branches` tables.
+   - Preserved strictly the 2 authentic Pacific company branches:
+     - **Delhi Main Plant** (`branch-delhi`, Code `DELHI`): Central HQ & primary manufacturing unit.
+     - **Kolkata Regional Hub** (`branch-kolkata`, Code `KOLKATA`): Eastern operations & regional hub.
+2. **Reset Balances**:
+   - Both branch balances initialized cleanly with 0 opening and current balances.
+
+### 169.3 Per-Branch Dedicated Bank Account Architecture
+1. **Database Schema Extension**:
+   - Added bank account columns to `branches` and `branch_transactions`:
+     - `bank_name` (Text): Official bank name.
+     - `account_number` (Text): Bank account number.
+     - `account_name` (Text): Beneficiary / account holder name (`Pacific Products and Solutions`).
+     - `ifsc_code` (Text): Bank branch IFSC code.
+     - `bank_branch` (Text): Physical branch address / locality.
+     - `upi_id` (Text): Branch UPI VPA ID.
+   - Applied via SQL DDL migration and synced into Prisma schemas for both PACIFIC-Backend and PACIFIC-Admin.
+2. **Official Bank Configurations**:
+   - **Delhi Branch**:
+     - Bank: `Central Bank Of India`
+     - Account Number: `3466708013`
+     - IFSC: `CBIN0283809`
+     - Branch: `B-20, Ganga Vihar, Gokalpuri, Delhi - 110094`
+     - Account Name: `Pacific Products and Solutions`
+     - UPI ID: `pacific.delhi@cbin`
+   - **Kolkata Branch**:
+     - Bank: `HDFC Bank`
+     - Account Number: `50200123651435`
+     - IFSC: `HDFC0000395`
+     - Branch: `Yamuna Vihar / Kasba Industrial Estate, Kolkata`
+     - Account Name: `Pacific Products and Solutions`
+     - UPI ID: `pacific.kolkata@hdfc`
+3. **Frontend & Backend Integration**:
+   - **`AddEditBranchModal.tsx`**: Added dedicated "Branch Dedicated Bank Account" form section for configuring bank name, A/C number, holder name, IFSC, branch locality, and UPI ID.
+   - **`AddEditBranchTransactionModal.tsx`**: Displays a bank badge banner showing the linked official bank account of the currently selected branch whenever a Credit or Debit is recorded. Automatically stamps `bankName` and `accountNumber` on transactions.
+   - **`BranchLedgerPage.tsx`**:
+     - When an individual branch is selected, renders a dedicated bank details card with one-click copy buttons for Account Number and IFSC Code, plus quick edit shortcut.
+     - When "Consolidated (All Branches)" is selected, renders a multi-branch bank summary strip displaying Delhi and Kolkata accounts side by side.
+   - **`branchLedgerPdf.service.ts`**: Stamped official branch bank account details in the vector PDF report header so printed/downloaded statements reflect the specific branch bank account.
+
+### 169.4 Verification & Compliance
+- **Zero TypeScript Errors (`npx tsc --noEmit`)**: Passed with 0 errors.
+- **Backend Typecheck (`npm --prefix D:\PACIFIC-Backend run typecheck`)**: Passed with 0 errors.
+- **Production Build (`npm run build`)**: Vite production bundle built successfully in 32.88s with exit code 0 (`dist/assets/BranchLedgerPage-BIO4ZIl7.js`).
+
+---
+
+## 170. Proforma Invoice (PI) PDF Download & Loading Resolution
+
+### 170.1 Root Cause Analysis of "PI PDF Not Downloading & Showing Loading"
+1. **Windows Puppeteer `--single-process` Protocol Crash**:
+   - In `D:\PACIFIC-Backend\src\utils\htmlToPdf.ts`, `--single-process` and `--no-zygote` were specified in Chromium launch arguments. On Windows OS, `--single-process` causes an immediate `TargetCloseError: Protocol error (Page.printToPDF): Target closed` crash whenever `Page.printToPDF` executes because renderer and browser threads collide.
+2. **Infinite Asset Fetch Stall in `fetchImageAsDataUri`**:
+   - In `D:\PACIFIC-Backend\src\modules\sales\pi.service.ts`, `fetchImageAsDataUri` invoked native Node.js `fetch(url)` without a timeout. When company signature or logo asset URLs were delayed or unreachable, the promise stalled indefinitely, keeping the frontend in an endless "Generating Vector A4 PDF..." spinner.
+3. **Missing Binary PDF Streaming in Backend Controller**:
+   - `GET /api/v1/sales/pi/:id/pdf` returned only `text/html` with an `inline; filename="...pdf"` header. It lacked binary streaming support for direct download queries (`download=true`, `dl=1`, `format=pdf`).
+4. **Frontend Auth Token Desynchronization & Absence of Direct Download**:
+   - The frontend used raw `fetch(piApi.getPdfUrl(id))` which only inspected `pacific_access_token` and did not recognize Supabase session keys (`sb-*-auth-token`), resulting in 401 Unauthorized responses or iframe blanks.
+   - Neither `ProformaInvoiceDetailPage.tsx` nor `ProformaInvoicesPage.tsx` had a true "Download PDF" button, only offering browser print dialogs.
+
+### 170.2 System-Wide Architectural Fixes
+1. **Puppeteer Stability Hardening (`htmlToPdf.ts`)**:
+   - Excluded `--single-process` on Windows platforms, preventing `TargetCloseError` during `page.pdf()`.
+2. **Resilient Asset Fetching with Timeout (`pi.service.ts`)**:
+   - Configured `fetchImageAsDataUri` with a 2,500ms `AbortController` timeout and graceful fallbacks, eliminating infinite loading stalls.
+3. **Binary PDF Streaming Controller (`pi.controller.ts`)**:
+   - In `piController.getPdfHtml`, added automated detection for `download=true`, `dl=1`, or `format=pdf`. Converts HTML to binary PDF buffer via `htmlToPdfBuffer` and sets headers:
+     - `Content-Type: application/pdf`
+     - `Content-Disposition: attachment; filename="${billingName}_${cleanPiNumber}.pdf"`
+     - `Content-Length: buffer.length`
+4. **Enhanced API Layer (`proformaApi.ts`)**:
+   - `getPdfHtml(id)`: Uses authenticated `apiClient.get` with transparent token refresh.
+   - `downloadPdfBlob(id)`: Fetches binary PDF blob for instant local file saving.
+   - `getPdfUrl(id, download)`: Automatically falls back to active Supabase authentication tokens.
+5. **UI & UX Upgrades (`ProformaInvoiceDetailPage.tsx` & `ProformaInvoicesPage.tsx`)**:
+   - Added primary **Download PDF** action buttons with real-time loading spinners (`Loader2`) across detail page header, A4 modal toolbar, list table rows, and mobile cards.
+   - Provided instant Blob-based downloads with fallback to browser download URLs.
+   - Synchronized loading state (`loadingPdf`) in list modal with animated spinner and error boundary.
+
+### 170.3 Verification & Quality Assurance
+- **Zero TypeScript Errors (`npx tsc --noEmit`)**: Passed with 0 errors.
+- **Backend Typecheck (`npm --prefix D:\PACIFIC-Backend run typecheck`)**: Passed with 0 errors.
+- **Production Build (`npm run build`)**: Vite production bundle compiled successfully in 34.76s with exit code 0 (`dist/assets/ProformaInvoiceDetailPage-*.js`, `dist/assets/ProformaInvoicesPage-*.js`).
+
+
+
 
 
 

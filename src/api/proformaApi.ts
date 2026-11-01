@@ -37,12 +37,71 @@ export const piApi = {
   getRevision: (id: string, rev: number) =>
     apiClient.get<ApiResponse<any>>(`/sales/pi/${id}/revisions/${rev}`),
   getRevisionPdfUrl: (id: string, rev: number, download = false) => {
-    const token = localStorage.getItem('pacific_access_token');
+    let token = localStorage.getItem('pacific_access_token');
+    if (!token) {
+      try {
+        let supaToken = localStorage.getItem('sb-bcbswbzbtskvmdqmgrjm-auth-token');
+        if (!supaToken) {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('sb-') && k.endsWith('-auth-token')) {
+              supaToken = localStorage.getItem(k);
+              break;
+            }
+          }
+        }
+        if (supaToken) {
+          const parsed = JSON.parse(supaToken);
+          token = parsed?.access_token || null;
+        }
+      } catch {}
+    }
+    const baseURL = (apiClient.defaults.baseURL || '/api/v1').replace(/\/$/, '');
     const authQuery = token ? `&token=${encodeURIComponent(token)}` : '';
-    return `${apiClient.defaults.baseURL}/sales/pi/${id}/revisions/${rev}/pdf?download=${download ? 'true' : 'false'}${authQuery}`;
+    return `${baseURL}/sales/pi/${id}/revisions/${rev}/pdf?download=${download ? 'true' : 'false'}${authQuery}`;
   },
-  getPdfUrl: (id: string) => {
-    const token = localStorage.getItem('pacific_access_token');
-    return `${apiClient.defaults.baseURL}/sales/pi/${id}/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  getPdfUrl: (id: string, download = false) => {
+    let token = localStorage.getItem('pacific_access_token');
+    if (!token) {
+      try {
+        let supaToken = localStorage.getItem('sb-bcbswbzbtskvmdqmgrjm-auth-token');
+        if (!supaToken) {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('sb-') && k.endsWith('-auth-token')) {
+              supaToken = localStorage.getItem(k);
+              break;
+            }
+          }
+        }
+        if (supaToken) {
+          const parsed = JSON.parse(supaToken);
+          token = parsed?.access_token || null;
+        }
+      } catch {}
+    }
+    const baseURL = (apiClient.defaults.baseURL || '/api/v1').replace(/\/$/, '');
+    const qs = new URLSearchParams();
+    if (download) {
+      qs.set('download', 'true');
+      qs.set('dl', '1');
+      qs.set('format', 'pdf');
+    }
+    if (token) qs.set('token', token);
+    const qStr = qs.toString();
+    return `${baseURL}/sales/pi/${id}/pdf${qStr ? `?${qStr}` : ''}`;
+  },
+  getPdfHtml: async (id: string): Promise<string> => {
+    const res = await apiClient.get<string>(`/sales/pi/${id}/pdf`, {
+      responseType: 'text',
+    });
+    return res.data;
+  },
+  downloadPdfBlob: async (id: string): Promise<Blob> => {
+    const res = await apiClient.get(`/sales/pi/${id}/pdf`, {
+      params: { download: 'true', dl: '1', format: 'pdf' },
+      responseType: 'blob',
+    });
+    return res.data;
   },
 };

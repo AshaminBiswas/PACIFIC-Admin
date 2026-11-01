@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Building2, MapPin, Phone, Mail, User, DollarSign, Loader2, Sparkles, CheckCircle2 } from 'lucide-react';
+import { X, Building2, MapPin, Phone, Mail, User, DollarSign, Loader2, Sparkles, CheckCircle2, Landmark } from 'lucide-react';
 import { BranchItem, CreateBranchPayload } from '../../types/admin';
 import { branchLedgerApi } from '../../api/branchLedgerApi';
 
@@ -27,6 +27,12 @@ export const AddEditBranchModal: React.FC<AddEditBranchModalProps> = ({
     phone: '',
     email: '',
     contactPerson: '',
+    bankName: '',
+    accountNumber: '',
+    accountName: '',
+    ifscCode: '',
+    bankBranch: '',
+    upiId: '',
     openingBalance: 0,
     isDefault: false,
     isActive: true,
@@ -46,6 +52,12 @@ export const AddEditBranchModal: React.FC<AddEditBranchModalProps> = ({
         phone: branchToEdit.phone || '',
         email: branchToEdit.email || '',
         contactPerson: branchToEdit.contactPerson || '',
+        bankName: branchToEdit.bankName || '',
+        accountNumber: branchToEdit.accountNumber || '',
+        accountName: branchToEdit.accountName || '',
+        ifscCode: branchToEdit.ifscCode || '',
+        bankBranch: branchToEdit.bankBranch || '',
+        upiId: branchToEdit.upiId || '',
         openingBalance: Number(branchToEdit.openingBalance || 0),
         isDefault: !!branchToEdit.isDefault,
         isActive: branchToEdit.isActive !== false,
@@ -60,6 +72,12 @@ export const AddEditBranchModal: React.FC<AddEditBranchModalProps> = ({
         phone: '',
         email: '',
         contactPerson: '',
+        bankName: '',
+        accountNumber: '',
+        accountName: '',
+        ifscCode: '',
+        bankBranch: '',
+        upiId: '',
         openingBalance: 0,
         isDefault: false,
         isActive: true,
@@ -243,6 +261,91 @@ export const AddEditBranchModal: React.FC<AddEditBranchModalProps> = ({
                 value={formData.email || ''}
                 onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))}
                 placeholder="mumbai@pacificcubicles.com"
+                className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-500"
+              />
+            </div>
+          </div>
+
+          {/* Dedicated Branch Bank Account */}
+          <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+              <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                <Landmark className="w-4 h-4" />
+              </span>
+              <div>
+                <h3 className="text-xs font-bold text-white">Branch Dedicated Bank Account</h3>
+                <p className="text-[10px] text-slate-400">
+                  Every branch operates its own independent bank account for collections and payments.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-300">Bank Name</label>
+                <input
+                  type="text"
+                  value={formData.bankName || ''}
+                  onChange={(e) => setFormData((p) => ({ ...p, bankName: e.target.value }))}
+                  placeholder="e.g. Central Bank Of India / HDFC Bank"
+                  className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-300">Account Number</label>
+                <input
+                  type="text"
+                  value={formData.accountNumber || ''}
+                  onChange={(e) => setFormData((p) => ({ ...p, accountNumber: e.target.value }))}
+                  placeholder="e.g. 3466708013 / 50200123651435"
+                  className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-xs font-mono text-lime-400 font-bold placeholder-slate-500 focus:outline-none focus:border-lime-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-300">Account Holder Name</label>
+                <input
+                  type="text"
+                  value={formData.accountName || ''}
+                  onChange={(e) => setFormData((p) => ({ ...p, accountName: e.target.value }))}
+                  placeholder="e.g. Pacific Products & Solutions"
+                  className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-300">IFSC Code</label>
+                <input
+                  type="text"
+                  value={formData.ifscCode || ''}
+                  onChange={(e) => setFormData((p) => ({ ...p, ifscCode: e.target.value.toUpperCase() }))}
+                  placeholder="e.g. CBIN0283809 / HDFC0000395"
+                  className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-lime-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-300">UPI ID / VPA</label>
+                <input
+                  type="text"
+                  value={formData.upiId || ''}
+                  onChange={(e) => setFormData((p) => ({ ...p, upiId: e.target.value }))}
+                  placeholder="e.g. pacific.delhi@cbin"
+                  className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-xs font-mono text-cyan-400 placeholder-slate-500 focus:outline-none focus:border-lime-500"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-300">Bank Branch / Location</label>
+              <input
+                type="text"
+                value={formData.bankBranch || ''}
+                onChange={(e) => setFormData((p) => ({ ...p, bankBranch: e.target.value }))}
+                placeholder="e.g. B-20, Ganga Vihar, Gokalpuri, Delhi - 110094"
                 className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-500"
               />
             </div>

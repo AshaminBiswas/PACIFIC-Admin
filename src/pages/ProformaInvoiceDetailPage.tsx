@@ -30,6 +30,8 @@ import {
   HelpCircle,
   Wrench,
   RefreshCw,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import { piApi } from '../api/proformaApi';
 import { financeApi } from '../api/financeApi';
@@ -201,6 +203,7 @@ export default function ProformaInvoiceDetailPage() {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfHtml, setPdfHtml] = useState('');
   const [loadingPdf, setLoadingPdf] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   // Action loaders
   const [issuing, setIssuing] = useState(false);
@@ -332,16 +335,61 @@ export default function ProformaInvoiceDetailPage() {
     setShowPdfModal(true);
     setLoadingPdf(true);
     try {
-      const token = localStorage.getItem('pacific_access_token');
-      const res = await fetch(piApi.getPdfUrl(pi.id), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const html = await res.text();
+      const html = await piApi.getPdfHtml(pi.id);
       setPdfHtml(html);
-    } catch (err) {
-      setPdfHtml('<p style="color:red;padding:2rem;">Failed to load PDF preview.</p>');
+    } catch (err: any) {
+      console.warn('Direct getPdfHtml failed, falling back to URL fetch:', err);
+      try {
+        const url = piApi.getPdfUrl(pi.id);
+        const res = await fetch(url);
+        if (res.ok) {
+          const html = await res.text();
+          setPdfHtml(html);
+        } else {
+          setPdfHtml('<p style="color:#ef4444;padding:2rem;font-family:sans-serif;font-weight:bold;">Failed to render preview inside browser. Please click the "Download PDF" button to download the official document directly.</p>');
+        }
+      } catch {
+        setPdfHtml('<p style="color:#ef4444;padding:2rem;font-family:sans-serif;font-weight:bold;">Failed to render preview. Please click the "Download PDF" button to download the official document directly.</p>');
+      }
     } finally {
       setLoadingPdf(false);
+    }
+  };
+
+  // Download official binary PDF file
+  const handleDownloadPdf = async () => {
+    if (!pi || isDownloadingPdf) return;
+    setIsDownloadingPdf(true);
+    try {
+      const billingName = (
+        pi.parties?.find((p) => p.partyRole === 'BILL_TO')?.partyName ||
+        pi.customer?.legalName ||
+        'Customer'
+      )
+        .trim()
+        .replace(/[/\\?%*:|"<>]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const cleanPiNum = (pi.piNumber || 'PI')
+        .trim()
+        .replace(/[/\\?%*:|"<>]/g, '')
+        .trim();
+      const filename = `${billingName}_${cleanPiNum}.pdf`;
+
+      const blob = await piApi.downloadPdfBlob(pi.id);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.warn('Direct blob download failed, falling back to browser window:', err);
+      window.open(piApi.getPdfUrl(pi.id, true), '_blank');
+    } finally {
+      setIsDownloadingPdf(false);
     }
   };
 
@@ -484,6 +532,21 @@ export default function ProformaInvoiceDetailPage() {
             className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl text-xs font-semibold transition-all cursor-pointer"
           >
             <Eye className="w-4 h-4 text-[#7FB706]" /> PDF Preview
+          </button>
+
+          {/* Download PDF Direct */}
+          <button
+            onClick={handleDownloadPdf}
+            disabled={isDownloadingPdf}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-gradient-to-r from-lime-500 to-emerald-500 hover:from-lime-400 hover:to-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition-all shadow-md shadow-lime-500/20 cursor-pointer disabled:opacity-50"
+            title="Download official vector PDF file"
+          >
+            {isDownloadingPdf ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            <span>{isDownloadingPdf ? 'Generating...' : 'Download PDF'}</span>
           </button>
 
           {/* Issue PI */}
@@ -1454,6 +1517,20 @@ export default function ProformaInvoiceDetailPage() {
                 <span className="font-bold text-white text-sm sm:text-base">Proforma Invoice A4 Preview ({pi.piNumber})</span>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownloadPdf}
+                  disabled={isDownloadingPdf}
+                  className="px-3 py-1.5 bg-gradient-to-r from-lime-500 to-emerald-500 hover:from-lime-400 hover:to-emerald-400 text-slate-950 text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-md shadow-lime-500/20 disabled:opacity-50"
+                  title="Download official PDF file"
+                >
+                  {isDownloadingPdf ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isDownloadingPdf ? 'Generating...' : 'Download PDF'}</span>
+                </button>
+
                 <button
                   onClick={() => {
                     const billingName = (

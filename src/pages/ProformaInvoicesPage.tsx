@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   FileText, Search, Plus, CheckCircle, Printer,
   Eye, RefreshCw, X, ShieldCheck, Edit, Trash2, Building2,
-  Calendar, ArrowDown, ArrowUp, Layers, CheckCircle2, Clock, Sparkles
+  Calendar, ArrowDown, ArrowUp, Layers, CheckCircle2, Clock, Sparkles,
+  Download, Loader2
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { piApi, crmApi } from '../api/services';
@@ -42,6 +43,9 @@ export default function ProformaInvoicesPage() {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfHtml, setPdfHtml] = useState('');
   const [activePdfTitle, setActivePdfTitle] = useState('Proforma_Invoice');
+  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [activePiId, setActivePiId] = useState<string>('');
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
@@ -185,7 +189,10 @@ export default function ProformaInvoicesPage() {
 
   const handleOpenPdf = async (target: any) => {
     setShowPdfModal(true);
+    setLoadingPdf(true);
+    setPdfHtml('');
     const id = typeof target === 'string' ? target : target.id;
+    setActivePiId(id);
     const piObj = typeof target === 'object' ? target : invoices.find((inv) => inv.id === target);
     const billingName = (
       piObj?.parties?.find((p: any) => p.partyRole === 'BILL_TO')?.partyName ||
@@ -200,15 +207,48 @@ export default function ProformaInvoicesPage() {
     setActivePdfTitle(`${billingName}_${cleanPiNum}`);
 
     try {
-      const res = await fetch(piApi.getPdfUrl(id), {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('pacific_access_token')}`,
-        },
-      });
-      const html = await res.text();
+      const html = await piApi.getPdfHtml(id);
       setPdfHtml(html);
+    } catch (err: any) {
+      console.warn('Direct getPdfHtml failed, falling back to URL fetch:', err);
+      try {
+        const url = piApi.getPdfUrl(id);
+        const res = await fetch(url);
+        if (res.ok) {
+          const html = await res.text();
+          setPdfHtml(html);
+        } else {
+          setPdfHtml('<p style="color:#ef4444;padding:2rem;font-family:sans-serif;font-weight:bold;">Failed to render preview. Please use the "Download PDF" button to download the document directly.</p>');
+        }
+      } catch {
+        setPdfHtml('<p style="color:#ef4444;padding:2rem;font-family:sans-serif;font-weight:bold;">Failed to render preview. Please use the "Download PDF" button to download the document directly.</p>');
+      }
+    } finally {
+      setLoadingPdf(false);
+    }
+  };
+
+  const handleDownloadPdf = async (targetId?: string, customTitle?: string) => {
+    const id = targetId || activePiId;
+    if (!id || isDownloadingPdf) return;
+    setIsDownloadingPdf(true);
+    try {
+      const title = customTitle || activePdfTitle || 'Proforma_Invoice';
+      const filename = `${title}.pdf`;
+      const blob = await piApi.downloadPdfBlob(id);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Failed to load PI PDF:', err);
+      console.warn('Direct blob download failed, falling back to browser window:', err);
+      window.open(piApi.getPdfUrl(id, true), '_blank');
+    } finally {
+      setIsDownloadingPdf(false);
     }
   };
 
@@ -300,6 +340,23 @@ export default function ProformaInvoicesPage() {
             title="Preview PDF"
           >
             <Eye className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => {
+              const billingName = (
+                pi.parties?.find((p: any) => p.partyRole === 'BILL_TO')?.partyName ||
+                pi.customer?.legalName ||
+                'Customer'
+              ).trim().replace(/[/\\?%*:|"<>]/g, '').trim();
+              const cleanPiNum = (pi.piNumber || 'PI').trim().replace(/[/\\?%*:|"<>]/g, '').trim();
+              handleDownloadPdf(pi.id, `${billingName}_${cleanPiNum}`);
+            }}
+            disabled={isDownloadingPdf}
+            className="p-1.5 sm:p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 cursor-pointer min-h-[34px] min-w-[34px] sm:min-h-[38px] sm:min-w-[38px] flex items-center justify-center transition-colors disabled:opacity-50"
+            title="Download official PDF file"
+          >
+            <Download className="w-4 h-4" />
           </button>
 
           {pi.status === 'DRAFT' && (
@@ -421,6 +478,25 @@ export default function ProformaInvoicesPage() {
         >
           <Eye className="w-3.5 h-3.5" />
           <span>PDF</span>
+        </button>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            const billingName = (
+              pi.parties?.find((p: any) => p.partyRole === 'BILL_TO')?.partyName ||
+              pi.customer?.legalName ||
+              'Customer'
+            ).trim().replace(/[/\\?%*:|"<>]/g, '').trim();
+            const cleanPiNum = (pi.piNumber || 'PI').trim().replace(/[/\\?%*:|"<>]/g, '').trim();
+            handleDownloadPdf(pi.id, `${billingName}_${cleanPiNum}`);
+          }}
+          disabled={isDownloadingPdf}
+          className="min-h-[32px] sm:min-h-[36px] flex items-center justify-center gap-1 px-2.5 py-1 text-[11px] font-medium bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+          title="Download official PDF file"
+        >
+          <Download className="w-3.5 h-3.5" />
+          <span>Download</span>
         </button>
 
         <Link
@@ -804,6 +880,20 @@ export default function ProformaInvoicesPage() {
               </div>
               <div className="flex items-center gap-2">
                 <button
+                  onClick={() => handleDownloadPdf()}
+                  disabled={isDownloadingPdf}
+                  className="px-3 py-1.5 bg-gradient-to-r from-lime-500 to-emerald-500 hover:from-lime-400 hover:to-emerald-400 text-slate-950 text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-md shadow-lime-500/20 disabled:opacity-50"
+                  title="Download official vector PDF file"
+                >
+                  {isDownloadingPdf ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isDownloadingPdf ? 'Generating...' : 'Download PDF'}</span>
+                </button>
+
+                <button
                   onClick={() => {
                     const iframe = document.getElementById('pi-list-pdf-iframe') as HTMLIFrameElement;
                     if (iframe && iframe.contentWindow) {
@@ -838,13 +928,20 @@ export default function ProformaInvoicesPage() {
                 </button>
               </div>
             </div>
-            <div className="flex-1 bg-neutral-900 p-2 sm:p-4 overflow-auto flex justify-center">
-              <iframe
-                id="pi-list-pdf-iframe"
-                title="PI PDF Preview"
-                srcDoc={pdfHtml}
-                className="w-full max-w-[850px] h-full bg-white rounded-lg shadow-2xl border border-neutral-700"
-              />
+            <div className="flex-1 bg-neutral-900 p-2 sm:p-4 overflow-auto flex justify-center items-center">
+              {loadingPdf ? (
+                <div className="flex flex-col items-center justify-center space-y-3 text-slate-300">
+                  <div className="w-9 h-9 border-4 border-[#7FB706] border-t-transparent rounded-full animate-spin" />
+                  <p className="text-xs font-mono text-slate-400">Generating Vector A4 PDF...</p>
+                </div>
+              ) : (
+                <iframe
+                  id="pi-list-pdf-iframe"
+                  title="PI PDF Preview"
+                  srcDoc={pdfHtml}
+                  className="w-full max-w-[850px] h-full bg-white rounded-lg shadow-2xl border border-neutral-700"
+                />
+              )}
             </div>
           </div>
         </div>
