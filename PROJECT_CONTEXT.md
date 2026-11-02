@@ -9240,6 +9240,38 @@ Enforced that the **Enterprise Analytics & Reporting** engine only considers **C
 - **Backend Typecheck (`npm --prefix D:\PACIFIC-Backend run typecheck`)**: Passed with 0 errors.
 - **Production Build (`npm run build`)**: Vite production bundle compiled successfully in 34.76s with exit code 0 (`dist/assets/ProformaInvoiceDetailPage-*.js`, `dist/assets/ProformaInvoicesPage-*.js`).
 
+---
+
+## 171. Enterprise Database Full Backup Execution (November 1, 2026)
+
+### 171.1 Backup Overview & Scope
+- **Extraction Timestamp**: `2026-11-01T13:48:09.351Z` (Local Time: `2026-11-01 19:18 IST`)
+- **Active Database Host**: `aws-0-ap-south-1.pooler.supabase.com`
+- **Active Project Reference**: `bcbswbzbtskvmdqmgrjm`
+- **Total Tables Extracted**: `173` public tables (0 skipped, 100% relational fidelity)
+- **Total Records Extracted**: `4,895` database records
+- **Execution Engine**: `D:\PACIFIC-Backend\scripts\take_full_backup.js` completed in `113.10` seconds
+
+### 171.2 Storage Locations & Mirrors
+1. **Primary Local Repository**: `D:\PACIFIC_DATABASE_BACKUP_2026_11_01`
+2. **Admin Console Mirror**: `D:\PACIFIC-Admin\database-backup`
+3. **Long-Term Disaster Recovery Archive**: `D:\backups\PACIFIC_Backend_Backup_2026_11_01`
+
+### 171.3 Exported Artifacts & File Architecture
+| File / Directory | Size | Purpose & Content |
+|---|---|---|
+| `FULL_DATABASE_RESTORE.sql` | 2.81 MB | Single-transaction master SQL restoration script (Enums, Sequences, Tables, Inserts, Constraints, Indexes). |
+| `ALL_TABLES_DATA_CONSOLIDATED.json` | 4.72 MB | Unified JSON bundle containing all 173 tables and all 4,895 records with BigInt and Decimal precision. |
+| `SCHEMA_METADATA.json` | 728 KB | Complete column data types, nullable states, primary keys, foreign keys, and indexes. |
+| `manifest.json` | 24 KB | Machine-readable manifest compatible with `restore_runner.js`. |
+| `BACKUP_MANIFEST.md` | 11 KB | Human-readable markdown audit report listing row counts, columns, and statuses for every table. |
+| `RESTORE_INSTRUCTIONS.md` | 1.6 KB | Step-by-step restoration playbook for Supabase SQL Editor and `psql`. |
+| `json_tables/` | 173 Files | Modular per-table JSON dumps (e.g. `users.json`, `sales_quotations.json`, `proforma_invoices.json`, `branches.json`, `branch_transactions.json`). |
+| `sql_parts/` | 7 Scripts | Staged SQL scripts: `01_enums.sql`, `02_sequences.sql`, `03_tables.sql`, `04_data_inserts.sql`, `05_constraints.sql`, `06_indexes.sql`, `07_sequences_reset.sql`. |
+
+### 171.4 Quality Assurance & Compliance
+- **Zero TypeScript Errors (`npx tsc --noEmit`)**: Passed with 0 errors.
+- **Frontend Production Build (`npm run build`)**: Vite production bundle built successfully in 1m 27s with exit code 0.
 
 
 
@@ -9251,3 +9283,38 @@ Enforced that the **Enterprise Analytics & Reporting** engine only considers **C
 
 
 
+
+
+
+
+---
+
+## 172. PRC Hardware (PRC-Backend) Enterprise Database Full Backup Execution (November 1, 2026)
+
+### 172.1 Backup Overview & Scope
+- **Extraction Timestamp**: `2026-11-01T14:24:21.740Z` (Local Time: `2026-11-01 19:54 IST`)
+- **Remote Host / Reference**: `aws-0-ap-south-1.pooler.supabase.com` (`ktfsxsllbyyjgplitvfe`)
+- **Total Tables Extracted**: `156` tables (131 core schema tables + 25 auxiliary / system tables, 0 skipped, 100% relational fidelity)
+- **Total Records Extracted**: `5,331` database records
+- **Execution Engine**: `D:\PRC-Backend\scripts\take_full_backup.js` completed in `2.12` seconds
+
+### 172.2 Storage Locations & Redundant Mirrors
+1. **Primary Local Repository**: `D:\PRC_DATABASE_BACKUP_2026_11_01`
+2. **Disaster Recovery Archive Mirror**: `D:\backups\PRC_Backend_Backup_2026_11_01`
+3. **Backend Repository Mirror**: `D:\PRC-Backend\database-backup`
+
+### 172.3 Exported Artifacts & File Architecture
+| File / Directory | Size | Purpose & Content |
+|---|---|---|
+| `FULL_DATABASE_RESTORE.sql` | 15.57 MB | Single-transaction master SQL restoration script (43 Enums, Sequences, 156 Tables, Safe Batch Inserts, 161 Foreign Keys, 396 Indexes, Sequence Resync). |
+| `ALL_TABLES_DATA_CONSOLIDATED.json` | 16.75 MB | Unified JSON bundle containing all 156 tables and all 5,331 records with BigInt and Decimal precision preserved. |
+| `SCHEMA_METADATA.json` | 168 KB | Complete column types, nullable states, primary keys, foreign keys, and indexes. |
+| `manifest.json` | 27.9 KB | Machine-readable manifest compatible with `restore_runner.js`. |
+| `BACKUP_MANIFEST.md` | 12.1 KB | Human-readable markdown audit report listing row counts, columns, and statuses for every table. |
+| `RESTORE_INSTRUCTIONS.md` | 2.5 KB | Step-by-step restoration playbook for Supabase SQL Editor, `psql`, and `restore_runner.js`. |
+| `json_tables/` | 156 Files | Modular per-table JSON dumps (e.g. `users.json`, `projects.json`, `installer_bills.json`, `employee_attendances.json`, `up_expenses.json`, `po_email_messages.json`). |
+| `sql_parts/` | 7 Scripts | Staged SQL scripts: `01_enums.sql`, `02_sequences.sql`, `03_tables.sql`, `04_data_inserts.sql`, `05_constraints.sql`, `06_indexes.sql`, `07_sequences_reset.sql`. |
+
+### 172.4 Quality Assurance & Compliance
+- **Zero TypeScript Errors (`npx tsc --noEmit`)**: Passed with 0 errors.
+- **Frontend Production Build (`npm run build`)**: Vite production bundle compiled with exit code 0.
