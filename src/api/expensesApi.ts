@@ -15,8 +15,8 @@ const BRANCHES_CACHE_KEY = 'prc_cached_branches';
 const CATEGORIES_CACHE_KEY = 'prc_cached_categories';
 
 const DEFAULT_BRANCHES = [
-  { id: 'branch-delhi', name: 'Delhi Main Plant & Central Warehouse', code: 'DELHI' },
   { id: 'branch-kolkata', name: 'Kolkata Regional Hub & Warehouse', code: 'KOLKATA' },
+  { id: 'branch-delhi', name: 'Delhi Main Plant & Central Warehouse', code: 'DELHI' },
 ];
 
 function isDelhiOrKolkata(b: any): boolean {

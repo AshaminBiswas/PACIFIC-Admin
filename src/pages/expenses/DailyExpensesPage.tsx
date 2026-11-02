@@ -154,8 +154,8 @@ export function ExpensesPage() {
     const saved = localStorage.getItem('prc_last_expense_branch_id');
     if (saved) return saved;
     const cached = getCachedBranches();
-    const del = cached.find((b) => b.code?.toUpperCase().includes('DEL')) || cached[0];
-    return del?.id || '';
+    const kol = cached.find((b) => b.code?.toUpperCase().includes('KOL')) || cached[0];
+    return kol?.id || '';
   });
   const [isAllBranches, setIsAllBranches] = useState<boolean>(() => {
     return localStorage.getItem('prc_last_expense_is_all') === 'true';
@@ -397,9 +397,9 @@ export function ExpensesPage() {
           setBranches(finalBranches);
           const savedBranchId = localStorage.getItem('prc_last_expense_branch_id');
           const matchedBranch = savedBranchId && finalBranches.find((b) => b.id === savedBranchId);
-          const del = matchedBranch || finalBranches.find((b) => b.code?.toUpperCase().includes('DEL')) || finalBranches[0];
-          setSelectedBranchId((prev) => prev || del.id);
-          setEntryBranchId((prev) => prev || del.id);
+          const kol = matchedBranch || finalBranches.find((b) => b.code?.toUpperCase().includes('KOL')) || finalBranches[0];
+          setSelectedBranchId((prev) => prev || kol?.id || '');
+          setEntryBranchId((prev) => prev || kol?.id || '');
         }
 
         const cList = Array.isArray(rawCats) ? rawCats : [];
