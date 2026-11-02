@@ -517,6 +517,12 @@ export function ExpensesPage() {
       }
     } catch (err) {
       console.error('Error fetching balance:', err);
+      try {
+        const cached = localStorage.getItem('prc_cached_live_balance');
+        if (cached && !liveBalance) {
+          setLiveBalance(JSON.parse(cached));
+        }
+      } catch {}
     } finally {
       setIsLoadingBalance(false);
     }
