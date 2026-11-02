@@ -151,9 +151,15 @@ export function ExpensesPage() {
     return getCachedBranches();
   });
   const [selectedBranchId, setSelectedBranchId] = useState<string>(() => {
-    return 'branch-kolkata';
+    const saved = localStorage.getItem('prc_last_expense_branch_id');
+    const cached = getCachedBranches();
+    if (saved && cached.some((b) => b.id === saved)) return saved;
+    const kol = cached.find((b) => b.id === 'branch-kolkata' || b.code?.toUpperCase().includes('KOL')) || cached[0];
+    return kol?.id || 'branch-kolkata';
   });
-  const [isAllBranches, setIsAllBranches] = useState<boolean>(false);
+  const [isAllBranches, setIsAllBranches] = useState<boolean>(() => {
+    return localStorage.getItem('prc_last_expense_is_all') === 'true';
+  });
 
   // Custom Branch Creation Modal State
   const [isAddBranchModalOpen, setIsAddBranchModalOpen] = useState(false);
@@ -372,21 +378,12 @@ export function ExpensesPage() {
 
         const bList = Array.isArray(rawBranches) ? rawBranches : [];
         if (bList.length > 0) {
-          const onlyKolkata = bList.filter((b) => {
-            const code = String(b.code || '').toUpperCase();
-            const id = String(b.id || '').toLowerCase();
-            const name = String(b.name || '').toLowerCase();
-            return (
-              id === 'branch-kolkata' ||
-              code === 'KOLKATA' ||
-              code === 'KOL' ||
-              name.includes('kolkata')
-            );
-          });
-          const finalBranches = onlyKolkata.length > 0 ? onlyKolkata : [{ id: 'branch-kolkata', name: 'Kolkata Regional Hub & Warehouse', code: 'KOLKATA' }];
-          setBranches(finalBranches);
-          setSelectedBranchId(finalBranches[0]?.id || 'branch-kolkata');
-          setEntryBranchId(finalBranches[0]?.id || 'branch-kolkata');
+          setBranches(bList);
+          const savedBranchId = localStorage.getItem('prc_last_expense_branch_id');
+          const matchedBranch = savedBranchId && bList.find((b) => b.id === savedBranchId);
+          const kol = matchedBranch || bList.find((b) => b.id === 'branch-kolkata' || b.code?.toUpperCase().includes('KOL')) || bList[0];
+          setSelectedBranchId((prev) => prev || kol?.id || 'branch-kolkata');
+          setEntryBranchId((prev) => prev || kol?.id || 'branch-kolkata');
         }
 
         const cList = Array.isArray(rawCats) ? rawCats : [];
@@ -433,16 +430,18 @@ export function ExpensesPage() {
     localStorage.setItem('prc_last_expense_is_all', String(isAllBranches));
   }, [isAllBranches]);
 
-  // Ensure Kolkata branch selection when branches state updates
+  // Ensure default branch selection when branches state updates
   useEffect(() => {
     if (branches.length > 0) {
-      const kol = branches.find((b) => b.id === 'branch-kolkata' || b.code?.toUpperCase().includes('KOL')) || branches[0];
-      if (kol) {
-        setSelectedBranchId(kol.id);
-        setEntryBranchId(kol.id);
+      if (!selectedBranchId || !branches.some((b) => b.id === selectedBranchId)) {
+        const kol = branches.find((b) => b.id === 'branch-kolkata' || b.code?.toUpperCase().includes('KOL')) || branches[0];
+        if (kol) {
+          setSelectedBranchId(kol.id);
+          setEntryBranchId(kol.id);
+        }
       }
     }
-  }, [branches]);
+  }, [branches, selectedBranchId]);
 
   // ─── Load Balance & Summaries when Branch changes ───────────────────────────
   const handleCreateCustomBranch = async (e: React.FormEvent) => {
@@ -1345,19 +1344,19 @@ export function ExpensesPage() {
   }, [calculatedClosing, physicalCashInput]);
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto pb-24 sm:pb-8">
+    <div className="space-y-6 max-w-[1600px] mx-auto pb-24 sm:pb-8 text-white">
       {/* ─── Top Header & Controls ─────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-white/10 pb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4">
         <div>
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-[#7FB706]/10 text-[#7FB706]">
               <Wallet size={24} />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+              <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
                 Daily Cash Expense Tracker
               </h1>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400">
+              <p className="text-xs sm:text-sm text-gray-400">
                 Multi-branch cash-in-hand reconciliation, fast voucher logging & audit ledger
               </p>
             </div>
@@ -1385,22 +1384,49 @@ export function ExpensesPage() {
             </button>
           )}
 
-          {/* Active Facility Indicator (Strictly Kolkata Branch) */}
-          <div className="flex items-center gap-2 bg-slate-100 dark:bg-[#121226] py-1.5 px-3 rounded-xl border border-slate-200 dark:border-white/10">
-            <Building2 size={16} className="text-[#7FB706]" />
-            <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-gray-100">
-              Kolkata Regional Hub
-            </span>
-            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#7FB706]/15 text-[#7FB706] border border-[#7FB706]/30">
-              KOLKATA
-            </span>
+          {/* Facility Switcher with Multi-Branch Support */}
+          <div className="flex items-center gap-1.5 bg-[#030213] py-1 px-2.5 rounded-xl border border-white/15 shadow-xs">
+            <Building2 size={15} className="text-[#7FB706] shrink-0" />
+            <select
+              value={isAllBranches ? 'ALL' : selectedBranchId}
+              onChange={(e) => {
+                if (e.target.value === 'ALL') {
+                  setIsAllBranches(true);
+                } else {
+                  setIsAllBranches(false);
+                  setSelectedBranchId(e.target.value);
+                }
+              }}
+              className="bg-transparent text-xs sm:text-sm font-bold text-white py-1 pr-1 focus:outline-none cursor-pointer"
+            >
+              {branches.map((b) => (
+                <option key={b.id} value={b.id} className="bg-[#121226] text-white">
+                  {b.name} ({b.code})
+                </option>
+              ))}
+              {branches.length > 1 && (
+                <option value="ALL" className="bg-[#121226] text-white">
+                  All Branches (Consolidated)
+                </option>
+              )}
+            </select>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => setIsAddBranchModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white border border-white/15 text-xs sm:text-sm font-semibold transition cursor-pointer shadow-xs"
+              title="Add New Custom Branch"
+            >
+              <Plus size={15} className="text-[#7FB706]" />
+              <span>Add Branch</span>
+            </button>
+
+            <button
+              type="button"
               onClick={openGeneralTopUpModal}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs sm:text-sm font-semibold transition shadow-sm cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs sm:text-sm font-bold transition shadow-sm cursor-pointer"
             >
               <Plus size={16} />
               <span>Add Cash Float</span>
@@ -1438,42 +1464,42 @@ export function ExpensesPage() {
         </div>
 
         {/* Card 2: Today Opening & Received */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm">
+        <div className="p-4 sm:p-5 rounded-2xl bg-[#121226] border border-white/10 shadow-sm">
           <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-gray-400">Today's Float In</span>
+            <span className="text-xs font-semibold text-gray-400">Today's Float In</span>
             <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
               <TrendingUp size={16} />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+          <div className="text-xl sm:text-2xl font-bold text-white">
             {liveBalance ? formatRupee(liveBalance.todayOpening + liveBalance.todayReceived) : '₹0.00'}
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-gray-500 mt-1">
+          <p className="text-[11px] text-gray-400 mt-1">
             Opening: {liveBalance ? formatRupee(liveBalance.todayOpening) : '₹0.00'} + Top-Ups:{' '}
             {liveBalance ? formatRupee(liveBalance.todayReceived) : '₹0.00'}
           </p>
         </div>
 
         {/* Card 3: Today's Approved Expenses */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm">
+        <div className="p-4 sm:p-5 rounded-2xl bg-[#121226] border border-white/10 shadow-sm">
           <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-gray-400">Today's Cash Spent</span>
+            <span className="text-xs font-semibold text-gray-400">Today's Cash Spent</span>
             <div className="p-1.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400">
               <TrendingDown size={16} />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+          <div className="text-xl sm:text-2xl font-bold text-white">
             {liveBalance ? formatRupee(liveBalance.todayExpenses) : '₹0.00'}
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-gray-500 mt-1">
+          <p className="text-[11px] text-gray-400 mt-1">
             From {(todayEntries || []).filter((e) => e?.status === 'APPROVED').length} approved vouchers
           </p>
         </div>
 
         {/* Card 4: Approvals & Reconciliation Status */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm">
+        <div className="p-4 sm:p-5 rounded-2xl bg-[#121226] border border-white/10 shadow-sm">
           <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-gray-400">Status & Pending</span>
+            <span className="text-xs font-semibold text-gray-400">Status & Pending</span>
             <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
               <Clock size={16} />
             </div>
@@ -1482,7 +1508,7 @@ export function ExpensesPage() {
             <span className="text-xl sm:text-2xl font-bold text-amber-500">
               {liveBalance ? liveBalance.pendingApprovalsCount : 0}
             </span>
-            <span className="text-xs font-semibold text-slate-600 dark:text-gray-400">Pending Review</span>
+            <span className="text-xs font-semibold text-gray-400">Pending Review</span>
           </div>
           <div className="mt-1">
             {liveBalance?.isReconciled ? (
@@ -1490,20 +1516,18 @@ export function ExpensesPage() {
                 <ShieldCheck size={12} /> Today Reconciled
               </span>
             ) : (
-              <span className="text-[11px] text-slate-400 dark:text-gray-500">Closing pending at day-end</span>
+              <span className="text-[11px] text-gray-400">Closing pending at day-end</span>
             )}
           </div>
         </div>
       </div>
 
       {/* ─── Tab Navigation Bar ─────────────────────────────────────────────── */}
-      <div className="flex overflow-x-auto no-scrollbar gap-2 border-b border-slate-200 dark:border-white/10 pb-2">
+      <div className="flex overflow-x-auto no-scrollbar gap-2 border-b border-white/10 pb-2">
         <button
           onClick={() => setActiveTab('entry')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition whitespace-nowrap ${
-            activeTab === 'entry'
-              ? 'bg-[#7FB706] text-white shadow-sm'
-              : 'text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-white/5'
+            activeTab === 'entry' ? 'bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30 shadow-sm font-bold' : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent font-medium'
           }`}
         >
           <Receipt size={16} />
@@ -1513,9 +1537,7 @@ export function ExpensesPage() {
         <button
           onClick={() => setActiveTab('ledger')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition whitespace-nowrap ${
-            activeTab === 'ledger'
-              ? 'bg-[#7FB706] text-white shadow-sm'
-              : 'text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-white/5'
+            activeTab === 'ledger' ? 'bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30 shadow-sm font-bold' : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent font-medium'
           }`}
         >
           <BookOpen size={16} />
@@ -1525,9 +1547,7 @@ export function ExpensesPage() {
         <button
           onClick={() => setActiveTab('float')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition whitespace-nowrap ${
-            activeTab === 'float'
-              ? 'bg-[#7FB706] text-white shadow-sm'
-              : 'text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-white/5'
+            activeTab === 'float' ? 'bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30 shadow-sm font-bold' : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent font-medium'
           }`}
         >
           <IndianRupee size={16} />
@@ -1537,9 +1557,7 @@ export function ExpensesPage() {
         <button
           onClick={() => setActiveTab('approvals')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition whitespace-nowrap relative ${
-            activeTab === 'approvals'
-              ? 'bg-[#7FB706] text-white shadow-sm'
-              : 'text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-white/5'
+            activeTab === 'approvals' ? 'bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30 shadow-sm font-bold' : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent font-medium'
           }`}
         >
           <Clock size={16} />
@@ -1554,9 +1572,7 @@ export function ExpensesPage() {
         <button
           onClick={() => setActiveTab('reconciliation')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition whitespace-nowrap ${
-            activeTab === 'reconciliation'
-              ? 'bg-[#7FB706] text-white shadow-sm'
-              : 'text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-white/5'
+            activeTab === 'reconciliation' ? 'bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30 shadow-sm font-bold' : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent font-medium'
           }`}
         >
           <Lock size={16} />
@@ -1566,9 +1582,7 @@ export function ExpensesPage() {
         <button
           onClick={() => setActiveTab('categories')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition whitespace-nowrap ${
-            activeTab === 'categories'
-              ? 'bg-[#7FB706] text-white shadow-sm'
-              : 'text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-white/5'
+            activeTab === 'categories' ? 'bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30 shadow-sm font-bold' : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent font-medium'
           }`}
         >
           <Tag size={16} />
@@ -1578,9 +1592,7 @@ export function ExpensesPage() {
         <button
           onClick={() => setActiveTab('reports')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition whitespace-nowrap ${
-            activeTab === 'reports'
-              ? 'bg-[#7FB706] text-white shadow-sm'
-              : 'text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-white/5'
+            activeTab === 'reports' ? 'bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30 shadow-sm font-bold' : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent font-medium'
           }`}
         >
           <BarChart3 size={16} />
@@ -1621,12 +1633,12 @@ export function ExpensesPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
             {/* Left Column: Fast Mobile Entry Form (5 cols on lg) */}
             <div className="lg:col-span-5 space-y-3">
-              <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-xs space-y-3">
+              <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-[#121226] border border-white/10 shadow-xs space-y-3">
                 {/* Header */}
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-white/10">
+                <div className="flex items-center justify-between pb-2 border-b border-white/10">
                   <div className="flex items-center gap-2">
                     <Receipt size={16} className="text-[#7FB706] shrink-0" />
-                    <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                    <h2 className="text-sm sm:text-base font-bold text-white">
                       Fast Expense Entry
                     </h2>
                   </div>
@@ -1651,7 +1663,7 @@ export function ExpensesPage() {
 
                 {/* Recently Logged Voucher Alert */}
                 {lastLoggedExpense && (
-                  <div className="p-2.5 sm:p-3 rounded-lg bg-[#7FB706]/10 dark:bg-[#121226]/80 border border-[#7FB706]/30 dark:border-[#7FB706]/30 space-y-1.5">
+                  <div className="p-2.5 sm:p-3 rounded-lg bg-[#7FB706]/15/80 border border-[#7FB706]/30 dark:border-[#7FB706]/30 space-y-1.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono font-bold text-[11px] text-[#7FB706]">
@@ -1673,7 +1685,7 @@ export function ExpensesPage() {
                             : lastLoggedExpense.status}
                         </span>
                         {lastLoggedExpense.date && (
-                          <span className="text-[10px] text-slate-400">
+                          <span className="text-[10px] text-gray-400">
                             • {String(lastLoggedExpense.date).split('T')[0]}
                           </span>
                         )}
@@ -1684,7 +1696,7 @@ export function ExpensesPage() {
                           setLastLoggedExpense(null);
                           setEntrySuccessMsg(null);
                         }}
-                        className="text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                        className="text-gray-400 hover:text-gray-400 dark:hover:text-white"
                         title="Dismiss"
                       >
                         <X size={13} />
@@ -1693,15 +1705,15 @@ export function ExpensesPage() {
 
                     <div className="flex items-baseline justify-between pt-0.5">
                       <div className="min-w-0 pr-2">
-                        <p className="text-xs font-semibold text-slate-800 dark:text-gray-200 truncate">
+                        <p className="text-xs font-semibold text-gray-200 truncate">
                           {lastLoggedExpense.description}
                         </p>
-                        <p className="text-[10px] text-slate-500 dark:text-gray-400 truncate">
-                          Paid to <strong className="text-slate-700 dark:text-gray-300">{lastLoggedExpense.paidTo}</strong>
+                        <p className="text-[10px] text-gray-400 truncate">
+                          Paid to <strong className="text-gray-300">{lastLoggedExpense.paidTo}</strong>
                           {lastLoggedExpense.paidBy ? ` (by ${lastLoggedExpense.paidBy})` : ''} • {lastLoggedExpense.category?.name || 'Expense'}
                         </p>
                       </div>
-                      <span className="text-sm font-extrabold text-slate-900 dark:text-white shrink-0">
+                      <span className="text-sm font-extrabold text-white shrink-0">
                         {formatRupee(lastLoggedExpense.amount)}
                       </span>
                     </div>
@@ -1732,7 +1744,7 @@ export function ExpensesPage() {
                       </div>
                     )}
 
-                    <div className="pt-1 flex items-center justify-between text-[10px] text-slate-400">
+                    <div className="pt-1 flex items-center justify-between text-[10px] text-gray-400">
                       <span>Logged to feed</span>
                       <button
                         type="button"
@@ -1752,7 +1764,7 @@ export function ExpensesPage() {
                     {/* Expense Date Picker (Defaults to Current Date) */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-semibold text-slate-600 dark:text-gray-300 flex items-center gap-1">
+                        <label className="text-[11px] font-semibold text-gray-300 flex items-center gap-1">
                           <Calendar size={12} className="text-[#7FB706]" />
                           <span>Expense Date</span>
                         </label>
@@ -1772,29 +1784,43 @@ export function ExpensesPage() {
                         value={entryDate}
                         max={getTodayDateString()}
                         onChange={(e) => setEntryDate(e.target.value)}
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:border-[#7FB706] focus:outline-none"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-[#030213] border border-white/15 text-xs font-semibold text-white focus:border-[#7FB706] focus:outline-none"
                       />
                     </div>
 
-                    {/* Branch Location (Strictly Kolkata Branch) */}
+                    {/* Branch Location with Add Option */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-slate-600 dark:text-gray-300 flex items-center gap-1">
-                        <Building2 size={12} className="text-[#7FB706]" />
-                        <span>Branch Location</span>
-                      </label>
-                      <input
-                        type="text"
-                        disabled
-                        value="Kolkata Regional Hub & Warehouse (KOLKATA)"
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-700 dark:text-gray-300 cursor-not-allowed"
-                      />
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-semibold text-gray-300 flex items-center gap-1">
+                          <Building2 size={12} className="text-[#7FB706]" />
+                          <span>Branch Location</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setIsAddBranchModalOpen(true)}
+                          className="text-[10px] text-[#7FB706] hover:underline font-bold cursor-pointer"
+                        >
+                          + New Branch
+                        </button>
+                      </div>
+                      <select
+                        value={entryBranchId}
+                        onChange={(e) => setEntryBranchId(e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-[#030213] border border-white/15 text-xs font-semibold text-white focus:border-[#7FB706] focus:outline-none cursor-pointer"
+                      >
+                        {branches.map((b) => (
+                          <option key={b.id} value={b.id} className="bg-[#121226] text-white">
+                            {b.name} ({b.code})
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
                   {/* Row 2: Amount Input */}
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-semibold text-slate-600 dark:text-gray-300">
+                      <label className="text-[11px] font-semibold text-gray-300">
                         Amount (₹) <span className="text-rose-500">*</span>
                       </label>
                       <div className="flex gap-1">
@@ -1803,7 +1829,7 @@ export function ExpensesPage() {
                             type="button"
                             key={amt}
                             onClick={() => setEntryAmount(String(amt))}
-                            className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-[#3F3F46] text-[10px] font-semibold text-slate-600 dark:text-gray-300 transition cursor-pointer"
+                            className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 dark:hover:bg-[#3F3F46] text-[10px] font-semibold text-gray-300 transition cursor-pointer"
                           >
                             +{amt}
                           </button>
@@ -1811,7 +1837,7 @@ export function ExpensesPage() {
                       </div>
                     </div>
                     <div className="relative">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">
                         ₹
                       </span>
                       <input
@@ -1822,7 +1848,7 @@ export function ExpensesPage() {
                         placeholder="0.00"
                         value={entryAmount}
                         onChange={(e) => setEntryAmount(e.target.value)}
-                        className="w-full pl-7 pr-3 py-1.5 rounded-lg bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-sm font-bold text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-[#7FB706] focus:outline-none"
+                        className="w-full pl-7 pr-3 py-1.5 rounded-lg bg-[#030213] border border-white/15 text-sm font-bold text-white placeholder:text-gray-400 focus:border-[#7FB706] focus:outline-none"
                       />
                     </div>
                   </div>
@@ -1831,7 +1857,7 @@ export function ExpensesPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {/* Category Dropdown */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-slate-600 dark:text-gray-300 flex items-center gap-1">
+                      <label className="text-[11px] font-semibold text-gray-300 flex items-center gap-1">
                         <Tag size={12} className="text-[#7FB706]" />
                         <span>Category <span className="text-rose-500">*</span></span>
                       </label>
@@ -1842,11 +1868,11 @@ export function ExpensesPage() {
                           setEntryCategory(e.target.value);
                           localStorage.setItem('prc_last_expense_category', e.target.value);
                         }}
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:border-[#7FB706] focus:outline-none cursor-pointer"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-[#030213] border border-white/15 text-xs font-semibold text-white focus:border-[#7FB706] focus:outline-none cursor-pointer"
                       >
-                        <option value="" className="dark:bg-[#121226]">Select Category</option>
+                        <option value="" className="bg-[#121226]">Select Category</option>
                         {(categories || []).map((cat) => (
-                          <option key={cat.id} value={cat.id} className="dark:bg-[#121226]">
+                          <option key={cat.id} value={cat.id} className="bg-[#121226]">
                             {cat.name}
                           </option>
                         ))}
@@ -1855,18 +1881,18 @@ export function ExpensesPage() {
 
                     {/* Payment Mode Dropdown */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-slate-600 dark:text-gray-300 flex items-center gap-1">
+                      <label className="text-[11px] font-semibold text-gray-300 flex items-center gap-1">
                         <Wallet size={12} className="text-[#7FB706]" />
                         <span>Payment Mode <span className="text-rose-500">*</span></span>
                       </label>
                       <select
                         value={entryPaymentMode}
                         onChange={(e) => setEntryPaymentMode(e.target.value as 'CASH' | 'UPI' | 'BANK_TRANSFER')}
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:border-[#7FB706] focus:outline-none cursor-pointer"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-[#030213] border border-white/15 text-xs font-semibold text-white focus:border-[#7FB706] focus:outline-none cursor-pointer"
                       >
-                        <option value="CASH" className="dark:bg-[#121226]">Cash (Petty Cash)</option>
-                        <option value="UPI" className="dark:bg-[#121226]">UPI / Digital QR</option>
-                        <option value="BANK_TRANSFER" className="dark:bg-[#121226]">Bank Transfer / IMPS</option>
+                        <option value="CASH" className="bg-[#121226]">Cash (Petty Cash)</option>
+                        <option value="UPI" className="bg-[#121226]">UPI / Digital QR</option>
+                        <option value="BANK_TRANSFER" className="bg-[#121226]">Bank Transfer / IMPS</option>
                       </select>
                     </div>
                   </div>
@@ -1874,7 +1900,7 @@ export function ExpensesPage() {
                   {/* Row 4: Description / Note */}
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-semibold text-slate-600 dark:text-gray-300">
+                      <label className="text-[11px] font-semibold text-gray-300">
                         Description / Note <span className="text-rose-500">*</span>
                       </label>
                       <div className="hidden sm:flex gap-1">
@@ -1883,7 +1909,7 @@ export function ExpensesPage() {
                             type="button"
                             key={note}
                             onClick={() => setEntryDescription(note)}
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-gray-400 hover:text-[#7FB706] transition"
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-gray-400 hover:text-[#7FB706] transition"
                           >
                             {note}
                           </button>
@@ -1896,7 +1922,7 @@ export function ExpensesPage() {
                       placeholder="e.g. Courier charges, Tea for visitors, Hardware repair"
                       value={entryDescription}
                       onChange={(e) => setEntryDescription(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-[#7FB706] focus:outline-none"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#030213] border border-white/15 text-xs text-white placeholder:text-gray-400 focus:border-[#7FB706] focus:outline-none"
                     />
                   </div>
 
@@ -1904,7 +1930,7 @@ export function ExpensesPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
                     {/* Who Paid (Payer Name) */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-slate-600 dark:text-gray-300">
+                      <label className="text-[11px] font-semibold text-gray-300">
                         Who Paid (Name)
                       </label>
                       <input
@@ -1912,13 +1938,13 @@ export function ExpensesPage() {
                         placeholder="e.g. Rahul / Cashier"
                         value={entryPaidBy}
                         onChange={(e) => setEntryPaidBy(e.target.value)}
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-[#7FB706] focus:outline-none"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-[#030213] border border-white/15 text-xs text-white placeholder:text-gray-400 focus:border-[#7FB706] focus:outline-none"
                       />
                     </div>
 
                     {/* Paid To */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-slate-600 dark:text-gray-300">
+                      <label className="text-[11px] font-semibold text-gray-300">
                         Paid To (Vendor) <span className="text-rose-500">*</span>
                       </label>
                       <input
@@ -1927,7 +1953,7 @@ export function ExpensesPage() {
                         placeholder="e.g. BlueDart / Shop / Vendor"
                         value={entryPaidTo}
                         onChange={(e) => setEntryPaidTo(e.target.value)}
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-[#7FB706] focus:outline-none"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-[#030213] border border-white/15 text-xs text-white placeholder:text-gray-400 focus:border-[#7FB706] focus:outline-none"
                       />
                     </div>
                   </div>
@@ -1935,7 +1961,7 @@ export function ExpensesPage() {
                   {/* Row 6: Receipt Slip Attachment (Compact) */}
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-semibold text-slate-600 dark:text-gray-300 flex items-center gap-1">
+                      <label className="text-[11px] font-semibold text-gray-300 flex items-center gap-1">
                         <Camera size={12} className="text-[#7FB706]" />
                         <span>Receipt Slip (Optional)</span>
                       </label>
@@ -1984,7 +2010,7 @@ export function ExpensesPage() {
                           <button
                             type="button"
                             onClick={() => fileInputRef.current?.click()}
-                            className="text-slate-500 hover:text-slate-800 dark:hover:text-white text-[10px]"
+                            className="text-gray-400 hover:text-gray-200 dark:hover:text-white text-[10px]"
                           >
                             Replace
                           </button>
@@ -1996,7 +2022,7 @@ export function ExpensesPage() {
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
                           disabled={isUploadingSlip}
-                          className="flex-1 py-1.5 px-2.5 rounded-lg border border-dashed border-slate-300 dark:border-white/20 hover:border-[#7FB706] hover:bg-[#7FB706]/5 transition flex items-center justify-center gap-1.5 text-xs text-slate-600 dark:text-gray-400 cursor-pointer"
+                          className="flex-1 py-1.5 px-2.5 rounded-lg border border-dashed border-white/15 dark:border-white/20 hover:border-[#7FB706] hover:bg-[#7FB706]/5 transition flex items-center justify-center gap-1.5 text-xs text-gray-400 cursor-pointer"
                         >
                           {isUploadingSlip ? (
                             <>
@@ -2015,7 +2041,7 @@ export function ExpensesPage() {
                           placeholder="or paste URL"
                           value={entryReceiptUrl}
                           onChange={(e) => setEntryReceiptUrl(e.target.value)}
-                          className="w-28 px-2 py-1 rounded-lg bg-slate-50 dark:bg-[#030213] border border-slate-200 dark:border-white/10 text-[11px] text-slate-800 dark:text-gray-200 placeholder:text-slate-400 focus:border-[#7FB706] focus:outline-none"
+                          className="w-28 px-2 py-1 rounded-lg bg-[#030213] border border-white/10 text-[11px] text-gray-200 placeholder:text-gray-400 focus:border-[#7FB706] focus:outline-none"
                         />
                       </div>
                     )}
@@ -2036,19 +2062,19 @@ export function ExpensesPage() {
 
           {/* Right Column: Today's Entries Feed (7 cols on lg) */}
           <div className="lg:col-span-7 space-y-3">
-            <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-xs space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-white/10">
+            <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-[#121226] border border-white/10 shadow-xs space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
                 <div>
-                  <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                  <h2 className="text-sm sm:text-base font-bold text-white">
                     Today's Cash Entries
                   </h2>
-                  <p className="text-[11px] text-slate-500 dark:text-gray-400">
+                  <p className="text-[11px] text-gray-400">
                     Live stream for {new Date().toLocaleDateString('en-IN')}
                   </p>
                 </div>
                 <button
                   onClick={fetchTodayEntries}
-                  className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10 transition"
+                  className="p-1.5 rounded-lg text-gray-400 hover:bg-white/10 transition"
                   title="Refresh Today's Feed"
                 >
                   <RefreshCw size={14} className={isLoadingToday ? 'animate-spin' : ''} />
@@ -2057,12 +2083,12 @@ export function ExpensesPage() {
 
               {(todayEntries || []).length === 0 ? (
                 isLoadingToday ? (
-                  <div className="py-12 text-center text-slate-400 dark:text-gray-500 text-sm animate-pulse space-y-2">
+                  <div className="py-12 text-center text-gray-400 text-sm animate-pulse space-y-2">
                     <RefreshCw size={24} className="mx-auto animate-spin opacity-50 text-[#7FB706]" />
                     <p>Loading today's cash expenses...</p>
                   </div>
                 ) : (
-                  <div className="py-12 text-center text-slate-400 dark:text-gray-500 text-sm">
+                  <div className="py-12 text-center text-gray-400 text-sm">
                     <Receipt size={32} className="mx-auto mb-2 opacity-40" />
                     No cash expenses logged today yet.
                   </div>
@@ -2074,22 +2100,22 @@ export function ExpensesPage() {
                     {(todayEntries || []).map((e) => (
                       <div
                         key={e.id}
-                        className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-200 dark:border-white/10 space-y-2"
+                        className="p-3.5 rounded-xl bg-[#030213] border border-white/10 space-y-2"
                       >
                         <div className="flex items-start justify-between">
                           <div>
                             <span className="text-xs font-mono font-bold text-[#7FB706]">
                               {e.entryNumber}
                             </span>
-                            <h4 className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">
+                            <h4 className="text-sm font-semibold text-white mt-0.5">
                               {e.description}
                             </h4>
                           </div>
-                          <span className="text-base font-extrabold text-slate-900 dark:text-white">
+                          <span className="text-base font-extrabold text-white">
                             {formatRupee(e.amount)}
                           </span>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-gray-400">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
                           <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-white/5 font-medium">
                             {e.category?.name || 'Category'}
                           </span>
@@ -2110,7 +2136,7 @@ export function ExpensesPage() {
                             {e.status}
                           </span>
                         </div>
-                        <div className="pt-2 border-t border-slate-200 dark:border-white/10 flex items-center justify-between gap-2">
+                        <div className="pt-2 border-t border-white/10 flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5">
                             {e.status === 'PENDING' && canApprove && (
                               <>
@@ -2135,7 +2161,7 @@ export function ExpensesPage() {
                               <button
                                 type="button"
                                 onClick={() => handleOpenEditModal(e)}
-                                className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-[#3F3F46] text-slate-700 dark:text-gray-300 text-xs font-semibold flex items-center gap-1 transition"
+                                className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 dark:hover:bg-[#3F3F46] text-gray-300 text-xs font-semibold flex items-center gap-1 transition"
                               >
                                 <Edit3 size={12} /> Edit
                               </button>
@@ -2153,7 +2179,7 @@ export function ExpensesPage() {
                               <button
                                 type="button"
                                 onClick={() => setPreviewReceipt({ isOpen: true, url: '', entry: e })}
-                                className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-white/5 hover:bg-slate-200 text-slate-600 dark:text-gray-400 text-xs font-semibold flex items-center gap-1 transition"
+                                className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 text-xs font-semibold flex items-center gap-1 transition"
                                 title="View Official Cash Payment Voucher"
                               >
                                 <Receipt size={12} /> Voucher
@@ -2190,7 +2216,7 @@ export function ExpensesPage() {
                   {/* Desktop Table View */}
                   <div className="hidden sm:block overflow-x-auto">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-50 dark:bg-[#030213] text-slate-500 dark:text-gray-400 uppercase font-semibold border-b border-slate-200 dark:border-white/10">
+                      <thead className="bg-[#030213] text-gray-400 uppercase font-semibold border-b border-white/10">
                         <tr>
                           <th className="py-2.5 px-3">Voucher No</th>
                           <th className="py-2.5 px-3">Time</th>
@@ -2205,26 +2231,26 @@ export function ExpensesPage() {
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-white/10">
                         {(todayEntries || []).map((e) => (
-                          <tr key={e.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition">
+                          <tr key={e.id} className="hover:bg-white/5 transition">
                             <td className="py-2.5 px-3 font-mono font-semibold text-[#7FB706]">
                               {e.entryNumber}
                             </td>
-                            <td className="py-2.5 px-3 text-slate-500 dark:text-gray-400">{e.time}</td>
-                            <td className="py-2.5 px-3 font-medium text-slate-800 dark:text-gray-200">
+                            <td className="py-2.5 px-3 text-gray-400">{e.time}</td>
+                            <td className="py-2.5 px-3 font-medium text-gray-200">
                               {e.category?.name || '-'}
                             </td>
-                            <td className="py-2.5 px-3 max-w-[200px] truncate text-slate-700 dark:text-gray-300">
+                            <td className="py-2.5 px-3 max-w-[200px] truncate text-gray-300">
                               {e.description}
                             </td>
-                            <td className="py-2.5 px-3 text-slate-600 dark:text-gray-400">
-                              <div className="font-medium text-slate-800 dark:text-gray-200">{e.paidTo}</div>
+                            <td className="py-2.5 px-3 text-gray-400">
+                              <div className="font-medium text-gray-200">{e.paidTo}</div>
                               {e.paidBy && (
-                                <div className="text-[10px] text-slate-400 dark:text-gray-500">
-                                  By: <span className="text-slate-600 dark:text-gray-400">{e.paidBy}</span>
+                                <div className="text-[10px] text-gray-400">
+                                  By: <span className="text-gray-400">{e.paidBy}</span>
                                 </div>
                               )}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-bold text-slate-900 dark:text-white">
+                            <td className="py-2.5 px-3 text-right font-bold text-white">
                               {formatRupee(e.amount)}
                             </td>
                             <td className="py-2.5 px-3 text-center">
@@ -2255,7 +2281,7 @@ export function ExpensesPage() {
                                 <button
                                   type="button"
                                   onClick={() => setPreviewReceipt({ isOpen: true, url: '', entry: e })}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/5 hover:bg-slate-200 text-slate-600 dark:text-gray-400 text-[11px] font-medium transition cursor-pointer"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/10 text-gray-400 text-[11px] font-medium transition cursor-pointer"
                                   title="View Official Cash Payment Voucher"
                                 >
                                   <Receipt size={12} />
@@ -2292,7 +2318,7 @@ export function ExpensesPage() {
                                   <button
                                     type="button"
                                     onClick={() => handleOpenEditModal(e)}
-                                    className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 hover:text-slate-800 dark:hover:text-white transition"
+                                    className="p-1 rounded-lg hover:bg-white/10 hover:bg-white/10 text-gray-400 hover:text-gray-200 dark:hover:text-white transition"
                                     title="Edit expense entry"
                                   >
                                     <Edit3 size={13} />
@@ -2337,17 +2363,17 @@ export function ExpensesPage() {
       {/* FLOAT SHORTCUT BANNER (inline in Tab 1)                                */}
       {/* ────────────────────────────────────────────────────────────────────── */}
       {activeTab === 'entry' && (
-        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#7FB706]/15 via-emerald-500/10 to-slate-50 dark:to-[#121226] border border-[#7FB706]/20 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#7FB706]/15 via-[#121226] to-[#030213] border border-[#7FB706]/20 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-[#7FB706] text-white shadow-xs">
               <IndianRupee size={20} />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Cash Float Management (Kolkata Branch)</h3>
+                <h3 className="text-sm font-bold text-white">Cash Float Management</h3>
               </div>
-              <p className="text-xs text-slate-600 dark:text-gray-400 mt-0.5">
-                Kolkata Total Inflow: <strong className="text-[#7FB706]">{formatRupee(floatMetrics.totalKolkataFloat || floatMetrics.totalAllFloat)}</strong> • Total Additions: <strong className="text-slate-900 dark:text-white">{floatMetrics.kolkataCount || floatHistory.length}</strong>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Total Float Inflow: <strong className="text-[#7FB706]">{formatRupee(floatMetrics.totalAllFloat)}</strong> • Total Additions: <strong className="text-white">{floatHistory.length}</strong>
               </p>
             </div>
           </div>
@@ -2363,7 +2389,7 @@ export function ExpensesPage() {
             <button
               type="button"
               onClick={() => setActiveTab('float')}
-              className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 text-slate-800 dark:text-gray-200 border border-slate-200 dark:border-white/10 text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+              className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10 text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
             >
               <span>View Float Register</span>
               <ArrowRight size={13} />
@@ -2378,19 +2404,19 @@ export function ExpensesPage() {
       {activeTab === 'float' && (
         <div className="space-y-6">
           {/* Header Card */}
-          <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-white/10">
+          <div className="p-5 sm:p-6 rounded-2xl bg-[#121226] border border-white/10 shadow-sm">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <div className="p-2 rounded-xl bg-[#7FB706] text-white shadow-xs">
                     <IndianRupee size={20} />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <span>Cash Float Register (Kolkata Branch)</span>
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                      <span>Cash Float Register</span>
                     </h2>
-                    <p className="text-xs text-slate-500 dark:text-gray-400">
-                      Audit, allocate, and track all petty cash float additions for Kolkata Branch
+                    <p className="text-xs text-gray-400">
+                      Audit, allocate, and track all petty cash float additions across branch facilities
                     </p>
                   </div>
                 </div>
@@ -2408,7 +2434,7 @@ export function ExpensesPage() {
                 <button
                   type="button"
                   onClick={fetchFloatHistory}
-                  className="p-2.5 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10 transition border border-slate-200 dark:border-white/10 cursor-pointer"
+                  className="p-2.5 rounded-xl text-gray-400 hover:bg-white/10 transition border border-white/10 cursor-pointer"
                   title="Refresh float history"
                 >
                   <RefreshCw size={16} className={isLoadingFloatHistory ? 'animate-spin' : ''} />
@@ -2428,7 +2454,7 @@ export function ExpensesPage() {
                     <Coins size={16} />
                   </div>
                 </div>
-                <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                <div className="text-xl sm:text-2xl font-black text-white tracking-tight">
                   {formatRupee(floatMetrics.totalKolkataFloat || floatMetrics.totalAllFloat)}
                 </div>
                 <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#7FB706] font-semibold">
@@ -2438,9 +2464,9 @@ export function ExpensesPage() {
               </div>
 
               {/* Card 2: This Month's Float */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm">
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#121226] border border-white/10 shadow-sm">
                 <div className="flex items-center justify-between pb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
                     This Month's Float
                   </span>
                   <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
@@ -2450,22 +2476,22 @@ export function ExpensesPage() {
                 <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
                   {formatRupee(floatMetrics.thisMonthFloat)}
                 </div>
-                <div className="mt-1 text-[11px] text-slate-500 dark:text-gray-500">
+                <div className="mt-1 text-[11px] text-gray-400">
                   Current calendar month additions
                 </div>
               </div>
 
               {/* Card 3: Kolkata Branch Float */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm">
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#121226] border border-white/10 shadow-sm">
                 <div className="flex items-center justify-between pb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
                     Kolkata Regional Hub
                   </span>
                   <div className="p-1.5 rounded-lg bg-[#7FB706]/15 text-[#7FB706]">
                     <Building2 size={16} />
                   </div>
                 </div>
-                <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                <div className="text-xl sm:text-2xl font-black text-white tracking-tight">
                   {formatRupee(floatMetrics.totalKolkataFloat || floatMetrics.totalAllFloat)}
                 </div>
                 <div className="mt-1 text-[11px] text-[#7FB706] font-medium">
@@ -2476,30 +2502,59 @@ export function ExpensesPage() {
           </div>
 
           {/* Filter & Search Bar */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm space-y-3">
+          <div className="p-4 rounded-2xl bg-[#121226] border border-white/10 shadow-sm space-y-3">
             <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-              {/* Facility Filter Pills (Strictly Kolkata) */}
-              <div className="flex items-center gap-1.5">
-                <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#7FB706] text-white shadow-xs">
-                  Kolkata Branch ({floatHistory.length} records)
-                </span>
+              {/* Facility Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 md:pb-0">
+                <button
+                  type="button"
+                  onClick={() => setFloatFilterBranch('ALL')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition whitespace-nowrap cursor-pointer ${
+                    floatFilterBranch === 'ALL'
+                      ? 'bg-[#7FB706]/20 text-[#B5F823] border border-[#7FB706]/40 font-bold'
+                      : 'bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10'
+                  }`}
+                >
+                  All Branches ({floatHistory.length})
+                </button>
+                {branches.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => setFloatFilterBranch(b.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition whitespace-nowrap cursor-pointer ${
+                      floatFilterBranch === b.id
+                        ? 'bg-[#7FB706]/20 text-[#B5F823] border border-[#7FB706]/40 font-bold'
+                        : 'bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10'
+                    }`}
+                  >
+                    {b.name}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setIsAddBranchModalOpen(true)}
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-[#7FB706] hover:bg-[#7FB706]/10 border border-dashed border-[#7FB706]/40 transition whitespace-nowrap cursor-pointer"
+                >
+                  + Add Branch
+                </button>
               </div>
 
               {/* Instant Search Bar */}
               <div className="relative w-full md:w-72">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Search by Ref #, vendor, source, notes..."
                   value={floatSearchQuery}
                   onChange={(e) => setFloatSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-200 dark:border-white/10 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#7FB706]"
+                  className="w-full pl-9 pr-8 py-2 rounded-xl bg-[#030213] border border-white/10 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#7FB706]"
                 />
                 {floatSearchQuery && (
                   <button
                     type="button"
                     onClick={() => setFloatSearchQuery('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-400 dark:hover:text-white"
                   >
                     <X size={13} />
                   </button>
@@ -2509,30 +2564,30 @@ export function ExpensesPage() {
           </div>
 
           {/* Float Records Table & Mobile Cards */}
-          <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm space-y-4">
+          <div className="p-5 sm:p-6 rounded-2xl bg-[#121226] border border-white/10 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <span>Float History Records</span>
-                <span className="text-xs text-slate-400 dark:text-gray-500 font-normal">
+                <span className="text-xs text-gray-400 font-normal">
                   Showing {filteredFloatHistory.length} of {floatHistory.length} transactions
                 </span>
               </h3>
             </div>
 
             {isLoadingFloatHistory ? (
-              <div className="py-12 text-center text-slate-400 dark:text-gray-500 text-sm animate-pulse">
+              <div className="py-12 text-center text-gray-400 text-sm animate-pulse">
                 Loading cash float records…
               </div>
             ) : filteredFloatHistory.length === 0 ? (
               <div className="py-12 text-center space-y-3">
-                <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center mx-auto text-slate-400">
+                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto text-gray-400">
                   <IndianRupee size={22} />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm font-bold text-slate-700 dark:text-gray-300">
+                  <p className="text-sm font-bold text-gray-300">
                     No cash float entries match the filter
                   </p>
-                  <p className="text-xs text-slate-400 dark:text-gray-500 max-w-sm mx-auto">
+                  <p className="text-xs text-gray-400 max-w-sm mx-auto">
                     Add a new cash float top-up for Kolkata Branch or adjust your search filter.
                   </p>
                 </div>
@@ -2542,7 +2597,7 @@ export function ExpensesPage() {
                 {/* Desktop High-Density Matrix */}
                 <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 dark:bg-[#030213] text-slate-500 dark:text-gray-400 uppercase font-semibold border-b border-slate-200 dark:border-white/10">
+                    <thead className="bg-[#030213] text-gray-400 uppercase font-semibold border-b border-white/10">
                       <tr>
                         <th className="py-3 px-3.5">Date</th>
                         <th className="py-3 px-3.5">Destination Facility</th>
@@ -2559,8 +2614,8 @@ export function ExpensesPage() {
                       {filteredFloatHistory.map((f) => {
                         const bName = f.branch?.name || 'Kolkata Regional Hub & Warehouse';
                         return (
-                          <tr key={f.id} className="hover:bg-slate-50/70 dark:hover:bg-white/5 transition">
-                            <td className="py-3 px-3.5 text-slate-600 dark:text-gray-300 whitespace-nowrap font-medium">
+                          <tr key={f.id} className="hover:bg-white/5 transition">
+                            <td className="py-3 px-3.5 text-gray-300 whitespace-nowrap font-medium">
                               {formatDisplayDate(f.date)}
                             </td>
                             <td className="py-3 px-3.5 whitespace-nowrap">
@@ -2572,16 +2627,16 @@ export function ExpensesPage() {
                             <td className="py-3 px-3.5 text-right font-black text-emerald-600 dark:text-emerald-400 text-sm whitespace-nowrap">
                               +{formatRupee(f.amount)}
                             </td>
-                            <td className="py-3 px-3.5 font-semibold text-slate-800 dark:text-gray-200 whitespace-nowrap">
+                            <td className="py-3 px-3.5 font-semibold text-gray-200 whitespace-nowrap">
                               {f.source}
                             </td>
-                            <td className="py-3 px-3.5 text-slate-600 dark:text-gray-400 font-mono text-[11px] whitespace-nowrap">
+                            <td className="py-3 px-3.5 text-gray-400 font-mono text-[11px] whitespace-nowrap">
                               {f.referenceNo || '—'}
                             </td>
-                            <td className="py-3 px-3.5 text-slate-600 dark:text-gray-400 max-w-[200px] truncate" title={f.notes || ''}>
+                            <td className="py-3 px-3.5 text-gray-400 max-w-[200px] truncate" title={f.notes || ''}>
                               {f.notes || '—'}
                             </td>
-                            <td className="py-3 px-3.5 text-slate-500 dark:text-gray-400 whitespace-nowrap">
+                            <td className="py-3 px-3.5 text-gray-400 whitespace-nowrap">
                               {f.addedBy
                                 ? `${f.addedBy.firstName || ''} ${f.addedBy.lastName || ''}`.trim() || f.addedBy.email
                                 : '—'}
@@ -2615,7 +2670,7 @@ export function ExpensesPage() {
                                       floatRecord: f,
                                     })
                                   }
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-white/5 hover:bg-slate-200 text-slate-600 dark:text-gray-400 text-xs font-semibold transition cursor-pointer"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 text-xs font-semibold transition cursor-pointer"
                                   title="View Official Cash Float Disbursal Voucher"
                                 >
                                   <Receipt size={13} />
@@ -2649,10 +2704,10 @@ export function ExpensesPage() {
                     return (
                       <div
                         key={f.id}
-                        className="p-4 rounded-xl border space-y-3 bg-slate-50 dark:bg-[#030213] border-slate-200 dark:border-white/10"
+                        className="p-4 rounded-xl border space-y-3 bg-[#030213] border-white/10"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-slate-500 dark:text-gray-400 font-medium">
+                          <span className="text-xs text-gray-400 font-medium">
                             {formatDisplayDate(f.date)}
                           </span>
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#7FB706]/10 text-[#7FB706] text-[11px] font-bold border border-[#7FB706]/20">
@@ -2664,25 +2719,25 @@ export function ExpensesPage() {
                           <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
                             +{formatRupee(f.amount)}
                           </span>
-                          <span className="text-xs font-semibold text-slate-700 dark:text-gray-300">
+                          <span className="text-xs font-semibold text-gray-300">
                             {f.source}
                           </span>
                         </div>
 
                         {f.referenceNo && (
-                          <div className="text-[11px] text-slate-500 dark:text-gray-400 font-mono">
+                          <div className="text-[11px] text-gray-400 font-mono">
                             Ref: {f.referenceNo}
                           </div>
                         )}
 
                         {f.notes && (
-                          <p className="text-xs text-slate-600 dark:text-gray-300">
+                          <p className="text-xs text-gray-300">
                             {f.notes}
                           </p>
                         )}
 
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-white/10">
-                          <span className="text-[10px] text-slate-400">
+                        <div className="flex items-center justify-between pt-2 border-t border-white/10">
+                          <span className="text-[10px] text-gray-400">
                             By: {f.addedBy?.firstName || f.addedBy?.email || 'Admin'}
                           </span>
                           <div className="flex items-center gap-2">
@@ -2712,7 +2767,7 @@ export function ExpensesPage() {
                                     floatRecord: f,
                                   })
                                 }
-                                className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-white/5 text-slate-700 dark:text-gray-300 text-xs font-semibold"
+                                className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-white/5 text-gray-300 text-xs font-semibold"
                               >
                                 Voucher
                               </button>
@@ -2741,30 +2796,30 @@ export function ExpensesPage() {
       {/* ─── MODAL: Delete Float Top-Up Confirmation ──────────────────────── */}
       {deleteFloatEntry && isSuperAdmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-[#121226] rounded-2xl shadow-2xl border border-slate-200 dark:border-white/10 w-full max-w-sm p-6 space-y-4">
+          <div className="bg-[#121226] rounded-2xl shadow-2xl border border-white/10 w-full max-w-sm p-6 space-y-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-xl bg-rose-500/10 text-rose-500">
                 <Trash2 size={20} />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Delete Float Top-Up?</h3>
-                <p className="text-xs text-slate-500 dark:text-gray-400">This action cannot be undone.</p>
+                <h3 className="text-base font-bold text-white">Delete Float Top-Up?</h3>
+                <p className="text-xs text-gray-400">This action cannot be undone.</p>
               </div>
             </div>
             <div className="p-3.5 rounded-xl bg-rose-500/5 border border-rose-500/20 space-y-1 text-sm">
               <p className="text-rose-700 dark:text-rose-400 font-semibold">
                 ₹{((deleteFloatEntry.amount || 0) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 })} will be deducted from live cash balance
               </p>
-              <p className="text-slate-600 dark:text-gray-400 text-xs">Source: <span className="font-medium">{deleteFloatEntry.source}</span></p>
+              <p className="text-gray-400 text-xs">Source: <span className="font-medium">{deleteFloatEntry.source}</span></p>
               {deleteFloatEntry.notes && (
-                <p className="text-slate-500 dark:text-gray-500 text-xs">Notes: {deleteFloatEntry.notes}</p>
+                <p className="text-gray-400 text-xs">Notes: {deleteFloatEntry.notes}</p>
               )}
             </div>
             <div className="flex items-center justify-end gap-3 pt-1">
               <button
                 type="button"
                 onClick={() => setDeleteFloatEntry(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-white/10 transition"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:bg-white/10 transition"
               >
                 Cancel
               </button>
@@ -2787,18 +2842,18 @@ export function ExpensesPage() {
       {/* TAB 2: EXPENSE LEDGER (ALL HISTORICAL ENTRIES)                         */}
       {/* ────────────────────────────────────────────────────────────────────── */}
       {activeTab === 'ledger' && (
-        <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm space-y-5">
+        <div className="p-5 sm:p-6 rounded-2xl bg-[#121226] border border-white/10 shadow-sm space-y-5">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-white/10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-[#7FB706]/10 text-[#7FB706]">
                 <BookOpen size={22} />
               </div>
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                <h2 className="text-base sm:text-lg font-bold text-white">
                   Organization Expense Ledger (All Entries)
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-gray-400">
+                <p className="text-xs text-gray-400">
                   Search, filter, and audit all expense vouchers across dates and locations
                 </p>
               </div>
@@ -2808,7 +2863,7 @@ export function ExpensesPage() {
               <button
                 type="button"
                 onClick={() => fetchLedgerEntries(true)}
-                className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10 transition"
+                className="p-2 rounded-xl text-gray-400 hover:bg-white/10 transition"
                 title="Refresh Ledger"
               >
                 <RefreshCw size={16} className={isLoadingLedger ? 'animate-spin' : ''} />
@@ -2820,7 +2875,7 @@ export function ExpensesPage() {
           <div className="flex flex-col md:flex-row gap-2.5 items-stretch md:items-center">
             {/* Search Input */}
             <div className="relative flex-1">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search voucher #, description, payee..."
@@ -2829,21 +2884,32 @@ export function ExpensesPage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') fetchLedgerEntries(true);
                 }}
-                className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-[#7FB706] focus:outline-none"
+                className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs font-medium text-white placeholder:text-gray-400 focus:border-[#7FB706] focus:outline-none"
               />
             </div>
 
-            {/* Branch Tag (Strictly Kolkata) */}
-            <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-[#030213] px-3 py-2 rounded-xl border border-slate-300 dark:border-white/10">
+            {/* Branch Filter Dropdown */}
+            <div className="flex items-center gap-1.5 bg-[#030213] px-3 py-2 rounded-xl border border-white/15">
               <Building2 size={15} className="text-[#7FB706] shrink-0" />
-              <span className="text-xs font-bold text-slate-800 dark:text-gray-200">Kolkata Branch</span>
+              <select
+                value={ledgerFilterBranch}
+                onChange={(e) => setLedgerFilterBranch(e.target.value)}
+                className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"
+              >
+                <option value="ALL" className="bg-[#121226] text-white">All Branches</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id} className="bg-[#121226] text-white">
+                    {b.name} ({b.code})
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Category Filter */}
             <select
               value={ledgerFilterCategory}
               onChange={(e) => setLedgerFilterCategory(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-medium text-slate-800 dark:text-gray-200 focus:border-[#7FB706] focus:outline-none"
+              className="px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs font-medium text-gray-200 focus:border-[#7FB706] focus:outline-none"
             >
               <option value="">All Categories</option>
               {categories.map((c) => (
@@ -2857,7 +2923,7 @@ export function ExpensesPage() {
             <select
               value={ledgerFilterStatus}
               onChange={(e) => setLedgerFilterStatus(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-medium text-slate-800 dark:text-gray-200 focus:border-[#7FB706] focus:outline-none"
+              className="px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs font-medium text-gray-200 focus:border-[#7FB706] focus:outline-none"
             >
               <option value="ALL">All Statuses</option>
               <option value="APPROVED">Approved Only</option>
@@ -2885,7 +2951,7 @@ export function ExpensesPage() {
                     setLedgerFilterBranch('ALL');
                     setLedgerFilterStatus('ALL');
                   }}
-                  className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-[#3F3F46] text-slate-600 dark:text-gray-400 text-xs font-semibold transition cursor-pointer"
+                  className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 dark:hover:bg-[#3F3F46] text-gray-400 text-xs font-semibold transition cursor-pointer"
                 >
                   Reset
                 </button>
@@ -2921,9 +2987,9 @@ export function ExpensesPage() {
 
           {/* Ledger Table */}
           {(ledgerEntries || []).length === 0 && !isLoadingLedger ? (
-            <div className="py-16 text-center text-slate-400 dark:text-gray-500 text-sm space-y-3">
+            <div className="py-16 text-center text-gray-400 text-sm space-y-3">
               <BookOpen size={36} className="mx-auto opacity-40" />
-              <p className="font-semibold text-slate-700 dark:text-gray-300">
+              <p className="font-semibold text-gray-300">
                 No expense entries found matching current filters.
               </p>
               <div className="flex items-center justify-center gap-2 pt-1">
@@ -2931,7 +2997,7 @@ export function ExpensesPage() {
                   <button
                     type="button"
                     onClick={() => setLedgerFilterBranch('ALL')}
-                    className="px-3.5 py-1.5 rounded-xl bg-[#7FB706]/10 dark:bg-[#121226] text-[#7FB706] text-xs font-semibold hover:bg-[#7FB706]/20 transition border border-[#7FB706]/30 dark:border-[#7FB706]/20 cursor-pointer"
+                    className="px-3.5 py-1.5 rounded-xl bg-[#7FB706]/15 text-[#7FB706] text-xs font-semibold hover:bg-[#7FB706]/20 transition border border-[#7FB706]/30 dark:border-[#7FB706]/20 cursor-pointer"
                   >
                     View All Branches (Consolidated)
                   </button>
@@ -2944,7 +3010,7 @@ export function ExpensesPage() {
                       setLedgerFilterCategory('');
                       setLedgerFilterStatus('ALL');
                     }}
-                    className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-gray-300 text-xs font-semibold hover:bg-slate-200 transition cursor-pointer"
+                    className="px-3.5 py-1.5 rounded-xl bg-white/5 text-gray-300 text-xs font-semibold hover:bg-white/10 transition cursor-pointer"
                   >
                     Clear Search & Filters
                   </button>
@@ -2953,9 +3019,9 @@ export function ExpensesPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-white/10">
+              <div className="overflow-x-auto rounded-xl border border-white/10">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 dark:bg-[#030213] text-slate-500 dark:text-gray-400 uppercase font-semibold border-b border-slate-200 dark:border-white/10">
+                  <thead className="bg-[#030213] text-gray-400 uppercase font-semibold border-b border-white/10">
                     <tr>
                       <th className="py-3 px-3.5">Voucher No</th>
                       <th className="py-3 px-3.5">Date & Time</th>
@@ -2977,8 +3043,8 @@ export function ExpensesPage() {
                     {(ledgerEntries || []).map((e) => (
                       <tr
                         key={e.id}
-                        className={`hover:bg-slate-50/50 dark:hover:bg-white/5 transition ${
-                          e.isVoid || e.status === 'VOIDED' ? 'opacity-60 bg-slate-50/30' : ''
+                        className={`hover:bg-white/5 transition ${
+                          e.isVoid || e.status === 'VOIDED' ? 'opacity-60 bg-[#030213]/30' : ''
                         }`}
                       >
                         {/* Voucher No */}
@@ -2987,28 +3053,28 @@ export function ExpensesPage() {
                         </td>
 
                         {/* Date & Time */}
-                        <td className="py-3 px-3.5 text-slate-600 dark:text-gray-400 whitespace-nowrap">
+                        <td className="py-3 px-3.5 text-gray-400 whitespace-nowrap">
                           <div>{formatDate(e.date)}</div>
-                          <div className="text-[10px] text-slate-400 dark:text-gray-500">{e.time}</div>
+                          <div className="text-[10px] text-gray-400">{e.time}</div>
                         </td>
 
                         {/* Branch */}
                         {(ledgerFilterBranch === 'ALL' || branches.length > 1) && (
-                          <td className="py-3 px-3.5 text-slate-700 dark:text-gray-300 whitespace-nowrap">
+                          <td className="py-3 px-3.5 text-gray-300 whitespace-nowrap">
                             <span className="font-semibold">{e.branch?.name || '-'}</span>
-                            {e.branch?.code && <span className="ml-1 text-[10px] text-slate-400">({e.branch.code})</span>}
+                            {e.branch?.code && <span className="ml-1 text-[10px] text-gray-400">({e.branch.code})</span>}
                           </td>
                         )}
 
                         {/* Category */}
                         <td className="py-3 px-3.5 whitespace-nowrap">
-                          <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-gray-300 font-medium">
+                          <span className="px-2 py-0.5 rounded-md bg-white/5 text-gray-300 font-medium">
                             {e.category?.name || '-'}
                           </span>
                         </td>
 
                         {/* Description */}
-                        <td className="py-3 px-3.5 max-w-[220px] truncate text-slate-800 dark:text-gray-200" title={e.description}>
+                        <td className="py-3 px-3.5 max-w-[220px] truncate text-gray-200" title={e.description}>
                           {e.description}
                           {e.isVoid && e.voidReason && (
                             <span className="block text-[10px] text-rose-500 italic">Voided: {e.voidReason}</span>
@@ -3019,25 +3085,25 @@ export function ExpensesPage() {
                         </td>
 
                         {/* Paid To & Who Paid */}
-                        <td className="py-3 px-3.5 text-slate-700 dark:text-gray-300 whitespace-nowrap">
-                          <div className="font-semibold text-slate-800 dark:text-gray-200">{e.paidTo}</div>
+                        <td className="py-3 px-3.5 text-gray-300 whitespace-nowrap">
+                          <div className="font-semibold text-gray-200">{e.paidTo}</div>
                           {e.paidBy && (
-                            <div className="text-[10px] text-slate-400 dark:text-gray-500">
-                              Paid by: <span className="font-medium text-slate-600 dark:text-gray-400">{e.paidBy}</span>
+                            <div className="text-[10px] text-gray-400">
+                              Paid by: <span className="font-medium text-gray-400">{e.paidBy}</span>
                             </div>
                           )}
                         </td>
 
                         {/* Payment Mode */}
                         <td className="py-3 px-3.5 whitespace-nowrap">
-                          <span className="text-[10px] px-1.5 py-0.5 rounded font-mono bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-gray-400">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-mono bg-white/5 text-gray-400">
                             {e.paymentMode}
                           </span>
                         </td>
 
                         {/* Amount */}
-                        <td className="py-3 px-3.5 text-right font-extrabold text-slate-900 dark:text-white whitespace-nowrap">
-                          <span className={e.isVoid || e.status === 'VOIDED' ? 'line-through text-slate-400' : ''}>
+                        <td className="py-3 px-3.5 text-right font-extrabold text-white whitespace-nowrap">
+                          <span className={e.isVoid || e.status === 'VOIDED' ? 'line-through text-gray-400' : ''}>
                             {formatRupee(e.amount)}
                           </span>
                         </td>
@@ -3047,7 +3113,7 @@ export function ExpensesPage() {
                           <span
                             className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                               e.isVoid || e.status === 'VOIDED'
-                                ? 'bg-slate-200 dark:bg-slate-800 text-slate-500'
+                                ? 'bg-slate-200 dark:bg-slate-800 text-gray-400'
                                 : e.status === 'APPROVED'
                                 ? 'bg-emerald-500/10 text-emerald-500'
                                 : e.status === 'PENDING'
@@ -3060,7 +3126,7 @@ export function ExpensesPage() {
                         </td>
 
                         {/* Logged By */}
-                        <td className="py-3 px-3.5 text-slate-600 dark:text-gray-400 whitespace-nowrap">
+                        <td className="py-3 px-3.5 text-gray-400 whitespace-nowrap">
                           {e.addedBy?.firstName ? `${e.addedBy.firstName} ${e.addedBy.lastName || ''}`.trim() : e.addedBy?.email || '-'}
                         </td>
 
@@ -3080,7 +3146,7 @@ export function ExpensesPage() {
                             <button
                               type="button"
                               onClick={() => setPreviewReceipt({ isOpen: true, url: '', entry: e })}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-[#3F3F46] text-slate-600 dark:text-gray-400 text-xs font-semibold transition cursor-pointer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 dark:hover:bg-[#3F3F46] text-gray-400 text-xs font-semibold transition cursor-pointer"
                               title="View Official Payment Receipt Voucher"
                             >
                               <Receipt size={13} />
@@ -3119,7 +3185,7 @@ export function ExpensesPage() {
                               <button
                                 type="button"
                                 onClick={() => handleOpenEditModal(e)}
-                                className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 hover:text-slate-800 dark:hover:text-white transition"
+                                className="p-1 rounded-lg hover:bg-white/10 hover:bg-white/10 text-gray-400 hover:text-gray-200 dark:hover:text-white transition"
                                 title="Edit expense entry"
                               >
                                 <Edit3 size={13} />
@@ -3160,7 +3226,7 @@ export function ExpensesPage() {
                     type="button"
                     onClick={() => fetchLedgerEntries(false)}
                     disabled={isLoadingLedger}
-                    className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-[#3F3F46] text-xs font-bold text-slate-700 dark:text-gray-300 transition flex items-center gap-2"
+                    className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 dark:hover:bg-[#3F3F46] text-xs font-bold text-gray-300 transition flex items-center gap-2"
                   >
                     {isLoadingLedger ? (
                       <>
@@ -3182,10 +3248,10 @@ export function ExpensesPage() {
       {/* TAB 3: APPROVAL QUEUE                                                  */}
       {/* ────────────────────────────────────────────────────────────────────── */}
       {activeTab === 'approvals' && (
-        <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-white/10">
+        <div className="p-5 sm:p-6 rounded-2xl bg-[#121226] border border-white/10 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10">
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 <span>Pending Expense Approvals</span>
                 {pendingEntries.length > 0 && (
                   <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-500 border border-amber-500/30 font-bold font-mono">
@@ -3193,14 +3259,14 @@ export function ExpensesPage() {
                   </span>
                 )}
               </h2>
-              <p className="text-xs text-slate-500 dark:text-gray-400">
+              <p className="text-xs text-gray-400">
                 Entries exceeding the auto-approval threshold requiring management sign-off
               </p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={fetchApprovals}
-                className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10 transition"
+                className="p-2 rounded-xl text-gray-400 hover:bg-white/10 transition"
                 title="Refresh Approvals Queue"
               >
                 <RefreshCw size={16} className={isLoadingPending ? 'animate-spin' : ''} />
@@ -3210,7 +3276,7 @@ export function ExpensesPage() {
 
           {/* Facility Filter Pills for Approvals Queue */}
           <div className="flex flex-wrap items-center gap-2 pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-gray-400 flex items-center gap-1 mr-1">
+            <span className="text-xs font-semibold text-gray-400 flex items-center gap-1 mr-1">
               <Building2 size={13} />
               <span>Facility:</span>
             </span>
@@ -3220,11 +3286,11 @@ export function ExpensesPage() {
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 approvalsBranchFilter === 'ALL'
                   ? 'bg-[#7FB706] text-white shadow-sm'
-                  : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-[#3F3F46]'
+                  : 'bg-white/5 text-gray-400 hover:bg-white/10 dark:hover:bg-[#3F3F46]'
               }`}
             >
               <span>All Branches</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${approvalsBranchFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-[#3F3F46] text-slate-700 dark:text-gray-300'}`}>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${approvalsBranchFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-[#3F3F46] text-gray-300'}`}>
                 {pendingEntries.length}
               </span>
             </button>
@@ -3238,7 +3304,7 @@ export function ExpensesPage() {
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                     approvalsBranchFilter === b.id
                       ? 'bg-[#7FB706] text-white shadow-sm'
-                      : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-[#3F3F46]'
+                      : 'bg-white/5 text-gray-400 hover:bg-white/10 dark:hover:bg-[#3F3F46]'
                   }`}
                 >
                   <span>{b.name}</span>
@@ -3253,7 +3319,7 @@ export function ExpensesPage() {
           </div>
 
           {(pendingEntries || []).length === 0 ? (
-            <div className="py-16 text-center text-slate-400 dark:text-gray-500 text-sm">
+            <div className="py-16 text-center text-gray-400 text-sm">
               <CheckCircle size={36} className="mx-auto mb-2 text-emerald-500/50" />
               All caught up! Zero pending approvals in queue.
             </div>
@@ -3264,7 +3330,7 @@ export function ExpensesPage() {
                 .map((e) => (
                 <div
                   key={e.id}
-                  className="p-4 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-200 dark:border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  className="p-4 rounded-xl bg-[#030213] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                 >
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -3278,30 +3344,30 @@ export function ExpensesPage() {
                         <Building2 size={12} />
                         {e.branch?.name || 'Facility'}
                       </span>
-                      <span className="text-xs text-slate-400">({formatDate(e.date)} {e.time})</span>
+                      <span className="text-xs text-gray-400">({formatDate(e.date)} {e.time})</span>
                     </div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">{e.description}</h3>
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-gray-400">
-                      <span>Category: <strong className="text-slate-700 dark:text-gray-200">{e.category?.name}</strong></span>
+                    <h3 className="text-base font-bold text-white">{e.description}</h3>
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400">
+                      <span>Category: <strong className="text-gray-300 dark:text-gray-200">{e.category?.name}</strong></span>
                       <span>•</span>
-                      <span>Paid To: <strong className="text-slate-700 dark:text-gray-200">{e.paidTo}</strong></span>
+                      <span>Paid To: <strong className="text-gray-300 dark:text-gray-200">{e.paidTo}</strong></span>
                       {e.paidBy && (
                         <>
                           <span>•</span>
-                          <span>Who Paid: <strong className="text-slate-700 dark:text-gray-200">{e.paidBy}</strong></span>
+                          <span>Who Paid: <strong className="text-gray-300 dark:text-gray-200">{e.paidBy}</strong></span>
                         </>
                       )}
                       <span>•</span>
-                      <span>Mode: <strong className="text-slate-700 dark:text-gray-200">{e.paymentMode}</strong></span>
+                      <span>Mode: <strong className="text-gray-300 dark:text-gray-200">{e.paymentMode}</strong></span>
                       <span>•</span>
-                      <span>Logged By: <strong className="text-slate-700 dark:text-gray-200">{e.addedBy?.firstName || e.addedBy?.email}</strong></span>
+                      <span>Logged By: <strong className="text-gray-300 dark:text-gray-200">{e.addedBy?.firstName || e.addedBy?.email}</strong></span>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
                     <div className="text-right">
-                      <span className="text-xs text-slate-400">Voucher Amount</span>
-                      <div className="text-xl font-extrabold text-slate-900 dark:text-white">
+                      <span className="text-xs text-gray-400">Voucher Amount</span>
+                      <div className="text-xl font-extrabold text-white">
                         {formatRupee(e.amount)}
                       </div>
                     </div>
@@ -3321,7 +3387,7 @@ export function ExpensesPage() {
                         <button
                           type="button"
                           onClick={() => setPreviewReceipt({ isOpen: true, url: '', entry: e })}
-                          className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 text-slate-600 dark:text-gray-400 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
+                          className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
                           title="View Official Cash Payment Voucher"
                         >
                           <Receipt size={14} />
@@ -3365,13 +3431,13 @@ export function ExpensesPage() {
       {/* ────────────────────────────────────────────────────────────────────── */}
       {activeTab === 'reconciliation' && (
         <div className="space-y-6">
-          <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-white/10">
+          <div className="p-5 sm:p-6 rounded-2xl bg-[#121226] border border-white/10 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                <h2 className="text-base sm:text-lg font-bold text-white">
                   Daily Closing & Physical Cash Reconciliation
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-gray-400">
+                <p className="text-xs text-gray-400">
                   Verify actual physical cash in drawer against calculated system closing balance
                 </p>
               </div>
@@ -3380,26 +3446,26 @@ export function ExpensesPage() {
                   type="date"
                   value={reconcileDate}
                   onChange={(e) => setReconcileDate(e.target.value)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-800 dark:text-gray-200"
+                  className="px-3 py-1.5 rounded-xl bg-[#030213] border border-white/15 text-xs font-semibold text-gray-200"
                 />
               </div>
             </div>
 
             {/* Reconciliation Balance Flow (4-Step Breakdown) */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-200 dark:border-white/10">
-                <span className="text-xs text-slate-400">1. Opening Balance</span>
-                <div className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
+              <div className="p-3.5 rounded-xl bg-[#030213] border border-white/10">
+                <span className="text-xs text-gray-400">1. Opening Balance</span>
+                <div className="text-lg font-bold text-white mt-0.5">
                   {liveBalance ? formatRupee(liveBalance.todayOpening) : '₹0.00'}
                 </div>
               </div>
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-200 dark:border-white/10">
+              <div className="p-3.5 rounded-xl bg-[#030213] border border-white/10">
                 <span className="text-xs text-emerald-500 font-semibold">+ 2. Cash Received / Float</span>
                 <div className="text-lg font-bold text-emerald-500 mt-0.5">
                   {liveBalance ? formatRupee(liveBalance.todayReceived) : '₹0.00'}
                 </div>
               </div>
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-200 dark:border-white/10">
+              <div className="p-3.5 rounded-xl bg-[#030213] border border-white/10">
                 <span className="text-xs text-rose-500 font-semibold">- 3. Approved Cash Expenses</span>
                 <div className="text-lg font-bold text-rose-500 mt-0.5">
                   {liveBalance ? formatRupee(liveBalance.todayExpenses) : '₹0.00'}
@@ -3414,14 +3480,14 @@ export function ExpensesPage() {
             </div>
 
             {/* Reconciliation Form */}
-            <div className="p-5 rounded-2xl bg-slate-50 dark:bg-[#030213] border border-slate-200 dark:border-white/10 space-y-4">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-600 dark:text-gray-300">
+            <div className="p-5 rounded-2xl bg-[#030213] border border-white/10 space-y-4">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-gray-300">
                 Physical Cash Count Input
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-500 dark:text-gray-400">
+                  <label className="text-xs font-semibold text-gray-400">
                     Physical Cash Counted (₹)
                   </label>
                   <input
@@ -3431,15 +3497,15 @@ export function ExpensesPage() {
                     placeholder="Enter physical cash in drawer"
                     value={physicalCashInput}
                     onChange={(e) => setPhysicalCashInput(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-white dark:bg-[#121226] border border-slate-300 dark:border-white/10 text-lg font-bold text-slate-900 dark:text-white"
+                    className="w-full px-4 py-3 rounded-xl bg-[#121226] border border-white/15 text-lg font-bold text-white"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-500 dark:text-gray-400">
+                  <label className="text-xs font-semibold text-gray-400">
                     Calculated Variance (System - Physical)
                   </label>
-                  <div className="w-full px-4 py-3 rounded-xl bg-white dark:bg-[#121226] border border-slate-300 dark:border-white/10 text-lg font-bold flex items-center justify-between">
+                  <div className="w-full px-4 py-3 rounded-xl bg-[#121226] border border-white/15 text-lg font-bold flex items-center justify-between">
                     <span>{liveVariance != null ? formatRupee(liveVariance) : '-'}</span>
                     {liveVariance === 0 ? (
                       <span className="text-xs font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500">
@@ -3455,7 +3521,7 @@ export function ExpensesPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-500 dark:text-gray-400">
+                <label className="text-xs font-semibold text-gray-400">
                   Reconciliation Notes / Remarks
                 </label>
                 <textarea
@@ -3463,7 +3529,7 @@ export function ExpensesPage() {
                   placeholder="e.g. Physical count verified with branch accountant"
                   value={reconcileNotes}
                   onChange={(e) => setReconcileNotes(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-[#121226] border border-slate-300 dark:border-white/10 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3.5 py-2 rounded-xl bg-[#121226] border border-white/15 text-xs text-white"
                 />
               </div>
 
@@ -3488,10 +3554,10 @@ export function ExpensesPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+              <h2 className="text-base sm:text-lg font-bold text-white">
                 Expense Categories & Budgets
               </h2>
-              <p className="text-xs text-slate-500 dark:text-gray-400">
+              <p className="text-xs text-gray-400">
                 Configure expense categories and monthly budget limits with live spend alerts
               </p>
             </div>
@@ -3520,12 +3586,12 @@ export function ExpensesPage() {
               return (
                 <div
                   key={c.id}
-                  className="p-4 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm space-y-3"
+                  className="p-4 rounded-2xl bg-[#121226] border border-white/10 shadow-sm space-y-3"
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="text-base font-bold text-slate-900 dark:text-white">{c.name}</h3>
-                      <p className="text-xs text-slate-500 dark:text-gray-400">{c.description || 'No description'}</p>
+                      <h3 className="text-base font-bold text-white">{c.name}</h3>
+                      <p className="text-xs text-gray-400">{c.description || 'No description'}</p>
                     </div>
                     <div className="flex items-center gap-1">
                       <button
@@ -3536,7 +3602,7 @@ export function ExpensesPage() {
                           setCatBudget(c.monthlyBudgetLimit ? String(c.monthlyBudgetLimit / 100) : '');
                           setIsCategoryModalOpen(true);
                         }}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-[#7FB706] hover:bg-slate-100 dark:hover:bg-white/10 transition"
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-[#7FB706] hover:bg-white/10 transition"
                       >
                         <Edit3 size={15} />
                       </button>
@@ -3547,7 +3613,7 @@ export function ExpensesPage() {
                             fetchCategoriesWithSpend();
                           }
                         }}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-white/10 transition"
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-rose-500 hover:bg-white/10 transition"
                       >
                         <Trash2 size={15} />
                       </button>
@@ -3557,13 +3623,13 @@ export function ExpensesPage() {
                   {/* Budget & Spend Progress */}
                   <div className="space-y-1.5 pt-1">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500 dark:text-gray-400">Monthly Budget</span>
-                      <span className="font-bold text-slate-900 dark:text-white">
+                      <span className="text-gray-400">Monthly Budget</span>
+                      <span className="font-bold text-white">
                         {budgetPaise > 0 ? formatRupee(budgetPaise) : 'Unlimited'}
                       </span>
                     </div>
 
-                    <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-white/5 overflow-hidden">
+                    <div className="w-full h-2 rounded-full bg-white/5 overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all duration-300 ${
                           isOver ? 'bg-rose-500' : percent > 80 ? 'bg-amber-500' : 'bg-[#7FB706]'
@@ -3573,13 +3639,13 @@ export function ExpensesPage() {
                     </div>
 
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-500 dark:text-gray-400">
+                      <span className="text-gray-400">
                         Spent: {formatRupee(spendPaise)}
                       </span>
                       {isOver ? (
                         <span className="font-bold text-rose-500">Over Budget ({percent}%)</span>
                       ) : (
-                        <span className="text-slate-400">{percent}% used</span>
+                        <span className="text-gray-400">{percent}% used</span>
                       )}
                     </div>
                   </div>
@@ -3596,40 +3662,51 @@ export function ExpensesPage() {
       {activeTab === 'reports' && (
         <div className="space-y-6">
           {/* 4 One-Click Excel Generator Cards */}
-          <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-white/10">
+          <div className="p-5 sm:p-6 rounded-2xl bg-[#121226] border border-white/10 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                <h2 className="text-base sm:text-lg font-bold text-white">
                   Multi-Sheet Excel Report Generator (.xlsx)
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-gray-400">
+                <p className="text-xs text-gray-400">
                   Server-side generated multi-sheet workbooks with currency formatting, category pivots & auto-filters
                 </p>
               </div>
 
-              {/* Location Indicator (Strictly Kolkata Branch) */}
-              <div className="flex items-center gap-2 bg-slate-50 dark:bg-[#030213] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-white/10">
+              {/* Location Filter for Reports */}
+              <div className="flex items-center gap-2 bg-[#030213] px-3 py-1.5 rounded-xl border border-white/15">
                 <Building2 size={15} className="text-[#7FB706] shrink-0" />
-                <span className="text-xs font-semibold text-slate-700 dark:text-gray-300 whitespace-nowrap">Location:</span>
-                <span className="text-xs font-bold text-slate-900 dark:text-white">Kolkata Regional Hub (KOLKATA)</span>
+                <span className="text-xs font-semibold text-gray-400 whitespace-nowrap">Location:</span>
+                <select
+                  value={reportBranchId}
+                  onChange={(e) => setReportBranchId(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"
+                >
+                  <option value="ALL" className="bg-[#121226] text-white">All Branches</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id} className="bg-[#121226] text-white">
+                      {b.name} ({b.code})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
               {/* Day-Wise Export Card */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-200 dark:border-white/10 space-y-3">
+              <div className="p-4 rounded-xl bg-[#030213] border border-white/10 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-[#7FB706]">1. Day-Wise Report</span>
                   <FileSpreadsheet size={18} className="text-[#7FB706]" />
                 </div>
-                <p className="text-xs text-slate-500 dark:text-gray-400">
+                <p className="text-xs text-gray-400">
                   Itemized vouchers, opening float, closing balance & reconciliation
                 </p>
                 <input
                   type="date"
                   value={reportDate}
                   onChange={(e) => setReportDate(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#121226] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-800 dark:text-gray-200"
+                  className="w-full px-2.5 py-1.5 rounded-lg bg-[#121226] border border-white/15 text-xs font-semibold text-gray-200"
                 />
                 <button
                   onClick={() => {
@@ -3645,19 +3722,19 @@ export function ExpensesPage() {
               </div>
 
               {/* Week-Wise Export Card */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-200 dark:border-white/10 space-y-3">
+              <div className="p-4 rounded-xl bg-[#030213] border border-white/10 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-emerald-500">2. Week-Wise Report</span>
                   <FileSpreadsheet size={18} className="text-emerald-500" />
                 </div>
-                <p className="text-xs text-slate-500 dark:text-gray-400">
+                <p className="text-xs text-gray-400">
                   Mon–Sun daily rollup with category pivot columns & week total
                 </p>
                 <input
                   type="date"
                   value={reportStartDate}
                   onChange={(e) => setReportStartDate(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#121226] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-800 dark:text-gray-200"
+                  className="w-full px-2.5 py-1.5 rounded-lg bg-[#121226] border border-white/15 text-xs font-semibold text-gray-200"
                 />
                 <button
                   onClick={() => {
@@ -3673,19 +3750,19 @@ export function ExpensesPage() {
               </div>
 
               {/* Month-Wise Export Card */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-200 dark:border-white/10 space-y-3">
+              <div className="p-4 rounded-xl bg-[#030213] border border-white/10 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-blue-500">3. Month-Wise Report</span>
                   <FileSpreadsheet size={18} className="text-blue-500" />
                 </div>
-                <p className="text-xs text-slate-500 dark:text-gray-400">
+                <p className="text-xs text-gray-400">
                   Daily sub-totals, category pivot columns, and variance log
                 </p>
                 <div className="flex gap-2">
                   <select
                     value={reportMonth}
                     onChange={(e) => setReportMonth(Number(e.target.value))}
-                    className="w-1/2 px-2 py-1.5 rounded-lg bg-white dark:bg-[#121226] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-800 dark:text-gray-200"
+                    className="w-1/2 px-2 py-1.5 rounded-lg bg-[#121226] border border-white/15 text-xs font-semibold text-gray-200"
                   >
                     {[
                       'Jan',
@@ -3710,7 +3787,7 @@ export function ExpensesPage() {
                     type="number"
                     value={reportYear}
                     onChange={(e) => setReportYear(Number(e.target.value))}
-                    className="w-1/2 px-2 py-1.5 rounded-lg bg-white dark:bg-[#121226] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-800 dark:text-gray-200"
+                    className="w-1/2 px-2 py-1.5 rounded-lg bg-[#121226] border border-white/15 text-xs font-semibold text-gray-200"
                   />
                 </div>
                 <button
@@ -3727,19 +3804,19 @@ export function ExpensesPage() {
               </div>
 
               {/* Year-Wise Export Card */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-200 dark:border-white/10 space-y-3">
+              <div className="p-4 rounded-xl bg-[#030213] border border-white/10 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-amber-500">4. Year-Wise Report</span>
                   <FileSpreadsheet size={18} className="text-amber-500" />
                 </div>
-                <p className="text-xs text-slate-500 dark:text-gray-400">
+                <p className="text-xs text-gray-400">
                   Annual category trends, monthly financial rollups & grand totals
                 </p>
                 <input
                   type="number"
                   value={reportYear}
                   onChange={(e) => setReportYear(Number(e.target.value))}
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#121226] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-800 dark:text-gray-200"
+                  className="w-full px-2.5 py-1.5 rounded-lg bg-[#121226] border border-white/15 text-xs font-semibold text-gray-200"
                 />
                 <button
                   onClick={() => {
@@ -3759,8 +3836,8 @@ export function ExpensesPage() {
           {/* Interactive Recharts Analytics */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Donut Chart: Category Spend Breakdown */}
-            <div className="lg:col-span-5 p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm space-y-4">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-600 dark:text-gray-300">
+            <div className="lg:col-span-5 p-5 sm:p-6 rounded-2xl bg-[#121226] border border-white/10 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-gray-300">
                 Category Spend Distribution
               </h3>
 
@@ -3789,15 +3866,15 @@ export function ExpensesPage() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-64 flex items-center justify-center text-xs text-slate-400">
+                <div className="h-64 flex items-center justify-center text-xs text-gray-400">
                   No expense distribution data available
                 </div>
               )}
             </div>
 
             {/* Bar Chart: Monthly Spend Trend */}
-            <div className="lg:col-span-7 p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm space-y-4">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-600 dark:text-gray-300">
+            <div className="lg:col-span-7 p-5 sm:p-6 rounded-2xl bg-[#121226] border border-white/10 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-gray-300">
                 Monthly Spend Trend ({reportYear})
               </h3>
 
@@ -3814,7 +3891,7 @@ export function ExpensesPage() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-64 flex items-center justify-center text-xs text-slate-400">
+                <div className="h-64 flex items-center justify-center text-xs text-gray-400">
                   No monthly trend data available
                 </div>
               )}
@@ -3826,36 +3903,53 @@ export function ExpensesPage() {
       {/* ─── MODAL: Cash Float Top-Up ────────────────────────────────────────── */}
       {isTopUpModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md p-6 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/10">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Add Cash Float Top-Up</h3>
+          <div className="w-full max-w-md p-6 rounded-2xl bg-[#121226] border border-white/10 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <h3 className="text-base font-bold text-white">Add Cash Float Top-Up</h3>
               <button
                 onClick={() => setIsTopUpModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
+                className="p-1 rounded-lg text-gray-400 hover:text-white"
               >
                 <X size={18} />
               </button>
             </div>
 
             <form onSubmit={handleTopUpSubmit} className="space-y-3.5">
-              {/* Destination Facility (Strictly Kolkata Branch) */}
+              {/* Destination Facility Selector */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600 dark:text-gray-400 flex items-center gap-1">
-                  <Building2 size={13} className="text-[#7FB706]" />
-                  <span>Destination Facility</span>
-                </label>
-                <input
-                  type="text"
-                  disabled
-                  value="Kolkata Regional Hub & Warehouse (KOLKATA)"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-700 dark:text-gray-300 cursor-not-allowed"
-                />
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-gray-300 flex items-center gap-1">
+                    <Building2 size={13} className="text-[#7FB706]" />
+                    <span>Destination Facility</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsTopUpModalOpen(false);
+                      setIsAddBranchModalOpen(true);
+                    }}
+                    className="text-[10px] text-[#7FB706] hover:underline font-bold cursor-pointer"
+                  >
+                    + Add New Branch
+                  </button>
+                </div>
+                <select
+                  value={topUpTargetBranchId}
+                  onChange={(e) => setTopUpTargetBranchId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs font-semibold text-white focus:border-[#7FB706] focus:outline-none cursor-pointer"
+                >
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id} className="bg-[#121226] text-white">
+                      {b.name} ({b.code})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Top-Up Date Picker */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-600 dark:text-gray-400 flex items-center gap-1">
+                  <label className="text-xs font-semibold text-gray-400 flex items-center gap-1">
                     <Calendar size={13} className="text-[#7FB706]" />
                     <span>Top-Up Date</span>
                   </label>
@@ -3875,12 +3969,12 @@ export function ExpensesPage() {
                   value={topUpDate}
                   max={getTodayDateString()}
                   onChange={(e) => setTopUpDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:border-[#7FB706] focus:outline-none"
+                  className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs font-semibold text-white focus:border-[#7FB706] focus:outline-none"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600 dark:text-gray-400">
+                <label className="text-xs font-semibold text-gray-400">
                   Top-Up Amount (₹) <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -3891,7 +3985,7 @@ export function ExpensesPage() {
                   placeholder="e.g. 10000"
                   value={topUpAmount}
                   onChange={(e) => setTopUpAmount(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-lg font-bold text-slate-900 dark:text-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#030213] border border-white/15 text-lg font-bold text-white"
                 />
                 {/* Quick Amount Chips */}
                 <div className="flex flex-wrap gap-1.5 pt-1">
@@ -3903,7 +3997,7 @@ export function ExpensesPage() {
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
                         topUpAmount === String(quickAmt)
                           ? 'bg-[#7FB706] text-white shadow-xs'
-                          : 'bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-white/10'
+                          : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:bg-white/10'
                       }`}
                     >
                       +₹{quickAmt.toLocaleString('en-IN')}
@@ -3913,13 +4007,13 @@ export function ExpensesPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600 dark:text-gray-400">
+                <label className="text-xs font-semibold text-gray-400">
                   Source of Cash Float
                 </label>
                 <select
                   value={topUpSource}
                   onChange={(e) => setTopUpSource(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-medium text-slate-800 dark:text-gray-200 cursor-pointer"
+                  className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs font-medium text-gray-200 cursor-pointer"
                 >
                   <option value="HQ Cash Float">HQ Cash Float Transfer (to Factory/Branch)</option>
                   <option value="Cash from Bank">Cash from Bank (ATM / Cheque Withdrawal)</option>
@@ -3931,7 +4025,7 @@ export function ExpensesPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600 dark:text-gray-400">
+                <label className="text-xs font-semibold text-gray-400">
                   Reference / Cheque No
                 </label>
                 <input
@@ -3939,30 +4033,30 @@ export function ExpensesPage() {
                   placeholder="e.g. CHQ-889102"
                   value={topUpRef}
                   onChange={(e) => setTopUpRef(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs text-white"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600 dark:text-gray-400">Notes / Purpose</label>
+                <label className="text-xs font-semibold text-gray-400">Notes / Purpose</label>
                 <input
                   type="text"
                   placeholder="e.g. Weekly petty cash replenish"
                   value={topUpNotes}
                   onChange={(e) => setTopUpNotes(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs text-white"
                 />
               </div>
 
               {/* Payment Receipt / Bank Slip Upload */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600 dark:text-gray-400">
+                <label className="text-xs font-semibold text-gray-400">
                   Payment Receipt / Bank Slip (Optional)
                 </label>
                 <div className="flex items-center gap-2">
-                  <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-dashed border-slate-300 dark:border-white/10 hover:border-[#7FB706]/50 bg-slate-50/50 dark:bg-[#030213]/50 cursor-pointer text-xs transition">
+                  <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-dashed border-white/15 hover:border-[#7FB706]/50 bg-[#030213] bg-[#030213]/50 cursor-pointer text-xs transition">
                     <Upload size={14} className="text-[#7FB706]" />
-                    <span className="text-slate-600 dark:text-gray-400 font-medium truncate">
+                    <span className="text-gray-400 font-medium truncate">
                       {isUploadingTopUpSlip
                         ? 'Uploading receipt...'
                         : topUpSlipName || 'Attach Bank Slip / Cash Receipt (JPG, PNG, PDF)'}
@@ -4008,7 +4102,7 @@ export function ExpensesPage() {
                 <button
                   type="button"
                   onClick={() => setIsTopUpModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-white/10"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:bg-white/10"
                 >
                   Cancel
                 </button>
@@ -4028,14 +4122,14 @@ export function ExpensesPage() {
       {/* ─── MODAL: Add/Edit Category ────────────────────────────────────────── */}
       {isCategoryModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md p-6 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/10">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+          <div className="w-full max-w-md p-6 rounded-2xl bg-[#121226] border border-white/10 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <h3 className="text-base font-bold text-white">
                 {editingCategory ? 'Edit Category' : 'Create Category'}
               </h3>
               <button
                 onClick={() => setIsCategoryModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
+                className="p-1 rounded-lg text-gray-400 hover:text-white"
               >
                 <X size={18} />
               </button>
@@ -4043,7 +4137,7 @@ export function ExpensesPage() {
 
             <form onSubmit={handleCategorySubmit} className="space-y-3.5">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600 dark:text-gray-400">
+                <label className="text-xs font-semibold text-gray-400">
                   Category Name <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -4052,23 +4146,23 @@ export function ExpensesPage() {
                   placeholder="e.g. Transport & Travel"
                   value={catName}
                   onChange={(e) => setCatName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-sm font-semibold text-slate-900 dark:text-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#030213] border border-white/15 text-sm font-semibold text-white"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600 dark:text-gray-400">Description</label>
+                <label className="text-xs font-semibold text-gray-400">Description</label>
                 <input
                   type="text"
                   placeholder="Short description of items in this category"
                   value={catDesc}
                   onChange={(e) => setCatDesc(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3.5 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs text-white"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600 dark:text-gray-400">
+                <label className="text-xs font-semibold text-gray-400">
                   Monthly Budget Limit (₹) (Optional)
                 </label>
                 <input
@@ -4077,7 +4171,7 @@ export function ExpensesPage() {
                   placeholder="e.g. 50000 for ₹50,000/month"
                   value={catBudget}
                   onChange={(e) => setCatBudget(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3.5 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs text-white"
                 />
               </div>
 
@@ -4085,7 +4179,7 @@ export function ExpensesPage() {
                 <button
                   type="button"
                   onClick={() => setIsCategoryModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-white/10"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:bg-white/10"
                 >
                   Cancel
                 </button>
@@ -4105,26 +4199,26 @@ export function ExpensesPage() {
       {/* ─── MODAL: Rejection Prompt ─────────────────────────────────────────── */}
       {selectedRejectEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md p-6 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">Reject Expense Entry</h3>
-            <p className="text-xs text-slate-500">
+          <div className="w-full max-w-md p-6 rounded-2xl bg-[#121226] border border-white/10 shadow-2xl space-y-4">
+            <h3 className="text-base font-bold text-white">Reject Expense Entry</h3>
+            <p className="text-xs text-gray-400">
               Voucher #{selectedRejectEntry.entryNumber} for {formatRupee(selectedRejectEntry.amount)}
             </p>
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-400">Rejection Reason</label>
+              <label className="text-xs font-semibold text-gray-400">Rejection Reason</label>
               <textarea
                 rows={3}
                 required
                 placeholder="Reason for rejecting this expense (e.g. missing receipt, unapproved quote)"
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs text-slate-900 dark:text-white"
+                className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs text-white"
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setSelectedRejectEntry(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400"
               >
                 Cancel
               </button>
@@ -4143,30 +4237,30 @@ export function ExpensesPage() {
       {/* ─── MODAL: Void Confirmation ────────────────────────────────────────── */}
       {voidModalEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md p-6 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white text-rose-500 flex items-center gap-1.5">
+          <div className="w-full max-w-md p-6 rounded-2xl bg-[#121226] border border-white/10 shadow-2xl space-y-4">
+            <h3 className="text-base font-bold text-white text-rose-500 flex items-center gap-1.5">
               <AlertTriangle size={18} />
               <span>Void Expense Entry</span>
             </h3>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-gray-400">
               This will reverse the financial movement for voucher #{voidModalEntry.entryNumber} (
               {formatRupee(voidModalEntry.amount)}) and record an immutable audit log.
             </p>
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-400">Mandatory Void Reason</label>
+              <label className="text-xs font-semibold text-gray-400">Mandatory Void Reason</label>
               <textarea
                 rows={3}
                 required
                 placeholder="Explain why this entry is being voided..."
                 value={voidReasonText}
                 onChange={(e) => setVoidReasonText(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs text-slate-900 dark:text-white"
+                className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs text-white"
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setVoidModalEntry(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400"
               >
                 Cancel
               </button>
@@ -4185,14 +4279,14 @@ export function ExpensesPage() {
       {/* ─── MODAL: Edit Expense Entry ────────────────────────────────────────── */}
       {isEditModalOpen && editingExpense && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-lg p-6 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-2xl space-y-4 my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/10">
+          <div className="w-full max-w-lg p-6 rounded-2xl bg-[#121226] border border-white/10 shadow-2xl space-y-4 my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <Edit3 size={18} className="text-[#7FB706]" />
                   <span>Edit Expense Entry</span>
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-gray-400 font-mono mt-0.5">
+                <p className="text-xs text-gray-400 font-mono mt-0.5">
                   Voucher #{editingExpense.entryNumber} • {editingExpense.branch?.name || 'Branch Expense'}
                 </p>
               </div>
@@ -4202,7 +4296,7 @@ export function ExpensesPage() {
                   setIsEditModalOpen(false);
                   setEditingExpense(null);
                 }}
-                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                className="p-1 rounded-lg hover:bg-white/10 text-gray-400 hover:text-gray-400 dark:hover:text-white"
               >
                 <X size={18} />
               </button>
@@ -4221,7 +4315,7 @@ export function ExpensesPage() {
               {/* Date, Amount & Category */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-gray-300 flex items-center gap-1">
+                  <label className="text-xs font-semibold text-gray-300 flex items-center gap-1">
                     <Calendar size={13} className="text-[#7FB706]" />
                     <span>Expense Date <span className="text-rose-500">*</span></span>
                   </label>
@@ -4230,12 +4324,12 @@ export function ExpensesPage() {
                     required
                     value={editDate}
                     onChange={(e) => setEditDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:border-[#7FB706] focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs font-semibold text-white focus:border-[#7FB706] focus:outline-none"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-gray-300">
+                  <label className="text-xs font-semibold text-gray-300">
                     Amount (₹) <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -4245,20 +4339,20 @@ export function ExpensesPage() {
                     required
                     value={editAmount}
                     onChange={(e) => setEditAmount(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-bold text-slate-900 dark:text-white focus:border-[#7FB706] focus:outline-none"
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs font-bold text-white focus:border-[#7FB706] focus:outline-none"
                     placeholder="0.00"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-gray-300">
+                  <label className="text-xs font-semibold text-gray-300">
                     Category <span className="text-rose-500">*</span>
                   </label>
                   <select
                     required
                     value={editCategory}
                     onChange={(e) => setEditCategory(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs text-slate-900 dark:text-white focus:border-[#7FB706] focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs text-white focus:border-[#7FB706] focus:outline-none"
                   >
                     <option value="">Select Category</option>
                     {(categories || []).map((cat) => (
@@ -4272,37 +4366,37 @@ export function ExpensesPage() {
 
               {/* Payment Mode */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700 dark:text-gray-300 flex items-center gap-1">
+                <label className="text-xs font-semibold text-gray-300 flex items-center gap-1">
                   <Wallet size={12} className="text-[#7FB706]" />
                   <span>Payment Mode <span className="text-rose-500">*</span></span>
                 </label>
                 <select
                   value={editPaymentMode}
                   onChange={(e) => setEditPaymentMode(e.target.value as 'CASH' | 'UPI' | 'BANK_TRANSFER')}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:border-[#7FB706] focus:outline-none cursor-pointer"
+                  className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs font-semibold text-white focus:border-[#7FB706] focus:outline-none cursor-pointer"
                 >
-                  <option value="CASH" className="dark:bg-[#121226]">Cash (Petty Cash)</option>
-                  <option value="UPI" className="dark:bg-[#121226]">UPI / Digital QR</option>
-                  <option value="BANK_TRANSFER" className="dark:bg-[#121226]">Bank Transfer / IMPS</option>
+                  <option value="CASH" className="bg-[#121226]">Cash (Petty Cash)</option>
+                  <option value="UPI" className="bg-[#121226]">UPI / Digital QR</option>
+                  <option value="BANK_TRANSFER" className="bg-[#121226]">Bank Transfer / IMPS</option>
                 </select>
               </div>
 
               {/* Who Paid & Paid To (2 columns) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-gray-300">
+                  <label className="text-xs font-semibold text-gray-300">
                     Who Paid (Name)
                   </label>
                   <input
                     type="text"
                     value={editPaidBy}
                     onChange={(e) => setEditPaidBy(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs text-slate-900 dark:text-white focus:border-[#7FB706] focus:outline-none"
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs text-white focus:border-[#7FB706] focus:outline-none"
                     placeholder="e.g. Cashier, Rahul"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-gray-300">
+                  <label className="text-xs font-semibold text-gray-300">
                     Paid To / Vendor <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -4310,7 +4404,7 @@ export function ExpensesPage() {
                     required
                     value={editPaidTo}
                     onChange={(e) => setEditPaidTo(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs text-slate-900 dark:text-white focus:border-[#7FB706] focus:outline-none"
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs text-white focus:border-[#7FB706] focus:outline-none"
                     placeholder="e.g. Swiggy, Cleaner, Supplier"
                   />
                 </div>
@@ -4318,7 +4412,7 @@ export function ExpensesPage() {
 
               {/* Description */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700 dark:text-gray-300">
+                <label className="text-xs font-semibold text-gray-300">
                   Description / Purpose <span className="text-rose-500">*</span>
                 </label>
                 <textarea
@@ -4326,7 +4420,7 @@ export function ExpensesPage() {
                   required
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs text-slate-900 dark:text-white focus:border-[#7FB706] focus:outline-none"
+                  className="w-full px-3.5 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs text-white focus:border-[#7FB706] focus:outline-none"
                   placeholder="Detailed purpose of the expense..."
                 />
               </div>
@@ -4334,7 +4428,7 @@ export function ExpensesPage() {
               {/* Slip File Upload / Attachment */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-gray-300 flex items-center gap-1.5">
+                  <label className="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
                     <Camera size={14} className="text-[#7FB706]" />
                     <span>Receipt Slip / Voucher (Image / PDF)</span>
                   </label>
@@ -4383,7 +4477,7 @@ export function ExpensesPage() {
                       <button
                         type="button"
                         onClick={() => editFileInputRef.current?.click()}
-                        className="text-[11px] font-semibold text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
+                        className="text-[11px] font-semibold text-gray-400 hover:text-white dark:hover:text-white"
                       >
                         Replace
                       </button>
@@ -4395,7 +4489,7 @@ export function ExpensesPage() {
                       type="button"
                       onClick={() => editFileInputRef.current?.click()}
                       disabled={isUploadingEditSlip}
-                      className="w-full py-2.5 px-3 rounded-xl border border-dashed border-slate-300 dark:border-white/20 hover:border-[#7FB706] hover:bg-[#7FB706]/5 transition flex items-center justify-center gap-2 text-xs font-semibold text-slate-600 dark:text-gray-400 cursor-pointer"
+                      className="w-full py-2.5 px-3 rounded-xl border border-dashed border-white/15 dark:border-white/20 hover:border-[#7FB706] hover:bg-[#7FB706]/5 transition flex items-center justify-center gap-2 text-xs font-semibold text-gray-400 cursor-pointer"
                     >
                       {isUploadingEditSlip ? (
                         <>
@@ -4414,7 +4508,7 @@ export function ExpensesPage() {
                       placeholder="Or paste receipt URL directly"
                       value={editReceiptUrl}
                       onChange={(e) => setEditReceiptUrl(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-200 dark:border-white/10 text-[11px] text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-[#7FB706] focus:outline-none"
+                      className="w-full px-3 py-1.5 rounded-xl bg-[#030213] border border-white/10 text-[11px] text-white placeholder:text-gray-400 focus:border-[#7FB706] focus:outline-none"
                     />
                   </div>
                 )}
@@ -4422,27 +4516,27 @@ export function ExpensesPage() {
 
               {/* Edit Reason */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700 dark:text-gray-300">
-                  Change Reason <span className="text-slate-400 font-normal">(for audit trail)</span>
+                <label className="text-xs font-semibold text-gray-300">
+                  Change Reason <span className="text-gray-400 font-normal">(for audit trail)</span>
                 </label>
                 <input
                   type="text"
                   value={editChangeReason}
                   onChange={(e) => setEditChangeReason(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs text-slate-900 dark:text-white focus:border-[#7FB706] focus:outline-none"
+                  className="w-full px-3.5 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs text-white focus:border-[#7FB706] focus:outline-none"
                   placeholder="e.g. Corrected amount according to bill, updated vendor name"
                 />
               </div>
 
               {/* Form Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-white/10">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => {
                     setIsEditModalOpen(false);
                     setEditingExpense(null);
                   }}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-white/10"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:bg-white/10"
                 >
                   Cancel
                 </button>
@@ -4469,21 +4563,21 @@ export function ExpensesPage() {
       {/* ─── MODAL: Delete Expense (Super Admin Only) ────────────────────────── */}
       {deleteModalEntry && isSuperAdmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md p-6 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-2xl space-y-4">
+          <div className="w-full max-w-md p-6 rounded-2xl bg-[#121226] border border-white/10 shadow-2xl space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
                 <Trash2 size={20} />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Delete Expense Voucher</h3>
-                <p className="text-xs text-slate-500 dark:text-gray-400 font-mono">
+                <h3 className="text-base font-bold text-white">Delete Expense Voucher</h3>
+                <p className="text-xs text-gray-400 font-mono">
                   #{deleteModalEntry.entryNumber} • {formatRupee(deleteModalEntry.amount)}
                 </p>
               </div>
             </div>
 
-            <p className="text-xs text-slate-600 dark:text-gray-400 leading-relaxed">
-              Are you sure you want to permanently delete voucher <strong className="font-mono text-slate-900 dark:text-white">#{deleteModalEntry.entryNumber}</strong>?
+            <p className="text-xs text-gray-400 leading-relaxed">
+              Are you sure you want to permanently delete voucher <strong className="font-mono text-white">#{deleteModalEntry.entryNumber}</strong>?
             </p>
 
             {deleteModalEntry.status === 'APPROVED' && !deleteModalEntry.isVoid ? (
@@ -4499,36 +4593,36 @@ export function ExpensesPage() {
                 </p>
               </div>
             ) : deleteModalEntry.isVoid ? (
-              <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-white/5 text-xs text-slate-500 dark:text-gray-400">
+              <div className="p-2.5 rounded-xl bg-white/5 text-xs text-gray-400">
                 This voucher was previously VOIDED. The record and its audit history will be permanently deleted.
               </div>
             ) : (
-              <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-white/5 text-xs text-slate-500 dark:text-gray-400">
+              <div className="p-2.5 rounded-xl bg-white/5 text-xs text-gray-400">
                 This voucher is in {deleteModalEntry.status} status and has not impacted cash balances.
               </div>
             )}
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700 dark:text-gray-300">
-                Deletion Reason <span className="text-slate-400 font-normal">(Optional, for audit log)</span>
+              <label className="text-xs font-semibold text-gray-300">
+                Deletion Reason <span className="text-gray-400 font-normal">(Optional, for audit log)</span>
               </label>
               <textarea
                 rows={2}
                 placeholder="Reason for deletion..."
                 value={deleteReasonText}
                 onChange={(e) => setDeleteReasonText(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs text-slate-900 dark:text-white focus:border-rose-500 focus:outline-none"
+                className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs text-white focus:border-rose-500 focus:outline-none"
               />
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-white/10">
+            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
               <button
                 type="button"
                 onClick={() => {
                   setDeleteModalEntry(null);
                   setDeleteReasonText('');
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-white/10"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:bg-white/10"
               >
                 Cancel
               </button>
@@ -4558,16 +4652,16 @@ export function ExpensesPage() {
       {/* ─── Receipt Slip / Voucher Preview Modal ───────────────────────── */}
       {previewReceipt.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+          <div className="bg-[#121226] border border-white/10 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-[#121226]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-[#030213]">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-[#7FB706]/10 text-[#7FB706]">
                   <Camera size={20} />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    <h3 className="text-base font-bold text-white">
                       {previewReceipt.floatRecord ? 'Cash Float Payment Receipt' : 'Expense Payment Receipt & Voucher'}
                     </h3>
                     {previewReceipt.floatRecord ? (
@@ -4575,12 +4669,12 @@ export function ExpensesPage() {
                         FLT-{previewReceipt.floatRecord.id.slice(0, 8).toUpperCase()}
                       </span>
                     ) : previewReceipt.entry?.entryNumber ? (
-                      <span className="font-mono font-bold text-xs px-2 py-0.5 rounded-md bg-[#7FB706]/20 dark:bg-[#121226] text-[#7FB706] border border-[#7FB706]/30 dark:border-[#7FB706]/30">
+                      <span className="font-mono font-bold text-xs px-2 py-0.5 rounded-md bg-[#7FB706]/20 bg-[#121226] text-[#7FB706] border border-[#7FB706]/30 dark:border-[#7FB706]/30">
                         #{previewReceipt.entry.entryNumber}
                       </span>
                     ) : null}
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-gray-400">
+                  <p className="text-xs text-gray-400">
                     {previewReceipt.floatRecord
                       ? 'Official cash float disbursal record for daily vendor and petty cash expenses'
                       : 'Official financial document and authorization record'}
@@ -4591,7 +4685,7 @@ export function ExpensesPage() {
               <button
                 type="button"
                 onClick={() => setPreviewReceipt({ isOpen: false, url: '', entry: null, floatRecord: null })}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition cursor-pointer"
+                className="p-2 rounded-xl text-gray-400 hover:text-gray-300 dark:hover:text-white hover:bg-white/10 transition cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -4599,13 +4693,13 @@ export function ExpensesPage() {
 
             {/* Metadata Strip */}
             {previewReceipt.floatRecord ? (
-              <div className="px-5 py-2.5 bg-slate-100/60 dark:bg-[#030213] border-b border-slate-200 dark:border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="flex flex-wrap items-center gap-3 text-slate-600 dark:text-gray-300">
-                  <span>Branch: <strong className="text-slate-900 dark:text-white">{previewReceipt.floatRecord.branch?.name || '-'}</strong></span>
+              <div className="px-5 py-2.5 bg-white/5 bg-[#030213] border-b border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex flex-wrap items-center gap-3 text-gray-300">
+                  <span>Branch: <strong className="text-white">{previewReceipt.floatRecord.branch?.name || '-'}</strong></span>
                   <span>•</span>
                   <span>
                     Date:{' '}
-                    <strong className="text-slate-900 dark:text-white">
+                    <strong className="text-white">
                       {previewReceipt.floatRecord.date
                         ? new Date(previewReceipt.floatRecord.date).toLocaleDateString('en-IN', {
                             day: '2-digit',
@@ -4616,32 +4710,32 @@ export function ExpensesPage() {
                     </strong>
                   </span>
                   <span>•</span>
-                  <span>Source / Payee: <strong className="text-slate-900 dark:text-white">{previewReceipt.floatRecord.source}</strong></span>
+                  <span>Source / Payee: <strong className="text-white">{previewReceipt.floatRecord.source}</strong></span>
                   <span>•</span>
-                  <span>Ref: <strong className="text-slate-900 dark:text-white font-mono">{previewReceipt.floatRecord.referenceNo || '—'}</strong></span>
+                  <span>Ref: <strong className="text-white font-mono">{previewReceipt.floatRecord.referenceNo || '—'}</strong></span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">Top-Up Amount:</span>
+                  <span className="text-xs text-gray-400">Top-Up Amount:</span>
                   <span className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400">
                     +{formatRupee(previewReceipt.floatRecord.amount)}
                   </span>
                 </div>
               </div>
             ) : previewReceipt.entry ? (
-              <div className="px-5 py-2.5 bg-slate-100/60 dark:bg-[#030213] border-b border-slate-200 dark:border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="flex flex-wrap items-center gap-3 text-slate-600 dark:text-gray-300">
-                  <span>Branch: <strong className="text-slate-900 dark:text-white">{previewReceipt.entry.branch?.name || '-'}</strong></span>
+              <div className="px-5 py-2.5 bg-white/5 bg-[#030213] border-b border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex flex-wrap items-center gap-3 text-gray-300">
+                  <span>Branch: <strong className="text-white">{previewReceipt.entry.branch?.name || '-'}</strong></span>
                   <span>•</span>
-                  <span>Date: <strong className="text-slate-900 dark:text-white">{formatDate(previewReceipt.entry.date)} {previewReceipt.entry.time}</strong></span>
+                  <span>Date: <strong className="text-white">{formatDate(previewReceipt.entry.date)} {previewReceipt.entry.time}</strong></span>
                   <span>•</span>
-                  <span>Paid To: <strong className="text-slate-900 dark:text-white">{previewReceipt.entry.paidTo}</strong></span>
+                  <span>Paid To: <strong className="text-white">{previewReceipt.entry.paidTo}</strong></span>
                   <span>•</span>
-                  <span>Category: <strong className="text-slate-900 dark:text-white">{previewReceipt.entry.category?.name || '-'}</strong></span>
+                  <span>Category: <strong className="text-white">{previewReceipt.entry.category?.name || '-'}</strong></span>
                   <span>•</span>
-                  <span>Mode: <strong className="text-slate-900 dark:text-white font-mono">{previewReceipt.entry.paymentMode}</strong></span>
+                  <span>Mode: <strong className="text-white font-mono">{previewReceipt.entry.paymentMode}</strong></span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">Voucher Amount:</span>
+                  <span className="text-xs text-gray-400">Voucher Amount:</span>
                   <span className="text-sm font-extrabold text-[#7FB706]">
                     {formatRupee(previewReceipt.entry.amount)}
                   </span>
@@ -4650,10 +4744,10 @@ export function ExpensesPage() {
             ) : null}
 
             {/* Media Content Body */}
-            <div className="p-4 sm:p-6 flex-1 overflow-auto flex items-center justify-center bg-slate-100/40 dark:bg-[#030213]/60 min-h-[350px]">
+            <div className="p-4 sm:p-6 flex-1 overflow-auto flex items-center justify-center bg-[#030213] min-h-[350px]">
               {previewReceipt.url ? (
                 previewReceipt.url.toLowerCase().includes('.pdf') || previewReceipt.url.startsWith('data:application/pdf') ? (
-                  <div className="w-full h-full min-h-[500px] flex flex-col rounded-xl overflow-hidden border border-slate-200 dark:border-white/10">
+                  <div className="w-full h-full min-h-[500px] flex flex-col rounded-xl overflow-hidden border border-white/10">
                     <iframe
                       src={previewReceipt.url}
                       title="Payment Receipt PDF Document"
@@ -4671,13 +4765,13 @@ export function ExpensesPage() {
                 )
               ) : previewReceipt.floatRecord ? (
                 /* Generated Digital Cash Float Payment Voucher */
-                <div className="w-full max-w-2xl bg-white dark:bg-[#121226] rounded-2xl border border-slate-200 dark:border-white/10 p-6 shadow-sm space-y-5 text-slate-800 dark:text-gray-200">
-                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/10 pb-4">
+                <div className="w-full max-w-2xl bg-[#121226] rounded-2xl border border-white/10 p-6 shadow-sm space-y-5 text-gray-200">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-4">
                     <div>
-                      <h4 className="text-base font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
+                      <h4 className="text-base font-extrabold text-white uppercase tracking-wider">
                         PACIFIC RESTROOM CUBICLE & LOCKER SOLUTIONS
                       </h4>
-                      <p className="text-xs text-slate-500 dark:text-gray-400">
+                      <p className="text-xs text-gray-400">
                         Official Cash Float Disbursal & Receipt Voucher
                       </p>
                     </div>
@@ -4688,27 +4782,27 @@ export function ExpensesPage() {
 
                   <div className="grid grid-cols-2 gap-4 text-xs">
                     <div>
-                      <span className="text-slate-400 block">Date of Disbursal</span>
-                      <strong className="text-slate-900 dark:text-white font-semibold">
+                      <span className="text-gray-400 block">Date of Disbursal</span>
+                      <strong className="text-white font-semibold">
                         {formatDisplayDate(previewReceipt.floatRecord.date, 'long')}
                       </strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block">Branch Location</span>
-                      <strong className="text-slate-900 dark:text-white font-semibold">
+                      <span className="text-gray-400 block">Branch Location</span>
+                      <strong className="text-white font-semibold">
                         {previewReceipt.floatRecord.branch?.name || 'Kolkata Regional Hub'}
                         {previewReceipt.floatRecord.branch?.code ? ` (${previewReceipt.floatRecord.branch.code})` : ''}
                       </strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block">Disbursed / Source</span>
-                      <strong className="text-slate-900 dark:text-white font-semibold">
+                      <span className="text-gray-400 block">Disbursed / Source</span>
+                      <strong className="text-white font-semibold">
                         {previewReceipt.floatRecord.source}
                       </strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block">Reference / Cheque No</span>
-                      <strong className="text-slate-900 dark:text-white font-semibold">
+                      <span className="text-gray-400 block">Reference / Cheque No</span>
+                      <strong className="text-white font-semibold">
                         {previewReceipt.floatRecord.referenceNo || '—'}
                       </strong>
                     </div>
@@ -4716,7 +4810,7 @@ export function ExpensesPage() {
 
                   <div className="p-4 rounded-xl bg-emerald-500/5 dark:bg-emerald-950/20 border border-emerald-500/20 flex items-center justify-between">
                     <div>
-                      <span className="text-[11px] text-slate-500 dark:text-gray-400 block">Total Float Amount Disbursed</span>
+                      <span className="text-[11px] text-gray-400 block">Total Float Amount Disbursed</span>
                       <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
                         +{formatRupee(previewReceipt.floatRecord.amount)}
                       </div>
@@ -4727,16 +4821,16 @@ export function ExpensesPage() {
                   </div>
 
                   {previewReceipt.floatRecord.notes && (
-                    <div className="text-xs bg-slate-50 dark:bg-[#030213] p-3 rounded-xl border border-slate-100 dark:border-white/10">
-                      <span className="text-slate-400 block mb-0.5 font-medium">Remarks / Purpose:</span>
-                      <p className="text-slate-700 dark:text-gray-300">{previewReceipt.floatRecord.notes}</p>
+                    <div className="text-xs bg-[#030213] p-3 rounded-xl border border-white/10">
+                      <span className="text-gray-400 block mb-0.5 font-medium">Remarks / Purpose:</span>
+                      <p className="text-gray-300">{previewReceipt.floatRecord.notes}</p>
                     </div>
                   )}
 
-                  <div className="pt-4 border-t border-slate-100 dark:border-white/10 flex items-center justify-between text-[11px] text-slate-400">
+                  <div className="pt-4 border-t border-white/10 flex items-center justify-between text-[11px] text-gray-400">
                     <div>
                       <span>Disbursed By: </span>
-                      <strong className="text-slate-600 dark:text-gray-300">
+                      <strong className="text-gray-300">
                         {previewReceipt.floatRecord.addedBy
                           ? `${previewReceipt.floatRecord.addedBy.firstName || ''} ${previewReceipt.floatRecord.addedBy.lastName || ''}`.trim() || previewReceipt.floatRecord.addedBy.email
                           : 'Finance Desk'}
@@ -4750,13 +4844,13 @@ export function ExpensesPage() {
                 </div>
               ) : previewReceipt.entry ? (
                 /* Generated Digital Expense Payment Voucher */
-                <div className="w-full max-w-2xl bg-white dark:bg-[#121226] rounded-2xl border border-slate-200 dark:border-white/10 p-6 shadow-sm space-y-5 text-slate-800 dark:text-gray-200">
-                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/10 pb-4">
+                <div className="w-full max-w-2xl bg-[#121226] rounded-2xl border border-white/10 p-6 shadow-sm space-y-5 text-gray-200">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-4">
                     <div>
-                      <h4 className="text-base font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
+                      <h4 className="text-base font-extrabold text-white uppercase tracking-wider">
                         PACIFIC RESTROOM CUBICLE & LOCKER SOLUTIONS
                       </h4>
-                      <p className="text-xs text-slate-500 dark:text-gray-400">
+                      <p className="text-xs text-gray-400">
                         Official Cash Outflow Payment Voucher
                       </p>
                     </div>
@@ -4767,38 +4861,38 @@ export function ExpensesPage() {
 
                   <div className="grid grid-cols-2 gap-4 text-xs">
                     <div>
-                      <span className="text-slate-400 block">Date & Time</span>
-                      <strong className="text-slate-900 dark:text-white font-semibold">
+                      <span className="text-gray-400 block">Date & Time</span>
+                      <strong className="text-white font-semibold">
                         {formatDate(previewReceipt.entry.date)} {previewReceipt.entry.time}
                       </strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block">Branch Location</span>
-                      <strong className="text-slate-900 dark:text-white font-semibold">
+                      <span className="text-gray-400 block">Branch Location</span>
+                      <strong className="text-white font-semibold">
                         {previewReceipt.entry.branch?.name || '-'}
                         {previewReceipt.entry.branch?.code ? ` (${previewReceipt.entry.branch.code})` : ''}
                       </strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block">Paid To (Payee / Vendor)</span>
-                      <strong className="text-slate-900 dark:text-white font-semibold">
+                      <span className="text-gray-400 block">Paid To (Payee / Vendor)</span>
+                      <strong className="text-white font-semibold">
                         {previewReceipt.entry.paidTo}
                       </strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block">Payment Mode</span>
-                      <strong className="text-slate-900 dark:text-white font-semibold font-mono">
+                      <span className="text-gray-400 block">Payment Mode</span>
+                      <strong className="text-white font-semibold font-mono">
                         {previewReceipt.entry.paymentMode}
                       </strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block">Expense Category</span>
-                      <strong className="text-slate-900 dark:text-white font-semibold">
+                      <span className="text-gray-400 block">Expense Category</span>
+                      <strong className="text-white font-semibold">
                         {previewReceipt.entry.category?.name || '-'}
                       </strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block">Voucher Status</span>
+                      <span className="text-gray-400 block">Voucher Status</span>
                       <span className={`inline-block font-bold text-[10px] px-2 py-0.5 rounded-full ${
                         previewReceipt.entry.status === 'APPROVED'
                           ? 'bg-emerald-500/10 text-emerald-500'
@@ -4811,30 +4905,30 @@ export function ExpensesPage() {
                     </div>
                   </div>
 
-                  <div className="text-xs bg-slate-50 dark:bg-[#030213] p-3 rounded-xl border border-slate-100 dark:border-white/10">
-                    <span className="text-slate-400 block mb-0.5 font-medium">Description / Particulars:</span>
-                    <p className="text-slate-800 dark:text-gray-200 font-medium">{previewReceipt.entry.description}</p>
+                  <div className="text-xs bg-[#030213] p-3 rounded-xl border border-white/10">
+                    <span className="text-gray-400 block mb-0.5 font-medium">Description / Particulars:</span>
+                    <p className="text-gray-200 font-medium">{previewReceipt.entry.description}</p>
                   </div>
 
-                  <div className="p-4 rounded-xl bg-[#7FB706]/5 dark:bg-[#121226] border border-[#7FB706]/20 flex items-center justify-between">
+                  <div className="p-4 rounded-xl bg-[#7FB706]/10 border border-[#7FB706]/20 flex items-center justify-between">
                     <div>
-                      <span className="text-[11px] text-slate-500 dark:text-gray-400 block">Payment Voucher Amount</span>
+                      <span className="text-[11px] text-gray-400 block">Payment Voucher Amount</span>
                       <div className="text-2xl font-black text-[#7FB706]">
                         {formatRupee(previewReceipt.entry.amount)}
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="text-[10px] text-slate-400 block">Logged By:</span>
-                      <span className="text-xs font-semibold text-slate-700 dark:text-gray-300">
+                      <span className="text-[10px] text-gray-400 block">Logged By:</span>
+                      <span className="text-xs font-semibold text-gray-300">
                         {previewReceipt.entry.addedBy?.firstName || previewReceipt.entry.addedBy?.email || 'Cashier'}
                       </span>
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-slate-100 dark:border-white/10 flex items-center justify-between text-[11px] text-slate-400">
+                  <div className="pt-4 border-t border-white/10 flex items-center justify-between text-[11px] text-gray-400">
                     <div>
                       {previewReceipt.entry.approvedBy && (
-                        <span>Approved by: <strong className="text-slate-600 dark:text-gray-300">{previewReceipt.entry.approvedBy.firstName || previewReceipt.entry.approvedBy.email}</strong></span>
+                        <span>Approved by: <strong className="text-gray-300">{previewReceipt.entry.approvedBy.firstName || previewReceipt.entry.approvedBy.email}</strong></span>
                       )}
                     </div>
                     <div className="text-right">
@@ -4847,7 +4941,7 @@ export function ExpensesPage() {
             </div>
 
             {/* Modal Actions Footer */}
-            <div className="flex items-center justify-between px-5 py-3.5 border-t border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-[#121226]">
+            <div className="flex items-center justify-between px-5 py-3.5 border-t border-white/10 bg-[#030213]">
               <div className="flex items-center gap-2">
                 {previewReceipt.url && (
                   <>
@@ -4855,7 +4949,7 @@ export function ExpensesPage() {
                       href={previewReceipt.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-[#3F3F46] text-slate-700 dark:text-gray-200 text-xs font-semibold transition flex items-center gap-1.5"
+                      className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 dark:hover:bg-[#3F3F46] text-gray-300 dark:text-gray-200 text-xs font-semibold transition flex items-center gap-1.5"
                     >
                       <ExternalLink size={14} />
                       <span>Open in New Tab</span>
@@ -4873,7 +4967,7 @@ export function ExpensesPage() {
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-[#3F3F46] text-slate-700 dark:text-gray-200 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 dark:hover:bg-[#3F3F46] text-gray-300 dark:text-gray-200 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
                   title="Print Payment Receipt Voucher"
                 >
                   <Printer size={14} />
@@ -4896,21 +4990,21 @@ export function ExpensesPage() {
       {/* ─── ADD CUSTOM BRANCH MODAL ────────────────────────────────────── */}
       {isAddBranchModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
-            <div className="px-5 py-4 border-b border-slate-100 dark:border-white/10 flex items-center justify-between">
+          <div className="bg-[#121226] border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+            <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                <div className="p-2 rounded-xl bg-[#7FB706]/15 text-[#7FB706] border border-[#7FB706]/30">
                   <Building2 size={18} />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Add Custom Branch</h3>
-                  <p className="text-xs text-slate-500 dark:text-gray-400">Create a regional branch or operating facility</p>
+                  <h3 className="text-base font-bold text-white">Add Custom Branch</h3>
+                  <p className="text-xs text-gray-400">Create a regional branch or operating facility</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsAddBranchModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition"
+                className="p-1 rounded-lg text-gray-400 hover:text-gray-400 dark:hover:text-white hover:bg-white/10 transition"
               >
                 <X size={18} />
               </button>
@@ -4925,7 +5019,7 @@ export function ExpensesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                  <label className="block text-xs font-bold text-gray-300 mb-1">
                     Branch Name <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -4934,12 +5028,12 @@ export function ExpensesPage() {
                     value={newBranchData.name}
                     onChange={(e) => setNewBranchData({ ...newBranchData, name: e.target.value })}
                     placeholder="e.g. Mumbai Regional Hub & Warehouse"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs font-semibold text-white focus:border-[#7FB706] focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                  <label className="block text-xs font-bold text-gray-300 mb-1">
                     Branch Code <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -4948,12 +5042,12 @@ export function ExpensesPage() {
                     value={newBranchData.code}
                     onChange={(e) => setNewBranchData({ ...newBranchData, code: e.target.value.toUpperCase() })}
                     placeholder="e.g. MUMBAI"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:border-emerald-500 focus:outline-none uppercase"
+                    className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs font-semibold text-white focus:border-[#7FB706] focus:outline-none uppercase"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                  <label className="block text-xs font-bold text-gray-300 mb-1">
                     City <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -4962,12 +5056,12 @@ export function ExpensesPage() {
                     value={newBranchData.city}
                     onChange={(e) => setNewBranchData({ ...newBranchData, city: e.target.value })}
                     placeholder="e.g. Mumbai"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs font-semibold text-white focus:border-[#7FB706] focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                  <label className="block text-xs font-bold text-gray-300 mb-1">
                     State <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -4976,12 +5070,12 @@ export function ExpensesPage() {
                     value={newBranchData.state}
                     onChange={(e) => setNewBranchData({ ...newBranchData, state: e.target.value })}
                     placeholder="e.g. Maharashtra"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs font-semibold text-white focus:border-[#7FB706] focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                  <label className="block text-xs font-bold text-gray-300 mb-1">
                     Opening Cash Float (₹)
                   </label>
                   <input
@@ -4991,12 +5085,12 @@ export function ExpensesPage() {
                     value={newBranchData.openingBalance || ''}
                     onChange={(e) => setNewBranchData({ ...newBranchData, openingBalance: Number(e.target.value) || 0 })}
                     placeholder="0"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs font-semibold text-white focus:border-[#7FB706] focus:outline-none"
                   />
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                  <label className="block text-xs font-bold text-gray-300 mb-1">
                     Address
                   </label>
                   <input
@@ -5004,12 +5098,12 @@ export function ExpensesPage() {
                     value={newBranchData.address}
                     onChange={(e) => setNewBranchData({ ...newBranchData, address: e.target.value })}
                     placeholder="Industrial area / plot details"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs font-semibold text-white focus:border-[#7FB706] focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                  <label className="block text-xs font-bold text-gray-300 mb-1">
                     Contact Person
                   </label>
                   <input
@@ -5017,12 +5111,12 @@ export function ExpensesPage() {
                     value={newBranchData.contactPerson}
                     onChange={(e) => setNewBranchData({ ...newBranchData, contactPerson: e.target.value })}
                     placeholder="e.g. Store Incharge"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs font-semibold text-white focus:border-[#7FB706] focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                  <label className="block text-xs font-bold text-gray-300 mb-1">
                     Phone Number
                   </label>
                   <input
@@ -5030,23 +5124,23 @@ export function ExpensesPage() {
                     value={newBranchData.phone}
                     onChange={(e) => setNewBranchData({ ...newBranchData, phone: e.target.value })}
                     placeholder="+91 ..."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-[#030213] border border-white/15 text-xs font-semibold text-white focus:border-[#7FB706] focus:outline-none"
                   />
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-100 dark:border-white/10 flex items-center justify-end gap-2.5">
+              <div className="pt-3 border-t border-white/10 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setIsAddBranchModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-[#3F3F46] text-slate-700 dark:text-gray-300 text-xs font-bold transition"
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 dark:hover:bg-[#3F3F46] text-gray-300 text-xs font-bold transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingBranch}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+                  className="px-5 py-2 rounded-xl bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs font-bold transition shadow-sm disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                 >
                   {isSavingBranch ? (
                     <>

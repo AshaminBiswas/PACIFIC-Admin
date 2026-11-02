@@ -18,26 +18,13 @@ const DEFAULT_BRANCHES = [
   { id: 'branch-kolkata', name: 'Kolkata Regional Hub & Warehouse', code: 'KOLKATA' },
 ];
 
-function isKolkataBranch(b: any): boolean {
-  if (!b) return false;
-  const id = String(b.id || '').toLowerCase();
-  const code = String(b.code || '').toUpperCase();
-  const name = String(b.name || '').toLowerCase();
-  return (
-    id === 'branch-kolkata' ||
-    code === 'KOLKATA' ||
-    code === 'KOL' ||
-    name.includes('kolkata')
-  );
-}
-
 export function getCachedBranches(): { id: string; name: string; code: string }[] {
   try {
     const raw = localStorage.getItem(BRANCHES_CACHE_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     if (Array.isArray(parsed) && parsed.length > 0) {
-      const filtered = parsed.filter(isKolkataBranch);
-      if (filtered.length > 0) return filtered;
+      const hasKolkata = parsed.some((b: any) => b.id === 'branch-kolkata' || b.code?.toUpperCase().includes('KOL'));
+      return hasKolkata ? parsed : [...DEFAULT_BRANCHES, ...parsed];
     }
     return DEFAULT_BRANCHES;
   } catch {
@@ -147,17 +134,19 @@ export function clearOfflineQueue() {
 // ─── Expenses API Client ─────────────────────────────────────────────────────
 
 export const expensesApi = {
-  // 0. Branches (Strictly Kolkata Branch)
+  // 0. Branches
   async getBranches(): Promise<{ id: string; name: string; code: string }[]> {
     try {
       const res = await apiClient.get('/branch-ledger/branches');
       const list = res.data?.data || res.data || [];
       if (Array.isArray(list) && list.length > 0) {
-        const onlyKolkata = list.filter(isKolkataBranch);
-        const sourceList = onlyKolkata.length > 0 ? onlyKolkata : DEFAULT_BRANCHES;
-        const formatted = sourceList.map((b: any) => ({ id: b.id, name: b.name, code: b.code }));
-        saveCachedBranches(formatted);
-        return formatted;
+        const cleanList = list.filter((b: any) => b.id !== 'branch-up' && !String(b.code || '').toUpperCase().includes('DUMMY'));
+        const formatted = cleanList.map((b: any) => ({ id: String(b.id), name: String(b.name), code: String(b.code) }));
+        const kol = formatted.find((b: any) => b.id === 'branch-kolkata' || b.code?.toUpperCase().includes('KOL')) || DEFAULT_BRANCHES[0];
+        const others = formatted.filter((b: any) => b.id !== kol.id);
+        const finalList = [kol, ...others];
+        saveCachedBranches(finalList);
+        return finalList;
       }
     } catch {}
     return getCachedBranches();
@@ -173,12 +162,26 @@ export const expensesApi = {
     contactPerson?: string;
     openingBalance?: number;
   }): Promise<{ id: string; name: string; code: string }> {
-    const res = await apiClient.post('/branch-ledger/branches', payload);
-    const b = res.data?.data || res.data;
-    const current = getCachedBranches();
-    const updated = [...current.filter((item) => item.id !== b.id), { id: b.id, name: b.name, code: b.code }];
-    saveCachedBranches(updated);
-    return { id: b.id, name: b.name, code: b.code };
+    try {
+      const res = await apiClient.post('/branch-ledger/branches', payload);
+      const b = res.data?.data || res.data;
+      const current = getCachedBranches();
+      const newB = {
+        id: b.id || `branch-${payload.code.toLowerCase()}`,
+        name: b.name || payload.name,
+        code: (b.code || payload.code).toUpperCase(),
+      };
+      const updated = [...current.filter((item) => item.id !== newB.id), newB];
+      saveCachedBranches(updated);
+      return newB;
+    } catch {
+      const localId = `branch-${payload.code.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+      const newB = { id: localId, name: payload.name, code: payload.code.toUpperCase() };
+      const current = getCachedBranches();
+      const updated = [...current.filter((item) => item.id !== localId), newB];
+      saveCachedBranches(updated);
+      return newB;
+    }
   },
 
   // 1. Live Running Balance
