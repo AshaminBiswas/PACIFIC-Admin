@@ -16,22 +16,17 @@ const CATEGORIES_CACHE_KEY = 'prc_cached_categories';
 
 const DEFAULT_BRANCHES = [
   { id: 'branch-kolkata', name: 'Kolkata Regional Hub & Warehouse', code: 'KOLKATA' },
-  { id: 'branch-delhi', name: 'Delhi Main Plant & Central Warehouse', code: 'DELHI' },
 ];
 
-function isDelhiOrKolkata(b: any): boolean {
+function isKolkataBranch(b: any): boolean {
   if (!b) return false;
   const id = String(b.id || '').toLowerCase();
   const code = String(b.code || '').toUpperCase();
   const name = String(b.name || '').toLowerCase();
   return (
-    id === 'branch-delhi' ||
     id === 'branch-kolkata' ||
-    code === 'DELHI' ||
     code === 'KOLKATA' ||
-    code === 'DEL' ||
     code === 'KOL' ||
-    name.includes('delhi') ||
     name.includes('kolkata')
   );
 }
@@ -41,7 +36,7 @@ export function getCachedBranches(): { id: string; name: string; code: string }[
     const raw = localStorage.getItem(BRANCHES_CACHE_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     if (Array.isArray(parsed) && parsed.length > 0) {
-      const filtered = parsed.filter(isDelhiOrKolkata);
+      const filtered = parsed.filter(isKolkataBranch);
       if (filtered.length > 0) return filtered;
     }
     return DEFAULT_BRANCHES;
@@ -152,14 +147,14 @@ export function clearOfflineQueue() {
 // ─── Expenses API Client ─────────────────────────────────────────────────────
 
 export const expensesApi = {
-  // 0. Branches (Strictly Delhi & Kolkata)
+  // 0. Branches (Strictly Kolkata Branch)
   async getBranches(): Promise<{ id: string; name: string; code: string }[]> {
     try {
       const res = await apiClient.get('/branch-ledger/branches');
       const list = res.data?.data || res.data || [];
       if (Array.isArray(list) && list.length > 0) {
-        const onlyDelhiAndKolkata = list.filter(isDelhiOrKolkata);
-        const sourceList = onlyDelhiAndKolkata.length > 0 ? onlyDelhiAndKolkata : DEFAULT_BRANCHES;
+        const onlyKolkata = list.filter(isKolkataBranch);
+        const sourceList = onlyKolkata.length > 0 ? onlyKolkata : DEFAULT_BRANCHES;
         const formatted = sourceList.map((b: any) => ({ id: b.id, name: b.name, code: b.code }));
         saveCachedBranches(formatted);
         return formatted;

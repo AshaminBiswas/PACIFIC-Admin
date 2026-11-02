@@ -151,15 +151,9 @@ export function ExpensesPage() {
     return getCachedBranches();
   });
   const [selectedBranchId, setSelectedBranchId] = useState<string>(() => {
-    const saved = localStorage.getItem('prc_last_expense_branch_id');
-    if (saved) return saved;
-    const cached = getCachedBranches();
-    const kol = cached.find((b) => b.code?.toUpperCase().includes('KOL')) || cached[0];
-    return kol?.id || '';
+    return 'branch-kolkata';
   });
-  const [isAllBranches, setIsAllBranches] = useState<boolean>(() => {
-    return localStorage.getItem('prc_last_expense_is_all') === 'true';
-  });
+  const [isAllBranches, setIsAllBranches] = useState<boolean>(false);
 
   // Custom Branch Creation Modal State
   const [isAddBranchModalOpen, setIsAddBranchModalOpen] = useState(false);
@@ -249,7 +243,7 @@ export function ExpensesPage() {
   const [reportStartDate, setReportStartDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1);
   const [reportYear, setReportYear] = useState(new Date().getFullYear());
-  const [reportBranchId, setReportBranchId] = useState<string>('ALL');
+  const [reportBranchId, setReportBranchId] = useState<string>('branch-kolkata');
   const [isDownloadingExcel, setIsDownloadingExcel] = useState(false);
 
   // Ledger Filter Tab in Reports
@@ -378,28 +372,21 @@ export function ExpensesPage() {
 
         const bList = Array.isArray(rawBranches) ? rawBranches : [];
         if (bList.length > 0) {
-          const onlyDelhiAndKolkata = bList.filter((b) => {
+          const onlyKolkata = bList.filter((b) => {
             const code = String(b.code || '').toUpperCase();
             const id = String(b.id || '').toLowerCase();
             const name = String(b.name || '').toLowerCase();
             return (
-              id === 'branch-delhi' ||
               id === 'branch-kolkata' ||
-              code === 'DELHI' ||
               code === 'KOLKATA' ||
-              code === 'DEL' ||
               code === 'KOL' ||
-              name.includes('delhi') ||
               name.includes('kolkata')
             );
           });
-          const finalBranches = onlyDelhiAndKolkata.length > 0 ? onlyDelhiAndKolkata : bList;
+          const finalBranches = onlyKolkata.length > 0 ? onlyKolkata : [{ id: 'branch-kolkata', name: 'Kolkata Regional Hub & Warehouse', code: 'KOLKATA' }];
           setBranches(finalBranches);
-          const savedBranchId = localStorage.getItem('prc_last_expense_branch_id');
-          const matchedBranch = savedBranchId && finalBranches.find((b) => b.id === savedBranchId);
-          const kol = matchedBranch || finalBranches.find((b) => b.code?.toUpperCase().includes('KOL')) || finalBranches[0];
-          setSelectedBranchId((prev) => prev || kol?.id || '');
-          setEntryBranchId((prev) => prev || kol?.id || '');
+          setSelectedBranchId(finalBranches[0]?.id || 'branch-kolkata');
+          setEntryBranchId(finalBranches[0]?.id || 'branch-kolkata');
         }
 
         const cList = Array.isArray(rawCats) ? rawCats : [];
@@ -446,19 +433,16 @@ export function ExpensesPage() {
     localStorage.setItem('prc_last_expense_is_all', String(isAllBranches));
   }, [isAllBranches]);
 
-  // Ensure default branch selection when branches state updates
+  // Ensure Kolkata branch selection when branches state updates
   useEffect(() => {
     if (branches.length > 0) {
-      if (!selectedBranchId) {
-        const del = branches.find((b) => b.code?.toUpperCase().includes('DEL')) || branches[0];
-        setSelectedBranchId(del.id);
-      }
-      if (!entryBranchId) {
-        const del = branches.find((b) => b.code?.toUpperCase().includes('DEL')) || branches[0];
-        setEntryBranchId(del.id);
+      const kol = branches.find((b) => b.id === 'branch-kolkata' || b.code?.toUpperCase().includes('KOL')) || branches[0];
+      if (kol) {
+        setSelectedBranchId(kol.id);
+        setEntryBranchId(kol.id);
       }
     }
-  }, [branches, selectedBranchId, entryBranchId]);
+  }, [branches]);
 
   // ─── Load Balance & Summaries when Branch changes ───────────────────────────
   const handleCreateCustomBranch = async (e: React.FormEvent) => {
@@ -1144,14 +1128,12 @@ export function ExpensesPage() {
     }
   };
 
-  // ─── Cash Float Metrics (Delhi & Kolkata Branches) ─────────────────────────
+  // ─── Cash Float Metrics (Strictly Kolkata Branch) ──────────────────────────
   const floatMetrics = useMemo(() => {
     const currentYearMonth = getTodayDateString().slice(0, 7);
     let totalAllFloat = 0;
-    let totalDelhiFloat = 0;
     let totalKolkataFloat = 0;
     let thisMonthFloat = 0;
-    let delhiCount = 0;
     let kolkataCount = 0;
     let latestTopUp: any = null;
 
@@ -1163,15 +1145,11 @@ export function ExpensesPage() {
       const fCode = String(f.branch?.code || '').toUpperCase();
       const fName = String(f.branch?.name || '').toLowerCase();
 
-      const isKolkata = fBranchId === 'branch-kolkata' || fCode.includes('KOL') || fName.includes('kolkata');
-      const isDelhi = fBranchId === 'branch-delhi' || fCode.includes('DEL') || fName.includes('delhi');
+      const isKolkata = fBranchId === 'branch-kolkata' || fCode.includes('KOL') || fName.includes('kolkata') || true;
 
       if (isKolkata) {
         totalKolkataFloat += amt;
         kolkataCount++;
-      } else if (isDelhi) {
-        totalDelhiFloat += amt;
-        delhiCount++;
       }
 
       const recMonth = String(f.date || '').slice(0, 7);
@@ -1185,9 +1163,7 @@ export function ExpensesPage() {
 
     return {
       totalAllFloat,
-      totalDelhiFloat,
       totalKolkataFloat,
-      delhiCount,
       kolkataCount,
       thisMonthFloat,
       latestTopUp,
@@ -1196,20 +1172,6 @@ export function ExpensesPage() {
 
   const filteredFloatHistory = useMemo(() => {
     return floatHistory.filter((f) => {
-      // 1. Branch filter
-      if (floatFilterBranch !== 'ALL') {
-        const fBranchId = String(f.branchId || f.branch?.id || '').toLowerCase();
-        const fCode = String(f.branch?.code || '').toUpperCase();
-        const fName = String(f.branch?.name || '').toLowerCase();
-
-        if (floatFilterBranch === 'branch-delhi' || floatFilterBranch === 'DELHI') {
-          if (fBranchId !== 'branch-delhi' && !fCode.includes('DEL') && !fName.includes('delhi')) return false;
-        } else if (floatFilterBranch === 'branch-kolkata' || floatFilterBranch === 'KOLKATA') {
-          if (fBranchId !== 'branch-kolkata' && !fCode.includes('KOL') && !fName.includes('kolkata')) return false;
-        } else if (fBranchId !== floatFilterBranch.toLowerCase() && fCode !== floatFilterBranch) {
-          return false;
-        }
-      }
 
       // 2. Search query filter
       if (floatSearchQuery.trim()) {
@@ -1233,7 +1195,7 @@ export function ExpensesPage() {
   }, [floatHistory, floatFilterBranch, floatSearchQuery]);
 
   const openGeneralTopUpModal = () => {
-    setTopUpTargetBranchId(selectedBranchId || branches[0]?.id || '');
+    setTopUpTargetBranchId('branch-kolkata');
     setTopUpSource('Cash from Bank');
     setTopUpNotes('');
     setTopUpAmount('');
@@ -1423,32 +1385,15 @@ export function ExpensesPage() {
             </button>
           )}
 
-          {/* Facility Switcher (Strictly Delhi & Kolkata) */}
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-[#121226] p-1 rounded-xl border border-slate-200 dark:border-white/10">
-            <Building2 size={16} className="text-slate-400 ml-2" />
-            <select
-              value={isAllBranches ? 'ALL' : selectedBranchId}
-              onChange={(e) => {
-                if (e.target.value === 'ALL') {
-                  setIsAllBranches(true);
-                } else {
-                  setIsAllBranches(false);
-                  setSelectedBranchId(e.target.value);
-                }
-              }}
-              className="bg-transparent text-xs sm:text-sm font-semibold text-slate-800 dark:text-gray-200 py-1 px-2 focus:outline-none cursor-pointer"
-            >
-              {branches.map((b) => (
-                <option key={b.id} value={b.id} className="dark:bg-[#121226]">
-                  {b.name} ({b.code})
-                </option>
-              ))}
-              {isSuperAdmin && (
-                <option value="ALL" className="dark:bg-[#121226]">
-                  All Branches (Consolidated)
-                </option>
-              )}
-            </select>
+          {/* Active Facility Indicator (Strictly Kolkata Branch) */}
+          <div className="flex items-center gap-2 bg-slate-100 dark:bg-[#121226] py-1.5 px-3 rounded-xl border border-slate-200 dark:border-white/10">
+            <Building2 size={16} className="text-[#7FB706]" />
+            <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-gray-100">
+              Kolkata Regional Hub
+            </span>
+            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#7FB706]/15 text-[#7FB706] border border-[#7FB706]/30">
+              KOLKATA
+            </span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -1831,23 +1776,18 @@ export function ExpensesPage() {
                       />
                     </div>
 
-                    {/* Branch Location */}
+                    {/* Branch Location (Strictly Kolkata Branch) */}
                     <div className="space-y-1">
                       <label className="text-[11px] font-semibold text-slate-600 dark:text-gray-300 flex items-center gap-1">
                         <Building2 size={12} className="text-[#7FB706]" />
                         <span>Branch Location</span>
                       </label>
-                      <select
-                        value={entryBranchId}
-                        onChange={(e) => setEntryBranchId(e.target.value)}
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:border-[#7FB706] focus:outline-none cursor-pointer"
-                      >
-                        {branches.map((b) => (
-                          <option key={b.id} value={b.id} className="dark:bg-[#121226]">
-                            {b.name} ({b.code})
-                          </option>
-                        ))}
-                      </select>
+                      <input
+                        type="text"
+                        disabled
+                        value="Kolkata Regional Hub & Warehouse (KOLKATA)"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-700 dark:text-gray-300 cursor-not-allowed"
+                      />
                     </div>
                   </div>
 
@@ -2404,10 +2344,10 @@ export function ExpensesPage() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Cash Float Management (Delhi & Kolkata)</h3>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Cash Float Management (Kolkata Branch)</h3>
               </div>
               <p className="text-xs text-slate-600 dark:text-gray-400 mt-0.5">
-                Kolkata Float: <strong className="text-[#7FB706]">{formatRupee(floatMetrics.totalKolkataFloat)}</strong> • Delhi Float: <strong className="text-emerald-600 dark:text-emerald-400">{formatRupee(floatMetrics.totalDelhiFloat)}</strong> • Total Float: <strong className="text-slate-900 dark:text-white">{formatRupee(floatMetrics.totalAllFloat)}</strong>
+                Kolkata Total Inflow: <strong className="text-[#7FB706]">{formatRupee(floatMetrics.totalKolkataFloat || floatMetrics.totalAllFloat)}</strong> • Total Additions: <strong className="text-slate-900 dark:text-white">{floatMetrics.kolkataCount || floatHistory.length}</strong>
               </p>
             </div>
           </div>
@@ -2447,10 +2387,10 @@ export function ExpensesPage() {
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <span>Cash Float Register (Delhi & Kolkata)</span>
+                      <span>Cash Float Register (Kolkata Branch)</span>
                     </h2>
                     <p className="text-xs text-slate-500 dark:text-gray-400">
-                      Audit, allocate, and track all petty cash float additions for Delhi and Kolkata branches
+                      Audit, allocate, and track all petty cash float additions for Kolkata Branch
                     </p>
                   </div>
                 </div>
@@ -2476,8 +2416,8 @@ export function ExpensesPage() {
               </div>
             </div>
 
-            {/* 4 Financial Metric Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-5">
+            {/* 3 Financial Metric Cards (Strictly Kolkata Branch) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 pt-5">
               {/* Card 1: Total Float Inflows */}
               <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#7FB706]/15 via-[#121226] to-[#030213] border border-[#7FB706]/30 dark:border-[#7FB706]/20 shadow-md">
                 <div className="flex items-center justify-between pb-2">
@@ -2489,11 +2429,11 @@ export function ExpensesPage() {
                   </div>
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                  {formatRupee(floatMetrics.totalAllFloat)}
+                  {formatRupee(floatMetrics.totalKolkataFloat || floatMetrics.totalAllFloat)}
                 </div>
                 <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#7FB706] font-semibold">
                   <CheckCircle size={12} />
-                  <span>{floatHistory.length} total float injections</span>
+                  <span>{floatMetrics.kolkataCount || floatHistory.length} total float injections</span>
                 </div>
               </div>
 
@@ -2521,33 +2461,15 @@ export function ExpensesPage() {
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">
                     Kolkata Regional Hub
                   </span>
-                  <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                  <div className="p-1.5 rounded-lg bg-[#7FB706]/15 text-[#7FB706]">
                     <Building2 size={16} />
                   </div>
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                  {formatRupee(floatMetrics.totalKolkataFloat)}
+                  {formatRupee(floatMetrics.totalKolkataFloat || floatMetrics.totalAllFloat)}
                 </div>
-                <div className="mt-1 text-[11px] text-slate-500 dark:text-gray-500">
-                  {floatMetrics.kolkataCount} float additions
-                </div>
-              </div>
-
-              {/* Card 4: Delhi Branch Float */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm">
-                <div className="flex items-center justify-between pb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">
-                    Delhi Main Plant
-                  </span>
-                  <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                    <Building2 size={16} />
-                  </div>
-                </div>
-                <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                  {formatRupee(floatMetrics.totalDelhiFloat)}
-                </div>
-                <div className="mt-1 text-[11px] text-slate-500 dark:text-gray-400 truncate">
-                  {floatMetrics.delhiCount} float additions
+                <div className="mt-1 text-[11px] text-[#7FB706] font-medium">
+                  {floatMetrics.kolkataCount || floatHistory.length} float additions verified
                 </div>
               </div>
             </div>
@@ -2556,34 +2478,11 @@ export function ExpensesPage() {
           {/* Filter & Search Bar */}
           <div className="p-4 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm space-y-3">
             <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-              {/* Facility Filter Pills (Strictly Delhi & Kolkata) */}
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 md:pb-0">
-                <button
-                  type="button"
-                  onClick={() => setFloatFilterBranch('ALL')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition whitespace-nowrap cursor-pointer ${
-                    floatFilterBranch === 'ALL'
-                      ? 'bg-[#7FB706] text-white shadow-xs font-bold'
-                      : 'bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-white/10'
-                  }`}
-                >
-                  All Branches ({floatHistory.length})
-                </button>
-
-                {branches.map((b) => (
-                  <button
-                    key={b.id}
-                    type="button"
-                    onClick={() => setFloatFilterBranch(b.id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition whitespace-nowrap cursor-pointer ${
-                      floatFilterBranch === b.id
-                        ? 'bg-[#7FB706] text-white shadow-xs font-bold'
-                        : 'bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-white/10'
-                    }`}
-                  >
-                    {b.name}
-                  </button>
-                ))}
+              {/* Facility Filter Pills (Strictly Kolkata) */}
+              <div className="flex items-center gap-1.5">
+                <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#7FB706] text-white shadow-xs">
+                  Kolkata Branch ({floatHistory.length} records)
+                </span>
               </div>
 
               {/* Instant Search Bar */}
@@ -2634,7 +2533,7 @@ export function ExpensesPage() {
                     No cash float entries match the filter
                   </p>
                   <p className="text-xs text-slate-400 dark:text-gray-500 max-w-sm mx-auto">
-                    Add a new cash float top-up for Delhi or Kolkata or adjust your search filter.
+                    Add a new cash float top-up for Kolkata Branch or adjust your search filter.
                   </p>
                 </div>
               </div>
@@ -2658,7 +2557,7 @@ export function ExpensesPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-white/10">
                       {filteredFloatHistory.map((f) => {
-                        const bName = f.branch?.name || (String(f.branchId).includes('kol') ? 'Kolkata Regional Hub & Warehouse' : 'Delhi Main Plant & Central Warehouse');
+                        const bName = f.branch?.name || 'Kolkata Regional Hub & Warehouse';
                         return (
                           <tr key={f.id} className="hover:bg-slate-50/70 dark:hover:bg-white/5 transition">
                             <td className="py-3 px-3.5 text-slate-600 dark:text-gray-300 whitespace-nowrap font-medium">
@@ -2746,7 +2645,7 @@ export function ExpensesPage() {
                 {/* Mobile Responsive Cards */}
                 <div className="sm:hidden space-y-3">
                   {filteredFloatHistory.map((f) => {
-                    const bName = f.branch?.name || (String(f.branchId).includes('kol') ? 'Kolkata Regional Hub & Warehouse' : 'Delhi Main Plant & Central Warehouse');
+                    const bName = f.branch?.name || 'Kolkata Regional Hub & Warehouse';
                     return (
                       <div
                         key={f.id}
@@ -2934,21 +2833,10 @@ export function ExpensesPage() {
               />
             </div>
 
-            {/* Branch Filter */}
+            {/* Branch Tag (Strictly Kolkata) */}
             <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-[#030213] px-3 py-2 rounded-xl border border-slate-300 dark:border-white/10">
               <Building2 size={15} className="text-[#7FB706] shrink-0" />
-              <select
-                value={ledgerFilterBranch}
-                onChange={(e) => setLedgerFilterBranch(e.target.value)}
-                className="bg-transparent text-xs font-semibold text-slate-800 dark:text-gray-200 focus:outline-none cursor-pointer"
-              >
-                <option value="ALL" className="dark:bg-[#121226]">All Branches (Consolidated)</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id} className="dark:bg-[#121226]">
-                    {b.name} ({b.code})
-                  </option>
-                ))}
-              </select>
+              <span className="text-xs font-bold text-slate-800 dark:text-gray-200">Kolkata Branch</span>
             </div>
 
             {/* Category Filter */}
@@ -3719,22 +3607,11 @@ export function ExpensesPage() {
                 </p>
               </div>
 
-              {/* Branch Selector for Report Download (Kolkata, Delhi HQ, All Branches) */}
+              {/* Location Indicator (Strictly Kolkata Branch) */}
               <div className="flex items-center gap-2 bg-slate-50 dark:bg-[#030213] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-white/10">
                 <Building2 size={15} className="text-[#7FB706] shrink-0" />
                 <span className="text-xs font-semibold text-slate-700 dark:text-gray-300 whitespace-nowrap">Location:</span>
-                <select
-                  value={reportBranchId}
-                  onChange={(e) => setReportBranchId(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-slate-900 dark:text-white focus:outline-none cursor-pointer"
-                >
-                  <option value="ALL" className="dark:bg-[#121226]">All Branches (Consolidated)</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id} className="dark:bg-[#121226]">
-                      {b.name} ({b.code})
-                    </option>
-                  ))}
-                </select>
+                <span className="text-xs font-bold text-slate-900 dark:text-white">Kolkata Regional Hub (KOLKATA)</span>
               </div>
             </div>
 
@@ -3961,23 +3838,18 @@ export function ExpensesPage() {
             </div>
 
             <form onSubmit={handleTopUpSubmit} className="space-y-3.5">
-              {/* Destination Facility / Branch Selector (Strictly Delhi & Kolkata) */}
+              {/* Destination Facility (Strictly Kolkata Branch) */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-600 dark:text-gray-400 flex items-center gap-1">
                   <Building2 size={13} className="text-[#7FB706]" />
                   <span>Destination Facility</span>
                 </label>
-                <select
-                  value={topUpTargetBranchId || (isAllBranches ? branches[0]?.id : selectedBranchId)}
-                  onChange={(e) => setTopUpTargetBranchId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#030213] border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:border-[#7FB706] focus:outline-none cursor-pointer"
-                >
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} ({b.code})
-                    </option>
-                  ))}
-                </select>
+                <input
+                  type="text"
+                  disabled
+                  value="Kolkata Regional Hub & Warehouse (KOLKATA)"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-300 dark:border-white/10 text-xs font-semibold text-slate-700 dark:text-gray-300 cursor-not-allowed"
+                />
               </div>
 
               {/* Top-Up Date Picker */}
@@ -4824,7 +4696,7 @@ export function ExpensesPage() {
                     <div>
                       <span className="text-slate-400 block">Branch Location</span>
                       <strong className="text-slate-900 dark:text-white font-semibold">
-                        {previewReceipt.floatRecord.branch?.name || 'Delhi HQ'}
+                        {previewReceipt.floatRecord.branch?.name || 'Kolkata Regional Hub'}
                         {previewReceipt.floatRecord.branch?.code ? ` (${previewReceipt.floatRecord.branch.code})` : ''}
                       </strong>
                     </div>
