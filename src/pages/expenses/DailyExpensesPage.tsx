@@ -389,8 +389,13 @@ export function ExpensesPage() {
         const cList = Array.isArray(rawCats) ? rawCats : [];
         if (cList.length > 0) {
           setCategories(cList);
-          if (!entryCategory) {
+          const savedCat = localStorage.getItem('prc_last_expense_category');
+          const isValid = savedCat && cList.some((c) => c.id === savedCat);
+          if (isValid) {
+            setEntryCategory(savedCat!);
+          } else {
             setEntryCategory(cList[0].id);
+            localStorage.setItem('prc_last_expense_category', cList[0].id);
           }
         }
       } catch (err) {
@@ -700,10 +705,16 @@ export function ExpensesPage() {
       alert('Please enter a valid expense amount greater than ₹0');
       return;
     }
-    if (!entryCategory) {
-      alert('Please select a category');
+
+    let categoryToUse = entryCategory;
+    if (!categoryToUse || (categories.length > 0 && !categories.some((c) => c.id === categoryToUse))) {
+      categoryToUse = categories[0]?.id || '';
+    }
+    if (!categoryToUse) {
+      alert('Please select an expense category');
       return;
     }
+
     if (!entryDescription.trim()) {
       alert('Please enter a short note or description');
       return;
@@ -712,7 +723,11 @@ export function ExpensesPage() {
       alert('Please specify who was paid');
       return;
     }
-    const branchToUse = entryBranchId || (isAllBranches ? branches[0]?.id : selectedBranchId);
+
+    let branchToUse = entryBranchId;
+    if (!branchToUse || (branches.length > 0 && !branches.some((b) => b.id === branchToUse))) {
+      branchToUse = (!isAllBranches && selectedBranchId) ? selectedBranchId : (branches[0]?.id || 'branch-kolkata');
+    }
     if (!branchToUse) {
       alert('Please select a branch location');
       return;
@@ -723,7 +738,7 @@ export function ExpensesPage() {
     setEntryWarningMsg(null);
 
     // Save selected category to localStorage for smart intelligent defaults
-    localStorage.setItem('prc_last_expense_category', entryCategory);
+    localStorage.setItem('prc_last_expense_category', categoryToUse);
 
     // ── Optimistic Balance Update ─────────────────────────────────────────────
     const amountPaise = Math.round(amountVal * 100);
@@ -742,7 +757,7 @@ export function ExpensesPage() {
     try {
       const res = await expensesApi.createExpense({
         amount: amountVal,
-        categoryId: entryCategory,
+        categoryId: categoryToUse,
         paymentMode: entryPaymentMode,
         description: entryDescription.trim(),
         paidTo: entryPaidTo.trim(),
@@ -796,7 +811,8 @@ export function ExpensesPage() {
             }
           : null
       );
-      alert(err.message || 'Failed to submit expense entry');
+      const msg = err.response?.data?.message || err.message || 'Failed to submit expense entry';
+      alert(msg);
     } finally {
       setIsSubmittingEntry(false);
     }
@@ -1200,7 +1216,10 @@ export function ExpensesPage() {
   }, [floatHistory, floatFilterBranch, floatSearchQuery]);
 
   const openGeneralTopUpModal = () => {
-    setTopUpTargetBranchId('branch-kolkata');
+    const defaultBranch = (!isAllBranches && selectedBranchId)
+      ? selectedBranchId
+      : (branches.find((b) => b.id === 'branch-kolkata')?.id || branches[0]?.id || 'branch-kolkata');
+    setTopUpTargetBranchId(defaultBranch);
     setTopUpSource('Cash from Bank');
     setTopUpNotes('');
     setTopUpAmount('');
@@ -1219,8 +1238,14 @@ export function ExpensesPage() {
       alert('Please enter a positive float top-up amount');
       return;
     }
-    const branchToUse = topUpTargetBranchId || (isAllBranches ? branches[0]?.id : selectedBranchId);
-    if (!branchToUse) return;
+    let branchToUse = topUpTargetBranchId;
+    if (!branchToUse || (branches.length > 0 && !branches.some((b) => b.id === branchToUse))) {
+      branchToUse = (!isAllBranches && selectedBranchId) ? selectedBranchId : (branches[0]?.id || 'branch-kolkata');
+    }
+    if (!branchToUse) {
+      alert('Please select a facility / branch for this cash float');
+      return;
+    }
 
     setIsSubmittingTopUp(true);
     try {
@@ -1244,7 +1269,8 @@ export function ExpensesPage() {
       fetchFloatHistory();
       alert('Cash float top-up recorded and added to live balance!');
     } catch (err: any) {
-      alert(err.message || 'Failed to record float top-up');
+      const msg = err.response?.data?.message || err.message || 'Failed to record float top-up';
+      alert(msg);
     } finally {
       setIsSubmittingTopUp(false);
     }
