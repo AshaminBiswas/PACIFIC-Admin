@@ -378,10 +378,26 @@ export function ExpensesPage() {
 
         const bList = Array.isArray(rawBranches) ? rawBranches : [];
         if (bList.length > 0) {
-          setBranches(bList);
+          const onlyDelhiAndKolkata = bList.filter((b) => {
+            const code = String(b.code || '').toUpperCase();
+            const id = String(b.id || '').toLowerCase();
+            const name = String(b.name || '').toLowerCase();
+            return (
+              id === 'branch-delhi' ||
+              id === 'branch-kolkata' ||
+              code === 'DELHI' ||
+              code === 'KOLKATA' ||
+              code === 'DEL' ||
+              code === 'KOL' ||
+              name.includes('delhi') ||
+              name.includes('kolkata')
+            );
+          });
+          const finalBranches = onlyDelhiAndKolkata.length > 0 ? onlyDelhiAndKolkata : bList;
+          setBranches(finalBranches);
           const savedBranchId = localStorage.getItem('prc_last_expense_branch_id');
-          const matchedBranch = savedBranchId && bList.find((b) => b.id === savedBranchId);
-          const del = matchedBranch || bList.find((b) => b.code?.toUpperCase().includes('DEL')) || bList[0];
+          const matchedBranch = savedBranchId && finalBranches.find((b) => b.id === savedBranchId);
+          const del = matchedBranch || finalBranches.find((b) => b.code?.toUpperCase().includes('DEL')) || finalBranches[0];
           setSelectedBranchId((prev) => prev || del.id);
           setEntryBranchId((prev) => prev || del.id);
         }
@@ -1128,49 +1144,39 @@ export function ExpensesPage() {
     }
   };
 
-  // ─── UP Branch Helper & Money to UP Detectors ──────────────────────────────
-  const isUpBranch = useCallback((b: any) => {
-    if (!b) return false;
-    const id = typeof b === 'string' ? b : b.id || b.branchId;
-    const code = (typeof b === 'object' ? b.code || b.branch?.code : '') || '';
-    const name = (typeof b === 'object' ? b.name || b.branch?.name : '') || '';
-    return (
-      id === 'b3000000-0000-0000-0000-000000000003' ||
-      String(code).toUpperCase() === 'UP' ||
-      String(name).toLowerCase().includes('up factory') ||
-      String(name).toLowerCase().includes('uttar pradesh')
-    );
-  }, []);
-
-  const upBranchEntity = useMemo(() => {
-    return (
-      branches.find(isUpBranch) || {
-        id: 'b3000000-0000-0000-0000-000000000003',
-        name: 'UP Factory',
-        code: 'UP',
-      }
-    );
-  }, [branches, isUpBranch]);
-
+  // ─── Cash Float Metrics (Delhi & Kolkata Branches) ─────────────────────────
   const floatMetrics = useMemo(() => {
     const currentYearMonth = getTodayDateString().slice(0, 7);
-    let totalGivenToUp = 0;
-    let upCount = 0;
-    let thisMonthToUp = 0;
     let totalAllFloat = 0;
+    let totalDelhiFloat = 0;
+    let totalKolkataFloat = 0;
+    let thisMonthFloat = 0;
+    let delhiCount = 0;
+    let kolkataCount = 0;
     let latestTopUp: any = null;
 
     floatHistory.forEach((f) => {
       const amt = Number(f.amount || 0); // in paise
       totalAllFloat += amt;
-      const isUp = isUpBranch(f) || isUpBranch(f.branch);
-      if (isUp) {
-        totalGivenToUp += amt;
-        upCount++;
-        const recMonth = String(f.date || '').slice(0, 7);
-        if (recMonth === currentYearMonth) {
-          thisMonthToUp += amt;
-        }
+
+      const fBranchId = String(f.branchId || f.branch?.id || '').toLowerCase();
+      const fCode = String(f.branch?.code || '').toUpperCase();
+      const fName = String(f.branch?.name || '').toLowerCase();
+
+      const isKolkata = fBranchId === 'branch-kolkata' || fCode.includes('KOL') || fName.includes('kolkata');
+      const isDelhi = fBranchId === 'branch-delhi' || fCode.includes('DEL') || fName.includes('delhi');
+
+      if (isKolkata) {
+        totalKolkataFloat += amt;
+        kolkataCount++;
+      } else if (isDelhi) {
+        totalDelhiFloat += amt;
+        delhiCount++;
+      }
+
+      const recMonth = String(f.date || '').slice(0, 7);
+      if (recMonth === currentYearMonth) {
+        thisMonthFloat += amt;
       }
       if (!latestTopUp) {
         latestTopUp = f;
@@ -1178,23 +1184,31 @@ export function ExpensesPage() {
     });
 
     return {
-      totalGivenToUp,
-      upCount,
-      thisMonthToUp,
       totalAllFloat,
+      totalDelhiFloat,
+      totalKolkataFloat,
+      delhiCount,
+      kolkataCount,
+      thisMonthFloat,
       latestTopUp,
     };
-  }, [floatHistory, isUpBranch]);
+  }, [floatHistory]);
 
   const filteredFloatHistory = useMemo(() => {
     return floatHistory.filter((f) => {
       // 1. Branch filter
-      if (floatFilterBranch === 'UP') {
-        if (!isUpBranch(f) && !isUpBranch(f.branch)) return false;
-      } else if (floatFilterBranch !== 'ALL') {
-        const fBranchId = f.branchId || f.branch?.id;
-        const fCode = f.branch?.code || '';
-        if (fBranchId !== floatFilterBranch && fCode !== floatFilterBranch) return false;
+      if (floatFilterBranch !== 'ALL') {
+        const fBranchId = String(f.branchId || f.branch?.id || '').toLowerCase();
+        const fCode = String(f.branch?.code || '').toUpperCase();
+        const fName = String(f.branch?.name || '').toLowerCase();
+
+        if (floatFilterBranch === 'branch-delhi' || floatFilterBranch === 'DELHI') {
+          if (fBranchId !== 'branch-delhi' && !fCode.includes('DEL') && !fName.includes('delhi')) return false;
+        } else if (floatFilterBranch === 'branch-kolkata' || floatFilterBranch === 'KOLKATA') {
+          if (fBranchId !== 'branch-kolkata' && !fCode.includes('KOL') && !fName.includes('kolkata')) return false;
+        } else if (fBranchId !== floatFilterBranch.toLowerCase() && fCode !== floatFilterBranch) {
+          return false;
+        }
       }
 
       // 2. Search query filter
@@ -1216,19 +1230,7 @@ export function ExpensesPage() {
 
       return true;
     });
-  }, [floatHistory, floatFilterBranch, floatSearchQuery, isUpBranch]);
-
-  const openGiveMoneyToUpModal = () => {
-    setTopUpTargetBranchId(upBranchEntity.id);
-    setTopUpSource('HQ Cash Float');
-    setTopUpNotes('HQ Cash Float given to UP Factory');
-    setTopUpAmount('');
-    setTopUpDate(getTodayDateString());
-    setTopUpRef('');
-    setTopUpReceiptUrl(null);
-    setTopUpSlipName(null);
-    setIsTopUpModalOpen(true);
-  };
+  }, [floatHistory, floatFilterBranch, floatSearchQuery]);
 
   const openGeneralTopUpModal = () => {
     setTopUpTargetBranchId(selectedBranchId || branches[0]?.id || '');
@@ -1421,7 +1423,7 @@ export function ExpensesPage() {
             </button>
           )}
 
-          {/* Facility Switcher */}
+          {/* Facility Switcher (Strictly Delhi & Kolkata) */}
           <div className="flex items-center gap-1 bg-slate-100 dark:bg-[#121226] p-1 rounded-xl border border-slate-200 dark:border-white/10">
             <Building2 size={16} className="text-slate-400 ml-2" />
             <select
@@ -1447,30 +1449,13 @@ export function ExpensesPage() {
                 </option>
               )}
             </select>
-            <button
-              type="button"
-              onClick={() => setIsAddBranchModalOpen(true)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold transition cursor-pointer shrink-0 ml-1"
-              title="Add Custom Branch (Delhi, Kolkata, or new locations)"
-            >
-              <Plus size={13} />
-              <span className="hidden sm:inline">Add Branch</span>
-            </button>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={openGiveMoneyToUpModal}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] border border-[#7FB706]/30 text-xs sm:text-sm font-bold transition shadow-xs"
-              title="Give Petty Cash Float to UP Factory"
-            >
-              <Sparkles size={15} className="text-[#7FB706]" />
-              <span className="hidden sm:inline">Give Money to UP</span>
-              <span className="sm:hidden">Money to UP</span>
-            </button>
-            <button
+              type="button"
               onClick={openGeneralTopUpModal}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs sm:text-sm font-semibold transition shadow-sm"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs sm:text-sm font-semibold transition shadow-sm cursor-pointer"
             >
               <Plus size={16} />
               <span>Add Cash Float</span>
@@ -1601,18 +1586,7 @@ export function ExpensesPage() {
           }`}
         >
           <IndianRupee size={16} />
-          <span>Cash Float & Money to UP</span>
-          {floatMetrics.upCount > 0 && (
-            <span
-              className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                activeTab === 'float'
-                  ? 'bg-white/20 text-white'
-                  : 'bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/20'
-              }`}
-            >
-              {floatMetrics.upCount} to UP
-            </span>
-          )}
+          <span>Cash Float Top-Ups</span>
         </button>
 
         <button
@@ -2430,24 +2404,21 @@ export function ExpensesPage() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Cash Float & Money to UP Factory</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#7FB706]/20 text-[#7FB706]">
-                  {floatMetrics.upCount} transfers to UP
-                </span>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Cash Float Management (Delhi & Kolkata)</h3>
               </div>
               <p className="text-xs text-slate-600 dark:text-gray-400 mt-0.5">
-                Given to UP: <strong className="text-[#7FB706]">{formatRupee(floatMetrics.totalGivenToUp)}</strong> • Total All-Branch Float: <strong className="text-emerald-600 dark:text-emerald-400">{formatRupee(floatMetrics.totalAllFloat)}</strong>
+                Kolkata Float: <strong className="text-[#7FB706]">{formatRupee(floatMetrics.totalKolkataFloat)}</strong> • Delhi Float: <strong className="text-emerald-600 dark:text-emerald-400">{formatRupee(floatMetrics.totalDelhiFloat)}</strong> • Total Float: <strong className="text-slate-900 dark:text-white">{formatRupee(floatMetrics.totalAllFloat)}</strong>
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
               type="button"
-              onClick={openGiveMoneyToUpModal}
-              className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+              onClick={openGeneralTopUpModal}
+              className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
             >
-              <Sparkles size={13} />
-              <span>+ Give Money to UP</span>
+              <Plus size={14} />
+              <span>+ Add Cash Float</span>
             </button>
             <button
               type="button"
@@ -2476,13 +2447,10 @@ export function ExpensesPage() {
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <span>Cash Float & UP Factory Register</span>
-                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#7FB706]/15 text-[#7FB706] font-bold border border-[#7FB706]/20">
-                        ⭐ Money Given to UP
-                      </span>
+                      <span>Cash Float Register (Delhi & Kolkata)</span>
                     </h2>
                     <p className="text-xs text-slate-500 dark:text-gray-400">
-                      Audit, allocate, and track all petty cash float additions and money given to UP Factory
+                      Audit, allocate, and track all petty cash float additions for Delhi and Kolkata branches
                     </p>
                   </div>
                 </div>
@@ -2491,19 +2459,11 @@ export function ExpensesPage() {
               <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
                 <button
                   type="button"
-                  onClick={openGiveMoneyToUpModal}
+                  onClick={openGeneralTopUpModal}
                   className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs sm:text-sm font-bold transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Sparkles size={16} />
-                  <span>+ Give Money to UP Factory</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={openGeneralTopUpModal}
-                  className="flex-1 sm:flex-initial px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-800 dark:text-gray-200 text-xs sm:text-sm font-semibold transition border border-slate-200 dark:border-white/10 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
                   <Plus size={16} />
-                  <span>+ Add General Float</span>
+                  <span>+ Add Cash Float</span>
                 </button>
                 <button
                   type="button"
@@ -2518,86 +2478,77 @@ export function ExpensesPage() {
 
             {/* 4 Financial Metric Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-5">
-              {/* Card 1: Total Money Given to UP */}
+              {/* Card 1: Total Float Inflows */}
               <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#7FB706]/15 via-[#121226] to-[#030213] border border-[#7FB706]/30 dark:border-[#7FB706]/20 shadow-md">
                 <div className="flex items-center justify-between pb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#7FB706] dark:text-[#7FB706]">
-                    Total Given to UP
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#7FB706]">
+                    Total Float Inflows
                   </span>
                   <div className="p-1.5 rounded-lg bg-[#7FB706]/20 text-[#7FB706]">
-                    <Building2 size={16} />
-                  </div>
-                </div>
-                <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                  {formatRupee(floatMetrics.totalGivenToUp)}
-                </div>
-                <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#7FB706] font-semibold">
-                  <CheckCircle size={12} />
-                  <span>{floatMetrics.upCount} cash transfers recorded</span>
-                </div>
-              </div>
-
-              {/* Card 2: This Month to UP */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm">
-                <div className="flex items-center justify-between pb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">
-                    This Month to UP
-                  </span>
-                  <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                    <TrendingUp size={16} />
-                  </div>
-                </div>
-                <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
-                  {formatRupee(floatMetrics.thisMonthToUp)}
-                </div>
-                <div className="mt-1 text-[11px] text-slate-500 dark:text-gray-500">
-                  Current month manufacturing allocation
-                </div>
-              </div>
-
-              {/* Card 3: Total Float Inflows (All Facilities) */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm">
-                <div className="flex items-center justify-between pb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">
-                    All-Branch Total Float
-                  </span>
-                  <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
                     <Coins size={16} />
                   </div>
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
                   {formatRupee(floatMetrics.totalAllFloat)}
                 </div>
-                <div className="mt-1 text-[11px] text-slate-500 dark:text-gray-500">
-                  Across {floatHistory.length} total float injections
+                <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#7FB706] font-semibold">
+                  <CheckCircle size={12} />
+                  <span>{floatHistory.length} total float injections</span>
                 </div>
               </div>
 
-              {/* Card 4: Latest Float Addition */}
+              {/* Card 2: This Month's Float */}
               <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm">
                 <div className="flex items-center justify-between pb-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">
-                    Latest Addition
+                    This Month's Float
                   </span>
-                  <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                    <Clock size={16} />
+                  <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <TrendingUp size={16} />
                   </div>
                 </div>
-                {floatMetrics.latestTopUp ? (
-                  <>
-                    <div className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white truncate">
-                      +{formatRupee(floatMetrics.latestTopUp.amount)}
-                    </div>
-                    <div className="mt-1 text-[11px] text-slate-500 dark:text-gray-400 truncate">
-                      to {floatMetrics.latestTopUp.branch?.name || (isUpBranch(floatMetrics.latestTopUp) ? 'UP Factory' : 'Delhi HQ')} on {formatDisplayDate(floatMetrics.latestTopUp.date)}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="text-lg font-bold text-slate-400 dark:text-gray-500">—</div>
-                    <div className="mt-1 text-[11px] text-slate-400 dark:text-gray-500">No additions yet</div>
-                  </>
-                )}
+                <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
+                  {formatRupee(floatMetrics.thisMonthFloat)}
+                </div>
+                <div className="mt-1 text-[11px] text-slate-500 dark:text-gray-500">
+                  Current calendar month additions
+                </div>
+              </div>
+
+              {/* Card 3: Kolkata Branch Float */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm">
+                <div className="flex items-center justify-between pb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">
+                    Kolkata Regional Hub
+                  </span>
+                  <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                    <Building2 size={16} />
+                  </div>
+                </div>
+                <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                  {formatRupee(floatMetrics.totalKolkataFloat)}
+                </div>
+                <div className="mt-1 text-[11px] text-slate-500 dark:text-gray-500">
+                  {floatMetrics.kolkataCount} float additions
+                </div>
+              </div>
+
+              {/* Card 4: Delhi Branch Float */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm">
+                <div className="flex items-center justify-between pb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">
+                    Delhi Main Plant
+                  </span>
+                  <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                    <Building2 size={16} />
+                  </div>
+                </div>
+                <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                  {formatRupee(floatMetrics.totalDelhiFloat)}
+                </div>
+                <div className="mt-1 text-[11px] text-slate-500 dark:text-gray-400 truncate">
+                  {floatMetrics.delhiCount} float additions
+                </div>
               </div>
             </div>
           </div>
@@ -2605,46 +2556,28 @@ export function ExpensesPage() {
           {/* Filter & Search Bar */}
           <div className="p-4 rounded-2xl bg-white dark:bg-[#121226] border border-slate-200 dark:border-white/10 shadow-sm space-y-3">
             <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-              {/* Facility Filter Pills */}
+              {/* Facility Filter Pills (Strictly Delhi & Kolkata) */}
               <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 md:pb-0">
-                <button
-                  type="button"
-                  onClick={() => setFloatFilterBranch('UP')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                    floatFilterBranch === 'UP'
-                      ? 'bg-[#7FB706] text-white shadow-xs'
-                      : 'bg-[#7FB706]/10 text-[#7FB706] hover:bg-[#7FB706]/20 border border-[#7FB706]/20'
-                  }`}
-                >
-                  <Sparkles size={13} />
-                  <span>⭐ Money Given to UP</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-                    floatFilterBranch === 'UP' ? 'bg-white/20 text-white' : 'bg-[#7FB706]/20 text-[#7FB706]'
-                  }`}>
-                    {floatMetrics.upCount}
-                  </span>
-                </button>
-
                 <button
                   type="button"
                   onClick={() => setFloatFilterBranch('ALL')}
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition whitespace-nowrap cursor-pointer ${
                     floatFilterBranch === 'ALL'
-                      ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs'
+                      ? 'bg-[#7FB706] text-white shadow-xs font-bold'
                       : 'bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-white/10'
                   }`}
                 >
-                  All Facilities ({floatHistory.length})
+                  All Branches ({floatHistory.length})
                 </button>
 
-                {branches.filter(b => !isUpBranch(b)).map((b) => (
+                {branches.map((b) => (
                   <button
                     key={b.id}
                     type="button"
                     onClick={() => setFloatFilterBranch(b.id)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition whitespace-nowrap cursor-pointer ${
                       floatFilterBranch === b.id
-                        ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs'
+                        ? 'bg-[#7FB706] text-white shadow-xs font-bold'
                         : 'bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-white/10'
                     }`}
                   >
@@ -2698,26 +2631,12 @@ export function ExpensesPage() {
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm font-bold text-slate-700 dark:text-gray-300">
-                    {floatFilterBranch === 'UP'
-                      ? 'No money recorded for UP Factory yet'
-                      : 'No cash float entries match the filter'}
+                    No cash float entries match the filter
                   </p>
                   <p className="text-xs text-slate-400 dark:text-gray-500 max-w-sm mx-auto">
-                    {floatFilterBranch === 'UP'
-                      ? 'Click "+ Give Money to UP Factory" above to allocate cash float directly to the UP manufacturing plant.'
-                      : 'Add a new cash float top-up or adjust your branch/search filter.'}
+                    Add a new cash float top-up for Delhi or Kolkata or adjust your search filter.
                   </p>
                 </div>
-                {floatFilterBranch === 'UP' && (
-                  <button
-                    type="button"
-                    onClick={openGiveMoneyToUpModal}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs font-bold transition shadow-sm cursor-pointer"
-                  >
-                    <Sparkles size={14} />
-                    <span>+ Give Money to UP Factory</span>
-                  </button>
-                )}
               </div>
             ) : (
               <>
@@ -2739,25 +2658,17 @@ export function ExpensesPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-white/10">
                       {filteredFloatHistory.map((f) => {
-                        const isUp = isUpBranch(f) || isUpBranch(f.branch);
+                        const bName = f.branch?.name || (String(f.branchId).includes('kol') ? 'Kolkata Regional Hub & Warehouse' : 'Delhi Main Plant & Central Warehouse');
                         return (
-                          <tr key={f.id} className={`hover:bg-slate-50/70 dark:hover:bg-white/5 transition ${isUp ? 'bg-[#7FB706]/100/[0.02]' : ''}`}>
+                          <tr key={f.id} className="hover:bg-slate-50/70 dark:hover:bg-white/5 transition">
                             <td className="py-3 px-3.5 text-slate-600 dark:text-gray-300 whitespace-nowrap font-medium">
                               {formatDisplayDate(f.date)}
                             </td>
                             <td className="py-3 px-3.5 whitespace-nowrap">
-                              {isUp ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#7FB706]/15 text-[#7FB706] font-bold border border-[#7FB706]/30">
-                                  <Building2 size={12} className="text-[#7FB706]" />
-                                  <span>UP Factory</span>
-                                  <span className="text-[10px] text-[#7FB706] dark:text-[#7FB706]">(Plant)</span>
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-gray-300 font-semibold">
-                                  <Building2 size={12} className="text-slate-400" />
-                                  <span>{f.branch?.name || 'Delhi HQ'}</span>
-                                </span>
-                              )}
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#7FB706]/10 text-[#7FB706] font-bold border border-[#7FB706]/20">
+                                <Building2 size={12} className="text-[#7FB706]" />
+                                <span>{bName}</span>
+                              </span>
                             </td>
                             <td className="py-3 px-3.5 text-right font-black text-emerald-600 dark:text-emerald-400 text-sm whitespace-nowrap">
                               +{formatRupee(f.amount)}
@@ -2835,29 +2746,19 @@ export function ExpensesPage() {
                 {/* Mobile Responsive Cards */}
                 <div className="sm:hidden space-y-3">
                   {filteredFloatHistory.map((f) => {
-                    const isUp = isUpBranch(f) || isUpBranch(f.branch);
+                    const bName = f.branch?.name || (String(f.branchId).includes('kol') ? 'Kolkata Regional Hub & Warehouse' : 'Delhi Main Plant & Central Warehouse');
                     return (
                       <div
                         key={f.id}
-                        className={`p-4 rounded-xl border space-y-3 ${
-                          isUp
-                            ? 'bg-[#7FB706]/[0.05] border-[#7FB706]/30'
-                            : 'bg-slate-50 dark:bg-[#030213] border-slate-200 dark:border-white/10'
-                        }`}
+                        className="p-4 rounded-xl border space-y-3 bg-slate-50 dark:bg-[#030213] border-slate-200 dark:border-white/10"
                       >
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-slate-500 dark:text-gray-400 font-medium">
                             {formatDisplayDate(f.date)}
                           </span>
-                          {isUp ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#7FB706]/15 text-[#7FB706] font-bold text-[11px] border border-[#7FB706]/30">
-                              <Building2 size={11} /> UP Factory
-                            </span>
-                          ) : (
-                            <span className="text-[11px] font-semibold text-slate-600 dark:text-gray-300">
-                              {f.branch?.name || 'Delhi HQ'}
-                            </span>
-                          )}
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#7FB706]/10 text-[#7FB706] text-[11px] font-bold border border-[#7FB706]/20">
+                            <Building2 size={11} /> {bName}
+                          </span>
                         </div>
 
                         <div className="flex items-baseline justify-between">
@@ -4060,20 +3961,12 @@ export function ExpensesPage() {
             </div>
 
             <form onSubmit={handleTopUpSubmit} className="space-y-3.5">
-              {/* Destination Facility / Branch Selector */}
+              {/* Destination Facility / Branch Selector (Strictly Delhi & Kolkata) */}
               <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-600 dark:text-gray-400 flex items-center gap-1">
-                    <Building2 size={13} className="text-[#7FB706]" />
-                    <span>Destination Facility</span>
-                  </label>
-                  {isUpBranch(topUpTargetBranchId || (isAllBranches ? branches[0]?.id : selectedBranchId)) && (
-                    <span className="text-[10px] font-bold text-[#7FB706] bg-[#7FB706]/10 px-2 py-0.5 rounded-full border border-[#7FB706]/20 flex items-center gap-1">
-                      <Sparkles size={11} />
-                      <span>Money to UP Factory</span>
-                    </span>
-                  )}
-                </div>
+                <label className="text-xs font-semibold text-slate-600 dark:text-gray-400 flex items-center gap-1">
+                  <Building2 size={13} className="text-[#7FB706]" />
+                  <span>Destination Facility</span>
+                </label>
                 <select
                   value={topUpTargetBranchId || (isAllBranches ? branches[0]?.id : selectedBranchId)}
                   onChange={(e) => setTopUpTargetBranchId(e.target.value)}
@@ -4081,7 +3974,7 @@ export function ExpensesPage() {
                 >
                   {branches.map((b) => (
                     <option key={b.id} value={b.id}>
-                      {b.name} {isUpBranch(b) ? '(Manufacturing Plant)' : ''}
+                      {b.name} ({b.code})
                     </option>
                   ))}
                 </select>

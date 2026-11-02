@@ -17,14 +17,34 @@ const CATEGORIES_CACHE_KEY = 'prc_cached_categories';
 const DEFAULT_BRANCHES = [
   { id: 'branch-delhi', name: 'Delhi Main Plant & Central Warehouse', code: 'DELHI' },
   { id: 'branch-kolkata', name: 'Kolkata Regional Hub & Warehouse', code: 'KOLKATA' },
-  { id: 'branch-up', name: 'UP Factory & Manufacturing Unit', code: 'UP' },
 ];
+
+function isDelhiOrKolkata(b: any): boolean {
+  if (!b) return false;
+  const id = String(b.id || '').toLowerCase();
+  const code = String(b.code || '').toUpperCase();
+  const name = String(b.name || '').toLowerCase();
+  return (
+    id === 'branch-delhi' ||
+    id === 'branch-kolkata' ||
+    code === 'DELHI' ||
+    code === 'KOLKATA' ||
+    code === 'DEL' ||
+    code === 'KOL' ||
+    name.includes('delhi') ||
+    name.includes('kolkata')
+  );
+}
 
 export function getCachedBranches(): { id: string; name: string; code: string }[] {
   try {
     const raw = localStorage.getItem(BRANCHES_CACHE_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_BRANCHES;
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const filtered = parsed.filter(isDelhiOrKolkata);
+      if (filtered.length > 0) return filtered;
+    }
+    return DEFAULT_BRANCHES;
   } catch {
     return DEFAULT_BRANCHES;
   }
@@ -132,13 +152,15 @@ export function clearOfflineQueue() {
 // ─── Expenses API Client ─────────────────────────────────────────────────────
 
 export const expensesApi = {
-  // 0. Branches
+  // 0. Branches (Strictly Delhi & Kolkata)
   async getBranches(): Promise<{ id: string; name: string; code: string }[]> {
     try {
       const res = await apiClient.get('/branch-ledger/branches');
       const list = res.data?.data || res.data || [];
       if (Array.isArray(list) && list.length > 0) {
-        const formatted = list.map((b: any) => ({ id: b.id, name: b.name, code: b.code }));
+        const onlyDelhiAndKolkata = list.filter(isDelhiOrKolkata);
+        const sourceList = onlyDelhiAndKolkata.length > 0 ? onlyDelhiAndKolkata : DEFAULT_BRANCHES;
+        const formatted = sourceList.map((b: any) => ({ id: b.id, name: b.name, code: b.code }));
         saveCachedBranches(formatted);
         return formatted;
       }
