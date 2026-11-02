@@ -12,6 +12,7 @@ const AdminDashboard = lazyWithRetry(() => import('./pages/admin/AdminDashboard'
 const AdminOverview = lazyWithRetry(() => import('./pages/admin/AdminOverview'));
 const EnterpriseAnalyticsPage = lazyWithRetry(() => import('./pages/analytics/EnterpriseAnalyticsPage'));
 const DailySalesPurchasePage = lazyWithRetry(() => import('./pages/daily-reports/DailySalesPurchasePage'));
+const RecordDailySalePage = lazyWithRetry(() => import('./pages/daily-reports/RecordDailySalePage'));
 const BranchLedgerPage = lazyWithRetry(() => import('./pages/branch-ledger/BranchLedgerPage'));
 const AdminProducts = lazyWithRetry(() => import('./pages/admin/AdminProducts'));
 const AdminBlogs = lazyWithRetry(() => import('./pages/admin/AdminBlogs'));
@@ -197,6 +198,22 @@ export default function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <DailySalesPurchasePage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="daily-reports/record-sale"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <RecordDailySalePage initialType="SALES" />
+                </Suspense>
+              }
+            />
+            <Route
+              path="daily-reports/record-purchase"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <RecordDailySalePage initialType="PURCHASE" />
                 </Suspense>
               }
             />

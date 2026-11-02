@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   DollarSign,
   ShoppingCart,
@@ -34,6 +35,8 @@ import {
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
 export const DailySalesPurchasePage: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { selection, resolvedPeriod, refreshCount, triggerRefresh } = useReportingPeriod();
 
   // State
@@ -41,6 +44,7 @@ export const DailySalesPurchasePage: React.FC = () => {
   const [summary, setSummary] = useState<DailySalesPurchaseSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(location.state?.message || null);
 
   // Filters & Pagination
   const [activeTab, setActiveTab] = useState<'ALL' | 'SALES' | 'PURCHASE'>('ALL');
@@ -147,8 +151,8 @@ export const DailySalesPurchasePage: React.FC = () => {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            onClick={() => handleOpenAdd('SALES')}
-            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-lime-500 hover:bg-lime-400 text-slate-950 shadow-md shadow-lime-500/20 flex items-center gap-1.5 transition-all"
+            onClick={() => navigate('/daily-reports/record-sale')}
+            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-lime-500 hover:bg-lime-400 text-slate-950 shadow-md shadow-lime-500/20 flex items-center gap-1.5 transition-all cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
             <span>+ Record Daily Sale</span>
@@ -156,8 +160,8 @@ export const DailySalesPurchasePage: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => handleOpenAdd('PURCHASE')}
-            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition-all"
+            onClick={() => navigate('/daily-reports/record-purchase')}
+            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition-all cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
             <span>+ Record Daily Purchase</span>
@@ -182,6 +186,23 @@ export const DailySalesPurchasePage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Success Notification Banner */}
+      {successBanner && (
+        <div className="p-3.5 rounded-xl bg-lime-950/40 border border-lime-500/40 text-lime-300 text-xs flex items-center justify-between gap-2 shadow-lg animate-fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 shrink-0 text-lime-400" />
+            <span className="font-semibold">{successBanner}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSuccessBanner(null)}
+            className="text-xs text-lime-400/70 hover:text-lime-300 px-2 py-0.5 rounded cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Centralized Global Reporting Period Controller */}
       <ReportingPeriodBar onOpenExportModal={() => setIsExportModalOpen(true)} />

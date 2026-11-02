@@ -70,6 +70,10 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
   const [amount, setAmount] = useState<string>('');
   const [taxAmount, setTaxAmount] = useState<string>('0');
   const [referenceNo, setReferenceNo] = useState<string>('');
+  const [hasCashDeduction, setHasCashDeduction] = useState<boolean>(false);
+  const [cashReceived, setCashReceived] = useState<string>('');
+  const [isDelhiGst, setIsDelhiGst] = useState<boolean>(true);
+  const [isManualTax, setIsManualTax] = useState<boolean>(false);
   const [category, setCategory] = useState<string>('Restroom Cubicles');
   const [description, setDescription] = useState<string>('');
   const [paymentMode, setPaymentMode] = useState<string>('BANK_TRANSFER');
@@ -149,12 +153,20 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
   if (!isOpen) return null;
 
   const numAmount = parseFloat(amount) || 0;
-  const numTax = parseFloat(taxAmount) || 0;
-  const totalAmount = numAmount + numTax;
+  const numCash = hasCashDeduction ? (parseFloat(cashReceived) || 0) : 0;
+  const remainingBasic = Math.max(0, numAmount - numCash);
+  const autoTax = Math.round(remainingBasic * 0.18 * 100) / 100;
+  const numTax = isManualTax ? (parseFloat(taxAmount) || 0) : autoTax;
+  const totalAmount = Math.round((remainingBasic + numTax) * 100) / 100;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+
+    if (!referenceNo.trim()) {
+      setErrorMessage('Invoice No / Reference No is mandatory.');
+      return;
+    }
 
     if (numAmount <= 0) {
       setErrorMessage('Please enter a valid amount greater than zero.');
@@ -189,16 +201,16 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
       const payload: CreateDailySalesPurchasePayload = {
         entryDate,
         type,
-        amount: numAmount,
+        amount: remainingBasic,
         taxAmount: numTax,
         totalAmount,
-        referenceNo: referenceNo.trim() || undefined,
+        referenceNo: referenceNo.trim(),
         partyName: partyDisplayName,
         customerId: type === 'SALES' ? selectedCustomerId || undefined : undefined,
         vendorId: type === 'PURCHASE' ? selectedVendorId || undefined : undefined,
         category,
         description: description.trim() || undefined,
-        paymentMode,
+        paymentMode: hasCashDeduction && numCash > 0 ? 'CASH' : paymentMode,
         paymentStatus,
       };
 
@@ -333,10 +345,11 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
 
             <div>
               <label className="text-xs font-semibold text-slate-300 block mb-1">
-                {type === 'SALES' ? 'Tax Invoice / Cash Memo No.' : 'Vendor Bill / Challan No.'}
+                {type === 'SALES' ? 'Tax Invoice / Cash Memo No. *' : 'Vendor Bill / Challan No. *'}
               </label>
               <input
                 type="text"
+                required
                 placeholder={type === 'SALES' ? 'e.g. INV-2026-0042' : 'e.g. VEND-BILL-990'}
                 value={referenceNo}
                 onChange={(e) => setReferenceNo(e.target.value)}
@@ -449,7 +462,7 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
 
             <div>
               <label className="text-xs font-semibold text-slate-300 block mb-1">
-                Taxable / Base Amount (₹) *
+                Total Basic Amount (₹) *
               </label>
               <input
                 type="number"
@@ -465,23 +478,70 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
 
             <div>
               <label className="text-xs font-semibold text-slate-300 block mb-1">
-                GST / Tax Amount (₹)
+                GST / Tax (₹)
               </label>
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 placeholder="0.00"
-                value={taxAmount}
-                onChange={(e) => setTaxAmount(e.target.value)}
+                value={isManualTax ? taxAmount : autoTax}
+                onChange={(e) => {
+                  setIsManualTax(true);
+                  setTaxAmount(e.target.value);
+                }}
                 className="bg-slate-950 border border-slate-800 text-white text-xs rounded-xl px-3 py-2 w-full focus:ring-1 focus:ring-lime-400 focus:outline-none font-mono"
               />
             </div>
           </div>
 
+          {/* Cash Deduction from Basic Feature */}
+          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-xs font-semibold text-white cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={hasCashDeduction}
+                  onChange={(e) => {
+                    setHasCashDeduction(e.target.checked);
+                    if (!e.target.checked) setCashReceived('');
+                  }}
+                  className="rounded text-lime-500 bg-slate-900 border-slate-700"
+                />
+                <span>Record Cash Received (Subtract from Basic before GST)</span>
+              </label>
+              {hasCashDeduction && (
+                <span className="text-[10px] text-lime-400 font-bold">Active</span>
+              )}
+            </div>
+
+            {hasCashDeduction && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-850">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                    Cash Payment Received (₹)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={cashReceived}
+                    onChange={(e) => setCashReceived(e.target.value)}
+                    className="bg-slate-900 border border-slate-700 text-lime-400 text-xs rounded-xl px-3 py-1.5 w-full font-mono font-bold focus:outline-none"
+                  />
+                </div>
+                <div className="flex flex-col justify-end text-[11px] text-slate-400">
+                  <span>Net Taxable Basic: <strong className="text-white font-mono">₹{remainingBasic.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                  <span>18% GST: <strong className="text-amber-400 font-mono">₹{autoTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Grand Total Summary Box */}
           <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-            <span className="text-xs text-slate-400">Total Transaction Value (Base + Tax):</span>
+            <span className="text-xs text-slate-400">Total Bill Amount including GST *:</span>
             <span className="text-sm font-black text-lime-400 font-mono">
               ₹ {totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>

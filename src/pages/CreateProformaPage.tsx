@@ -314,6 +314,7 @@ export interface CreateFormData {
   installationOption?: string;
   installationCustomNote?: string;
   advancePercentage: number;
+  cashReceivedAmount?: number;
   selectedHardwarePreset?: string;
   accessoriesText: string;
   billingAddress: BillingAddressData;
@@ -352,6 +353,7 @@ const INITIAL_FORM: CreateFormData = {
   installationOption: 'Included',
   installationCustomNote: '',
   advancePercentage: 50,
+  cashReceivedAmount: 0,
   selectedHardwarePreset: 'SS_304',
   accessoriesText: DEFAULT_ACCESSORIES_TEXT,
   billingAddress: {
@@ -1547,7 +1549,9 @@ export default function CreateProformaPage() {
 
   const freightAmount = Number(formData.freightAmount) || 0;
   const installationCharge = Number(formData.installationCharge) || 0;
-  const taxable = basicPrice + freightAmount + installationCharge;
+  const totalBasic = basicPrice + freightAmount + installationCharge;
+  const cashReceived = Math.max(0, Number(formData.cashReceivedAmount) || 0);
+  const taxable = Math.max(0, totalBasic - cashReceived);
 
   // Tax calculation
   const selectedCompany = companies.find((c) => c.id === formData.companyProfileId) || companies[0];
@@ -1693,6 +1697,9 @@ export default function CreateProformaPage() {
         installationCustomNote: installationMode === 'OPTION' && formData.installationOption === 'Custom' ? formData.installationCustomNote : undefined,
         advancePercentage: formData.advancePercentage,
         advanceRequiredAmount: requiredAdvance,
+        advanceReceivedAmount: cashReceived > 0 ? cashReceived : undefined,
+        advancePaymentMode: cashReceived > 0 ? 'CASH' : undefined,
+        cashReceived: cashReceived,
         billTo: {
           partyName: formData.billingAddress.partyName,
           gstin: formData.billingAddress.gstin ? formData.billingAddress.gstin.toUpperCase().trim() : undefined,
@@ -5023,6 +5030,67 @@ export default function CreateProformaPage() {
                 : (formData.freightTerms || 'Extra as Actual / To pay')}
             </span>
           </div>
+
+          {/* Cash Payment Pre-GST Deduction Card */}
+          <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-700/80 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2.5 text-xs font-bold text-white cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={Boolean(formData.cashReceivedAmount && formData.cashReceivedAmount > 0)}
+                  onChange={(e) => {
+                    setFormData((f) => ({
+                      ...f,
+                      cashReceivedAmount: e.target.checked ? (f.cashReceivedAmount || 10000) : 0,
+                    }));
+                  }}
+                  className="w-4 h-4 rounded text-lime-500 bg-slate-950 border-slate-700"
+                />
+                <span>Record Cash Payment Received (Subtract from Total Basic before GST)</span>
+              </label>
+              {Number(formData.cashReceivedAmount || 0) > 0 && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-lime-500/20 text-lime-300 border border-lime-500/30">
+                  Active
+                </span>
+              )}
+            </div>
+
+            <p className="text-[11px] text-slate-400">
+              Subtract cash payment directly from total basic amount ($goods + install + freight$). Remaining basic will be billed with 18% GST ({gstBreakdown.isDelhi ? 'Delhi: CGST 9% + SGST 9%' : 'Interstate: IGST 18%'}).
+            </p>
+
+            {Number(formData.cashReceivedAmount || 0) > 0 && (
+              <div className="pt-2 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                <div>
+                  <label className={labelCls}>Cash Payment Received (₹)</label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-lime-400 font-mono font-bold">
+                      ₹
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.cashReceivedAmount || ''}
+                      onChange={(e) =>
+                        setFormData((f) => ({
+                          ...f,
+                          cashReceivedAmount: Math.max(0, parseFloat(e.target.value) || 0),
+                        }))
+                      }
+                      placeholder="0.00"
+                      className={inputCls + ' pl-8 text-lime-300 font-mono font-bold'}
+                    />
+                  </div>
+                </div>
+                <div className="text-[11px] text-slate-300 space-y-1 p-2.5 rounded-lg bg-black/40 border border-white/5">
+                  <div>Total Basic: <strong className="text-white font-mono">₹{totalBasic.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></div>
+                  <div>Less Cash: <strong className="text-lime-400 font-mono">- ₹{cashReceived.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></div>
+                  <div className="border-t border-white/10 pt-0.5">Net Taxable: <strong className="text-amber-400 font-mono">₹{taxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -5037,7 +5105,7 @@ export default function CreateProformaPage() {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+        <div className={`grid grid-cols-2 ${cashReceived > 0 ? 'sm:grid-cols-6' : 'sm:grid-cols-5'} gap-3 text-xs`}>
           <div className="p-3 bg-[#0a0a1a] rounded-xl border border-white/5">
             <span className="text-gray-400 block mb-1">Basic Goods</span>
             <span className="text-white font-mono font-bold text-sm">
@@ -5076,6 +5144,14 @@ export default function CreateProformaPage() {
               ₹ {freightAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </span>
           </div>
+          {cashReceived > 0 && (
+            <div className="p-3 bg-[#0a0a1a] rounded-xl border border-lime-500/40">
+              <span className="text-lime-400 block mb-1 font-semibold">Less: Cash Received</span>
+              <span className="text-lime-400 font-mono font-bold text-sm">
+                - ₹ {cashReceived.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          )}
           <div className="p-3 bg-[#0a0a1a] rounded-xl border border-white/5">
             <span className="text-gray-400 block mb-1">Net Taxable</span>
             <span className="text-white font-mono font-bold text-sm">
