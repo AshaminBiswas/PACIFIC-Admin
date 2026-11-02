@@ -4368,6 +4368,12 @@ export interface BranchCashBalanceInfo {
   branchId: string;
   currentBalance: number; // in paise
   currentBalanceRupees: number;
+  totalFloatInflows?: number;
+  totalFloatInflowsRupees?: number;
+  totalFloatCount?: number;
+  totalExpenseLedger?: number;
+  totalExpenseLedgerRupees?: number;
+  totalExpenseCount?: number;
   todayOpening: number;
   todayReceived: number;
   todayExpenses: number;
@@ -4385,6 +4391,12 @@ export interface MultiBranchSummaryInfo {
   consolidated: {
     totalCashInHand: number;
     totalCashInHandRupees: number;
+    totalFloatInflows?: number;
+    totalFloatInflowsRupees?: number;
+    totalFloatCount?: number;
+    totalExpenseLedger?: number;
+    totalExpenseLedgerRupees?: number;
+    totalExpenseCount?: number;
     todayTotalExpenses: number;
     todayTotalExpensesRupees: number;
     todayTotalReceived: number;
