@@ -103,9 +103,9 @@ if (typeof window !== "undefined") {
   } catch {}
 }
 
-// ── Cached Egress Engine: In-Memory SWR & Edge Cache Layer ──────────────────
-// Automatically intercepts read-heavy reference tables to serve from cache hits,
-// minimizing origin queries and transforming outbound bandwidth into Cached Egress.
+// ── Cached Egress Engine: Multi-Tier Persistent SWR & Edge Cache Layer ────────
+// Automatically intercepts read-heavy reference and transaction queries to serve from cache hits,
+// eradicating redundant origin queries and maximizing Cloudflare Edge Cached Egress.
 interface CachedResponse {
   body: string;
   status: number;
@@ -113,32 +113,114 @@ interface CachedResponse {
   headers: [string, string][];
   timestamp: number;
 }
+
 const edgeApiCache = new Map<string, CachedResponse>();
-const CACHE_TTL_MS = 60 * 1000; // 60s memory TTL for static/reference tables
+const FRESH_CACHE_TTL_MS = 5 * 60 * 1000; // 5 mins fresh TTL (0 network calls, 0 Origin Egress)
+const STALE_CACHE_TTL_MS = 30 * 60 * 1000; // 30 mins SWR ceiling (serves instantly while revalidating)
+const SESSION_CACHE_PREFIX = 'sb_edge_egress_v2_';
 
 const CACHEABLE_SUPABASE_TABLES = [
   '/rest/v1/products',
   '/rest/v1/catalogs',
   '/rest/v1/blogs',
+  '/rest/v1/solutions',
+  '/rest/v1/hero_images',
+  '/rest/v1/page_banners',
+  '/rest/v1/core_services',
   '/rest/v1/hardware_branches',
   '/rest/v1/hardware_vendors',
+  '/rest/v1/hardware_inventory_items',
+  '/rest/v1/hardware_stock_movements',
   '/rest/v1/testimonials',
   '/rest/v1/feedback',
   '/rest/v1/faqs',
   '/rest/v1/gallery_images',
   '/rest/v1/commercial_projects',
   '/rest/v1/contact_queries',
+  '/rest/v1/leads',
+  '/rest/v1/visitor_leads',
+  '/rest/v1/configurator_designs',
+  '/rest/v1/quotations',
+  '/rest/v1/quotation_followups',
+  '/rest/v1/location_pages',
 ];
+
+function getPersistentCache(urlStr: string): CachedResponse | null {
+  // 1. In-memory check (0ms lookup)
+  const mem = edgeApiCache.get(urlStr);
+  if (mem) {
+    if (Date.now() - mem.timestamp < STALE_CACHE_TTL_MS) {
+      return mem;
+    }
+    edgeApiCache.delete(urlStr);
+  }
+
+  // 2. SessionStorage check (persists across tab switches & page refreshes)
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    try {
+      const key = `${SESSION_CACHE_PREFIX}${encodeURIComponent(urlStr).slice(-120)}`;
+      const raw = sessionStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw) as CachedResponse;
+        if (Date.now() - parsed.timestamp < STALE_CACHE_TTL_MS) {
+          edgeApiCache.set(urlStr, parsed);
+          return parsed;
+        }
+        sessionStorage.removeItem(key);
+      }
+    } catch {}
+  }
+
+  return null;
+}
+
+function setPersistentCache(urlStr: string, cached: CachedResponse) {
+  edgeApiCache.set(urlStr, cached);
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    try {
+      // Avoid caching gigantic payloads (> 500KB) into sessionStorage to protect quota
+      if (cached.body.length < 500000) {
+        const key = `${SESSION_CACHE_PREFIX}${encodeURIComponent(urlStr).slice(-120)}`;
+        sessionStorage.setItem(key, JSON.stringify(cached));
+      }
+    } catch {}
+  }
+}
 
 export function invalidateSupabaseCache(tablePattern?: string) {
   if (!tablePattern) {
     edgeApiCache.clear();
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      try {
+        const toRemove: string[] = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const k = sessionStorage.key(i);
+          if (k && k.startsWith(SESSION_CACHE_PREFIX)) toRemove.push(k);
+        }
+        toRemove.forEach((k) => sessionStorage.removeItem(k));
+      } catch {}
+    }
     return;
   }
+
   for (const key of edgeApiCache.keys()) {
     if (key.includes(tablePattern)) {
       edgeApiCache.delete(key);
     }
+  }
+
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    try {
+      const toRemove: string[] = [];
+      const encPattern = encodeURIComponent(tablePattern).slice(-60);
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const k = sessionStorage.key(i);
+        if (k && k.startsWith(SESSION_CACHE_PREFIX) && (k.includes(encPattern) || k.includes(tablePattern))) {
+          toRemove.push(k);
+        }
+      }
+      toRemove.forEach((k) => sessionStorage.removeItem(k));
+    } catch {}
   }
 }
 
@@ -158,9 +240,10 @@ export const supabase = createClient<any>(
           const urlStr = typeof url === 'string' ? url : (url as any)?.url || String(url);
           const rawMethod = (options as any)?.method || 'GET';
           const method = String(rawMethod).toUpperCase();
+          const isReadMethod = method === 'GET' || method === 'HEAD';
 
           // Invalidate cache on mutations
-          if (method !== 'GET') {
+          if (!isReadMethod) {
             for (const pattern of CACHEABLE_SUPABASE_TABLES) {
               if (urlStr.includes(pattern)) {
                 invalidateSupabaseCache(pattern);
@@ -168,26 +251,57 @@ export const supabase = createClient<any>(
             }
           }
 
-          // Check memory cache for GET requests to eligible reference tables
-          const isCacheable = method === 'GET' && CACHEABLE_SUPABASE_TABLES.some((p) => urlStr.includes(p));
+          // Check multi-tier persistent cache for GET and HEAD requests to eligible tables
+          const isCacheable = isReadMethod && CACHEABLE_SUPABASE_TABLES.some((p) => urlStr.includes(p));
           if (isCacheable) {
-            const cached = edgeApiCache.get(urlStr);
-            if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-              clearTimeout(timeout);
-              return new Response(cached.body, {
-                status: cached.status,
-                statusText: cached.statusText,
-                headers: new Headers(cached.headers),
-              });
+            const cached = getPersistentCache(urlStr);
+            if (cached) {
+              const age = Date.now() - cached.timestamp;
+              if (age < FRESH_CACHE_TTL_MS) {
+                // Completely fresh: serve directly with 0 origin egress
+                clearTimeout(timeout);
+                return new Response(cached.body, {
+                  status: cached.status,
+                  statusText: cached.statusText,
+                  headers: new Headers(cached.headers),
+                });
+              } else if (age < STALE_CACHE_TTL_MS) {
+                // Stale-While-Revalidate: return stale immediately, revalidate in background
+                clearTimeout(timeout);
+                fetch(url, { ...options, headers: (options as any)?.headers })
+                  .then(async (freshRes) => {
+                    if (freshRes.ok) {
+                      const body = await freshRes.text();
+                      const headerList: [string, string][] = [];
+                      freshRes.headers.forEach((v, k) => headerList.push([k, v]));
+                      headerList.push(['x-supabase-cache', 'HIT']);
+                      headerList.push(['x-cached-egress', 'true']);
+                      setPersistentCache(urlStr, {
+                        body,
+                        status: freshRes.status,
+                        statusText: freshRes.statusText,
+                        headers: headerList,
+                        timestamp: Date.now(),
+                      });
+                    }
+                  })
+                  .catch(() => {});
+
+                return new Response(cached.body, {
+                  status: cached.status,
+                  statusText: cached.statusText,
+                  headers: new Headers(cached.headers),
+                });
+              }
             }
           }
 
           // Pre-request check: sanitize expired or invalid bearer tokens before sending
           const reqHeaders = new Headers((options as any)?.headers || {});
 
-          // Inject Edge Cache-Control headers on GET requests to trigger Cloudflare Smart CDN Cached Egress
-          if (method === 'GET') {
-            reqHeaders.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
+          // Inject Edge Cache-Control headers on GET/HEAD requests to trigger Cloudflare Smart CDN Cached Egress
+          if (isReadMethod) {
+            reqHeaders.set('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
           }
 
           const authVal = reqHeaders.get("authorization") || reqHeaders.get("Authorization");

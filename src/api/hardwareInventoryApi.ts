@@ -492,8 +492,8 @@ class HardwareStore {
             .select('id, hardware_item_id, sku, item_name, movement_type, quantity, unit, from_location, to_location, reference_number, movement_number, performed_by, notes, created_at, cost_per_unit, total_cost')
             .order('created_at', { ascending: false })
             .limit(200),
-          supabase.from('hardware_branches').select('*'),
-          supabase.from('hardware_vendors').select('*').limit(200),
+          supabase.from('hardware_branches').select('id, code, name, city, state, address, phone, contact_person, is_default, is_active, created_at').limit(50),
+          supabase.from('hardware_vendors').select('id, name, contact_person, phone, email, address, city, state, gstin, pan, categories, rating, notes, is_active, created_at, updated_at').limit(200),
         ]);
 
         // Process Items

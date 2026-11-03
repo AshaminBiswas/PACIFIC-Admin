@@ -11,24 +11,79 @@ import {
   demoGalleryImages,
 } from "./demo-data";
 
-// ── In-memory request cache ───────────────────────────────────
-// Stores already-fetched data so navigating back to a page is instant.
-// Cache is busted only when `refetch()` is explicitly called.
+// ── In-memory & Persistent Session Request Cache ─────────────
+// Stores already-fetched data so navigating back to a page is instant with ZERO Origin Egress.
+// Cache is busted only when `refetch()` is explicitly called or TTL expires.
 const memCache = new Map<string, { data: unknown; timestamp: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const SESSION_HOOK_PREFIX = 'prc_hook_cache_v2_';
 
-function getCached<T>(key: string): T[] | null {
+export function getCached<T>(key: string): T[] | null {
+  // 1. In-memory check
   const entry = memCache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+  if (entry) {
+    if (Date.now() - entry.timestamp <= CACHE_TTL_MS) {
+      return entry.data as T[];
+    }
     memCache.delete(key);
-    return null;
   }
-  return entry.data as T[];
+
+  // 2. SessionStorage check (persists across page reloads)
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    try {
+      const raw = sessionStorage.getItem(`${SESSION_HOOK_PREFIX}${key}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Date.now() - parsed.timestamp <= CACHE_TTL_MS) {
+          memCache.set(key, parsed);
+          return parsed.data as T[];
+        }
+        sessionStorage.removeItem(`${SESSION_HOOK_PREFIX}${key}`);
+      }
+    } catch {}
+  }
+
+  return null;
 }
 
-function setCache<T>(key: string, data: T[]): void {
-  memCache.set(key, { data, timestamp: Date.now() });
+export function setCache<T>(key: string, data: T[]): void {
+  const entry = { data, timestamp: Date.now() };
+  memCache.set(key, entry);
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    try {
+      sessionStorage.setItem(`${SESSION_HOOK_PREFIX}${key}`, JSON.stringify(entry));
+    } catch {}
+  }
+}
+
+export function invalidateHookCache(keyPattern?: string): void {
+  if (!keyPattern) {
+    memCache.clear();
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      try {
+        const toRemove: string[] = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const k = sessionStorage.key(i);
+          if (k && k.startsWith(SESSION_HOOK_PREFIX)) toRemove.push(k);
+        }
+        toRemove.forEach((k) => sessionStorage.removeItem(k));
+      } catch {}
+    }
+    return;
+  }
+  for (const k of memCache.keys()) {
+    if (k.includes(keyPattern)) memCache.delete(k);
+  }
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    try {
+      const toRemove: string[] = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const k = sessionStorage.key(i);
+        if (k && k.startsWith(SESSION_HOOK_PREFIX) && k.includes(keyPattern)) toRemove.push(k);
+      }
+      toRemove.forEach((k) => sessionStorage.removeItem(k));
+    } catch {}
+  }
 }
 
 
@@ -415,11 +470,20 @@ export function useLocationGallery(locationSlug: string | undefined): UseDataRes
 // ── Admin hooks (all items, including unpublished) ───────────
 
 export function useAdminProducts(): UseDataResult<Product> {
-  const [data, setData] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = "admin_products";
+  const [data, setData] = useState<Product[]>(() => getCached<Product>(cacheKey) ?? []);
+  const [loading, setLoading] = useState(() => !getCached<Product>(cacheKey));
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (bust = false) => {
+    if (!bust) {
+      const cached = getCached<Product>(cacheKey);
+      if (cached) {
+        setData(cached);
+        setLoading(false);
+        return;
+      }
+    }
     setLoading(true);
     try {
       const { data: rows, error: err } = await supabase
@@ -427,27 +491,38 @@ export function useAdminProducts(): UseDataResult<Product> {
         .select("*")
         .order("sort_order", { ascending: true });
       if (err) throw err;
-      setData((rows as Product[]) || []);
+      const result = (rows as Product[]) || [];
+      setCache(cacheKey, result);
+      setData(result);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cacheKey]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, refetch: () => fetchData(true) };
 }
 
 export function useAdminBlogs(): UseDataResult<Blog> {
-  const [data, setData] = useState<Blog[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = "admin_blogs";
+  const [data, setData] = useState<Blog[]>(() => getCached<Blog>(cacheKey) ?? []);
+  const [loading, setLoading] = useState(() => !getCached<Blog>(cacheKey));
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (bust = false) => {
+    if (!bust) {
+      const cached = getCached<Blog>(cacheKey);
+      if (cached) {
+        setData(cached);
+        setLoading(false);
+        return;
+      }
+    }
     setLoading(true);
     try {
       const { data: rows, error: err } = await supabase
@@ -455,27 +530,38 @@ export function useAdminBlogs(): UseDataResult<Blog> {
         .select("*")
         .order("created_at", { ascending: false });
       if (err) throw err;
-      setData((rows as Blog[]) || []);
+      const result = (rows as Blog[]) || [];
+      setCache(cacheKey, result);
+      setData(result);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cacheKey]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, refetch: () => fetchData(true) };
 }
 
 export function useAdminSolutions(): UseDataResult<Solution> {
-  const [data, setData] = useState<Solution[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = "admin_solutions";
+  const [data, setData] = useState<Solution[]>(() => getCached<Solution>(cacheKey) ?? []);
+  const [loading, setLoading] = useState(() => !getCached<Solution>(cacheKey));
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (bust = false) => {
+    if (!bust) {
+      const cached = getCached<Solution>(cacheKey);
+      if (cached) {
+        setData(cached);
+        setLoading(false);
+        return;
+      }
+    }
     setLoading(true);
     try {
       const { data: rows, error: err } = await supabase
@@ -483,27 +569,38 @@ export function useAdminSolutions(): UseDataResult<Solution> {
         .select("*")
         .order("sort_order", { ascending: true });
       if (err) throw err;
-      setData((rows as Solution[]) || []);
+      const result = (rows as Solution[]) || [];
+      setCache(cacheKey, result);
+      setData(result);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cacheKey]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, refetch: () => fetchData(true) };
 }
 
 export function useAdminGallery(): UseDataResult<GalleryImage> {
-  const [data, setData] = useState<GalleryImage[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = "admin_gallery";
+  const [data, setData] = useState<GalleryImage[]>(() => getCached<GalleryImage>(cacheKey) ?? []);
+  const [loading, setLoading] = useState(() => !getCached<GalleryImage>(cacheKey));
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (bust = false) => {
+    if (!bust) {
+      const cached = getCached<GalleryImage>(cacheKey);
+      if (cached) {
+        setData(cached);
+        setLoading(false);
+        return;
+      }
+    }
     setLoading(true);
     try {
       const { data: rows, error: err } = await supabase
@@ -511,29 +608,40 @@ export function useAdminGallery(): UseDataResult<GalleryImage> {
         .select("*")
         .order("sort_order", { ascending: true });
       if (err) throw err;
-      setData((rows as GalleryImage[]) || []);
+      const result = (rows as GalleryImage[]) || [];
+      setCache(cacheKey, result);
+      setData(result);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cacheKey]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, refetch: () => fetchData(true) };
 }
 
 // ── Hero Images ──────────────────────────────────────────────
 
 export function useHeroImages(): UseDataResult<HeroImage> {
-  const [data, setData] = useState<HeroImage[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = "hero_images_pub";
+  const [data, setData] = useState<HeroImage[]>(() => getCached<HeroImage>(cacheKey) ?? []);
+  const [loading, setLoading] = useState(() => !getCached<HeroImage>(cacheKey));
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (bust = false) => {
+    if (!bust) {
+      const cached = getCached<HeroImage>(cacheKey);
+      if (cached) {
+        setData(cached);
+        setLoading(false);
+        return;
+      }
+    }
     setLoading(true);
     setError(null);
 
@@ -549,28 +657,39 @@ export function useHeroImages(): UseDataResult<HeroImage> {
         .select("*")
         .order("sort_order", { ascending: true });
       if (err) throw err;
-      setData((rows as HeroImage[]) || []);
+      const result = (rows as HeroImage[]) || [];
+      setCache(cacheKey, result);
+      setData(result);
     } catch (e: any) {
       setError(e.message);
       setData([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cacheKey]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, refetch: () => fetchData(true) };
 }
 
 export function useAdminHeroImages(): UseDataResult<HeroImage> {
-  const [data, setData] = useState<HeroImage[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = "admin_hero_images";
+  const [data, setData] = useState<HeroImage[]>(() => getCached<HeroImage>(cacheKey) ?? []);
+  const [loading, setLoading] = useState(() => !getCached<HeroImage>(cacheKey));
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (bust = false) => {
+    if (!bust) {
+      const cached = getCached<HeroImage>(cacheKey);
+      if (cached) {
+        setData(cached);
+        setLoading(false);
+        return;
+      }
+    }
     setLoading(true);
     try {
       const { data: rows, error: err } = await supabase
@@ -578,29 +697,40 @@ export function useAdminHeroImages(): UseDataResult<HeroImage> {
         .select("*")
         .order("sort_order", { ascending: true });
       if (err) throw err;
-      setData((rows as HeroImage[]) || []);
+      const result = (rows as HeroImage[]) || [];
+      setCache(cacheKey, result);
+      setData(result);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cacheKey]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, refetch: () => fetchData(true) };
 }
 
 // ── Core Services ────────────────────────────────────────────
 
 export function useCoreServices(): UseDataResult<CoreService> {
-  const [data, setData] = useState<CoreService[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = "core_services_pub";
+  const [data, setData] = useState<CoreService[]>(() => getCached<CoreService>(cacheKey) ?? []);
+  const [loading, setLoading] = useState(() => !getCached<CoreService>(cacheKey));
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (bust = false) => {
+    if (!bust) {
+      const cached = getCached<CoreService>(cacheKey);
+      if (cached) {
+        setData(cached);
+        setLoading(false);
+        return;
+      }
+    }
     setLoading(true);
     setError(null);
 
@@ -616,28 +746,39 @@ export function useCoreServices(): UseDataResult<CoreService> {
         .select("*")
         .order("sort_order", { ascending: true });
       if (err) throw err;
-      setData((rows as CoreService[]) || []);
+      const result = (rows as CoreService[]) || [];
+      setCache(cacheKey, result);
+      setData(result);
     } catch (e: any) {
       setError(e.message);
       setData([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cacheKey]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, refetch: () => fetchData(true) };
 }
 
 export function useAdminCoreServices(): UseDataResult<CoreService> {
-  const [data, setData] = useState<CoreService[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = "admin_core_services";
+  const [data, setData] = useState<CoreService[]>(() => getCached<CoreService>(cacheKey) ?? []);
+  const [loading, setLoading] = useState(() => !getCached<CoreService>(cacheKey));
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (bust = false) => {
+    if (!bust) {
+      const cached = getCached<CoreService>(cacheKey);
+      if (cached) {
+        setData(cached);
+        setLoading(false);
+        return;
+      }
+    }
     setLoading(true);
     try {
       const { data: rows, error: err } = await supabase
@@ -645,19 +786,21 @@ export function useAdminCoreServices(): UseDataResult<CoreService> {
         .select("*")
         .order("sort_order", { ascending: true });
       if (err) throw err;
-      setData((rows as CoreService[]) || []);
+      const result = (rows as CoreService[]) || [];
+      setCache(cacheKey, result);
+      setData(result);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cacheKey]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, refetch: () => fetchData(true) };
 }
 
 // ── Page Banners ──────────────────────────────────────────────
@@ -704,11 +847,20 @@ export function usePageBanner(pageSlug: string): UseSingleResult<PageBanner> {
 }
 
 export function useAdminPageBanners(): UseDataResult<PageBanner> {
-  const [data, setData] = useState<PageBanner[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = "admin_page_banners";
+  const [data, setData] = useState<PageBanner[]>(() => getCached<PageBanner>(cacheKey) ?? []);
+  const [loading, setLoading] = useState(() => !getCached<PageBanner>(cacheKey));
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (bust = false) => {
+    if (!bust) {
+      const cached = getCached<PageBanner>(cacheKey);
+      if (cached) {
+        setData(cached);
+        setLoading(false);
+        return;
+      }
+    }
     setLoading(true);
     try {
       const { data: rows, error: err } = await supabase
@@ -716,17 +868,19 @@ export function useAdminPageBanners(): UseDataResult<PageBanner> {
         .select("*")
         .order("page_slug", { ascending: true });
       if (err) throw err;
-      setData((rows as PageBanner[]) || []);
+      const result = (rows as PageBanner[]) || [];
+      setCache(cacheKey, result);
+      setData(result);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cacheKey]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, refetch: () => fetchData(true) };
 }
 
 // ── Catalogs ─────────────────────────────────────────────────
@@ -782,11 +936,20 @@ export function useCatalogs(productId?: string): UseDataResult<Catalog> {
 }
 
 export function useAdminCatalogs(): UseDataResult<Catalog> {
-  const [data, setData] = useState<Catalog[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = "admin_catalogs";
+  const [data, setData] = useState<Catalog[]>(() => getCached<Catalog>(cacheKey) ?? []);
+  const [loading, setLoading] = useState(() => !getCached<Catalog>(cacheKey));
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (bust = false) => {
+    if (!bust) {
+      const cached = getCached<Catalog>(cacheKey);
+      if (cached) {
+        setData(cached);
+        setLoading(false);
+        return;
+      }
+    }
     setLoading(true);
     try {
       const { data: rows, error: err } = await supabase
@@ -794,15 +957,17 @@ export function useAdminCatalogs(): UseDataResult<Catalog> {
         .select("*")
         .order("sort_order", { ascending: true });
       if (err) throw err;
-      setData((rows as Catalog[]) || []);
+      const result = (rows as Catalog[]) || [];
+      setCache(cacheKey, result);
+      setData(result);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cacheKey]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, refetch: () => fetchData(true) };
 }

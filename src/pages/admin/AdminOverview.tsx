@@ -13,36 +13,83 @@ import { useReportingPeriod } from "../../context/ReportingPeriodContext";
 
 export default function AdminOverview() {
   const { resolvedPeriod } = useReportingPeriod();
-  const [counts, setCounts] = useState<Record<string, number>>({
-    products: 0,
-    blogs: 0,
-    solutions: 0,
-    gallery: 0,
-    hero_images: 0,
-    core_services: 0,
-    page_banners: 0,
-    catalogs: 0,
-    contact_queries: 0,
-    feedback: 0,
-    faqs: 0,
-    leads: 0,
+  const OVERVIEW_CACHE_KEY = 'pacific_admin_overview_stats_v2';
+
+  const [counts, setCounts] = useState<Record<string, number>>(() => {
+    try {
+      const cached = sessionStorage.getItem(OVERVIEW_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 5 * 60 * 1000) {
+          return parsed.counts || {};
+        }
+      }
+    } catch {}
+    return {
+      products: 0,
+      blogs: 0,
+      solutions: 0,
+      gallery: 0,
+      hero_images: 0,
+      core_services: 0,
+      page_banners: 0,
+      catalogs: 0,
+      contact_queries: 0,
+      feedback: 0,
+      faqs: 0,
+      leads: 0,
+    };
   });
   const [erpStats, setErpStats] = useState<{
     customers: number;
     quotations: number;
     orders: number;
     invoices: number;
-  }>({
-    customers: 0,
-    quotations: 0,
-    orders: 0,
-    invoices: 0,
+  }>(() => {
+    try {
+      const cached = sessionStorage.getItem(OVERVIEW_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 5 * 60 * 1000) {
+          return parsed.erpStats || { customers: 0, quotations: 0, orders: 0, invoices: 0 };
+        }
+      }
+    } catch {}
+    return {
+      customers: 0,
+      quotations: 0,
+      orders: 0,
+      invoices: 0,
+    };
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem(OVERVIEW_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 5 * 60 * 1000) {
+          return false;
+        }
+      }
+    } catch {}
+    return true;
+  });
 
   useEffect(() => {
     async function fetchCounts() {
+      try {
+        const cached = sessionStorage.getItem(OVERVIEW_CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Date.now() - parsed.timestamp < 5 * 60 * 1000) {
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {}
+
       // 1. Fetch ERP stats from Pacific Backend API
+      let newErp = { customers: 0, quotations: 0, orders: 0, invoices: 0 };
       try {
         const [statsRes, crmRes] = await Promise.allSettled([
           dashboardApi.getStats(),
@@ -52,12 +99,13 @@ export default function AdminOverview() {
         const statsData = statsRes.status === 'fulfilled' ? statsRes.value.data?.data?.overview : null;
         const crmData = crmRes.status === 'fulfilled' ? crmRes.value.data?.data : null;
 
-        setErpStats({
+        newErp = {
           customers: crmData?.total || 0,
           quotations: statsData?.totalQuotations || 0,
           orders: statsData?.totalProjects || 0,
           invoices: statsData?.totalInvoices || 0,
-        });
+        };
+        setErpStats(newErp);
       } catch (_e) {}
 
       // 2. Fetch CMS item counts
@@ -74,6 +122,7 @@ export default function AdminOverview() {
         { key: "leads", table: "visitor_leads" },
       ];
 
+      const newCounts: Record<string, number> = {};
       try {
         const results = await Promise.all(
           tables.map((t) =>
@@ -84,10 +133,16 @@ export default function AdminOverview() {
           )
         );
 
-        const newCounts: Record<string, number> = {};
         results.forEach((r) => (newCounts[r.key] = r.count));
         setCounts(newCounts);
       } catch (_sErr) {}
+
+      try {
+        sessionStorage.setItem(
+          OVERVIEW_CACHE_KEY,
+          JSON.stringify({ counts: newCounts, erpStats: newErp, timestamp: Date.now() })
+        );
+      } catch {}
 
       setLoading(false);
     }

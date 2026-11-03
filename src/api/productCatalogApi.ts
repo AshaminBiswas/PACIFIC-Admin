@@ -15,7 +15,7 @@ const LOCAL_STORAGE_CATEGORIES_KEY = 'pacific_product_catalog_categories_v4';
 // In-memory cache for ultra-fast instant UI rendering
 let memoryModelsCache: ProductCatalogModel[] | null = null;
 let lastModelsFetchTime = 0;
-const MODELS_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes fresh cache TTL to ensure swift sync
+const MODELS_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes cache TTL to protect Supabase Egress
 
 // Clear outdated legacy caches if present
 try {

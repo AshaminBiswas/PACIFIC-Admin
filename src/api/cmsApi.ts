@@ -81,16 +81,24 @@ export const configuratorApi = {
     try {
       return await apiClient.get<ApiResponse<PaginatedResponse<ConfiguratorDesign>>>('/configurator', { params });
     } catch {
-      const { data, count } = await supabase.from('configurator_designs').select('*', { count: 'exact' });
+      const page = Number(params?.page) || 1;
+      const limit = Number(params?.limit) || 20;
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+      const { data, count } = await supabase
+        .from('configurator_designs')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
       return {
         data: {
           success: true,
           data: {
             items: (data as any[]) || [],
             total: count || (data?.length ?? 0),
-            page: params?.page || 1,
-            limit: params?.limit || 20,
-            totalPages: Math.ceil((count || (data?.length ?? 0)) / (params?.limit || 20)) || 1,
+            page,
+            limit,
+            totalPages: Math.ceil((count || (data?.length ?? 0)) / limit) || 1,
           },
         },
       } as any;
@@ -115,16 +123,24 @@ export const quotesApi = {
     try {
       return await apiClient.get<ApiResponse<PaginatedResponse<Quotation>>>('/quotes', { params });
     } catch {
-      const { data, count } = await supabase.from('quotations').select('*', { count: 'exact' });
+      const page = Number(params?.page) || 1;
+      const limit = Number(params?.limit) || 20;
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+      const { data, count } = await supabase
+        .from('quotations')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
       return {
         data: {
           success: true,
           data: {
             items: (data as any[]) || [],
             total: count || (data?.length ?? 0),
-            page: params?.page || 1,
-            limit: params?.limit || 20,
-            totalPages: Math.ceil((count || (data?.length ?? 0)) / (params?.limit || 20)) || 1,
+            page,
+            limit,
+            totalPages: Math.ceil((count || (data?.length ?? 0)) / limit) || 1,
           },
         },
       } as any;
@@ -151,16 +167,24 @@ export const leadsApi = {
     try {
       return await apiClient.get<ApiResponse<PaginatedResponse<Lead>>>('/leads', { params });
     } catch {
-      const { data, count } = await supabase.from('leads').select('*', { count: 'exact' });
+      const page = Number(params?.page) || 1;
+      const limit = Number(params?.limit) || 20;
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+      const { data, count } = await supabase
+        .from('leads')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
       return {
         data: {
           success: true,
           data: {
             items: (data as any[]) || [],
             total: count || (data?.length ?? 0),
-            page: params?.page || 1,
-            limit: params?.limit || 20,
-            totalPages: Math.ceil((count || (data?.length ?? 0)) / (params?.limit || 20)) || 1,
+            page,
+            limit,
+            totalPages: Math.ceil((count || (data?.length ?? 0)) / limit) || 1,
           },
         },
       } as any;
@@ -185,16 +209,24 @@ export const projectsApi = {
     try {
       return await apiClient.get<ApiResponse<PaginatedResponse<CommercialProject>>>('/projects', { params });
     } catch {
-      const { data, count } = await supabase.from('commercial_projects').select('*', { count: 'exact' });
+      const page = Number(params?.page) || 1;
+      const limit = Number(params?.limit) || 20;
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+      const { data, count } = await supabase
+        .from('commercial_projects')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
       return {
         data: {
           success: true,
           data: {
             items: (data as any[]) || [],
             total: count || (data?.length ?? 0),
-            page: params?.page || 1,
-            limit: params?.limit || 20,
-            totalPages: Math.ceil((count || (data?.length ?? 0)) / (params?.limit || 20)) || 1,
+            page,
+            limit,
+            totalPages: Math.ceil((count || (data?.length ?? 0)) / limit) || 1,
           },
         },
       } as any;
