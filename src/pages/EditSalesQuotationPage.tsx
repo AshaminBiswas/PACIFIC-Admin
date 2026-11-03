@@ -394,6 +394,47 @@ export default function EditSalesQuotationPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  // Auto-backfill missing modelImageUrl or model metadata from catalogModels
+  useEffect(() => {
+    if (!catalogModels || catalogModels.length === 0 || !form.items || form.items.length === 0) return;
+
+    let hasUpdates = false;
+    const updatedItems = form.items.map((it) => {
+      const descLower = (it.description || '').toLowerCase();
+      const rawName = (it.customModelName || it.modelName || '').trim().toLowerCase();
+
+      const matched = catalogModels.find((m) => {
+        const mTitleLower = m.title.toLowerCase();
+        if (it.modelId && (m.id === it.modelId || m.slug === it.modelId)) return true;
+        if (rawName && (mTitleLower === rawName || mTitleLower.includes(rawName) || rawName.includes(mTitleLower))) return true;
+        if (descLower && (descLower.includes(mTitleLower) || mTitleLower.includes(descLower))) return true;
+        return false;
+      });
+
+      if (!matched) return it;
+
+      const hasEmptyImg = !it.modelImageUrl || it.modelImageUrl.trim() === '';
+      const hasEmptyId = !it.modelId || it.modelId.trim() === '';
+      const hasEmptyName = !it.customModelName || it.customModelName.trim() === '';
+
+      if (hasEmptyImg || hasEmptyId || hasEmptyName) {
+        hasUpdates = true;
+        return {
+          ...it,
+          modelImageUrl: hasEmptyImg && matched.imageUrl ? matched.imageUrl : it.modelImageUrl,
+          modelId: hasEmptyId && matched.id ? matched.id : it.modelId,
+          customModelName: hasEmptyName && matched.title ? matched.title : it.customModelName,
+          modelName: (!it.modelName || it.modelName.trim() === '') && matched.title ? matched.title : it.modelName,
+        };
+      }
+      return it;
+    });
+
+    if (hasUpdates) {
+      setForm((prev) => ({ ...prev, items: updatedItems }));
+    }
+  }, [catalogModels, form.items]);
+
   // Auto-save to localStorage
   const autoSave = useCallback(
     (data: EditFormData) => {
@@ -1286,7 +1327,15 @@ export default function EditSalesQuotationPage() {
         drawingFileName: form.drawingFileName || undefined,
         drawingFileId: form.drawingFileId || undefined,
         items: form.items.map((it, idx) => {
-          const resolvedModelName = it.customModelName || (it.modelId && it.modelId !== 'CUSTOM' ? catalogModels.find((m) => m.id === it.modelId)?.title : undefined) || undefined;
+          const matchedCatalog = catalogModels.find((m) =>
+            (it.modelId && (m.id === it.modelId || m.slug === it.modelId)) ||
+            (it.customModelName && (m.title.toLowerCase() === it.customModelName.toLowerCase() || m.title.toLowerCase().includes(it.customModelName.toLowerCase()))) ||
+            (it.modelName && (m.title.toLowerCase() === it.modelName.toLowerCase() || m.title.toLowerCase().includes(it.modelName.toLowerCase()))) ||
+            (it.description && m.title && it.description.toLowerCase().includes(m.title.toLowerCase()))
+          );
+          const resolvedModelName = it.customModelName || (it.modelId && it.modelId !== 'CUSTOM' ? matchedCatalog?.title : undefined) || it.modelName || matchedCatalog?.title || undefined;
+          const resolvedModelImageUrl = it.modelImageUrl || matchedCatalog?.imageUrl || undefined;
+          const resolvedModelId = it.modelId || matchedCatalog?.id || undefined;
           let finalDesc = it.description;
           if ((it.systemCategory === 'custom' || it.modelId === 'CUSTOM' || it.isCustom) && it.customModelName) {
             if (!finalDesc) {
@@ -1306,7 +1355,7 @@ export default function EditSalesQuotationPage() {
             serialNumber: idx + 1,
             customModelName: resolvedModelName,
             modelName: resolvedModelName,
-            modelId: it.modelId || undefined,
+            modelId: resolvedModelId,
             description: finalDesc,
             unit: it.unit || (isLocker ? '4' : 'NOS'),
             quantity: qty,
@@ -1320,12 +1369,12 @@ export default function EditSalesQuotationPage() {
             overallHeight: it.overallHeight || undefined,
             hardwarePackage: it.hardwarePackage || undefined,
             make: it.make || undefined,
-            modelImageUrl: it.modelImageUrl || undefined,
+            modelImageUrl: resolvedModelImageUrl,
             customSpecsJson: {
               ...(typeof (it as any).customSpecsJson === 'object' ? (it as any).customSpecsJson : {}),
               customModelName: resolvedModelName,
               modelName: resolvedModelName,
-              modelImageUrl: it.modelImageUrl || undefined,
+              modelImageUrl: resolvedModelImageUrl,
               systemCategory: it.systemCategory || (it.modelId === 'CUSTOM' ? 'custom' : undefined),
               isCustom: Boolean(it.isCustom || it.modelId === 'CUSTOM' || it.systemCategory === 'custom'),
               hardwarePackage: it.hardwarePackage || it.hardwareType || undefined,

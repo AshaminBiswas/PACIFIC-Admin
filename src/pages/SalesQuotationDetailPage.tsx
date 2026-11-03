@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import {
   FileText, ArrowLeft, Printer, Edit, CheckCircle2, Send,
   MapPin, Calendar, User, Building2, Hash, RefreshCw, Trash2,
   AlertTriangle, Clock, Mail, X, Phone, MessageCircle, MessageSquare, Sparkles,
-  Eye, ExternalLink, Download, Link2, Check, Layers, Package, Wrench,
+  Eye, ExternalLink, Download, Link2, Check, Layers, Package, Wrench, Camera,
 } from 'lucide-react';
 import { salesQuotationsApi } from '../api/salesQuotationsApi';
 import { useAdminAuth } from '../context/AdminAuthContext';
@@ -105,6 +105,10 @@ interface QuotationDetail {
     modelId?: string;
     customModelName?: string;
     modelName?: string;
+    modelImageUrl?: string;
+    systemCategory?: string;
+    boardType?: string;
+    hardwarePackage?: string;
     customSpecsJson?: any;
     description?: string;
     itemDescription?: string;
@@ -361,6 +365,26 @@ export default function SalesQuotationDetailPage() {
       basicPrice + Number(quotation.installationCharge || 0) + Number(quotation.freightAmount || 0) + gstAmount
   );
   const statusStyle = STATUS_STYLES[quotation.status] || STATUS_STYLES['DRAFT'];
+
+  const visualModels = useMemo(() => {
+    if (!quotation?.items) return [];
+    const seen = new Set<string>();
+    const list: Array<{ modelName: string; imageUrl: string; category?: string }> = [];
+    quotation.items.forEach((it: any) => {
+      const customSpecs = (typeof it.customSpecsJson === 'object' && it.customSpecsJson !== null ? it.customSpecsJson : {});
+      const img = it.modelImageUrl || customSpecs.modelImageUrl || customSpecs.imageUrl;
+      const name = it.customModelName || it.modelName || customSpecs.customModelName || customSpecs.modelName;
+      if (img && typeof img === 'string' && img.trim() !== '' && !seen.has(img)) {
+        seen.add(img);
+        list.push({
+          modelName: name || 'Model Visual',
+          imageUrl: img,
+          category: (it.systemCategory || customSpecs.systemCategory || '').toUpperCase(),
+        });
+      }
+    });
+    return list;
+  }, [quotation?.items]);
 
   return (
     <div className="space-y-5 pb-8">
@@ -908,44 +932,55 @@ export default function SalesQuotationDetailPage() {
                   const compDim = `${widthVal} W × ${depthVal} D × ${compHVal}mm H`;
                   const overallDim = `${widthVal} W × ${depthVal} D × ${totalHVal}mm H`;
                   const lockerDoorDisplay = item.doorSize || (tierRows > 1 ? `${tierRows} Tier Modular Doors (${widthVal} W × ${compHVal}mm H per door)` : `1 Tier Modular Door (${widthVal} W × ${compHVal}mm H)`);
+                  const modelImg = item.modelImageUrl || customSpecs.modelImageUrl || customSpecs.imageUrl;
+                  const modelTitle = item.customModelName || item.modelName || customSpecs.customModelName || customSpecs.modelName;
 
                   return (
                     <tr key={item.id ?? idx} className="hover:bg-white/[0.02]">
                       <td className="py-3 px-4 text-center font-mono text-gray-400">{item.serialNumber ?? idx + 1}</td>
                       <td className="py-3 px-4">
-                        <div className="font-medium text-white">{desc}</div>
-                        {(item.customModelName || item.modelName || (item as any).customSpecsJson?.customModelName) && (
-                          <div className="text-xs text-[#7FB706] font-semibold mt-0.5">
-                            • Model / System: {item.customModelName || item.modelName || (item as any).customSpecsJson?.customModelName}
-                          </div>
-                        )}
-                        {(isLocker || item.cubicleSize || item.boardThickness || item.boardColor || item.doorSize || item.overallHeight || item.make) && (
-                          <div className="mt-1 text-[11px] text-gray-500 space-y-0.5">
-                            {isLocker ? (
-                              <>
-                                <div>• Configuration: <span className="text-purple-300 font-medium">{qty} Column(s) × {tierRows} Tier(s) ({qty * tierRows} Total Doors)</span></div>
-                                {tierRows > 1 && <div>• Overall Locker Dimension: <span className="text-gray-300 font-medium">{overallDim}</span></div>}
-                                <div>• {tierRows > 1 ? 'Compartment Dimension' : 'Locker Dimension'}: <span className="text-gray-300 font-medium">{compDim}</span></div>
-                                <div>• Compartment / Door: <span className="text-gray-300 font-medium">{lockerDoorDisplay}</span></div>
-                                <div>• Compartment Height: <span className="text-gray-300 font-medium">{compHVal}mm</span></div>
-                                {tierRows > 1 && <div>• Overall Height: <span className="text-gray-300 font-medium">{totalHVal}mm</span></div>}
-                                <div>• Width: <span className="text-gray-300 font-medium">{widthVal}</span></div>
-                                <div>• Depth: <span className="text-gray-300 font-medium">{depthVal}</span></div>
-                                {item.boardThickness && <div>• Thickness: <span className="text-gray-300 font-medium">{item.boardThickness}</span></div>}
-                                {item.boardColor && <div>• Color: <span className="text-gray-300 font-medium">{item.boardColor}</span></div>}
-                              </>
-                            ) : (
-                              <>
-                                {item.make && <div>• Make: <span className="text-gray-300 font-medium">{item.make}</span></div>}
-                                {item.cubicleSize && <div>• {sizeLabel}: <span className="text-gray-300 font-medium">{item.cubicleSize}</span></div>}
-                                {item.boardColor && <div>• Color: <span className="text-gray-300 font-medium">{item.boardColor}</span></div>}
-                                {item.boardThickness && <div>• Thickness: <span className="text-gray-300 font-medium">{item.boardThickness}</span></div>}
-                                {item.doorSize && (!isUrinal || item.doorSize.trim() !== 'N/A') && <div>• {doorLabel}: <span className="text-gray-300 font-medium">{item.doorSize}</span></div>}
-                                {item.overallHeight && <div>• Height: <span className="text-gray-300 font-medium">{item.overallHeight}</span></div>}
-                              </>
+                        <div className="flex items-start gap-3">
+                          {modelImg && (
+                            <div className="w-12 h-12 rounded-lg bg-white/5 border border-white/10 p-1 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                              <img src={modelImg} alt={modelTitle || 'Model'} className="max-w-full max-h-full object-contain rounded" />
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium text-white">{desc}</div>
+                            {modelTitle && (
+                              <div className="text-xs text-[#7FB706] font-semibold mt-0.5">
+                                • Model / System: {modelTitle}
+                              </div>
+                            )}
+                            {(isLocker || item.cubicleSize || item.boardThickness || item.boardColor || item.doorSize || item.overallHeight || item.make) && (
+                              <div className="mt-1 text-[11px] text-gray-500 space-y-0.5">
+                                {isLocker ? (
+                                  <>
+                                    <div>• Configuration: <span className="text-purple-300 font-medium">{qty} Column(s) × {tierRows} Tier(s) ({qty * tierRows} Total Doors)</span></div>
+                                    {tierRows > 1 && <div>• Overall Locker Dimension: <span className="text-gray-300 font-medium">{overallDim}</span></div>}
+                                    <div>• {tierRows > 1 ? 'Compartment Dimension' : 'Locker Dimension'}: <span className="text-gray-300 font-medium">{compDim}</span></div>
+                                    <div>• Compartment / Door: <span className="text-gray-300 font-medium">{lockerDoorDisplay}</span></div>
+                                    <div>• Compartment Height: <span className="text-gray-300 font-medium">{compHVal}mm</span></div>
+                                    {tierRows > 1 && <div>• Overall Height: <span className="text-gray-300 font-medium">{totalHVal}mm</span></div>}
+                                    <div>• Width: <span className="text-gray-300 font-medium">{widthVal}</span></div>
+                                    <div>• Depth: <span className="text-gray-300 font-medium">{depthVal}</span></div>
+                                    {item.boardThickness && <div>• Thickness: <span className="text-gray-300 font-medium">{item.boardThickness}</span></div>}
+                                    {item.boardColor && <div>• Color: <span className="text-gray-300 font-medium">{item.boardColor}</span></div>}
+                                  </>
+                                ) : (
+                                  <>
+                                    {item.make && <div>• Make: <span className="text-gray-300 font-medium">{item.make}</span></div>}
+                                    {item.cubicleSize && <div>• {sizeLabel}: <span className="text-gray-300 font-medium">{item.cubicleSize}</span></div>}
+                                    {item.boardColor && <div>• Color: <span className="text-gray-300 font-medium">{item.boardColor}</span></div>}
+                                    {item.boardThickness && <div>• Thickness: <span className="text-gray-300 font-medium">{item.boardThickness}</span></div>}
+                                    {item.doorSize && (!isUrinal || item.doorSize.trim() !== 'N/A') && <div>• {doorLabel}: <span className="text-gray-300 font-medium">{item.doorSize}</span></div>}
+                                    {item.overallHeight && <div>• Height: <span className="text-gray-300 font-medium">{item.overallHeight}</span></div>}
+                                  </>
+                                )}
+                              </div>
                             )}
                           </div>
-                        )}
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-center text-gray-400">{isLocker ? `${tierRows} Tier` : (item.unit || 'NOS')}</td>
                       <td className="py-3 px-4 text-right font-mono">{isLocker ? `${qty} Col` : qty}</td>
@@ -970,22 +1005,33 @@ export default function SalesQuotationDetailPage() {
               const isLocker = (item as any).systemCategory === 'locker' || ((item as any).customSpecsJson?.systemCategory === 'locker') || (desc && desc.toLowerCase().includes('locker'));
               const tierRows = isLocker ? (parseFloat(String(item.unit).replace(/[^0-9.]/g, '')) || 1) : 1;
               const amount = Number(item.amount ?? item.totalAmount ?? (isLocker ? tierRows * qty * rate : qty * rate));
+              const customSpecs = ((item as any).customSpecsJson as any) || {};
+              const modelImg = item.modelImageUrl || customSpecs.modelImageUrl || customSpecs.imageUrl;
+              const modelTitle = item.customModelName || item.modelName || customSpecs.customModelName || customSpecs.modelName;
+
               return (
                 <div key={item.id ?? idx} className="p-4 space-y-1">
                   <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <span className="text-xs text-gray-500 font-mono">#{item.serialNumber ?? idx + 1}</span>
-                      <div className="font-medium text-white text-sm">{desc}</div>
-                      {(item.customModelName || item.modelName || (item as any).customSpecsJson?.customModelName) && (
-                        <div className="text-xs text-[#7FB706] font-semibold mt-0.5">
-                          • Model / System: {item.customModelName || item.modelName || (item as any).customSpecsJson?.customModelName}
+                    <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                      {modelImg && (
+                        <div className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 p-0.5 flex-shrink-0 flex items-center justify-center overflow-hidden mt-0.5">
+                          <img src={modelImg} alt={modelTitle || 'Model'} className="max-w-full max-h-full object-contain rounded" />
                         </div>
                       )}
-                      {isLocker && (
-                        <div className="text-xs text-purple-300 font-medium mt-0.5">
-                          • {qty} Column(s) × {tierRows} Tier(s) ({qty * tierRows} Total Doors)
-                        </div>
-                      )}
+                      <div className="min-w-0 flex-1">
+                        <span className="text-xs text-gray-500 font-mono">#{item.serialNumber ?? idx + 1}</span>
+                        <div className="font-medium text-white text-sm">{desc}</div>
+                        {modelTitle && (
+                          <div className="text-xs text-[#7FB706] font-semibold mt-0.5">
+                            • Model / System: {modelTitle}
+                          </div>
+                        )}
+                        {isLocker && (
+                          <div className="text-xs text-purple-300 font-medium mt-0.5">
+                            • {qty} Column(s) × {tierRows} Tier(s) ({qty * tierRows} Total Doors)
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="font-bold text-[#7FB706] font-mono text-sm ml-3">
                       ₹ {amount.toLocaleString('en-IN')}
@@ -997,6 +1043,40 @@ export default function SalesQuotationDetailPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* System & Model Visual References Card */}
+      {visualModels.length > 0 && (
+        <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3">
+          <div className="flex items-center justify-between border-b border-white/5 pb-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+              <Camera className="w-3.5 h-3.5 text-[#7FB706]" /> System &amp; Model Visual References
+            </h3>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/20">
+              {visualModels.length} Model Visual{visualModels.length > 1 ? 's' : ''} in Quotation
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-1">
+            {visualModels.map((vm, idx) => (
+              <div
+                key={idx}
+                className="border border-[#7FB706]/40 rounded-xl overflow-hidden bg-[#0a0a1a] shadow-lg flex flex-col"
+              >
+                <div className="bg-[#7FB706] text-white px-3 py-1.5 text-xs font-bold tracking-wide uppercase text-center truncate">
+                  {vm.modelName}
+                </div>
+                <div className="p-3 bg-white/5 flex items-center justify-center min-h-[140px] max-h-[180px] overflow-hidden">
+                  <img
+                    src={vm.imageUrl}
+                    alt={vm.modelName}
+                    className="max-h-[150px] max-w-full object-contain rounded transition-transform hover:scale-105"
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
