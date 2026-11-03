@@ -151,7 +151,7 @@ export const DailySalesPurchasePage: React.FC = () => {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            onClick={() => navigate('/daily-reports/record-sale')}
+            onClick={() => navigate('/admin/dashboard/daily-reports/record-sale')}
             className="px-3.5 py-2 rounded-xl text-xs font-bold bg-lime-500 hover:bg-lime-400 text-slate-950 shadow-md shadow-lime-500/20 flex items-center gap-1.5 transition-all cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
@@ -160,7 +160,7 @@ export const DailySalesPurchasePage: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => navigate('/daily-reports/record-purchase')}
+            onClick={() => navigate('/admin/dashboard/daily-reports/record-purchase')}
             className="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition-all cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />

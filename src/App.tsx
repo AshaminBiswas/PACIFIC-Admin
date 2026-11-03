@@ -1042,6 +1042,11 @@ export default function App() {
           </Route>
         </Route>
 
+        {/* Alias redirects for daily-reports routes */}
+        <Route path="/daily-reports" element={<Navigate to="/admin/dashboard/daily-reports" replace />} />
+        <Route path="/daily-reports/record-sale" element={<Navigate to="/admin/dashboard/daily-reports/record-sale" replace />} />
+        <Route path="/daily-reports/record-purchase" element={<Navigate to="/admin/dashboard/daily-reports/record-purchase" replace />} />
+
         {/* Catch-all redirect */}
         <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
       </Routes>

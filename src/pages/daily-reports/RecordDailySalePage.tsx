@@ -291,7 +291,7 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
       await dailySalesPurchasesApi.create(payload);
 
       // Navigate back to daily reports list on success
-      navigate('/daily-reports', {
+      navigate('/admin/dashboard/daily-reports', {
         state: { message: `Successfully recorded ${entryType === 'SALES' ? 'sale' : 'purchase'} invoice ${invoiceNo.trim()}!` }
       });
     } catch (err: any) {
@@ -312,7 +312,7 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => navigate('/daily-reports')}
+            onClick={() => navigate('/admin/dashboard/daily-reports')}
             className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-lime-500/40 text-slate-300 hover:text-white transition cursor-pointer shadow-md group"
             title="Back to Daily Reports"
           >
@@ -321,7 +321,7 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
           <div>
             <div className="flex items-center gap-2 text-xs text-slate-400 mb-0.5">
               <span
-                onClick={() => navigate('/daily-reports')}
+                onClick={() => navigate('/admin/dashboard/daily-reports')}
                 className="hover:text-lime-400 cursor-pointer transition"
               >
                 Daily Sales & Purchase Report
@@ -953,7 +953,7 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
 
                 <button
                   type="button"
-                  onClick={() => navigate('/daily-reports')}
+                  onClick={() => navigate('/admin/dashboard/daily-reports')}
                   disabled={isSubmitting}
                   className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-750 text-slate-300 border border-slate-700 flex items-center justify-center transition cursor-pointer"
                 >
