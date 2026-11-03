@@ -1440,7 +1440,13 @@ export default function EditProformaInvoicePage() {
       alert('Proforma Invoice updated successfully!');
       navigate(`/admin/dashboard/proforma-invoices/${id}`);
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Failed to update Proforma Invoice.');
+      console.error('Failed to update Proforma Invoice:', err);
+      const errMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        'Failed to update Proforma Invoice.';
+      alert(errMsg);
     } finally {
       setSubmitting(false);
     }
