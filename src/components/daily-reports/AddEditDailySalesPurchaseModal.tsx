@@ -79,6 +79,12 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
   const [paymentMode, setPaymentMode] = useState<string>('BANK_TRANSFER');
   const [paymentStatus, setPaymentStatus] = useState<string>('PAID');
 
+  // Advance Payment State
+  const [hasAdvance, setHasAdvance] = useState<boolean>(false);
+  const [advanceAmount, setAdvanceAmount] = useState<string>('');
+  const [advanceMode, setAdvanceMode] = useState<string>('BANK_TRANSFER');
+  const [advanceRef, setAdvanceRef] = useState<string>('');
+
   // Customer & Vendor selections
   const [customers, setCustomers] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
@@ -158,6 +164,8 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
   const autoTax = Math.round(remainingBasic * 0.18 * 100) / 100;
   const numTax = isManualTax ? (parseFloat(taxAmount) || 0) : autoTax;
   const totalAmount = Math.round((remainingBasic + numTax) * 100) / 100;
+  const numAdvance = hasAdvance ? (parseFloat(advanceAmount) || 0) : 0;
+  const balanceDue = Math.max(0, Math.round((totalAmount - numAdvance) * 100) / 100);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,6 +206,29 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
         }
       }
 
+      const notes: string[] = [];
+      if (description.trim()) notes.push(description.trim());
+      if (hasCashDeduction && numCash > 0) {
+        notes.push(`[Pre-GST Cash Deduction: Basic ₹${numAmount} - Cash ₹${numCash} = Net Basic ₹${remainingBasic} + Tax ₹${numTax} = Total ₹${totalAmount}]`);
+      }
+      if (hasAdvance && numAdvance > 0) {
+        const refText = advanceRef.trim() ? ` (Ref: ${advanceRef.trim()})` : '';
+        const dueText = balanceDue <= 0 ? 'Full Advance Settlement (Balance: ₹0.00)' : `Balance Due: ₹${balanceDue.toLocaleString('en-IN')}`;
+        notes.push(`[Advance Payment: ₹${numAdvance.toLocaleString('en-IN')} via ${advanceMode}${refText} | ${dueText}]`);
+      }
+
+      let resolvedStatus = paymentStatus;
+      if (hasAdvance && numAdvance > 0) {
+        resolvedStatus = balanceDue <= 0 ? 'PAID' : 'PARTIAL';
+      }
+
+      let resolvedMode = paymentMode;
+      if (hasAdvance && numAdvance > 0) {
+        resolvedMode = advanceMode;
+      } else if (hasCashDeduction && numCash > 0) {
+        resolvedMode = 'CASH';
+      }
+
       const payload: CreateDailySalesPurchasePayload = {
         entryDate,
         type,
@@ -209,9 +240,9 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
         customerId: type === 'SALES' ? selectedCustomerId || undefined : undefined,
         vendorId: type === 'PURCHASE' ? selectedVendorId || undefined : undefined,
         category,
-        description: description.trim() || undefined,
-        paymentMode: hasCashDeduction && numCash > 0 ? 'CASH' : paymentMode,
-        paymentStatus,
+        description: notes.length > 0 ? notes.join('\n') : undefined,
+        paymentMode: resolvedMode,
+        paymentStatus: resolvedStatus,
       };
 
       if (editItem) {
@@ -545,6 +576,106 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
             <span className="text-sm font-black text-lime-400 font-mono">
               ₹ {totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
+          </div>
+
+          {/* Advance Payment Option & Balance Settlement Feature */}
+          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-xs font-semibold text-white cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={hasAdvance}
+                  onChange={(e) => {
+                    setHasAdvance(e.target.checked);
+                    if (!e.target.checked) setAdvanceAmount('');
+                  }}
+                  className="rounded text-cyan-500 bg-slate-900 border-slate-700"
+                />
+                <span>Record Advance Payment (Advance Received against Bill)</span>
+              </label>
+              {hasAdvance && (
+                <span className="text-[10px] text-cyan-400 font-bold">Active</span>
+              )}
+            </div>
+
+            {hasAdvance && (
+              <div className="space-y-2.5 pt-2 border-t border-slate-850">
+                {totalAmount > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] text-slate-400">Presets:</span>
+                    {[25, 50, 75, 100].map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => setAdvanceAmount((totalAmount * (pct / 100)).toFixed(2))}
+                        className="px-2 py-0.5 text-[10px] font-bold rounded bg-cyan-950 border border-cyan-500/30 text-cyan-300 hover:text-white"
+                      >
+                        {pct === 100 ? '100% Full' : `${pct}%`}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[11px] font-semibold text-cyan-300 block mb-1">
+                      Advance (₹) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={advanceAmount}
+                      onChange={(e) => setAdvanceAmount(e.target.value)}
+                      className="bg-slate-900 border border-slate-700 text-cyan-300 text-xs rounded-xl px-3 py-1.5 w-full font-mono font-bold focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                      Mode
+                    </label>
+                    <select
+                      value={advanceMode}
+                      onChange={(e) => setAdvanceMode(e.target.value)}
+                      className="bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-2 py-1.5 w-full focus:outline-none"
+                    >
+                      <option value="BANK_TRANSFER">Bank Transfer</option>
+                      <option value="UPI">UPI / QR</option>
+                      <option value="CHEQUE">Cheque</option>
+                      <option value="CASH">Cash</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                      UTR / Cheque Ref
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Reference #"
+                      value={advanceRef}
+                      onChange={(e) => setAdvanceRef(e.target.value)}
+                      className="bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-2 py-1.5 w-full focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {numAdvance > 0 && (
+                  <div className="flex items-center justify-between p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-[11px]">
+                    <span className="text-slate-300">
+                      Advance: <strong className="font-mono text-cyan-300">₹{numAdvance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                    </span>
+                    <span className="text-slate-300">
+                      Balance Due: <strong className={`font-mono ${balanceDue <= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>₹{balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                    </span>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${balanceDue <= 0 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                      {balanceDue <= 0 ? 'Fully Paid' : 'Partial Due'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Payment Details */}

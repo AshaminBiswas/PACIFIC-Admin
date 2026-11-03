@@ -19,6 +19,7 @@ import {
   Layers,
   ChevronRight,
   Info,
+  Clock,
 } from 'lucide-react';
 import { crmApi, vendorsApi } from '../../api';
 import { dailySalesPurchasesApi } from '../../api/dailySalesPurchasesApi';
@@ -90,6 +91,15 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
   // Payment Tracking
   const [paymentMode, setPaymentMode] = useState<string>('CASH');
   const [paymentStatus, setPaymentStatus] = useState<string>('PAID');
+
+  // Advance Payment State
+  const [hasAdvanceReceived, setHasAdvanceReceived] = useState<boolean>(false);
+  const [advanceAmount, setAdvanceAmount] = useState<string>('');
+  const [advancePaymentMode, setAdvancePaymentMode] = useState<string>('BANK_TRANSFER');
+  const [advancePaymentDate, setAdvancePaymentDate] = useState<string>(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [advanceReferenceNo, setAdvanceReferenceNo] = useState<string>('');
 
   // UI state
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -171,6 +181,19 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
   // Total Bill Amount including GST
   const totalBillAmount = Math.round((remainingBasicAmount + totalGstAmount) * 100) / 100;
 
+  // Advance Payment Calculations
+  const numAdvance = hasAdvanceReceived ? Math.max(0, parseFloat(advanceAmount) || 0) : 0;
+  const balanceDue = Math.max(0, Math.round((totalBillAmount - numAdvance) * 100) / 100);
+
+  const handleApplyAdvancePercentage = (percentage: number) => {
+    if (totalBillAmount <= 0) return;
+    const calculated = Math.round(totalBillAmount * (percentage / 100) * 100) / 100;
+    setAdvanceAmount(calculated.toString());
+    if (validationErrors.advanceAmount) {
+      setValidationErrors((prev) => ({ ...prev, advanceAmount: '' }));
+    }
+  };
+
   // Filtered party list for search
   const filteredCustomers = useMemo(() => {
     if (!partySearchTerm.trim()) return customers;
@@ -210,6 +233,15 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
     // Cash received check
     if (hasCashReceived && numCashReceived > numTotalBasic) {
       errors.cashReceivedAmount = 'Cash received cannot exceed the Total Basic Amount.';
+    }
+
+    // Advance received check
+    if (hasAdvanceReceived) {
+      if (numAdvance <= 0) {
+        errors.advanceAmount = 'Please enter a valid advance amount greater than ₹0.00.';
+      } else if (numAdvance > totalBillAmount && totalBillAmount > 0) {
+        errors.advanceAmount = `Advance amount (₹${numAdvance.toLocaleString('en-IN')}) cannot exceed the Total Bill Amount (₹${totalBillAmount.toLocaleString('en-IN')}).`;
+      }
     }
 
     // 3. Customer / Party is MANDATORY
@@ -262,14 +294,45 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
         }
       }
 
-      // Format clean audit note with settlement formula
-      const settlementAudit = numCashReceived > 0
-        ? `[Settlement Audit: Total Basic ₹${numTotalBasic.toLocaleString('en-IN')} - Cash Received ₹${numCashReceived.toLocaleString('en-IN')} = Remaining Basic ₹${remainingBasicAmount.toLocaleString('en-IN')} + ${isDelhiGst ? 'Delhi GST (CGST 9% + SGST 9%)' : 'Interstate IGST (18%)'} ₹${totalGstAmount.toLocaleString('en-IN')} = Bill Amount ₹${totalBillAmount.toLocaleString('en-IN')}]`
-        : `[Standard Bill: Basic ₹${numTotalBasic.toLocaleString('en-IN')} + 18% GST ₹${totalGstAmount.toLocaleString('en-IN')} = Bill Amount ₹${totalBillAmount.toLocaleString('en-IN')}]`;
+      // Format clean audit note with settlement formula and advance details
+      const notes: string[] = [];
+      if (description.trim()) {
+        notes.push(description.trim());
+      }
 
-      const fullDescription = description.trim()
-        ? `${description.trim()}\n${settlementAudit}`
-        : settlementAudit;
+      if (numCashReceived > 0) {
+        notes.push(
+          `[Pre-GST Cash Deduction: Total Basic ₹${numTotalBasic.toLocaleString('en-IN')} - Cash Received ₹${numCashReceived.toLocaleString('en-IN')} = Remaining Basic ₹${remainingBasicAmount.toLocaleString('en-IN')} + ${isDelhiGst ? 'Delhi GST (CGST 9% + SGST 9%)' : 'Interstate IGST (18%)'} ₹${totalGstAmount.toLocaleString('en-IN')} = Bill Amount ₹${totalBillAmount.toLocaleString('en-IN')}]`
+        );
+      } else {
+        notes.push(
+          `[Standard Bill: Basic ₹${numTotalBasic.toLocaleString('en-IN')} + 18% GST ₹${totalGstAmount.toLocaleString('en-IN')} = Bill Amount ₹${totalBillAmount.toLocaleString('en-IN')}]`
+        );
+      }
+
+      if (hasAdvanceReceived && numAdvance > 0) {
+        const refStr = advanceReferenceNo.trim() ? ` (Ref / UTR: ${advanceReferenceNo.trim()})` : '';
+        const dateStr = advancePaymentDate ? ` on ${advancePaymentDate}` : '';
+        const statusStr = balanceDue <= 0 ? 'Full Advance Settlement (Balance: ₹0.00)' : `Balance Due: ₹${balanceDue.toLocaleString('en-IN')}`;
+        notes.push(
+          `[Advance Payment: ₹${numAdvance.toLocaleString('en-IN')} received via ${advancePaymentMode}${refStr}${dateStr} | ${statusStr}]`
+        );
+      }
+
+      const fullDescription = notes.join('\n');
+
+      // Compute final payment status & mode
+      let resolvedPaymentStatus = paymentStatus;
+      if (hasAdvanceReceived && numAdvance > 0) {
+        resolvedPaymentStatus = balanceDue <= 0 ? 'PAID' : 'PARTIAL';
+      }
+
+      let resolvedPaymentMode = paymentMode;
+      if (hasAdvanceReceived && numAdvance > 0) {
+        resolvedPaymentMode = advancePaymentMode;
+      } else if (hasCashReceived && numCashReceived > 0) {
+        resolvedPaymentMode = 'CASH';
+      }
 
       const payload: CreateDailySalesPurchasePayload = {
         entryDate,
@@ -284,8 +347,8 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
         vendorId: entryType === 'PURCHASE' && !useCustomParty ? selectedVendorId || undefined : undefined,
         category,
         description: fullDescription,
-        paymentMode: hasCashReceived && numCashReceived > 0 ? 'CASH' : paymentMode,
-        paymentStatus,
+        paymentMode: resolvedPaymentMode,
+        paymentStatus: resolvedPaymentStatus,
       };
 
       await dailySalesPurchasesApi.create(payload);
@@ -761,6 +824,183 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
                 )}
               </div>
 
+              {/* Advance Payment Option & Balance Settlement Feature */}
+              <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-700/70 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      id="hasAdvancePaymentToggle"
+                      checked={hasAdvanceReceived}
+                      onChange={(e) => {
+                        setHasAdvanceReceived(e.target.checked);
+                        if (!e.target.checked) {
+                          setAdvanceAmount('');
+                          if (validationErrors.advanceAmount) {
+                            setValidationErrors((prev) => ({ ...prev, advanceAmount: '' }));
+                          }
+                        }
+                      }}
+                      className="w-4 h-4 rounded text-cyan-500 focus:ring-cyan-500 bg-slate-950 border-slate-700 cursor-pointer"
+                    />
+                    <label
+                      htmlFor="hasAdvancePaymentToggle"
+                      className="text-xs font-bold text-white cursor-pointer select-none flex items-center gap-1.5"
+                    >
+                      <CreditCard className="w-4 h-4 text-cyan-400" />
+                      <span>Record Advance Payment (Advance Received against Bill)</span>
+                    </label>
+                  </div>
+
+                  {hasAdvanceReceived && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                      Active
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Record advance payment or token deposit received from the customer against the Total Bill Amount. The system tracks payment mode, transaction reference date, and computes remaining balance due.
+                </p>
+
+                {hasAdvanceReceived && (
+                  <div className="pt-2 border-t border-slate-800 space-y-3 animate-fade-in">
+                    {/* Quick percentage buttons */}
+                    {totalBillAmount > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[11px] text-slate-400 font-medium mr-1">Quick Presets:</span>
+                        {[25, 50, 75, 100].map((pct) => (
+                          <button
+                            key={pct}
+                            type="button"
+                            onClick={() => handleApplyAdvancePercentage(pct)}
+                            className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-cyan-950/60 hover:bg-cyan-900 border border-cyan-500/30 text-cyan-300 hover:text-white transition cursor-pointer"
+                          >
+                            {pct === 100 ? '100% Full' : `${pct}%`}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-cyan-300 mb-1">
+                          Advance Amount Received (₹) <span className="text-rose-400">*</span>
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-cyan-400 font-mono font-bold">
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={advanceAmount}
+                            onChange={(e) => {
+                              setAdvanceAmount(e.target.value);
+                              if (validationErrors.advanceAmount) {
+                                setValidationErrors((prev) => ({ ...prev, advanceAmount: '' }));
+                              }
+                            }}
+                            placeholder="0.00"
+                            className={`w-full bg-[#030213] border rounded-xl pl-9 pr-3.5 py-2.5 text-base font-mono font-bold text-cyan-300 placeholder-slate-600 focus:outline-none transition ${
+                              validationErrors.advanceAmount
+                                ? 'border-rose-500 focus:border-rose-400'
+                                : 'border-cyan-500/50 focus:border-cyan-400'
+                            }`}
+                          />
+                        </div>
+                        {validationErrors.advanceAmount ? (
+                          <span className="text-[11px] text-rose-400 mt-1 block font-medium">
+                            {validationErrors.advanceAmount}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 mt-1 block">
+                            Advance deposit towards Total Bill Amount of {formatCurrency(totalBillAmount)}.
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-200 mb-1">
+                          Advance Payment Mode
+                        </label>
+                        <select
+                          value={advancePaymentMode}
+                          onChange={(e) => setAdvancePaymentMode(e.target.value)}
+                          className="w-full bg-[#030213] border border-slate-700/80 focus:border-cyan-500 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none transition"
+                        >
+                          <option value="BANK_TRANSFER">Bank Transfer (NEFT / RTGS / IMPS)</option>
+                          <option value="UPI">UPI / QR Code Transfer</option>
+                          <option value="CHEQUE">Cheque Payment</option>
+                          <option value="CASH">Cash Payment</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-200 mb-1">
+                          Advance Payment Date
+                        </label>
+                        <input
+                          type="date"
+                          value={advancePaymentDate}
+                          onChange={(e) => setAdvancePaymentDate(e.target.value)}
+                          className="w-full bg-[#030213] border border-slate-700/80 focus:border-cyan-500 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:outline-none transition"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-200 mb-1">
+                          Transaction Ref / UTR / Cheque No
+                        </label>
+                        <input
+                          type="text"
+                          value={advanceReferenceNo}
+                          onChange={(e) => setAdvanceReferenceNo(e.target.value)}
+                          placeholder="e.g. UTR198273645 / Cheque #88201"
+                          className="w-full bg-[#030213] border border-slate-700/80 focus:border-cyan-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Live Advance Summary Pill */}
+                    {numAdvance > 0 && (
+                      <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between text-xs">
+                        <div className="space-y-0.5">
+                          <span className="text-slate-400 block text-[11px]">Advance Received:</span>
+                          <span className="font-mono font-bold text-cyan-300 text-sm">
+                            {formatCurrency(numAdvance)}
+                          </span>
+                        </div>
+                        <div className="text-right space-y-0.5">
+                          <span className="text-slate-400 block text-[11px]">Remaining Balance Due:</span>
+                          <span
+                            className={`font-mono font-bold text-sm ${
+                              balanceDue <= 0 ? 'text-emerald-400' : 'text-amber-400'
+                            }`}
+                          >
+                            {formatCurrency(balanceDue)}
+                          </span>
+                        </div>
+                        <div>
+                          {balanceDue <= 0 ? (
+                            <span className="text-[10px] font-bold px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              Paid in Full
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              Partial (Balance Due)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Payment Mode & Status Selection */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-white/5">
                 <div>
@@ -926,6 +1166,63 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
                     <div className="flex justify-between text-slate-200 font-bold border-t border-slate-800 pt-1">
                       <span>Combined Realization:</span>
                       <span className="font-mono text-amber-400">{formatCurrency(numCashReceived + totalBillAmount)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 6. Advance Payment Received & Balance Due (when active) */}
+                {hasAdvanceReceived && numAdvance > 0 && (
+                  <div className="p-3.5 rounded-xl bg-cyan-950/40 border border-cyan-500/40 space-y-2.5 shadow-md">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-cyan-300 flex items-center gap-1.5">
+                        <CreditCard className="w-4 h-4 text-cyan-400" />
+                        <span>6. Advance Payment Received</span>
+                      </span>
+                      <span className="font-mono font-bold text-cyan-300 text-sm">
+                        - {formatCurrency(numAdvance)}
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-slate-300 flex items-center justify-between pl-2 border-l-2 border-cyan-500/40">
+                      <span className="text-slate-400">Payment Mode:</span>
+                      <span className="font-semibold text-slate-200">
+                        {advancePaymentMode === 'BANK_TRANSFER'
+                          ? 'Bank Transfer (NEFT/RTGS)'
+                          : advancePaymentMode === 'UPI'
+                          ? 'UPI / QR Code'
+                          : advancePaymentMode === 'CHEQUE'
+                          ? 'Cheque'
+                          : 'Cash'}
+                        {advanceReferenceNo ? ` [${advanceReferenceNo}]` : ''}
+                      </span>
+                    </div>
+
+                    {/* 7. Balance Due / Outstanding Amount */}
+                    <div className="pt-2 border-t border-cyan-500/30 flex items-center justify-between">
+                      <span className="text-xs font-bold text-white flex items-center gap-1">
+                        <span>7. Remaining Balance Due:</span>
+                      </span>
+                      <span
+                        className={`font-mono font-black text-lg ${
+                          balanceDue <= 0 ? 'text-emerald-400' : 'text-amber-400'
+                        }`}
+                      >
+                        {formatCurrency(balanceDue)}
+                      </span>
+                    </div>
+
+                    <div className="pt-1">
+                      {balanceDue <= 0 ? (
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>100% Settled in Full — No Balance Pending</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          <Clock className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Partially Paid — ₹{balanceDue.toLocaleString('en-IN')} Balance Due</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
