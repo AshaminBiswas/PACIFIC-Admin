@@ -196,14 +196,41 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
     try {
       // Find party name from selection if not manually overridden
       let partyDisplayName = customPartyName.trim();
-      if (!partyDisplayName) {
-        if (type === 'SALES' && selectedCustomerId) {
-          const c = customers.find((cust) => cust.id === selectedCustomerId || cust.partyId === selectedCustomerId);
-          partyDisplayName = c?.legalName || c?.tradeName || c?.party?.tradeName || c?.party?.legalName || 'Customer';
-        } else if (type === 'PURCHASE' && selectedVendorId) {
-          const v = vendors.find((vend) => vend.id === selectedVendorId || vend.partyId === selectedVendorId);
-          partyDisplayName = v?.legalName || v?.tradeName || v?.party?.tradeName || v?.party?.legalName || 'Supplier';
+      let resolvedCustId = undefined;
+      let resolvedVendId = undefined;
+
+      if (type === 'SALES' && selectedCustomerId) {
+        const c = customers.find(
+          (cust) =>
+            cust.id === selectedCustomerId ||
+            cust.partyId === selectedCustomerId ||
+            cust.customerProfile?.id === selectedCustomerId
+        );
+        if (!partyDisplayName) {
+          partyDisplayName =
+            c?.legalName ||
+            c?.tradeName ||
+            c?.party?.tradeName ||
+            c?.party?.legalName ||
+            'Customer';
         }
+        resolvedCustId = c?.customerProfile?.id || selectedCustomerId;
+      } else if (type === 'PURCHASE' && selectedVendorId) {
+        const v = vendors.find(
+          (vend) =>
+            vend.id === selectedVendorId ||
+            vend.partyId === selectedVendorId ||
+            vend.vendorProfile?.id === selectedVendorId
+        );
+        if (!partyDisplayName) {
+          partyDisplayName =
+            v?.legalName ||
+            v?.tradeName ||
+            v?.party?.tradeName ||
+            v?.party?.legalName ||
+            'Supplier';
+        }
+        resolvedVendId = v?.vendorProfile?.id || selectedVendorId;
       }
 
       const notes: string[] = [];
@@ -237,8 +264,8 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
         totalAmount,
         referenceNo: referenceNo.trim(),
         partyName: partyDisplayName,
-        customerId: type === 'SALES' ? selectedCustomerId || undefined : undefined,
-        vendorId: type === 'PURCHASE' ? selectedVendorId || undefined : undefined,
+        customerId: type === 'SALES' ? resolvedCustId : undefined,
+        vendorId: type === 'PURCHASE' ? resolvedVendId : undefined,
         category,
         description: notes.length > 0 ? notes.join('\n') : undefined,
         paymentMode: resolvedMode,
@@ -400,7 +427,12 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
                 value={selectedCustomerId}
                 onChange={(e) => {
                   setSelectedCustomerId(e.target.value);
-                  const found = customers.find((c) => c.id === e.target.value || c.partyId === e.target.value);
+                  const found = customers.find(
+                    (c) =>
+                      c.id === e.target.value ||
+                      c.partyId === e.target.value ||
+                      c.customerProfile?.id === e.target.value
+                  );
                   if (found) {
                     setCustomPartyName(found.legalName || found.tradeName || found.party?.tradeName || found.party?.legalName || '');
                   }
@@ -411,8 +443,9 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
                 {customers.map((c) => {
                   const name = c.legalName || c.tradeName || c.party?.tradeName || c.party?.legalName || 'Customer';
                   const gstin = c.gstin || c.party?.gstin;
+                  const profileId = c.customerProfile?.id || c.id;
                   return (
-                    <option key={c.id} value={c.id}>
+                    <option key={c.id} value={profileId}>
                       {name} {gstin ? `(${gstin})` : ''}
                     </option>
                   );
@@ -440,7 +473,12 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
                 value={selectedVendorId}
                 onChange={(e) => {
                   setSelectedVendorId(e.target.value);
-                  const found = vendors.find((v) => v.id === e.target.value || v.partyId === e.target.value);
+                  const found = vendors.find(
+                    (v) =>
+                      v.id === e.target.value ||
+                      v.partyId === e.target.value ||
+                      v.vendorProfile?.id === e.target.value
+                  );
                   if (found) {
                     setCustomPartyName(found.legalName || found.tradeName || found.party?.tradeName || found.party?.legalName || '');
                   }
@@ -451,8 +489,9 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
                 {vendors.map((v) => {
                   const name = v.legalName || v.tradeName || v.party?.tradeName || v.party?.legalName || 'Supplier';
                   const gstin = v.gstin || v.party?.gstin;
+                  const profileId = v.vendorProfile?.id || v.id;
                   return (
-                    <option key={v.id} value={v.id}>
+                    <option key={v.id} value={profileId}>
                       {name} {gstin ? `(${gstin})` : ''}
                     </option>
                   );

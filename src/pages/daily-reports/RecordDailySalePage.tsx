@@ -134,7 +134,12 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
   // Auto-detect Delhi vs Interstate when customer changes
   useEffect(() => {
     if (entryType === 'SALES' && selectedCustomerId) {
-      const selected = customers.find((c) => c.id === selectedCustomerId || c.partyId === selectedCustomerId);
+      const selected = customers.find(
+        (c) =>
+          c.id === selectedCustomerId ||
+          c.partyId === selectedCustomerId ||
+          c.customerProfile?.id === selectedCustomerId
+      );
       if (selected) {
         const gstin = selected.gstin || selected.party?.gstin || '';
         const stateCode = selected.party?.stateCode || selected.stateCode || '';
@@ -284,13 +289,44 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
     try {
       // Resolve party display name
       let resolvedPartyName = customPartyName.trim();
-      if (!resolvedPartyName) {
-        if (entryType === 'SALES' && selectedCustomerId) {
-          const c = customers.find((cust) => cust.id === selectedCustomerId || cust.partyId === selectedCustomerId);
-          resolvedPartyName = c?.legalName || c?.tradeName || c?.party?.tradeName || c?.party?.legalName || 'Customer';
-        } else if (entryType === 'PURCHASE' && selectedVendorId) {
-          const v = vendors.find((vend) => vend.id === selectedVendorId || vend.partyId === selectedVendorId);
-          resolvedPartyName = v?.legalName || v?.tradeName || v?.party?.tradeName || v?.party?.legalName || 'Supplier';
+      let resolvedCustId = undefined;
+      let resolvedVendId = undefined;
+
+      if (entryType === 'SALES') {
+        if (selectedCustomerId && !useCustomParty) {
+          const c = customers.find(
+            (cust) =>
+              cust.id === selectedCustomerId ||
+              cust.partyId === selectedCustomerId ||
+              cust.customerProfile?.id === selectedCustomerId
+          );
+          if (!resolvedPartyName) {
+            resolvedPartyName =
+              c?.legalName ||
+              c?.tradeName ||
+              c?.party?.tradeName ||
+              c?.party?.legalName ||
+              'Customer';
+          }
+          resolvedCustId = c?.customerProfile?.id || selectedCustomerId;
+        }
+      } else {
+        if (selectedVendorId && !useCustomParty) {
+          const v = vendors.find(
+            (vend) =>
+              vend.id === selectedVendorId ||
+              vend.partyId === selectedVendorId ||
+              vend.vendorProfile?.id === selectedVendorId
+          );
+          if (!resolvedPartyName) {
+            resolvedPartyName =
+              v?.legalName ||
+              v?.tradeName ||
+              v?.party?.tradeName ||
+              v?.party?.legalName ||
+              'Supplier';
+          }
+          resolvedVendId = v?.vendorProfile?.id || selectedVendorId;
         }
       }
 
@@ -343,8 +379,8 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
         totalAmount: totalBillAmount,
         referenceNo: invoiceNo.trim(),
         partyName: resolvedPartyName,
-        customerId: entryType === 'SALES' && !useCustomParty ? selectedCustomerId || undefined : undefined,
-        vendorId: entryType === 'PURCHASE' && !useCustomParty ? selectedVendorId || undefined : undefined,
+        customerId: resolvedCustId,
+        vendorId: resolvedVendId,
         category,
         description: fullDescription,
         paymentMode: resolvedPaymentMode,
@@ -615,16 +651,18 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
                         ? filteredCustomers.map((cust) => {
                             const name = cust.legalName || cust.tradeName || cust.party?.tradeName || cust.party?.legalName || 'Unnamed Customer';
                             const gstin = cust.gstin || cust.party?.gstin ? ` [GST: ${cust.gstin || cust.party?.gstin}]` : '';
+                            const profileId = cust.customerProfile?.id || cust.id;
                             return (
-                              <option key={cust.id} value={cust.id}>
+                              <option key={cust.id} value={profileId}>
                                 {name} {gstin}
                               </option>
                             );
                           })
                         : filteredVendors.map((vend) => {
                             const name = vend.legalName || vend.tradeName || vend.party?.tradeName || vend.party?.legalName || 'Unnamed Vendor';
+                            const profileId = vend.vendorProfile?.id || vend.id;
                             return (
-                              <option key={vend.id} value={vend.id}>
+                              <option key={vend.id} value={profileId}>
                                 {name}
                               </option>
                             );
