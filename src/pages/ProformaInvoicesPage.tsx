@@ -315,7 +315,12 @@ export default function ProformaInvoicesPage() {
         </div>
       </td>
       <td className="py-2.5 sm:py-3 px-3 sm:px-4 font-bold text-[#7FB706]">
-        ₹ {Number(pi.grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+        <div>₹ {Number(pi.grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+        {pi.advancePaymentMode === 'CASH' && Number(pi.advanceReceivedAmount || 0) > 0 && (
+          <div className="text-[10px] text-gray-400 font-normal">
+            Total Deal: ₹ {(Number(pi.grandTotal) + Number(pi.advanceReceivedAmount)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          </div>
+        )}
       </td>
       <td className="py-2.5 sm:py-3 px-3 sm:px-4">
         <span
@@ -450,8 +455,15 @@ export default function ProformaInvoicesPage() {
           <span>{new Date(pi.piDate).toLocaleDateString('en-GB')}</span>
           <span className="text-gray-500 font-mono">({new Date(pi.piDate).toLocaleDateString('en-GB', { weekday: 'short' })})</span>
         </div>
-        <div className="font-bold text-sm sm:text-base text-[#7FB706]">
-          ₹ {Number(pi.grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+        <div className="text-right">
+          <div className="font-bold text-sm sm:text-base text-[#7FB706]">
+            ₹ {Number(pi.grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          </div>
+          {pi.advancePaymentMode === 'CASH' && Number(pi.advanceReceivedAmount || 0) > 0 && (
+            <div className="text-[10px] text-gray-400 font-normal">
+              Total Deal: ₹ {(Number(pi.grandTotal) + Number(pi.advanceReceivedAmount)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </div>
+          )}
         </div>
       </div>
 

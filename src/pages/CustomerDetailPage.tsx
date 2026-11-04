@@ -1096,7 +1096,18 @@ export default function CustomerDetailPage() {
                         <td className="py-3 px-4 font-mono font-bold text-white">{pi.piNumber}</td>
                         <td className="py-3 px-4 text-gray-400">{new Date(pi.piDate).toLocaleDateString('en-GB')}</td>
                         <td className="py-3 px-4 text-right font-mono font-bold text-[#7FB706]">
-                          ₹{Number(pi.grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          <div>
+                            ₹{(
+                              (pi.advancePaymentMode === 'CASH' && Number(pi.advanceReceivedAmount || 0) > 0)
+                                ? Number(pi.grandTotal) + Number(pi.advanceReceivedAmount)
+                                : Number(pi.grandTotal)
+                            ).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </div>
+                          {pi.advancePaymentMode === 'CASH' && Number(pi.advanceReceivedAmount || 0) > 0 && (
+                            <div className="text-[10px] text-gray-400 font-normal">
+                              PI Post-Cash: ₹{Number(pi.grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-right font-mono font-bold text-emerald-400">
                           ₹{Number(pi.advanceReceivedAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}

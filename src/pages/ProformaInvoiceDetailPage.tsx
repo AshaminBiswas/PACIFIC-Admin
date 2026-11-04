@@ -687,9 +687,17 @@ export default function ProformaInvoiceDetailPage() {
         {/* 4 KPI Metrics */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
           <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3">
-            <span className="text-[11px] text-gray-400">Total Proforma Bill</span>
-            <div className="text-lg sm:text-xl font-black text-white mt-1">₹ {grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-            <span className="text-[10px] text-gray-500 font-mono">100% Bill Value</span>
+            <span className="text-[11px] text-gray-400">
+              {pi.advancePaymentMode === 'CASH' && recvAdv > 0 ? 'Total Deal (Statement Bill)' : 'Total Proforma Bill'}
+            </span>
+            <div className="text-lg sm:text-xl font-black text-white mt-1">
+              ₹ {((pi.advancePaymentMode === 'CASH' && recvAdv > 0) ? (grandTotal + recvAdv) : grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </div>
+            {pi.advancePaymentMode === 'CASH' && recvAdv > 0 ? (
+              <span className="text-[10px] text-lime-400 font-mono">PI GST Net: ₹{grandTotal.toLocaleString('en-IN')} (less ₹{recvAdv.toLocaleString('en-IN')} cash)</span>
+            ) : (
+              <span className="text-[10px] text-gray-500 font-mono">100% Bill Value</span>
+            )}
           </div>
 
           <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3">
