@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Users,
   Calendar,
@@ -33,10 +34,13 @@ import {
   Scissors,
   Calculator,
   History,
+  Fuel,
+  Eye,
 } from 'lucide-react';
 import { employeeService } from '../api/employeeService';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { DynamicSalaryCalculatorModal, computeFixedPayableDays } from '../components/payroll/DynamicSalaryCalculatorModal';
+import { EmployeeConveyanceHub } from '../components/payroll/EmployeeConveyanceHub';
 import type {
   Employee,
   EmployeeAttendance,
@@ -112,12 +116,13 @@ function formatINR(val: number | string | null | undefined): string {
 }
 
 export function EmployeeManagementPage() {
+  const navigate = useNavigate();
   const { adminUser } = useAdminAuth();
   const roleUpper = String(adminUser?.role || '').toUpperCase();
   const isSuperAdmin = roleUpper === 'SUPER_ADMIN' || roleUpper === 'ADMIN' || adminUser?.role === 'super_admin';
 
   // ─── Active Top Tab ─────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'directory' | 'workers' | 'attendance' | 'leaves' | 'advances' | 'payroll'>('directory');
+  const [activeTab, setActiveTab] = useState<'directory' | 'workers' | 'conveyance' | 'attendance' | 'leaves' | 'advances' | 'payroll'>('directory');
 
   // Common Date Selector State (defaults to current month/year)
   const today = new Date();
@@ -1423,6 +1428,11 @@ export function EmployeeManagementPage() {
             icon: <Construction size={16} />,
             badge: workerEmployees.length,
           },
+          {
+            id: 'conveyance',
+            label: 'Site Visits & Convenience',
+            icon: <Fuel size={16} />,
+          },
           { id: 'attendance', label: 'Attendance Matrix', icon: <Calendar size={16} /> },
           { id: 'advances', label: 'Advances & Deductions', icon: <DollarSign size={16} /> },
           { id: 'payroll', label: 'Monthly Payroll Runs', icon: <FileText size={16} />, badge: payrollRuns.length },
@@ -1540,11 +1550,21 @@ export function EmployeeManagementPage() {
                   ) : (
                     employees.map((emp) => (
                       <tr key={emp.id} className="hover:bg-white/5 transition">
-                        <td className="px-4 py-3.5 font-mono text-xs font-semibold text-amber-400">
+                        <td
+                          onClick={() => navigate(`/admin/dashboard/employees/${emp.id}`)}
+                          className="px-4 py-3.5 font-mono text-xs font-semibold text-amber-400 hover:text-[#7FB706] cursor-pointer"
+                          title="View Employee Profile"
+                        >
                           {emp.employeeId}
                         </td>
                         <td className="px-4 py-3.5">
-                          <div className="font-medium text-white">{emp.name}</div>
+                          <div
+                            onClick={() => navigate(`/admin/dashboard/employees/${emp.id}`)}
+                            className="font-medium text-white hover:text-[#7FB706] transition cursor-pointer"
+                            title="View Employee Profile & Site Visits"
+                          >
+                            {emp.name}
+                          </div>
                           <div className="text-xs text-gray-500">{emp.email} • {emp.phone}</div>
                         </td>
                         <td className="px-4 py-3.5">
@@ -1595,7 +1615,14 @@ export function EmployeeManagementPage() {
                             {emp.status}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 text-right space-x-2">
+                        <td className="px-4 py-3.5 text-right space-x-2 whitespace-nowrap">
+                          <button
+                            onClick={() => navigate(`/admin/dashboard/employees/${emp.id}`)}
+                            className="p-1.5 text-gray-400 hover:text-[#7FB706] transition"
+                            title="View Full Profile & Site Visits"
+                          >
+                            <Eye size={15} />
+                          </button>
                           <button
                             onClick={() => {
                               setEditingEmployee(emp);
@@ -1639,9 +1666,17 @@ export function EmployeeManagementPage() {
                   <div key={emp.id} className="bg-[#030213] p-4 rounded-xl border border-white/10 space-y-2.5">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="font-semibold text-white text-base">{emp.name}</div>
+                        <div
+                          onClick={() => navigate(`/admin/dashboard/employees/${emp.id}`)}
+                          className="font-semibold text-white text-base hover:text-[#7FB706] cursor-pointer transition"
+                        >
+                          {emp.name}
+                        </div>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="font-mono text-xs text-[#B5F823] bg-[#7FB706]/15 px-1.5 py-0.5 rounded border border-[#7FB706]/30 font-medium">
+                          <span
+                            onClick={() => navigate(`/admin/dashboard/employees/${emp.id}`)}
+                            className="font-mono text-xs text-[#B5F823] bg-[#7FB706]/15 px-1.5 py-0.5 rounded border border-[#7FB706]/30 font-medium cursor-pointer"
+                          >
                             {emp.employeeId}
                           </span>
                           <span className="text-xs text-gray-400">{emp.designation}</span>
@@ -1679,6 +1714,13 @@ export function EmployeeManagementPage() {
                     </div>
 
                     <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/5">
+                      <button
+                        onClick={() => navigate(`/admin/dashboard/employees/${emp.id}`)}
+                        className="px-3 py-1.5 bg-[#7FB706]/15 hover:bg-[#7FB706]/25 text-[#B5F823] border border-[#7FB706]/30 rounded-lg text-xs font-medium flex items-center gap-1 cursor-pointer"
+                      >
+                        <Eye size={13} />
+                        <span>Profile & Visits</span>
+                      </button>
                       <button
                         onClick={() => {
                           setEditingEmployee(emp);
@@ -1917,11 +1959,21 @@ export function EmployeeManagementPage() {
                           )
                           .map((worker) => (
                             <tr key={worker.id} className="hover:bg-white/5 transition">
-                              <td className="px-4 py-3.5 font-mono text-xs font-semibold text-amber-400">
+                              <td
+                                onClick={() => navigate(`/admin/dashboard/employees/${worker.id}`)}
+                                className="px-4 py-3.5 font-mono text-xs font-semibold text-amber-400 hover:text-[#7FB706] cursor-pointer"
+                                title="View Worker Profile & Visits"
+                              >
                                 {worker.employeeId}
                               </td>
                               <td className="px-4 py-3.5">
-                                <div className="font-medium text-white">{worker.name}</div>
+                                <div
+                                  onClick={() => navigate(`/admin/dashboard/employees/${worker.id}`)}
+                                  className="font-medium text-white hover:text-[#7FB706] cursor-pointer transition"
+                                  title="View Worker Profile & Visits"
+                                >
+                                  {worker.name}
+                                </div>
                                 <div className="text-xs text-gray-500">
                                   {worker.phone}
                                   {worker.email && !worker.email.includes('@internal.prc') ? ` • ${worker.email}` : ''}
@@ -1953,7 +2005,14 @@ export function EmployeeManagementPage() {
                                   {worker.status}
                                 </span>
                               </td>
-                              <td className="px-4 py-3.5 text-right">
+                              <td className="px-4 py-3.5 text-right space-x-1.5 whitespace-nowrap">
+                                <button
+                                  onClick={() => navigate(`/admin/dashboard/employees/${worker.id}`)}
+                                  className="p-1.5 text-gray-400 hover:text-[#7FB706] transition"
+                                  title="View Full Profile & Site Visits"
+                                >
+                                  <Eye size={15} />
+                                </button>
                                 <button
                                   onClick={() => {
                                     setEditingEmployee(worker);
@@ -2728,6 +2787,18 @@ export function EmployeeManagementPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* TAB: SITE VISITS & CONVENIENCE EXPENSES HUB                            */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'conveyance' && (
+        <EmployeeConveyanceHub
+          employees={employees}
+          isSuperAdmin={isSuperAdmin}
+          onOpenEmployeeDetail={(empId) => navigate(`/admin/dashboard/employees/${empId}`)}
+          showFeedback={showFeedback}
+        />
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════════ */}

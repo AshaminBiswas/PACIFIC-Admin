@@ -28,6 +28,11 @@ export interface Employee {
   elBalance: number | string;
   createdAt?: string;
   updatedAt?: string;
+  conveyanceExpenses?: EmployeeConveyanceExpense[];
+  advances?: EmployeeAdvance[];
+  deductions?: EmployeeDeduction[];
+  leaveLedgers?: EmployeeLeaveLedger[];
+  payrollRuns?: EmployeePayrollRun[];
 }
 
 export interface EmployeeAttendance {
@@ -396,4 +401,160 @@ export interface ListAttendanceResponse {
   year: number;
   totalDays: number;
   records: EmployeeAttendance[];
+}
+
+// ─── Site Visits & Convenience Expenses Types ─────────────────────────────────
+
+export type ConveyanceCategory =
+  | 'PETROL'
+  | 'GARIVARA'
+  | 'MATERIAL_SHIFTING'
+  | 'TOLL_PARKING'
+  | 'FOOD_ALLOWANCE'
+  | 'HOTEL_STAY'
+  | 'OTHER';
+
+export type ConveyancePurpose =
+  | 'SITE_MEASUREMENT'
+  | 'SITE_INSPECTION'
+  | 'MATERIAL_SHIFTING'
+  | 'INSTALLATION_SUPPORT'
+  | 'CLIENT_MEETING'
+  | 'SAMPLE_SUBMISSION'
+  | 'MAINTENANCE_SERVICE'
+  | 'OTHER';
+
+export type ConveyancePaymentMode =
+  | 'PAID_BY_EMPLOYEE'
+  | 'COMPANY_CASH'
+  | 'COMPANY_UPI'
+  | 'COMPANY_CARD';
+
+export type ConveyanceStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'REIMBURSED';
+
+export interface EmployeeConveyanceExpense {
+  id: string;
+  voucherNumber: string;
+  employeeId: string;
+  visitDate: string;
+  siteName: string;
+  siteAddress?: string | null;
+  clientName?: string | null;
+  purpose: ConveyancePurpose;
+  category: ConveyanceCategory;
+  amount: number | string;
+  paymentMode: ConveyancePaymentMode;
+  status: ConveyanceStatus;
+
+  // Travel / Vehicle details
+  startLocation?: string | null;
+  endLocation?: string | null;
+  transportMode?: string | null;
+  distanceKm?: number | string | null;
+  ratePerKm?: number | string | null;
+
+  // Material shifting
+  materialDetails?: string | null;
+  shiftingType?: string | null;
+
+  // Receipts / Proof
+  receiptUrl?: string | null;
+  receiptNumber?: string | null;
+
+  // Reimbursement / Settlement
+  isReimbursed: boolean;
+  reimbursedAt?: string | null;
+  reimbursedRef?: string | null;
+  reimbursedAmount?: number | string | null;
+
+  // Approvals
+  approvedById?: string | null;
+  approvedAt?: string | null;
+  rejectionReason?: string | null;
+
+  // Meta
+  branch?: string | null;
+  projectName?: string | null;
+  remarks?: string | null;
+  createdById?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+
+  employee?: {
+    id: string;
+    employeeId: string;
+    name: string;
+    department?: string;
+    designation?: string;
+    phone?: string;
+    bankAccountNumber?: string | null;
+    bankIfsc?: string | null;
+    bankName?: string | null;
+  };
+  createdBy?: { id: string; name: string; email?: string } | null;
+  approvedBy?: { id: string; name: string; email?: string } | null;
+}
+
+export interface ConveyanceSummaryStats {
+  totalCount: number;
+  totalClaimedAmount: number;
+  totalApprovedAmount: number;
+  totalPendingAmount: number;
+  totalReimbursedAmount: number;
+  petrolAmount: number;
+  garivaraAmount: number;
+  materialShiftingAmount: number;
+  otherAmount: number;
+}
+
+export interface ListConveyanceExpensesResponse {
+  items: EmployeeConveyanceExpense[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+  summary: ConveyanceSummaryStats;
+}
+
+export interface CreateConveyancePayload {
+  employeeId: string;
+  visitDate: string;
+  siteName: string;
+  siteAddress?: string;
+  clientName?: string;
+  purpose: ConveyancePurpose;
+  category: ConveyanceCategory;
+  amount: number;
+  paymentMode: ConveyancePaymentMode;
+  startLocation?: string;
+  endLocation?: string;
+  transportMode?: string;
+  distanceKm?: number;
+  ratePerKm?: number;
+  materialDetails?: string;
+  shiftingType?: string;
+  receiptUrl?: string;
+  receiptNumber?: string;
+  branch?: string;
+  projectName?: string;
+  remarks?: string;
+}
+
+export interface UpdateConveyancePayload extends Partial<CreateConveyancePayload> {
+  status?: ConveyanceStatus;
+  rejectionReason?: string;
+  isReimbursed?: boolean;
+  reimbursedAmount?: number;
+  reimbursedRef?: string;
+}
+
+export interface SettleConveyancePayload {
+  paymentRef: string;
+  reimbursedAmount?: number;
 }

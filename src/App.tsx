@@ -73,6 +73,7 @@ const PaymentsPage = lazyWithRetry(() => import('./pages/PaymentsPage'));
 const InstallerPaymentsPage = lazyWithRetry(() => import('./pages/InstallerPaymentsPage'));
 const CreateInstallerBillPage = lazyWithRetry(() => import('./pages/CreateInstallerBillPage'));
 const EmployeeManagementPage = lazyWithRetry(() => import('./pages/EmployeeManagementPage'));
+const EmployeeDetailPage = lazyWithRetry(() => import('./pages/EmployeeDetailPage'));
 const UPExpensesPage = lazyWithRetry(() => import('./pages/up/UPExpensesPage'));
 const DailyExpensesPage = lazyWithRetry(() => import('./pages/expenses/DailyExpensesPage'));
 const WACRMPage = lazyWithRetry(() => import('./pages/wacrm/WACRMPage'));
@@ -610,6 +611,14 @@ export default function App() {
               }
             />
             <Route
+              path="employees/:id"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <EmployeeDetailPage />
+                </Suspense>
+              }
+            />
+            <Route
               path="up-expenses"
               element={
                 <Suspense fallback={<PageLoader />}>
@@ -654,6 +663,14 @@ export default function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <EmployeeManagementPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="employee-management/:id"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <EmployeeDetailPage />
                 </Suspense>
               }
             />

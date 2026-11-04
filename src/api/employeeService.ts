@@ -25,6 +25,16 @@ import type {
   AdvanceLedgerResponse,
   ListEmployeesResponse,
   ListAttendanceResponse,
+  EmployeeConveyanceExpense,
+  ConveyanceCategory,
+  ConveyancePurpose,
+  ConveyancePaymentMode,
+  ConveyanceStatus,
+  ConveyanceSummaryStats,
+  ListConveyanceExpensesResponse,
+  CreateConveyancePayload,
+  UpdateConveyancePayload,
+  SettleConveyancePayload,
 } from '../types/employee';
 
 export const employeeService = {
@@ -350,6 +360,90 @@ export const employeeService = {
     const res = await apiClient.post<any>(`/employees/payroll/${encodeURIComponent(id)}/resend-payslip-email`, {
       recipientEmail,
     });
+    return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
+  // ─── Site Visits & Convenience Expenses ───────────────────────────────────────
+  async listConveyanceExpenses(params: {
+    page?: number;
+    limit?: number;
+    employeeId?: string;
+    category?: ConveyanceCategory;
+    purpose?: ConveyancePurpose;
+    status?: ConveyanceStatus;
+    paymentMode?: ConveyancePaymentMode;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+    branch?: string;
+  } = {}): Promise<ListConveyanceExpensesResponse> {
+    const query = new URLSearchParams();
+    if (params.page) query.append('page', params.page.toString());
+    if (params.limit) query.append('limit', params.limit.toString());
+    if (params.employeeId) query.append('employeeId', params.employeeId);
+    if (params.category) query.append('category', params.category);
+    if (params.purpose) query.append('purpose', params.purpose);
+    if (params.status) query.append('status', params.status);
+    if (params.paymentMode) query.append('paymentMode', params.paymentMode);
+    if (params.startDate) query.append('startDate', params.startDate);
+    if (params.endDate) query.append('endDate', params.endDate);
+    if (params.search) query.append('search', params.search);
+    if (params.branch) query.append('branch', params.branch);
+
+    const qStr = query.toString();
+    const res = await apiClient.get<any>(`/employees/conveyance${qStr ? `?${qStr}` : ''}`);
+    const data = res.data?.data !== undefined ? res.data.data : res.data;
+    return (
+      data || {
+        items: [],
+        pagination: { total: 0, page: 1, limit: 20, totalPages: 1 },
+        summary: {
+          totalCount: 0,
+          totalClaimedAmount: 0,
+          totalApprovedAmount: 0,
+          totalPendingAmount: 0,
+          totalReimbursedAmount: 0,
+          petrolAmount: 0,
+          garivaraAmount: 0,
+          materialShiftingAmount: 0,
+          otherAmount: 0,
+        },
+      }
+    );
+  },
+
+  async getConveyanceExpense(id: string): Promise<EmployeeConveyanceExpense> {
+    const res = await apiClient.get<any>(`/employees/conveyance/${encodeURIComponent(id)}`);
+    return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
+  async createConveyanceExpense(payload: CreateConveyancePayload): Promise<EmployeeConveyanceExpense> {
+    const res = await apiClient.post<any>('/employees/conveyance', payload);
+    return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
+  async updateConveyanceExpense(id: string, payload: UpdateConveyancePayload): Promise<EmployeeConveyanceExpense> {
+    const res = await apiClient.patch<any>(`/employees/conveyance/${encodeURIComponent(id)}`, payload);
+    return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
+  async deleteConveyanceExpense(id: string): Promise<{ deleted: boolean }> {
+    const res = await apiClient.delete<any>(`/employees/conveyance/${encodeURIComponent(id)}`);
+    return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
+  async approveConveyanceExpense(id: string, notes?: string): Promise<EmployeeConveyanceExpense> {
+    const res = await apiClient.post<any>(`/employees/conveyance/${encodeURIComponent(id)}/approve`, { notes });
+    return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
+  async rejectConveyanceExpense(id: string, reason: string): Promise<EmployeeConveyanceExpense> {
+    const res = await apiClient.post<any>(`/employees/conveyance/${encodeURIComponent(id)}/reject`, { reason });
+    return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
+  async settleConveyanceExpense(id: string, payload: SettleConveyancePayload): Promise<EmployeeConveyanceExpense> {
+    const res = await apiClient.post<any>(`/employees/conveyance/${encodeURIComponent(id)}/settle`, payload);
     return res.data?.data !== undefined ? res.data.data : res.data;
   },
 };
