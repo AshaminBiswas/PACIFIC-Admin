@@ -442,11 +442,30 @@ export default function ProformaInvoiceDetailPage() {
 
   // Calculations & metadata
   const grandTotal = Number(pi.grandTotal) || 0;
-  const reqAdv = Number(pi.advanceRequiredAmount) || Math.round(grandTotal * 0.5);
-  const recvAdv = Number(pi.advanceReceivedAmount) || 0;
-  const balanceAdv = Math.max(0, reqAdv - recvAdv);
-  const totalBalanceDue = Math.max(0, grandTotal - recvAdv);
-  const advStatus = pi.advancePaymentStatus || (recvAdv >= reqAdv ? 'FULLY_RECEIVED' : recvAdv > 0 ? 'PARTIAL' : 'PENDING');
+  const rawBasic = Number(pi.subtotal || 0) + Number(pi.freightAmount || 0) + Number(pi.installationCharge || 0);
+  const taxable = Number(pi.taxableAmount || 0);
+  const cashDeductionFromTax = Math.max(0, Math.round((rawBasic - taxable) * 100) / 100);
+  const cashFromAdvance = (pi.advancePaymentMode === 'CASH' && Number(pi.advanceReceivedAmount || 0) > 0)
+    ? Number(pi.advanceReceivedAmount)
+    : 0;
+  const cashPaymentAmount = cashDeductionFromTax > 0 ? cashDeductionFromTax : cashFromAdvance;
+  const totalBill = (pi.advancePaymentMode === 'CASH' && cashPaymentAmount > 0)
+    ? Math.round((grandTotal + cashPaymentAmount) * 100) / 100
+    : grandTotal;
+
+  // Sum from all paymentAllocations if present, or fallback to advanceReceivedAmount
+  const allocatedSum = (pi.paymentAllocations && pi.paymentAllocations.length > 0)
+    ? pi.paymentAllocations.reduce((sum, a) => sum + Number(a.allocatedAmount ?? (a as any).amount ?? a.payment?.amount ?? 0), 0)
+    : 0;
+  const recvAdv = Math.max(allocatedSum, Number(pi.advanceReceivedAmount || 0));
+
+  const advPctConfig = Number(pi.advancePercentage) || 50;
+  const reqAdv = Number(pi.advanceRequiredAmount) || Math.round(totalBill * (advPctConfig / 100));
+  const balanceAdv = Math.max(0, Math.round((reqAdv - recvAdv) * 100) / 100);
+  const totalBalanceDue = Math.max(0, Math.round((totalBill - recvAdv) * 100) / 100);
+  const advStatus = (recvAdv >= totalBill || (reqAdv > 0 && recvAdv >= reqAdv))
+    ? 'FULLY_RECEIVED'
+    : (recvAdv > 0 ? 'PARTIAL' : (pi.advancePaymentStatus || 'PENDING'));
   const advPct = reqAdv > 0 ? Math.min(100, Math.round((recvAdv / reqAdv) * 100)) : 0;
 
   const billTo = pi.parties?.find((p) => p.partyRole === 'BILL_TO') || {
@@ -518,7 +537,16 @@ export default function ProformaInvoiceDetailPage() {
 
           {/* Record Advance Modal trigger */}
           <button
-            onClick={() => setShowAdvanceModal(true)}
+            onClick={() => {
+              setAdvanceForm({
+                amount: totalBalanceDue > 0 ? totalBalanceDue : (balanceAdv > 0 ? balanceAdv : 0),
+                paymentDate: new Date().toISOString().split('T')[0],
+                paymentMode: 'NEFT_RTGS',
+                referenceNumber: '',
+                notes: '',
+              });
+              setShowAdvanceModal(true);
+            }}
             className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer"
           >
             <CreditCard className="w-4 h-4" /> + Advance Payment
@@ -607,7 +635,7 @@ export default function ProformaInvoiceDetailPage() {
           orderId: pi.convertedOrderId || pi.orderId || undefined,
         }}
         advanceInfo={{
-          grandTotal,
+          grandTotal: totalBill,
           advanceRequired: reqAdv,
           advanceReceived: recvAdv,
           advancePaymentStatus: advStatus,
@@ -688,34 +716,42 @@ export default function ProformaInvoiceDetailPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
           <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3">
             <span className="text-[11px] text-gray-400">
-              {pi.advancePaymentMode === 'CASH' && recvAdv > 0 ? 'Total Deal (Statement Bill)' : 'Total Proforma Bill'}
+              {pi.advancePaymentMode === 'CASH' && cashPaymentAmount > 0 ? 'Total Deal (Statement Bill)' : 'Total Proforma Bill'}
             </span>
             <div className="text-lg sm:text-xl font-black text-white mt-1">
-              ₹ {((pi.advancePaymentMode === 'CASH' && recvAdv > 0) ? (grandTotal + recvAdv) : grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              ₹ {totalBill.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </div>
-            {pi.advancePaymentMode === 'CASH' && recvAdv > 0 ? (
-              <span className="text-[10px] text-lime-400 font-mono">PI GST Net: ₹{grandTotal.toLocaleString('en-IN')} (less ₹{recvAdv.toLocaleString('en-IN')} cash)</span>
+            {pi.advancePaymentMode === 'CASH' && cashPaymentAmount > 0 ? (
+              <span className="text-[10px] text-lime-400 font-mono">PI GST Net: ₹{grandTotal.toLocaleString('en-IN')} (less ₹{cashPaymentAmount.toLocaleString('en-IN')} cash)</span>
             ) : (
               <span className="text-[10px] text-gray-500 font-mono">100% Bill Value</span>
             )}
           </div>
 
           <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3">
-            <span className="text-[11px] text-gray-400">Required Advance ({Number(pi.advancePercentage) || 50}%)</span>
+            <span className="text-[11px] text-gray-400">Required Advance ({advPctConfig}%)</span>
             <div className="text-lg sm:text-xl font-black text-amber-400 mt-1">₹ {reqAdv.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
             <span className="text-[10px] text-gray-500">Prerequisite to fabrication</span>
           </div>
 
           <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3">
-            <span className="text-[11px] text-gray-400">Received Advance</span>
+            <span className="text-[11px] text-gray-400">Received Advance / Paid</span>
             <div className="text-lg sm:text-xl font-black text-emerald-400 mt-1">₹ {recvAdv.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
             <span className="text-[10px] text-emerald-500 font-semibold">{advPct}% of required</span>
           </div>
 
           <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3">
             <span className="text-[11px] text-gray-400">Balance Total Remaining</span>
-            <div className="text-lg sm:text-xl font-black text-rose-400 mt-1">₹ {totalBalanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-            <span className="text-[10px] text-rose-500 font-semibold">{balanceAdv > 0 ? `₹${balanceAdv.toLocaleString('en-IN')} advance pending` : 'Ready for order conversion'}</span>
+            <div className={`text-lg sm:text-xl font-black mt-1 ${totalBalanceDue > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+              ₹ {totalBalanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </div>
+            <span className={`text-[10px] font-semibold ${totalBalanceDue > 0 ? (balanceAdv > 0 ? 'text-rose-500' : 'text-amber-500') : 'text-emerald-500'}`}>
+              {totalBalanceDue <= 0
+                ? '✓ Fully Settled (Zero Dues)'
+                : balanceAdv > 0
+                ? `₹${balanceAdv.toLocaleString('en-IN')} advance pending`
+                : 'Advance Cleared • Balance on dispatch'}
+            </span>
           </div>
         </div>
 
@@ -1342,9 +1378,10 @@ export default function ProformaInvoiceDetailPage() {
             <form onSubmit={handleRecordAdvance} className="p-5 space-y-4">
               <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5 text-xs space-y-1">
                 <div className="text-gray-400 font-mono">PI: <span className="text-white font-bold">{pi.piNumber}</span></div>
-                <div className="text-gray-400">Total Bill: <span className="text-white font-bold">₹{grandTotal.toLocaleString('en-IN')}</span></div>
+                <div className="text-gray-400">Total Bill: <span className="text-white font-bold">₹{totalBill.toLocaleString('en-IN')}</span></div>
                 <div className="text-gray-400">Required Advance: <span className="text-amber-400 font-bold">₹{reqAdv.toLocaleString('en-IN')}</span></div>
                 <div className="text-gray-400">Already Received: <span className="text-emerald-400 font-bold">₹{recvAdv.toLocaleString('en-IN')}</span></div>
+                <div className="text-gray-400">Outstanding Balance: <span className={`font-bold ${totalBalanceDue > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>₹{totalBalanceDue.toLocaleString('en-IN')}</span></div>
               </div>
 
               <div>

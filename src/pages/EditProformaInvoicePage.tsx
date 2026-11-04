@@ -211,7 +211,12 @@ export default function EditProformaInvoicePage() {
       setInstallationCubicleCount(data.installationCubicleCount || 0);
       setInstallationCustomNote(data.installationCustomNote || '');
       setAdvancePercentage(Number(data.advancePercentage) || 50);
-      setCashReceivedAmount(Number(data.advanceReceivedAmount) || 0);
+      const rawBasic = Number(data.subtotal || 0) + Number(data.freightAmount || 0) + Number(data.installationCharge || 0);
+      const taxable = Number(data.taxableAmount || 0);
+      const cashDeduction = (rawBasic > taxable)
+        ? Math.max(0, Math.round((rawBasic - taxable) * 100) / 100)
+        : (data.advancePaymentMode === 'CASH' ? Number(data.advanceReceivedAmount || 0) : 0);
+      setCashReceivedAmount(cashDeduction);
       setQuotationId(data.quotationId || undefined);
       setQuotationRef(data.quotationRef || undefined);
 
@@ -1409,9 +1414,8 @@ export default function EditProformaInvoicePage() {
         installationCustomNote: installationMode === 'OPTION' && installationOption === 'Custom' ? installationCustomNote : undefined,
         advancePercentage,
         advanceRequiredAmount: requiredAdvance,
-        advanceReceivedAmount: cashReceived > 0 ? cashReceived : undefined,
-        advancePaymentMode: cashReceived > 0 ? 'CASH' : undefined,
         cashReceived: cashReceived,
+        ...(cashReceived > 0 ? { advancePaymentMode: 'CASH' } : {}),
         status,
         revisionReason: revisionReason.trim() || undefined,
         billTo: {

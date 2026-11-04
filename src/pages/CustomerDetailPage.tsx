@@ -1110,7 +1110,11 @@ export default function CustomerDetailPage() {
                           )}
                         </td>
                         <td className="py-3 px-4 text-right font-mono font-bold text-emerald-400">
-                          ₹{Number(pi.advanceReceivedAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          ₹{(
+                            (pi.paymentAllocations && pi.paymentAllocations.length > 0)
+                              ? pi.paymentAllocations.reduce((sum: number, a: any) => sum + Number(a.allocatedAmount || 0), 0)
+                              : Number(pi.advanceReceivedAmount || 0)
+                          ).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </td>
                         <td className="py-3 px-4 text-center">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${

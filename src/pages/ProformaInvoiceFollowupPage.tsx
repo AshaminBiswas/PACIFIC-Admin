@@ -204,11 +204,30 @@ export default function ProformaInvoiceFollowupPage() {
   }
 
   const grandTotal = Number(pi.grandTotal) || 0;
-  const reqAdv = Number(pi.advanceRequiredAmount) || Math.round(grandTotal * 0.5);
-  const recvAdv = Number(pi.advanceReceivedAmount) || 0;
-  const pendingAdv = Math.max(0, reqAdv - recvAdv);
-  const totalBalanceDue = Math.max(0, grandTotal - recvAdv);
-  const advStatus = pi.advancePaymentStatus || (recvAdv >= reqAdv ? 'FULLY_RECEIVED' : recvAdv > 0 ? 'PARTIAL' : 'PENDING');
+  const rawBasic = Number(pi.subtotal || 0) + Number(pi.freightAmount || 0) + Number(pi.installationCharge || 0);
+  const taxable = Number(pi.taxableAmount || 0);
+  const cashDeductionFromTax = Math.max(0, Math.round((rawBasic - taxable) * 100) / 100);
+  const cashFromAdvance = (pi.advancePaymentMode === 'CASH' && Number(pi.advanceReceivedAmount || 0) > 0)
+    ? Number(pi.advanceReceivedAmount)
+    : 0;
+  const cashPaymentAmount = cashDeductionFromTax > 0 ? cashDeductionFromTax : cashFromAdvance;
+  const totalBill = (pi.advancePaymentMode === 'CASH' && cashPaymentAmount > 0)
+    ? Math.round((grandTotal + cashPaymentAmount) * 100) / 100
+    : grandTotal;
+
+  // Sum from all paymentAllocations if present, or fallback to advanceReceivedAmount
+  const allocatedSum = (pi.paymentAllocations && pi.paymentAllocations.length > 0)
+    ? pi.paymentAllocations.reduce((sum, a) => sum + Number(a.allocatedAmount ?? (a as any).amount ?? a.payment?.amount ?? 0), 0)
+    : 0;
+  const recvAdv = Math.max(allocatedSum, Number(pi.advanceReceivedAmount || 0));
+
+  const advPctConfig = Number(pi.advancePercentage) || 50;
+  const reqAdv = Number(pi.advanceRequiredAmount) || Math.round(totalBill * (advPctConfig / 100));
+  const pendingAdv = Math.max(0, Math.round((reqAdv - recvAdv) * 100) / 100);
+  const totalBalanceDue = Math.max(0, Math.round((totalBill - recvAdv) * 100) / 100);
+  const advStatus = (recvAdv >= totalBill || (reqAdv > 0 && recvAdv >= reqAdv))
+    ? 'FULLY_RECEIVED'
+    : (recvAdv > 0 ? 'PARTIAL' : (pi.advancePaymentStatus || 'PENDING'));
   const advPct = reqAdv > 0 ? Math.min(100, Math.round((recvAdv / reqAdv) * 100)) : 0;
   const phone = pi.customer?.phone || pi.parties?.find((p) => p.partyRole === 'BILL_TO')?.phone || '';
   const email = pi.customer?.email || pi.parties?.find((p) => p.partyRole === 'BILL_TO')?.email || '';
