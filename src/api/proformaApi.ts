@@ -5,8 +5,8 @@ export const piApi = {
   list: (params?: Record<string, any>) =>
     apiClient.get<ApiResponse<PaginatedResponse<ProformaInvoice>>>('/sales/pi', { params }),
   getById: (id: string) => apiClient.get<ApiResponse<ProformaInvoice>>(`/sales/pi/${id}`),
-  create: (data: any) => apiClient.post<ApiResponse<ProformaInvoice>>('/sales/pi', data),
-  update: (id: string, data: any) => apiClient.patch<ApiResponse<ProformaInvoice>>(`/sales/pi/${id}`, data),
+  create: (data: any) => apiClient.post<ApiResponse<ProformaInvoice>>('/sales/pi', data, { timeout: 60000 }),
+  update: (id: string, data: any) => apiClient.patch<ApiResponse<ProformaInvoice>>(`/sales/pi/${id}`, data, { timeout: 60000 }),
   delete: (id: string) => apiClient.delete<ApiResponse<{ success: boolean }>>(`/sales/pi/${id}`),
   issue: (id: string) => apiClient.post<ApiResponse<ProformaInvoice>>(`/sales/pi/${id}/issue`),
   duplicate: (id: string) => apiClient.post<ApiResponse<ProformaInvoice>>(`/sales/pi/${id}/duplicate`),

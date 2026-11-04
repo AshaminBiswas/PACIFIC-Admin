@@ -485,15 +485,21 @@ class HardwareStore {
         const [itemsRes, movRes, brRes, vendRes] = await Promise.allSettled([
           supabase
             .from('hardware_inventory_items')
-            .select('id, sku, name, category, material, color, finish, unit, current_stock, min_reorder_level, cost_per_unit, warehouse, rack_bin_location, is_active, remarks, dia, length, width, thickness, weight, brand, vendor_id, last_ordered_at, created_at, updated_at')
+            .select('id, sku, name, category, material, color, finish, unit, current_stock, reorder_level, unit_cost, warehouse, location_rack, status, notes, dia, length, width, hsn_code, description, image_url, vendor_id, vendor_name, opening_stock, total_inward, total_issued, created_at, updated_at')
             .limit(500),
           supabase
             .from('hardware_stock_movements')
-            .select('id, hardware_item_id, sku, item_name, movement_type, quantity, unit, from_location, to_location, reference_number, movement_number, performed_by, notes, created_at, cost_per_unit, total_cost')
+            .select('id, hardware_item_id, sku, item_name, hardware_name, material, unit, movement_type, quantity, stock_before, stock_after, movement_number, unit_cost, total_value, warehouse, notes, created_at')
             .order('created_at', { ascending: false })
             .limit(200),
-          supabase.from('hardware_branches').select('id, code, name, city, state, address, phone, contact_person, is_default, is_active, created_at').limit(50),
-          supabase.from('hardware_vendors').select('id, name, contact_person, phone, email, address, city, state, gstin, pan, categories, rating, notes, is_active, created_at, updated_at').limit(200),
+          supabase
+            .from('hardware_branches')
+            .select('id, code, name, city, state, address, phone, contact_person, is_default, is_active, created_at')
+            .limit(50),
+          supabase
+            .from('hardware_vendors')
+            .select('id, name, legal_name, contact_person, phone, email, address, city, state, pincode, gstin, is_active, status, total_skus, materials_supplied, material_categories, created_at')
+            .limit(200),
         ]);
 
         // Process Items
