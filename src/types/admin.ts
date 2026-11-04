@@ -1163,6 +1163,8 @@ export interface Invoice {
   invoiceNumber: string;
   quotationId?: string;
   projectId?: string;
+  orderId?: string;
+  proformaInvoiceId?: string;
   status: InvoiceStatus;
   issueDate: string;
   dueDate?: string;
@@ -1177,6 +1179,22 @@ export interface Invoice {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  items?: any[];
+  billTo?: any;
+  shipTo?: any;
+  transport?: any;
+  freightAmount?: number;
+  roundingAdjustment?: number;
+  advanceReceived?: number;
+  balanceDue?: number;
+  effectiveStatus?: string;
+  linkedPi?: any;
+  paymentAllocations?: any[];
+  customer?: any;
+  companyProfile?: any;
+  order?: any;
+  quotation?: any;
+  metadata?: any;
 }
 
 export type BlogStatus = 'DRAFT' | 'PUBLISHED' | 'SCHEDULED' | 'ARCHIVED';

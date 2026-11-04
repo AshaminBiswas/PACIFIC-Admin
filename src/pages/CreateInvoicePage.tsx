@@ -15,6 +15,7 @@ interface InvoiceItemRow {
   description: string;
   hsnSac: string;
   quantity: number;
+  unit?: string;
   rate: number;
   amount: number;
   gstRate: number;
@@ -28,6 +29,12 @@ interface InvoiceFormData {
   dueDate: string;
   paymentTerms: string;
   notes: string;
+  modeOfTransport: string;
+  vehicleNumber: string;
+  grLrNumber: string;
+  placeOfSupply: string;
+  reverseCharge: boolean;
+  freightAmount: number;
   items: InvoiceItemRow[];
 }
 
@@ -39,14 +46,21 @@ const INITIAL_FORM_DATA: InvoiceFormData = {
   dueDate: new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
   paymentTerms: '100% Against Proforma / 15 Days from Invoice',
   notes: 'Tax Invoice for Supply & Installation of Pacific Restroom Cubicle System.',
+  modeOfTransport: 'By Road',
+  vehicleNumber: '',
+  grLrNumber: '',
+  placeOfSupply: 'West Bengal',
+  reverseCharge: false,
+  freightAmount: 0,
   items: [
     {
       serialNumber: 1,
-      description: 'Pacific 12mm Compact Laminate Restroom Cubicles (Standard)',
-      hsnSac: '9403',
+      description: 'HPL Board (6\'X6\')',
+      hsnSac: '48239019',
       quantity: 1,
-      rate: 25000,
-      amount: 25000,
+      unit: "No's",
+      rate: 9180,
+      amount: 9180,
       gstRate: 18,
     },
   ],
@@ -233,8 +247,9 @@ export default function CreateInvoicePage() {
         {
           serialNumber: prev.items.length + 1,
           description: '',
-          hsnSac: '9403',
+          hsnSac: '48239019',
           quantity: 1,
+          unit: "No's",
           rate: 0,
           amount: 0,
           gstRate: 18,
@@ -315,6 +330,9 @@ export default function CreateInvoicePage() {
       }
       setIsSubmitting(true);
 
+      const billToState = billingAddr?.state || 'West Bengal';
+      const billToCode = billingAddr?.stateCode || (selectedCustomer?.gstin ? selectedCustomer.gstin.slice(0, 2) : '19');
+
       const payload = {
         orderId: formData.orderId || undefined,
         customerId: formData.customerId || undefined,
@@ -327,12 +345,48 @@ export default function CreateInvoicePage() {
         dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
         issueDate: formData.invoiceDate ? new Date(formData.invoiceDate).toISOString() : new Date().toISOString(),
         status: 'DRAFT',
+        items: formData.items.map((it) => ({
+          ...it,
+          unit: it.unit || "No's",
+        })),
+        billTo: {
+          partyName: selectedCustomer?.legalName || '',
+          address: billingAddr ? [billingAddr.addressLine1, billingAddr.city, billingAddr.state].filter(Boolean).join(', ') : '',
+          gstin: selectedCustomer?.gstin || '',
+          state: billToState,
+          stateCode: billToCode,
+        },
+        shipTo: {
+          partyName: selectedCustomer?.legalName || '',
+          address: deliveryAddr
+            ? [deliveryAddr.addressLine1, deliveryAddr.city, deliveryAddr.state].filter(Boolean).join(', ')
+            : billingAddr
+            ? [billingAddr.addressLine1, billingAddr.city, billingAddr.state].filter(Boolean).join(', ')
+            : '',
+          gstin: selectedCustomer?.gstin || '',
+          state: deliveryAddr?.state || billToState,
+          stateCode: deliveryAddr?.stateCode || billToCode,
+        },
+        transport: {
+          modeOfTransport: formData.modeOfTransport || 'By Road',
+          vehicleNumber: formData.vehicleNumber || '',
+          grLrNumber: formData.grLrNumber || '',
+          placeOfSupply: formData.placeOfSupply || billToState,
+          placeOfSupplyStateCode: billToCode,
+          reverseCharge: formData.reverseCharge,
+        },
+        freightAmount: Number(formData.freightAmount || 0),
       };
 
-      await invoicesApi.create(payload);
+      const res = await invoicesApi.create(payload);
       localStorage.removeItem(LOCAL_STORAGE_KEY);
       alert('Tax Invoice created successfully!');
-      navigate('/admin/dashboard/invoices');
+      const newInv = res.data?.data || (res.data as any);
+      if (newInv?.id) {
+        navigate(`/admin/dashboard/invoices/${newInv.id}`);
+      } else {
+        navigate('/admin/dashboard/invoices');
+      }
     } catch (err: any) {
       alert(err.response?.data?.message || err.message || 'Failed to create invoice');
     } finally {
@@ -488,7 +542,7 @@ export default function CreateInvoicePage() {
                   <p>
                     {billingAddr.city}, {billingAddr.state} - {billingAddr.postalCode}
                   </p>
-                  <p className="font-mono text-gray-500">State Code: {billingAddr.stateCode || '07'}</p>
+                  <p className="font-mono text-gray-500">State Code: {billingAddr.stateCode || '19'}</p>
                 </div>
               ) : (
                 <p className="text-xs text-gray-500 italic">No primary billing address recorded</p>
@@ -506,7 +560,7 @@ export default function CreateInvoicePage() {
                   <p>
                     {deliveryAddr.city}, {deliveryAddr.state} - {deliveryAddr.postalCode}
                   </p>
-                  <p className="font-mono text-gray-500">State Code: {deliveryAddr.stateCode || '07'}</p>
+                  <p className="font-mono text-gray-500">State Code: {deliveryAddr.stateCode || '19'}</p>
                 </div>
               ) : (
                 <p className="text-xs text-gray-500 italic">
@@ -516,6 +570,66 @@ export default function CreateInvoicePage() {
             </div>
           </div>
         )}
+
+        {/* Section 2.5: Dispatch & Transport Details */}
+        <div className="bg-[#0a0a1a] border border-white/10 rounded-xl p-4 sm:p-5 space-y-3">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-400">
+            <span>Dispatch &amp; Transport Details</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div>
+              <label className="block text-[10px] text-gray-400 mb-1">Mode of Transport</label>
+              <input
+                type="text"
+                value={formData.modeOfTransport}
+                onChange={(e) => setFormData({ ...formData, modeOfTransport: e.target.value })}
+                placeholder="By Road"
+                className="bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#7FB706] w-full min-h-[44px]"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-gray-400 mb-1">Vehicle No.</label>
+              <input
+                type="text"
+                value={formData.vehicleNumber}
+                onChange={(e) => setFormData({ ...formData, vehicleNumber: e.target.value })}
+                placeholder="e.g. WB 25K 4361"
+                className="bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#7FB706] w-full min-h-[44px]"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-gray-400 mb-1">GR / LR / RR No.</label>
+              <input
+                type="text"
+                value={formData.grLrNumber}
+                onChange={(e) => setFormData({ ...formData, grLrNumber: e.target.value })}
+                placeholder="LR No."
+                className="bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#7FB706] w-full min-h-[44px]"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-gray-400 mb-1">Place of Supply</label>
+              <input
+                type="text"
+                value={formData.placeOfSupply}
+                onChange={(e) => setFormData({ ...formData, placeOfSupply: e.target.value })}
+                placeholder="West Bengal"
+                className="bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#7FB706] w-full min-h-[44px]"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-gray-400 mb-1">Reverse Charge</label>
+              <select
+                value={formData.reverseCharge ? 'true' : 'false'}
+                onChange={(e) => setFormData({ ...formData, reverseCharge: e.target.value === 'true' })}
+                className="bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#7FB706] w-full min-h-[44px]"
+              >
+                <option value="false">No (Standard)</option>
+                <option value="true">Yes</option>
+              </select>
+            </div>
+          </div>
+        </div>
 
         {/* Section 3: Invoice Items Table */}
         <div className="space-y-4">
@@ -564,7 +678,7 @@ export default function CreateInvoicePage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 <div>
                   <label className="block text-[10px] text-gray-400 mb-1">Quantity</label>
                   <input
@@ -574,6 +688,22 @@ export default function CreateInvoicePage() {
                     onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
                     className="bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#7FB706] w-full min-h-[44px]"
                   />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 mb-1">Unit</label>
+                  <select
+                    value={item.unit || "No's"}
+                    onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
+                    className="bg-[#121226] border border-white/10 rounded-xl px-2 py-2 text-sm text-white focus:outline-none focus:border-[#7FB706] w-full min-h-[44px]"
+                  >
+                    <option value="No's">No's</option>
+                    <option value="Mtr.">Mtr.</option>
+                    <option value="Set">Set</option>
+                    <option value="Sq.Ft.">Sq.Ft.</option>
+                    <option value="Kgs">Kgs</option>
+                    <option value="Pcs">Pcs</option>
+                    <option value="R.Ft.">R.Ft.</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-[10px] text-gray-400 mb-1">Rate (₹)</label>

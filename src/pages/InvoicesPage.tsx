@@ -326,7 +326,7 @@ const InvoicesPage: React.FC = () => {
                   {displayedInvoices.map((inv, idx) => (
                     <tr
                       key={inv.id}
-                      onClick={() => setSelectedInvoiceForTimeline(inv)}
+                      onClick={() => navigate(`/admin/dashboard/invoices/${inv.id}`)}
                       className={`hover:bg-white/[0.025] transition-colors group cursor-pointer ${isDue(inv) ? 'border-l-2 border-l-red-500/40' : ''}`}
                     >
                       {/* # */}
@@ -525,22 +525,28 @@ const InvoicesPage: React.FC = () => {
                   )}
 
                   {/* Action buttons */}
-                  <div className="grid grid-cols-3 gap-2 pt-1">
+                  <div className="grid grid-cols-4 gap-2 pt-1">
+                    <Link
+                      to={`/admin/dashboard/invoices/${inv.id}`}
+                      className="min-h-[40px] flex items-center justify-center gap-1 text-xs font-semibold bg-white/10 text-white rounded-xl"
+                    >
+                      <Receipt className="w-3.5 h-3.5 text-[#7FB706]" /> View
+                    </Link>
                     <button
                       onClick={() => handleOpenPdf(inv)}
-                      className="min-h-[40px] flex items-center justify-center gap-1.5 text-xs font-semibold bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/20 rounded-xl"
+                      className="min-h-[40px] flex items-center justify-center gap-1 text-xs font-semibold bg-[#7FB706]/10 text-[#7FB706] border border-[#7FB706]/20 rounded-xl"
                     >
                       <Eye className="w-3.5 h-3.5" /> PDF
                     </button>
                     <button
                       onClick={() => setSelectedInvoiceForTimeline(inv)}
-                      className="min-h-[40px] flex items-center justify-center gap-1.5 text-xs font-semibold bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30 rounded-xl"
+                      className="min-h-[40px] flex items-center justify-center gap-1 text-xs font-semibold bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30 rounded-xl"
                     >
                       <Layers className="w-3.5 h-3.5" /> Flow
                     </button>
                     <button
                       onClick={() => handleDelete(inv)}
-                      className="min-h-[40px] flex items-center justify-center gap-1.5 text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 rounded-xl"
+                      className="min-h-[40px] flex items-center justify-center gap-1 text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 rounded-xl"
                     >
                       <Trash2 className="w-3.5 h-3.5" /> Del
                     </button>

@@ -116,6 +116,8 @@ const ConsigneeAckPage = lazyWithRetry(() => import('./pages/ConsigneeAckPage'))
 // Legacy Sales & Commercial Pages
 const InvoicesPage = lazyWithRetry(() => import('./pages/InvoicesPage'));
 const CreateInvoicePage = lazyWithRetry(() => import('./pages/CreateInvoicePage'));
+const InvoiceDetailPage = lazyWithRetry(() => import('./pages/InvoiceDetailPage'));
+const EditInvoicePage = lazyWithRetry(() => import('./pages/EditInvoicePage'));
 
 export default function App() {
   return (
@@ -1053,6 +1055,22 @@ export default function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <CreateInvoicePage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="invoices/:id"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <InvoiceDetailPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="invoices/:id/edit"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <EditInvoicePage />
                 </Suspense>
               }
             />

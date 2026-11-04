@@ -32,9 +32,11 @@ import {
   RefreshCw,
   Download,
   Loader2,
+  Receipt,
 } from 'lucide-react';
 import { piApi } from '../api/proformaApi';
 import { financeApi } from '../api/financeApi';
+import { invoicesApi } from '../api/invoicesApi';
 import type { ProformaInvoice, PIStatus, Payment } from '../types/admin';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import DocumentRevisionHistoryCard from '../components/common/DocumentRevisionHistoryCard';
@@ -208,6 +210,7 @@ export default function ProformaInvoiceDetailPage() {
   // Action loaders
   const [issuing, setIssuing] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [convertingToBill, setConvertingToBill] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   // Edit / Delete Payment state
@@ -293,6 +296,25 @@ export default function ProformaInvoiceDetailPage() {
       alert(err?.response?.data?.message || 'Failed to convert to Sales Order.');
     } finally {
       setConverting(false);
+    }
+  };
+
+  // Convert to Tax Invoice / Bill directly
+  const handleConvertToBill = async () => {
+    if (!pi || convertingToBill) return;
+    if (!confirm(`Convert Proforma Invoice ${pi.piNumber} into a formal GST Tax Invoice / Bill? Any advance recorded will automatically reflect on the Bill Details page.`)) {
+      return;
+    }
+    setConvertingToBill(true);
+    try {
+      const res = await invoicesApi.createFromPi(pi.id);
+      const invoiceData = res.data?.data || (res.data as any);
+      alert(`Success! Tax Invoice ${invoiceData.invoiceNumber || ''} created.`);
+      navigate(`/admin/dashboard/invoices/${invoiceData.id}`);
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err.message || 'Failed to convert to Tax Invoice / Bill');
+    } finally {
+      setConvertingToBill(false);
     }
   };
 
@@ -534,6 +556,21 @@ export default function ProformaInvoiceDetailPage() {
           >
             <Clock className="w-4 h-4" /> Follow-Up Hub
           </Link>
+
+          {/* Convert to Bill / Tax Invoice */}
+          <button
+            onClick={handleConvertToBill}
+            disabled={convertingToBill}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-500/20 cursor-pointer disabled:opacity-50"
+            title="Directly convert this Proforma Invoice into a formal Tax Invoice / Bill"
+          >
+            {convertingToBill ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Receipt className="w-4 h-4" />
+            )}
+            <span>Convert to Bill</span>
+          </button>
 
           {/* Record Advance Modal trigger */}
           <button
