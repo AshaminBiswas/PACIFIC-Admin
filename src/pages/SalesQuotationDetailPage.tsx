@@ -164,6 +164,26 @@ export default function SalesQuotationDetailPage() {
   const [showFollowupModal, setShowFollowupModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
+  const visualModels = useMemo(() => {
+    if (!quotation?.items) return [];
+    const seen = new Set<string>();
+    const list: Array<{ modelName: string; imageUrl: string; category?: string }> = [];
+    quotation.items.forEach((it: any) => {
+      const customSpecs = (typeof it.customSpecsJson === 'object' && it.customSpecsJson !== null ? it.customSpecsJson : {});
+      const img = it.modelImageUrl || customSpecs.modelImageUrl || customSpecs.imageUrl;
+      const name = it.customModelName || it.modelName || customSpecs.customModelName || customSpecs.modelName;
+      if (img && typeof img === 'string' && img.trim() !== '' && !seen.has(img)) {
+        seen.add(img);
+        list.push({
+          modelName: name || 'Model Visual',
+          imageUrl: img,
+          category: (it.systemCategory || customSpecs.systemCategory || '').toUpperCase(),
+        });
+      }
+    });
+    return list;
+  }, [quotation?.items]);
+
   const handleCopyShortLink = async () => {
     if (!id) return;
     const url = salesQuotationsApi.getShortUrl(id);
@@ -365,26 +385,6 @@ export default function SalesQuotationDetailPage() {
       basicPrice + Number(quotation.installationCharge || 0) + Number(quotation.freightAmount || 0) + gstAmount
   );
   const statusStyle = STATUS_STYLES[quotation.status] || STATUS_STYLES['DRAFT'];
-
-  const visualModels = useMemo(() => {
-    if (!quotation?.items) return [];
-    const seen = new Set<string>();
-    const list: Array<{ modelName: string; imageUrl: string; category?: string }> = [];
-    quotation.items.forEach((it: any) => {
-      const customSpecs = (typeof it.customSpecsJson === 'object' && it.customSpecsJson !== null ? it.customSpecsJson : {});
-      const img = it.modelImageUrl || customSpecs.modelImageUrl || customSpecs.imageUrl;
-      const name = it.customModelName || it.modelName || customSpecs.customModelName || customSpecs.modelName;
-      if (img && typeof img === 'string' && img.trim() !== '' && !seen.has(img)) {
-        seen.add(img);
-        list.push({
-          modelName: name || 'Model Visual',
-          imageUrl: img,
-          category: (it.systemCategory || customSpecs.systemCategory || '').toUpperCase(),
-        });
-      }
-    });
-    return list;
-  }, [quotation?.items]);
 
   return (
     <div className="space-y-5 pb-8">
