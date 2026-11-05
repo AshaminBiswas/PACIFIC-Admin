@@ -1177,6 +1177,11 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                           <td className="py-3 px-4">
                             <div className="font-semibold text-white">{bill.installerName}</div>
                             <div className="text-[11px] text-gray-400">{bill.installerEmail}</div>
+                            {bill.customerName && (
+                              <div className="text-[10px] text-blue-300 font-medium truncate max-w-[160px]" title={bill.customerName}>
+                                Client: {bill.customerName}
+                              </div>
+                            )}
                           </td>
 
                           <td className="py-3 px-4 max-w-[200px]">
@@ -2944,6 +2949,13 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                   {selectedBillForDetails.isNcr ? 'Delhi-NCR Site' : 'Outstation Site'}
                 </span>
               </div>
+
+              {selectedBillForDetails.customerName && (
+                <div className="p-3 bg-[#121226] rounded-xl border border-white/5 col-span-2">
+                  <span className="text-gray-400 block">Customer / Client Organization</span>
+                  <span className="font-semibold text-white text-sm">{selectedBillForDetails.customerName}</span>
+                </div>
+              )}
             </div>
 
             {/* Site Address */}
@@ -3007,10 +3019,22 @@ export function InstallerPaymentsPage({ onNewBill }: InstallerPaymentsPageProps 
                     <div>
                       <span className="font-sans font-semibold text-white block">{item.modelName}</span>
                       <span className="text-[11px] text-gray-400">
-                        {item.quantity} units @ ₹{item.installationPrice}
+                        {item.quantity} units @ ₹{item.installationPrice} (Installer)
+                        {Number(item.customerRate || 0) > 0 && (
+                          <span className="text-blue-300 ml-2">
+                            | Customer Rate: ₹{item.customerRate}
+                          </span>
+                        )}
                       </span>
                     </div>
-                    <span className="font-bold text-[#B5F823]">{formatINR(item.lineTotal)}</span>
+                    <div className="text-right">
+                      <span className="font-bold text-[#B5F823] block">{formatINR(item.lineTotal)}</span>
+                      {Number(item.customerRate || 0) > 0 && (
+                        <span className="text-[10px] text-blue-300 block">
+                          Cust: {formatINR(item.quantity * Number(item.customerRate))}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

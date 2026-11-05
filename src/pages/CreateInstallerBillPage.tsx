@@ -24,6 +24,7 @@ import {
   Coins,
   Receipt,
   HelpCircle,
+  TrendingUp,
 } from 'lucide-react';
 import { installerPaymentsService } from '../api/installerPaymentsService';
 import { isNcrPinCode } from '../utils/ncrPincodes';
@@ -39,10 +40,12 @@ interface CreateInstallerBillPageProps {
 
 interface LineItemRow {
   id: string;
-  category: 'CUBICLE' | 'UMP' | 'LOCKER';
+  category: 'CUBICLE' | 'UMP' | 'LOCKER' | 'OTHER';
   modelId: string;
+  modelName: string;
   quantity: number;
   unitPrice: number;
+  customerRate: number;
 }
 
 export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps = {}) {
@@ -69,7 +72,8 @@ export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps
   const [installerPhone, setInstallerPhone] = useState<string>('');
   const [isAutoPopulated, setIsAutoPopulated] = useState<boolean>(false);
 
-  // Form State: 2. Site & Date
+  // Form State: 2. Site, Customer & Date
+  const [customerName, setCustomerName] = useState<string>('');
   const [installDate, setInstallDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
@@ -78,16 +82,17 @@ export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps
   const [siteAddress, setSiteAddress] = useState<string>('');
   const [sitePin, setSitePin] = useState<string>('');
 
-  // Form State: 3. Dynamic Item Categories (start at 0)
+  // Form State: 3. Dynamic Item Categories with Custom Write & Customer Rates
   const [cubicleItems, setCubicleItems] = useState<LineItemRow[]>([
-    { id: 'cubicle-1', category: 'CUBICLE', modelId: '', quantity: 0, unitPrice: 0 },
+    { id: 'cubicle-1', category: 'CUBICLE', modelId: '', modelName: '', quantity: 0, unitPrice: 0, customerRate: 0 },
   ]);
   const [umpItems, setUmpItems] = useState<LineItemRow[]>([
-    { id: 'ump-1', category: 'UMP', modelId: '', quantity: 0, unitPrice: 0 },
+    { id: 'ump-1', category: 'UMP', modelId: '', modelName: '', quantity: 0, unitPrice: 0, customerRate: 0 },
   ]);
   const [lockerItems, setLockerItems] = useState<LineItemRow[]>([
-    { id: 'locker-1', category: 'LOCKER', modelId: '', quantity: 0, unitPrice: 0 },
+    { id: 'locker-1', category: 'LOCKER', modelId: '', modelName: '', quantity: 0, unitPrice: 0, customerRate: 0 },
   ]);
+  const [otherItems, setOtherItems] = useState<LineItemRow[]>([]);
 
   // Form State: 4. Payment Advance Management System
   const [hasAdvance, setHasAdvance] = useState<boolean>(false);
@@ -181,101 +186,85 @@ export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps
     }
   };
 
-  // Line item handlers
-  const handleCubicleModelChange = (itemId: string, newModelId: string) => {
+  // Helper to update rows in a category
+  const updateRow = (
+    category: 'CUBICLE' | 'UMP' | 'LOCKER' | 'OTHER',
+    itemId: string,
+    updates: Partial<LineItemRow>
+  ) => {
+    const setter =
+      category === 'CUBICLE'
+        ? setCubicleItems
+        : category === 'UMP'
+        ? setUmpItems
+        : category === 'LOCKER'
+        ? setLockerItems
+        : setOtherItems;
+
+    setter((prev) =>
+      prev.map((row) => (row.id === itemId ? { ...row, ...updates } : row))
+    );
+  };
+
+  // When model is picked from master dropdown
+  const handleModelSelect = (
+    category: 'CUBICLE' | 'UMP' | 'LOCKER' | 'OTHER',
+    itemId: string,
+    newModelId: string
+  ) => {
+    if (!newModelId) {
+      // Switched to custom / write directly
+      updateRow(category, itemId, { modelId: '' });
+      return;
+    }
+
     const selected = models.find((m) => m.id === newModelId);
-    const unitPrice = selected ? Number(selected.installationPrice) : 0;
-    setCubicleItems((prev) =>
-      prev.map((row) =>
-        row.id === itemId ? { ...row, modelId: newModelId, unitPrice } : row
-      )
-    );
+    if (selected) {
+      updateRow(category, itemId, {
+        modelId: newModelId,
+        modelName: selected.modelName,
+        unitPrice: Number(selected.installationPrice) || 0,
+      });
+    }
   };
 
-  const handleCubicleQuantityChange = (itemId: string, qty: number) => {
-    const validQty = Math.max(0, qty);
-    setCubicleItems((prev) =>
-      prev.map((row) => (row.id === itemId ? { ...row, quantity: validQty } : row))
-    );
+  // Add line item row
+  const addRow = (category: 'CUBICLE' | 'UMP' | 'LOCKER' | 'OTHER') => {
+    const newRow: LineItemRow = {
+      id: `${category.toLowerCase()}-${Date.now()}`,
+      category,
+      modelId: '',
+      modelName: '',
+      quantity: 0,
+      unitPrice: 0,
+      customerRate: 0,
+    };
+
+    if (category === 'CUBICLE') setCubicleItems((prev) => [...prev, newRow]);
+    else if (category === 'UMP') setUmpItems((prev) => [...prev, newRow]);
+    else if (category === 'LOCKER') setLockerItems((prev) => [...prev, newRow]);
+    else setOtherItems((prev) => [...prev, newRow]);
   };
 
-  const addCubicleItem = () => {
-    setCubicleItems((prev) => [
-      ...prev,
-      { id: `cubicle-${Date.now()}`, category: 'CUBICLE', modelId: '', quantity: 0, unitPrice: 0 },
-    ]);
-  };
+  // Remove line item row
+  const removeRow = (category: 'CUBICLE' | 'UMP' | 'LOCKER' | 'OTHER', itemId: string) => {
+    const setter =
+      category === 'CUBICLE'
+        ? setCubicleItems
+        : category === 'UMP'
+        ? setUmpItems
+        : category === 'LOCKER'
+        ? setLockerItems
+        : setOtherItems;
 
-  const removeCubicleItem = (itemId: string) => {
-    setCubicleItems((prev) =>
-      prev.length > 1
+    setter((prev) => {
+      if (category === 'OTHER') {
+        return prev.filter((row) => row.id !== itemId);
+      }
+      return prev.length > 1
         ? prev.filter((row) => row.id !== itemId)
-        : [{ id: `cubicle-${Date.now()}`, category: 'CUBICLE', modelId: '', quantity: 0, unitPrice: 0 }]
-    );
-  };
-
-  const handleUmpModelChange = (itemId: string, newModelId: string) => {
-    const selected = models.find((m) => m.id === newModelId);
-    const unitPrice = selected ? Number(selected.installationPrice) : 0;
-    setUmpItems((prev) =>
-      prev.map((row) =>
-        row.id === itemId ? { ...row, modelId: newModelId, unitPrice } : row
-      )
-    );
-  };
-
-  const handleUmpQuantityChange = (itemId: string, qty: number) => {
-    const validQty = Math.max(0, qty);
-    setUmpItems((prev) =>
-      prev.map((row) => (row.id === itemId ? { ...row, quantity: validQty } : row))
-    );
-  };
-
-  const addUmpItem = () => {
-    setUmpItems((prev) => [
-      ...prev,
-      { id: `ump-${Date.now()}`, category: 'UMP', modelId: '', quantity: 0, unitPrice: 0 },
-    ]);
-  };
-
-  const removeUmpItem = (itemId: string) => {
-    setUmpItems((prev) =>
-      prev.length > 1
-        ? prev.filter((row) => row.id !== itemId)
-        : [{ id: `ump-${Date.now()}`, category: 'UMP', modelId: '', quantity: 0, unitPrice: 0 }]
-    );
-  };
-
-  const handleLockerModelChange = (itemId: string, newModelId: string) => {
-    const selected = models.find((m) => m.id === newModelId);
-    const unitPrice = selected ? Number(selected.installationPrice) : 0;
-    setLockerItems((prev) =>
-      prev.map((row) =>
-        row.id === itemId ? { ...row, modelId: newModelId, unitPrice } : row
-      )
-    );
-  };
-
-  const handleLockerQuantityChange = (itemId: string, qty: number) => {
-    const validQty = Math.max(0, qty);
-    setLockerItems((prev) =>
-      prev.map((row) => (row.id === itemId ? { ...row, quantity: validQty } : row))
-    );
-  };
-
-  const addLockerItem = () => {
-    setLockerItems((prev) => [
-      ...prev,
-      { id: `locker-${Date.now()}`, category: 'LOCKER', modelId: '', quantity: 0, unitPrice: 0 },
-    ]);
-  };
-
-  const removeLockerItem = (itemId: string) => {
-    setLockerItems((prev) =>
-      prev.length > 1
-        ? prev.filter((row) => row.id !== itemId)
-        : [{ id: `locker-${Date.now()}`, category: 'LOCKER', modelId: '', quantity: 0, unitPrice: 0 }]
-    );
+        : [{ id: `${category.toLowerCase()}-${Date.now()}`, category, modelId: '', modelName: '', quantity: 0, unitPrice: 0, customerRate: 0 }];
+    });
   };
 
   // Category-specific model options from Master
@@ -289,35 +278,48 @@ export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps
     (m) => m.category === 'LOCKER'
   );
 
-  // Auto-calculated scope totals
+  // Validation helper
+  const isRowValid = (row: LineItemRow) =>
+    (row.modelName.trim().length > 0 || row.modelId.trim().length > 0) && row.quantity > 0;
+
+  // Auto-calculated installer scope subtotals
   const cubicleModelsSubtotal = cubicleItems.reduce(
-    (acc, row) => acc + (row.modelId ? row.quantity * row.unitPrice : 0),
+    (acc, row) => acc + (isRowValid(row) ? row.quantity * (row.unitPrice || 0) : 0),
     0
   );
   const totalCubicleQty = cubicleItems.reduce(
-    (acc, row) => acc + (row.modelId ? row.quantity : 0),
+    (acc, row) => acc + (isRowValid(row) ? row.quantity : 0),
     0
   );
 
   const umpSubtotal = umpItems.reduce(
-    (acc, row) => acc + (row.modelId ? row.quantity * row.unitPrice : 0),
+    (acc, row) => acc + (isRowValid(row) ? row.quantity * (row.unitPrice || 0) : 0),
     0
   );
   const totalUmpQty = umpItems.reduce(
-    (acc, row) => acc + (row.modelId ? row.quantity : 0),
+    (acc, row) => acc + (isRowValid(row) ? row.quantity : 0),
     0
   );
 
   const lockerSubtotal = lockerItems.reduce(
-    (acc, row) => acc + (row.modelId ? row.quantity * row.unitPrice : 0),
+    (acc, row) => acc + (isRowValid(row) ? row.quantity * (row.unitPrice || 0) : 0),
     0
   );
   const totalLockerQty = lockerItems.reduce(
-    (acc, row) => acc + (row.modelId ? row.quantity : 0),
+    (acc, row) => acc + (isRowValid(row) ? row.quantity : 0),
     0
   );
 
-  const subtotal = cubicleModelsSubtotal + umpSubtotal + lockerSubtotal;
+  const otherSubtotal = otherItems.reduce(
+    (acc, row) => acc + (isRowValid(row) ? row.quantity * (row.unitPrice || 0) : 0),
+    0
+  );
+  const totalOtherQty = otherItems.reduce(
+    (acc, row) => acc + (isRowValid(row) ? row.quantity : 0),
+    0
+  );
+
+  const subtotal = cubicleModelsSubtotal + umpSubtotal + lockerSubtotal + otherSubtotal;
   const effectiveTravelExpenses = isNcr ? 0 : Number(travelExpenses || 0);
   const effectiveDeductionAmount = Math.max(0, Number(deductionAmount || 0));
   const effectiveAdvancePaid = hasAdvance ? Math.max(0, Number(advancePaid || 0)) : 0;
@@ -333,6 +335,16 @@ export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps
 
   // Cleared if advance + completion payment covers the entire gross amount
   const willBeCleared = grossTotal > 0 && (effectiveAdvancePaid + initialAmountPaid) >= grossTotal;
+
+  // Customer rates totals & Margin Calculation
+  const allCurrentItems = [...cubicleItems, ...umpItems, ...lockerItems, ...otherItems];
+  const totalCustomerBilling = allCurrentItems.reduce(
+    (acc, row) => acc + (isRowValid(row) ? row.quantity * (row.customerRate || 0) : 0),
+    0
+  );
+  const hasCustomerRates = totalCustomerBilling > 0;
+  const grossMargin = totalCustomerBilling - grossTotal;
+  const marginPercent = totalCustomerBilling > 0 ? (grossMargin / totalCustomerBilling) * 100 : 0;
 
   // Quick fill remaining balance
   const handlePayRemainingBalance = () => {
@@ -377,15 +389,16 @@ export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps
       return;
     }
 
-    const validCubicles = cubicleItems.filter((i) => i.modelId && i.quantity > 0);
-    const validUmps = umpItems.filter((i) => i.modelId && i.quantity > 0);
-    const validLockers = lockerItems.filter((i) => i.modelId && i.quantity > 0);
-    const allValidItems = [...validCubicles, ...validUmps, ...validLockers];
+    const validCubicles = cubicleItems.filter(isRowValid);
+    const validUmps = umpItems.filter(isRowValid);
+    const validLockers = lockerItems.filter(isRowValid);
+    const validOthers = otherItems.filter(isRowValid);
+    const allValidItems = [...validCubicles, ...validUmps, ...validLockers, ...validOthers];
 
     if (allValidItems.length === 0) {
       setFeedback({
         type: 'error',
-        message: 'Please select at least one Cubicle, UMP, or Locker model with a quantity greater than 0.',
+        message: 'Please enter at least one installation model or scope item with a quantity greater than 0.',
       });
       return;
     }
@@ -404,6 +417,7 @@ export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps
         installerId: selectedInstallerId || undefined,
         installerName: installerName.trim(),
         installerEmail: installerEmail.trim().toLowerCase(),
+        customerName: customerName.trim() || undefined,
         installDate,
         isNcr,
         travelExpenses: effectiveTravelExpenses,
@@ -411,11 +425,19 @@ export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps
         deductionReason: effectiveDeductionAmount > 0 ? deductionReason.trim() : undefined,
         siteAddress: siteAddress.trim(),
         sitePin: sitePin.trim(),
-        items: allValidItems.map((item) => ({
-          modelId: item.modelId,
-          category: item.category,
-          quantity: item.quantity,
-        })),
+        items: allValidItems.map((item) => {
+          const fallbackModelName = item.modelId
+            ? models.find((m) => m.id === item.modelId)?.modelName || 'Scope Item'
+            : 'Custom Item';
+          return {
+            modelId: item.modelId || undefined,
+            modelName: item.modelName.trim() || fallbackModelName,
+            category: item.category,
+            quantity: item.quantity,
+            unitPrice: Number(item.unitPrice || 0),
+            customerRate: Number(item.customerRate || 0),
+          };
+        }),
         umpQuantity: totalUmpQty,
         umpRate: totalUmpQty > 0 ? umpSubtotal / totalUmpQty : 0,
         advancePaid: hasAdvance ? effectiveAdvancePaid : 0,
@@ -453,6 +475,201 @@ export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps
     }
   };
 
+  // Reusable Section Renderer for Model Categories
+  const renderItemSection = (
+    sectionNum: string,
+    title: string,
+    category: 'CUBICLE' | 'UMP' | 'LOCKER' | 'OTHER',
+    items: LineItemRow[],
+    modelsForCategory: CubicleModel[],
+    icon: React.ReactNode,
+    description: string,
+    addLabel: string
+  ) => {
+    return (
+      <div className="bg-[#0a091e] p-6 rounded-2xl border border-white/10 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="text-[#7FB706]">{icon}</div>
+            <div>
+              <h2 className="text-sm sm:text-base font-semibold text-white flex items-center gap-2">
+                <span>{sectionNum}. {title}</span>
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30">
+                  Model & Rate Editable
+                </span>
+              </h2>
+              <p className="text-xs text-gray-400">{description}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => addRow(category)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#B5F823] bg-[#7FB706]/15 hover:bg-[#7FB706]/25 border border-[#7FB706]/30 rounded-lg transition-colors cursor-pointer self-start sm:self-auto"
+          >
+            <Plus size={14} />
+            {addLabel}
+          </button>
+        </div>
+
+        <div className="space-y-3.5">
+          {items.map((item, index) => {
+            const lineTotal = (item.quantity || 0) * (item.unitPrice || 0);
+            const customerLineTotal = (item.quantity || 0) * (item.customerRate || 0);
+
+            return (
+              <div
+                key={item.id}
+                className="p-3.5 bg-[#121226] rounded-xl border border-white/5 space-y-3"
+              >
+                {/* Top Row: Master Selector + Editable Model Name */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                  {modelsForCategory.length > 0 && (
+                    <div className="sm:col-span-5">
+                      <label className="block text-[11px] font-medium text-gray-400 mb-1 flex items-center justify-between">
+                        <span>Select Master Model (Auto-fill)</span>
+                        <span className="text-[10px] text-gray-500">Preset</span>
+                      </label>
+                      <select
+                        value={item.modelId}
+                        onChange={(e) => handleModelSelect(category, item.id, e.target.value)}
+                        className="w-full px-3 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-xs text-white focus:border-[#7FB706] font-medium"
+                      >
+                        <option value="">-- Custom Model / Write Direct --</option>
+                        {modelsForCategory.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.modelName} (Std Rate: ₹{Number(m.installationPrice).toLocaleString('en-IN')})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className={modelsForCategory.length > 0 ? "sm:col-span-6" : "sm:col-span-11"}>
+                    <label className="block text-[11px] font-medium text-gray-400 mb-1 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        Model Name / Scope Description <span className="text-rose-400">*</span>
+                      </span>
+                      <span className="text-[10px] text-[#B5F823] font-semibold">Write / Edit Anything</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={item.modelName}
+                      onChange={(e) => updateRow(category, item.id, { modelName: e.target.value })}
+                      placeholder={
+                        category === 'CUBICLE'
+                          ? 'e.g. Aura Elegance 12mm Compact Laminate Cubicle'
+                          : category === 'UMP'
+                          ? 'e.g. Frosted Glass UMP / SS-304 Privacy Screen'
+                          : category === 'LOCKER'
+                          ? 'e.g. 6-Tier Compact Laminate Locker System'
+                          : 'e.g. Site dismantling, silicone touchup, hardware adjustment'
+                      }
+                      className="w-full px-3 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-xs text-white placeholder-gray-500 focus:outline-hidden focus:border-[#7FB706] font-medium"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-1 flex justify-end">
+                    {(items.length > 1 || category === 'OTHER') && (
+                      <button
+                        type="button"
+                        onClick={() => removeRow(category, item.id)}
+                        className="p-1.5 text-gray-400 hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
+                        title="Remove Item Row"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Bottom Row: Quantity, Installer Rate, Customer Rate, Line Total */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-white/5 items-center">
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-400 mb-1">
+                      Quantity <span className="text-rose-400">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={item.quantity === 0 ? '' : item.quantity}
+                      placeholder="0"
+                      onChange={(e) =>
+                        updateRow(category, item.id, {
+                          quantity: Math.max(0, parseInt(e.target.value) || 0),
+                        })
+                      }
+                      className="w-full px-2.5 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-xs text-white focus:border-[#7FB706] text-center font-mono font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-400 mb-1 flex items-center justify-between">
+                      <span>Installer Rate (₹)</span>
+                      <span className="text-[10px] text-[#B5F823] font-bold">Payable</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1.5 text-xs text-gray-500 font-semibold">₹</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step="1"
+                        value={item.unitPrice === 0 ? '' : item.unitPrice}
+                        placeholder="0"
+                        onChange={(e) =>
+                          updateRow(category, item.id, {
+                            unitPrice: Math.max(0, parseFloat(e.target.value) || 0),
+                          })
+                        }
+                        className="w-full pl-6 pr-2.5 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-xs text-white focus:border-[#7FB706] font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-400 mb-1 flex items-center justify-between">
+                      <span>Customer Rate (₹)</span>
+                      <span className="text-[10px] text-blue-400 font-bold">Billing</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1.5 text-xs text-gray-500 font-semibold">₹</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step="1"
+                        value={item.customerRate === 0 ? '' : item.customerRate}
+                        placeholder="0"
+                        onChange={(e) =>
+                          updateRow(category, item.id, {
+                            customerRate: Math.max(0, parseFloat(e.target.value) || 0),
+                          })
+                        }
+                        className="w-full pl-6 pr-2.5 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-xs text-blue-200 focus:border-blue-400 font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-[#030213]/70 px-3 py-1.5 rounded-lg border border-white/5">
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
+                      Installer Total
+                    </div>
+                    <div className="text-xs sm:text-sm font-bold text-[#B5F823] font-mono">
+                      ₹{lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </div>
+                    {item.customerRate > 0 && (
+                      <div className="text-[10px] text-blue-300 font-mono truncate" title={`Customer Billing: ₹${customerLineTotal.toLocaleString('en-IN')}`}>
+                        Cust: ₹{customerLineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 pb-20">
       {/* Top Header & Context */}
@@ -477,7 +694,7 @@ export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps
             Generate Installer Payment Bill
           </h1>
           <p className="text-xs sm:text-sm text-gray-400 mt-1">
-            Create an itemized installation voucher with advance payment tracking, NCR travel automation, and multi-mode settlement.
+            Create an itemized installation voucher with custom model write options, editable installer & customer billing rates, advance payment tracking, and NCR travel automation.
           </p>
         </div>
 
@@ -604,16 +821,32 @@ export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps
               )}
             </div>
 
-            {/* 2. Installation Site & Date */}
+            {/* 2. Installation Site, Customer & Date */}
             <div className="bg-[#0a091e] p-6 rounded-2xl border border-white/10 shadow-xl space-y-4">
               <div className="flex items-center gap-2 border-b border-white/5 pb-3">
                 <MapPin className="text-[#7FB706]" size={18} />
                 <h2 className="text-sm sm:text-base font-semibold text-white">
-                  2. Installation Site & Location
+                  2. Installation Site & Client Information
                 </h2>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-300 mb-1">
+                    Customer / Client Organization (Optional)
+                  </label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-2.5 text-gray-500" size={16} />
+                    <input
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="e.g. DLF Cybercity, Aura Synergy, Tata Motors"
+                      className="w-full pl-9 pr-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-hidden focus:border-[#7FB706] focus:ring-1 focus:ring-[#7FB706]"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-medium text-gray-300 mb-1">
                     Date of Installation <span className="text-rose-400">*</span>
@@ -629,8 +862,10 @@ export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps
                     />
                   </div>
                 </div>
+              </div>
 
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-medium text-gray-300">
                       Site Postal PIN Code <span className="text-rose-400">*</span>
@@ -769,313 +1004,213 @@ export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps
             </div>
 
             {/* 3. Cubicle Models Installed */}
-            <div className="bg-[#0a091e] p-6 rounded-2xl border border-white/10 shadow-xl space-y-4">
-              <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                <div className="flex items-center gap-2">
-                  <Layers className="text-[#7FB706]" size={18} />
-                  <div>
-                    <h2 className="text-sm sm:text-base font-semibold text-white">
-                      3. Restroom Cubicle Models Installed
-                    </h2>
-                    <p className="text-xs text-gray-400">
-                      Standard cubicles installed on site. Rates loaded from Cubicle Models Master.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={addCubicleItem}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#B5F823] bg-[#7FB706]/15 hover:bg-[#7FB706]/25 border border-[#7FB706]/30 rounded-lg transition-colors cursor-pointer"
-                >
-                  <Plus size={14} />
-                  Add Cubicle Row
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {cubicleItems.map((item) => {
-                  const lineTotal = item.quantity * item.unitPrice;
-                  return (
-                    <div
-                      key={item.id}
-                      className="p-3 bg-[#121226] rounded-xl border border-white/5 grid grid-cols-12 gap-3 items-center"
-                    >
-                      <div className="col-span-12 sm:col-span-5">
-                        <label className="block text-[11px] font-medium text-gray-400 mb-1">
-                          Cubicle Model
-                        </label>
-                        <select
-                          value={item.modelId}
-                          onChange={(e) => handleCubicleModelChange(item.id, e.target.value)}
-                          className="w-full px-3 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-sm text-white focus:border-[#7FB706] font-medium"
-                        >
-                          <option value="">-- Select Model (Starts at 0) --</option>
-                          {cubicleModels.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.modelName} (Rate: ₹{Number(m.installationPrice).toLocaleString('en-IN')})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="col-span-6 sm:col-span-2">
-                        <label className="block text-[11px] font-medium text-gray-400 mb-1">
-                          Quantity
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={item.quantity === 0 ? '' : item.quantity}
-                          placeholder="0"
-                          onChange={(e) => handleCubicleQuantityChange(item.id, parseInt(e.target.value) || 0)}
-                          className="w-full px-2.5 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-sm text-white focus:border-[#7FB706] text-center font-mono font-bold"
-                        />
-                      </div>
-
-                      <div className="col-span-6 sm:col-span-2">
-                        <label className="block text-[11px] font-medium text-gray-400 mb-1">
-                          Rate / Unit
-                        </label>
-                        <div className="text-sm font-semibold text-gray-300 font-mono py-1.5">
-                          ₹{item.unitPrice.toLocaleString('en-IN')}
-                        </div>
-                      </div>
-
-                      <div className="col-span-10 sm:col-span-2">
-                        <label className="block text-[11px] font-medium text-gray-400 mb-1">
-                          Line Total
-                        </label>
-                        <div className="text-sm font-bold text-[#B5F823] font-mono py-1.5">
-                          ₹{lineTotal.toLocaleString('en-IN')}
-                        </div>
-                      </div>
-
-                      <div className="col-span-2 sm:col-span-1 flex justify-end pt-4 sm:pt-0">
-                        {cubicleItems.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeCubicleItem(item.id)}
-                            className="p-1.5 text-gray-400 hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
-                            title="Remove Model"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            {renderItemSection(
+              '3',
+              'Restroom Cubicle Models Installed',
+              'CUBICLE',
+              cubicleItems,
+              cubicleModels,
+              <Layers size={18} />,
+              'Standard restroom cubicles. Pick from master or write custom model & set installer & customer rates.',
+              'Add Cubicle Row'
+            )}
 
             {/* 4. UMP Models Installed */}
-            <div className="bg-[#0a091e] p-6 rounded-2xl border border-white/10 shadow-xl space-y-4">
-              <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                <div className="flex items-center gap-2">
-                  <Package className="text-[#7FB706]" size={18} />
-                  <div>
-                    <h2 className="text-sm sm:text-base font-semibold text-white">
-                      4. Urinal Modesty Panels (UMP) Installed
-                    </h2>
-                    <p className="text-xs text-gray-400">
-                      Urinal modesty partitions installed on site.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={addUmpItem}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#B5F823] bg-[#7FB706]/15 hover:bg-[#7FB706]/25 border border-[#7FB706]/30 rounded-lg transition-colors cursor-pointer"
-                >
-                  <Plus size={14} />
-                  Add UMP Row
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {umpItems.map((item) => {
-                  const lineTotal = item.quantity * item.unitPrice;
-                  return (
-                    <div
-                      key={item.id}
-                      className="p-3 bg-[#121226] rounded-xl border border-white/5 grid grid-cols-12 gap-3 items-center"
-                    >
-                      <div className="col-span-12 sm:col-span-5">
-                        <label className="block text-[11px] font-medium text-gray-400 mb-1">
-                          UMP Model
-                        </label>
-                        <select
-                          value={item.modelId}
-                          onChange={(e) => handleUmpModelChange(item.id, e.target.value)}
-                          className="w-full px-3 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-sm text-white focus:border-[#7FB706] font-medium"
-                        >
-                          <option value="">-- Select UMP Model (Starts at 0) --</option>
-                          {umpModels.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.modelName} (Rate: ₹{Number(m.installationPrice).toLocaleString('en-IN')})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="col-span-6 sm:col-span-2">
-                        <label className="block text-[11px] font-medium text-gray-400 mb-1">
-                          Qty (Panels)
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={item.quantity === 0 ? '' : item.quantity}
-                          placeholder="0"
-                          onChange={(e) => handleUmpQuantityChange(item.id, parseInt(e.target.value) || 0)}
-                          className="w-full px-2.5 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-sm text-white focus:border-[#7FB706] text-center font-mono font-bold"
-                        />
-                      </div>
-
-                      <div className="col-span-6 sm:col-span-2">
-                        <label className="block text-[11px] font-medium text-gray-400 mb-1">
-                          Rate / Unit
-                        </label>
-                        <div className="text-sm font-semibold text-gray-300 font-mono py-1.5">
-                          ₹{item.unitPrice.toLocaleString('en-IN')}
-                        </div>
-                      </div>
-
-                      <div className="col-span-10 sm:col-span-2">
-                        <label className="block text-[11px] font-medium text-gray-400 mb-1">
-                          Line Total
-                        </label>
-                        <div className="text-sm font-bold text-[#B5F823] font-mono py-1.5">
-                          ₹{lineTotal.toLocaleString('en-IN')}
-                        </div>
-                      </div>
-
-                      <div className="col-span-2 sm:col-span-1 flex justify-end pt-4 sm:pt-0">
-                        {umpItems.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeUmpItem(item.id)}
-                            className="p-1.5 text-gray-400 hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
-                            title="Remove UMP"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            {renderItemSection(
+              '4',
+              'Urinal Modesty Panels (UMP) Installed',
+              'UMP',
+              umpItems,
+              umpModels,
+              <Package size={18} />,
+              'Urinal modesty partitions. Pick from master or write custom description & rates.',
+              'Add UMP Row'
+            )}
 
             {/* 5. Locker Models Installed */}
+            {renderItemSection(
+              '5',
+              'Locker Models Installed',
+              'LOCKER',
+              lockerItems,
+              lockerModels,
+              <Building2 size={18} />,
+              'Locker storage installations. Pick from master or enter custom specifications & rates.',
+              'Add Locker Row'
+            )}
+
+            {/* 6. Custom & Miscellaneous Scope Items (Optional) */}
             <div className="bg-[#0a091e] p-6 rounded-2xl border border-white/10 shadow-xl space-y-4">
-              <div className="flex items-center justify-between border-b border-white/5 pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-3">
                 <div className="flex items-center gap-2">
-                  <Building2 className="text-[#7FB706]" size={18} />
+                  <Wrench size={18} className="text-[#7FB706]" />
                   <div>
-                    <h2 className="text-sm sm:text-base font-semibold text-white">
-                      5. Locker Models Installed
+                    <h2 className="text-sm sm:text-base font-semibold text-white flex items-center gap-2">
+                      <span>6. Additional / Custom Scope Work (Optional)</span>
+                      <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                        Custom Write
+                      </span>
                     </h2>
                     <p className="text-xs text-gray-400">
-                      Locker storage installations on site.
+                      Site modifications, dismantling, hardware repair, silicone re-sealing, or unlisted custom accessories.
                     </p>
                   </div>
                 </div>
                 <button
                   type="button"
-                  onClick={addLockerItem}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#B5F823] bg-[#7FB706]/15 hover:bg-[#7FB706]/25 border border-[#7FB706]/30 rounded-lg transition-colors cursor-pointer"
+                  onClick={() => addRow('OTHER')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#B5F823] bg-[#7FB706]/15 hover:bg-[#7FB706]/25 border border-[#7FB706]/30 rounded-lg transition-colors cursor-pointer self-start sm:self-auto"
                 >
                   <Plus size={14} />
-                  Add Locker Row
+                  Add Custom Scope Item
                 </button>
               </div>
 
-              <div className="space-y-3">
-                {lockerItems.map((item) => {
-                  const lineTotal = item.quantity * item.unitPrice;
-                  return (
-                    <div
-                      key={item.id}
-                      className="p-3 bg-[#121226] rounded-xl border border-white/5 grid grid-cols-12 gap-3 items-center"
-                    >
-                      <div className="col-span-12 sm:col-span-5">
-                        <label className="block text-[11px] font-medium text-gray-400 mb-1">
-                          Locker Model
-                        </label>
-                        <select
-                          value={item.modelId}
-                          onChange={(e) => handleLockerModelChange(item.id, e.target.value)}
-                          className="w-full px-3 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-sm text-white focus:border-[#7FB706] font-medium"
-                        >
-                          <option value="">-- Select Locker Model (Starts at 0) --</option>
-                          {lockerModels.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.modelName} (Rate: ₹{Number(m.installationPrice).toLocaleString('en-IN')})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+              {otherItems.length === 0 ? (
+                <div className="p-4 bg-white/5 rounded-xl text-xs text-gray-400 flex items-center justify-between">
+                  <span>No additional custom scope items added. Click &quot;Add Custom Scope Item&quot; if needed.</span>
+                  <button
+                    type="button"
+                    onClick={() => addRow('OTHER')}
+                    className="text-[#B5F823] hover:underline font-medium cursor-pointer"
+                  >
+                    + Add Item
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3.5">
+                  {otherItems.map((item) => {
+                    const lineTotal = (item.quantity || 0) * (item.unitPrice || 0);
+                    const customerLineTotal = (item.quantity || 0) * (item.customerRate || 0);
 
-                      <div className="col-span-6 sm:col-span-2">
-                        <label className="block text-[11px] font-medium text-gray-400 mb-1">
-                          Qty (Lockers)
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={item.quantity === 0 ? '' : item.quantity}
-                          placeholder="0"
-                          onChange={(e) => handleLockerQuantityChange(item.id, parseInt(e.target.value) || 0)}
-                          className="w-full px-2.5 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-sm text-white focus:border-[#7FB706] text-center font-mono font-bold"
-                        />
-                      </div>
+                    return (
+                      <div
+                        key={item.id}
+                        className="p-3.5 bg-[#121226] rounded-xl border border-white/5 space-y-3"
+                      >
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                          <div className="sm:col-span-11">
+                            <label className="block text-[11px] font-medium text-gray-400 mb-1 flex items-center justify-between">
+                              <span className="flex items-center gap-1">
+                                Custom Item / Scope Description <span className="text-rose-400">*</span>
+                              </span>
+                              <span className="text-[10px] text-[#B5F823] font-semibold">Write Directly</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={item.modelName}
+                              onChange={(e) => updateRow('OTHER', item.id, { modelName: e.target.value })}
+                              placeholder="e.g. Existing cubicle dismantling, silicone sealing service, SS-304 custom hinges"
+                              className="w-full px-3 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-xs text-white placeholder-gray-500 focus:outline-hidden focus:border-[#7FB706] font-medium"
+                            />
+                          </div>
 
-                      <div className="col-span-6 sm:col-span-2">
-                        <label className="block text-[11px] font-medium text-gray-400 mb-1">
-                          Rate / Unit
-                        </label>
-                        <div className="text-sm font-semibold text-gray-300 font-mono py-1.5">
-                          ₹{item.unitPrice.toLocaleString('en-IN')}
+                          <div className="sm:col-span-1 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => removeRow('OTHER', item.id)}
+                              className="p-1.5 text-gray-400 hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
+                              title="Remove Item Row"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-white/5 items-center">
+                          <div>
+                            <label className="block text-[11px] font-medium text-gray-400 mb-1">
+                              Quantity
+                            </label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={item.quantity === 0 ? '' : item.quantity}
+                              placeholder="0"
+                              onChange={(e) =>
+                                updateRow('OTHER', item.id, {
+                                  quantity: Math.max(0, parseInt(e.target.value) || 0),
+                                })
+                              }
+                              className="w-full px-2.5 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-xs text-white focus:border-[#7FB706] text-center font-mono font-bold"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-medium text-gray-400 mb-1 flex items-center justify-between">
+                              <span>Installer Rate (₹)</span>
+                              <span className="text-[10px] text-[#B5F823] font-bold">Payable</span>
+                            </label>
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-1.5 text-xs text-gray-500 font-semibold">₹</span>
+                              <input
+                                type="number"
+                                min={0}
+                                step="1"
+                                value={item.unitPrice === 0 ? '' : item.unitPrice}
+                                placeholder="0"
+                                onChange={(e) =>
+                                  updateRow('OTHER', item.id, {
+                                    unitPrice: Math.max(0, parseFloat(e.target.value) || 0),
+                                  })
+                                }
+                                className="w-full pl-6 pr-2.5 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-xs text-white focus:border-[#7FB706] font-mono font-bold"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-medium text-gray-400 mb-1 flex items-center justify-between">
+                              <span>Customer Rate (₹)</span>
+                              <span className="text-[10px] text-blue-400 font-bold">Billing</span>
+                            </label>
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-1.5 text-xs text-gray-500 font-semibold">₹</span>
+                              <input
+                                type="number"
+                                min={0}
+                                step="1"
+                                value={item.customerRate === 0 ? '' : item.customerRate}
+                                placeholder="0"
+                                onChange={(e) =>
+                                  updateRow('OTHER', item.id, {
+                                    customerRate: Math.max(0, parseFloat(e.target.value) || 0),
+                                  })
+                                }
+                                className="w-full pl-6 pr-2.5 py-1.5 bg-[#030213] border border-white/10 rounded-lg text-xs text-blue-200 focus:border-blue-400 font-mono font-bold"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="bg-[#030213]/70 px-3 py-1.5 rounded-lg border border-white/5">
+                            <div className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
+                              Installer Total
+                            </div>
+                            <div className="text-xs sm:text-sm font-bold text-[#B5F823] font-mono">
+                              ₹{lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </div>
+                            {item.customerRate > 0 && (
+                              <div className="text-[10px] text-blue-300 font-mono truncate" title={`Customer Billing: ₹${customerLineTotal.toLocaleString('en-IN')}`}>
+                                Cust: ₹{customerLineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-
-                      <div className="col-span-10 sm:col-span-2">
-                        <label className="block text-[11px] font-medium text-gray-400 mb-1">
-                          Line Total
-                        </label>
-                        <div className="text-sm font-bold text-[#B5F823] font-mono py-1.5">
-                          ₹{lineTotal.toLocaleString('en-IN')}
-                        </div>
-                      </div>
-
-                      <div className="col-span-2 sm:col-span-1 flex justify-end pt-4 sm:pt-0">
-                        {lockerItems.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeLockerItem(item.id)}
-                            className="p-1.5 text-gray-400 hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
-                            title="Remove Locker Model"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            {/* 6. PAYMENT ADVANCE MANAGEMENT SYSTEM (USER REQUESTED) */}
+            {/* 7. PAYMENT ADVANCE MANAGEMENT SYSTEM */}
             <div className="bg-[#0a091e] p-6 rounded-2xl border border-white/10 shadow-xl space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
                 <div className="flex items-center gap-2">
                   <Coins className="text-[#7FB706]" size={18} />
                   <div>
                     <h2 className="text-sm sm:text-base font-semibold text-white flex items-center gap-2">
-                      6. Payment Advance Management System
+                      7. Payment Advance Management System
                       <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30">
                         Advance Engine
                       </span>
@@ -1181,13 +1316,13 @@ export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps
               )}
             </div>
 
-            {/* 7. Deductions & Penalties */}
+            {/* 8. Deductions & Penalties */}
             <div className="bg-[#0a091e] p-6 rounded-2xl border border-white/10 shadow-xl space-y-4">
               <div className="flex items-center gap-2 border-b border-white/5 pb-3">
                 <AlertCircle className="text-rose-400" size={18} />
                 <div>
                   <h2 className="text-sm sm:text-base font-semibold text-white">
-                    7. Deductions & Site Penalties (Optional)
+                    8. Deductions & Site Penalties (Optional)
                   </h2>
                   <p className="text-xs text-gray-400">
                     Record hardware damage, missing items, unfinished scope penalty, or site delay deductions.
@@ -1228,13 +1363,13 @@ export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps
               </div>
             </div>
 
-            {/* 8. Settlement on Completion & Mandatory Internal Notes */}
+            {/* 9. Settlement on Completion & Mandatory Internal Notes */}
             <div className="bg-[#0a091e] p-6 rounded-2xl border border-white/10 shadow-xl space-y-4">
               <div className="flex items-center gap-2 border-b border-white/5 pb-3">
                 <CreditCard className="text-[#7FB706]" size={18} />
                 <div>
                   <h2 className="text-sm sm:text-base font-semibold text-white">
-                    8. Settlement on Completion & Mandatory Notes
+                    9. Settlement on Completion & Mandatory Notes
                   </h2>
                   <p className="text-xs text-gray-400">
                     Settle any remaining balance now or defer payment to the installer ledger.
@@ -1402,6 +1537,20 @@ export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps
                   </span>
                 </div>
 
+                {totalOtherQty > 0 && (
+                  <div className="flex justify-between text-gray-400">
+                    <span className="flex items-center gap-1">
+                      Custom / Other Scope:
+                      <span className="text-[10px] text-[#B5F823] font-bold bg-[#7FB706]/15 px-1.5 py-0.5 rounded-sm">
+                        {totalOtherQty} item(s)
+                      </span>
+                    </span>
+                    <span className="font-semibold font-mono text-white">
+                      ₹{otherSubtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex justify-between text-gray-300 font-medium pt-1 border-t border-dashed border-white/10">
                   <span>Installation Subtotal:</span>
                   <span className="font-bold font-mono text-white">
@@ -1479,6 +1628,43 @@ export function CreateInstallerBillPage({ onBack }: CreateInstallerBillPageProps
                   </span>
                 </div>
               </div>
+
+              {/* Customer Rate & Gross Margin Intelligence Box */}
+              {hasCustomerRates && (
+                <div className="p-3.5 bg-blue-500/10 border border-blue-500/30 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-blue-300 uppercase tracking-wider">
+                    <span className="flex items-center gap-1.5">
+                      <TrendingUp size={14} /> Customer Billing & Margin
+                    </span>
+                    <span className="text-[10px] bg-blue-500/20 px-1.5 py-0.5 rounded font-mono">
+                      Internal
+                    </span>
+                  </div>
+                  <div className="space-y-1.5 text-xs font-mono">
+                    <div className="flex justify-between text-gray-300">
+                      <span>Customer Billed Value:</span>
+                      <span className="font-bold text-white">
+                        ₹{totalCustomerBilling.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-gray-400">
+                      <span>Installer Gross Cost:</span>
+                      <span>
+                        ₹{grossTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-bold border-t border-blue-500/20 pt-1.5">
+                      <span className="text-blue-300 font-sans">Gross Margin:</span>
+                      <span className={grossMargin >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                        ₹{grossMargin.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        <span className="ml-1 text-[11px] font-normal">
+                          ({marginPercent.toFixed(1)}%)
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Status Indicator Preview */}
               <div className="pt-3 border-t border-white/10">

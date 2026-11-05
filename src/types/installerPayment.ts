@@ -1,4 +1,4 @@
-export type InstallationCategory = 'CUBICLE' | 'UMP' | 'LOCKER';
+export type InstallationCategory = 'CUBICLE' | 'UMP' | 'LOCKER' | 'OTHER';
 
 export interface CubicleModel {
   id: string;
@@ -17,14 +17,15 @@ export interface InstallerBillItem {
   id: string;
   billId: string;
   category?: InstallationCategory;
-  modelId: string;
+  modelId?: string | null;
   modelName: string;
   quantity: number;
   installationPrice: number;
+  customerRate?: number;
   lineTotal: number;
   createdAt: string;
   updatedAt: string;
-  model?: CubicleModel;
+  model?: CubicleModel | null;
 }
 
 export interface InstallerBillPayment {
@@ -74,6 +75,7 @@ export interface InstallerBill {
   installerId?: string | null;
   installerName: string;
   installerEmail: string;
+  customerName?: string | null;
   installDate: string;
   isNcr: boolean;
   travelExpenses: number;
@@ -140,15 +142,19 @@ export interface CreateInstallerBillPayload {
   installerId?: string;
   installerName: string;
   installerEmail: string;
+  customerName?: string;
   installDate: string;
   isNcr: boolean;
   travelExpenses: number;
   siteAddress: string;
   sitePin: string;
   items: Array<{
-    modelId: string;
+    modelId?: string;
+    modelName?: string;
     category?: InstallationCategory;
     quantity: number;
+    unitPrice?: number;
+    customerRate?: number;
   }>;
   umpQuantity?: number;
   umpRate?: number;
@@ -167,6 +173,7 @@ export interface CreateInstallerBillPayload {
 export interface UpdateInstallerBillPayload {
   installerName?: string;
   installerEmail?: string;
+  customerName?: string;
   installDate?: string;
   isNcr?: boolean;
   travelExpenses?: number;
