@@ -21,6 +21,9 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
+  Package,
+  X,
+  Eye,
 } from 'lucide-react';
 import { useReportingPeriod } from '../../context/ReportingPeriodContext';
 import { ReportingPeriodBar } from '../../components/reporting/ReportingPeriodBar';
@@ -60,6 +63,7 @@ export const DailySalesPurchasePage: React.FC = () => {
   const [editingItem, setEditingItem] = useState<DailySalesPurchaseItem | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
+  const [selectedViewItem, setSelectedViewItem] = useState<DailySalesPurchaseItem | null>(null);
 
   // Fetch summary and list
   const loadData = useCallback(async () => {
@@ -432,8 +436,19 @@ export const DailySalesPurchasePage: React.FC = () => {
                       <td className="py-3 whitespace-nowrap font-mono font-medium text-slate-200">
                         {item.referenceNo || '—'}
                       </td>
-                      <td className="py-3 font-semibold text-white max-w-[200px] truncate" title={partyName}>
-                        {partyName}
+                      <td className="py-3 font-semibold text-white max-w-[210px]" title={partyName}>
+                        <div className="truncate">{partyName}</div>
+                        {item.items && Array.isArray(item.items) && item.items.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedViewItem(item)}
+                            className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-lime-500/10 hover:bg-lime-500/20 text-lime-400 border border-lime-500/20 text-[10px] font-semibold transition cursor-pointer"
+                            title="Click to view line items"
+                          >
+                            <Package className="w-3 h-3 text-lime-400" />
+                            <span>{item.items.length} {item.items.length === 1 ? 'item' : 'items'}</span>
+                          </button>
+                        )}
                       </td>
                       <td className="py-3 text-slate-300 whitespace-nowrap">
                         <span className="px-2 py-0.5 rounded bg-slate-800 text-[11px] text-slate-300">
@@ -469,6 +484,16 @@ export const DailySalesPurchasePage: React.FC = () => {
                       </td>
                       <td className="py-3 text-right pr-2 whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                          {item.items && Array.isArray(item.items) && item.items.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedViewItem(item)}
+                              className="p-1 text-slate-400 hover:text-cyan-400 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                              title="View line items"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleEdit(item)}
@@ -562,6 +587,133 @@ export const DailySalesPurchasePage: React.FC = () => {
         date={selection.date}
         periodLabel={resolvedPeriod.label}
       />
+
+      {/* View Line Items Modal */}
+      {selectedViewItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-lime-500/10 text-lime-400 border border-lime-500/20">
+                  <Package className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <span>Line Items Breakdown</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
+                      {selectedViewItem.referenceNo || 'No Ref'}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {selectedViewItem.partyName || (selectedViewItem.type === 'SALES' ? 'Customer' : 'Supplier')} • {formatDate(selectedViewItem.entryDate)}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedViewItem(null)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body: Items Table */}
+            <div className="p-5 overflow-y-auto space-y-4">
+              <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/50">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 font-semibold bg-slate-900/60">
+                      <th className="py-2.5 pl-3 w-8">#</th>
+                      <th className="py-2.5">Item Name / Description</th>
+                      <th className="py-2.5 text-center w-20">Qty</th>
+                      <th className="py-2.5 text-center w-20">Unit</th>
+                      <th className="py-2.5 text-right w-24">Rate (₹)</th>
+                      <th className="py-2.5 text-right pr-3 w-28">Amount (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {selectedViewItem.items && selectedViewItem.items.length > 0 ? (
+                      selectedViewItem.items.map((it: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-slate-800/30">
+                          <td className="py-2.5 pl-3 font-mono text-slate-500">{idx + 1}</td>
+                          <td className="py-2.5 font-medium text-white">{it.name || it.itemName || it.description || '—'}</td>
+                          <td className="py-2.5 text-center font-mono text-slate-300">{it.quantity || it.qty || 1}</td>
+                          <td className="py-2.5 text-center font-mono text-slate-400 uppercase text-[11px]">{it.unit || 'NOS'}</td>
+                          <td className="py-2.5 text-right font-mono text-slate-300">{formatCurrency(it.rate || 0)}</td>
+                          <td className="py-2.5 text-right pr-3 font-mono font-bold text-lime-400">{formatCurrency(it.amount || 0)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="py-6 text-center text-slate-500">
+                          No itemized lines recorded for this entry.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Financial Totals */}
+              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-slate-400 block text-[11px]">Taxable Basic Amount:</span>
+                  <span className="font-mono font-bold text-slate-200 text-sm">
+                    {formatCurrency(selectedViewItem.amount)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[11px]">GST / Tax:</span>
+                  <span className="font-mono font-bold text-amber-400 text-sm">
+                    {formatCurrency(selectedViewItem.taxAmount)}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-slate-400 block text-[11px]">Total Invoice Bill:</span>
+                  <span className="font-mono font-black text-lime-400 text-base">
+                    {formatCurrency(selectedViewItem.totalAmount)}
+                  </span>
+                </div>
+              </div>
+
+              {selectedViewItem.description && (
+                <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 text-xs">
+                  <span className="text-slate-400 block font-semibold mb-1">Remarks &amp; Details:</span>
+                  <p className="text-slate-300 whitespace-pre-line leading-relaxed font-mono text-[11px]">
+                    {selectedViewItem.description}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 border-t border-slate-800 flex items-center justify-between bg-slate-950/60">
+              <button
+                type="button"
+                onClick={() => {
+                  const it = selectedViewItem;
+                  setSelectedViewItem(null);
+                  handleEdit(it);
+                }}
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+                <span>Edit Entry</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedViewItem(null)}
+                className="px-4 py-1.5 rounded-xl text-xs font-bold bg-lime-500 hover:bg-lime-400 text-slate-950 transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

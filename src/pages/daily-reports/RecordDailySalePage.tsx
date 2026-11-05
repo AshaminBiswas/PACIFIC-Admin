@@ -20,15 +20,35 @@ import {
   ChevronRight,
   Info,
   Clock,
+  Plus,
+  Trash2,
+  Package,
 } from 'lucide-react';
 import { crmApi, vendorsApi } from '../../api';
 import { dailySalesPurchasesApi } from '../../api/dailySalesPurchasesApi';
-import { CreateDailySalesPurchasePayload } from '../../types/admin';
+import { CreateDailySalesPurchasePayload, DailySalesPurchaseLineItem } from '../../types/admin';
 import { formatCurrency } from '../../utils/formatters';
 
 interface RecordDailySalePageProps {
   initialType?: 'SALES' | 'PURCHASE';
 }
+
+const COMMON_UNITS = [
+  'NOS',
+  'PIC',
+  'SQFT',
+  'SET',
+  'SHEET',
+  'BOX',
+  'KG',
+  'MTR',
+  'PAIR',
+  'PKT',
+  'BUNDLE',
+  'RFT',
+  'MM',
+  'INCH',
+];
 
 const CATEGORIES = [
   'Restroom Cubicles',
@@ -80,6 +100,75 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
   const [useCustomParty, setUseCustomParty] = useState<boolean>(false);
   const [partySearchTerm, setPartySearchTerm] = useState<string>('');
   const [isLoadingParties, setIsLoadingParties] = useState<boolean>(true);
+
+  // Line Items Breakdown
+  const [lineItems, setLineItems] = useState<
+    Array<{
+      name: string;
+      quantity: number | string;
+      unit: string;
+      rate: number | string;
+      amount: number | string;
+    }>
+  >([{ name: '', quantity: 1, unit: 'NOS', rate: '', amount: '' }]);
+  const [autoSyncBasic, setAutoSyncBasic] = useState<boolean>(true);
+
+  // Line items sum
+  const itemsSum = useMemo(() => {
+    return Math.round(
+      lineItems.reduce((acc, it) => acc + (parseFloat(String(it.amount)) || 0), 0) * 100
+    ) / 100;
+  }, [lineItems]);
+
+  const handleItemChange = (index: number, field: string, value: any) => {
+    setLineItems((prev) => {
+      const updated = [...prev];
+      const item = { ...updated[index], [field]: value };
+
+      if (field === 'quantity' || field === 'rate') {
+        const q = parseFloat(String(field === 'quantity' ? value : item.quantity)) || 0;
+        const r = parseFloat(String(field === 'rate' ? value : item.rate)) || 0;
+        item.amount = q > 0 && r > 0 ? (Math.round(q * r * 100) / 100).toString() : item.amount;
+      }
+
+      updated[index] = item;
+
+      if (autoSyncBasic) {
+        const sum = Math.round(
+          updated.reduce((acc, it) => acc + (parseFloat(String(it.amount)) || 0), 0) * 100
+        ) / 100;
+        if (sum > 0) {
+          setTotalBasicAmount(sum.toString());
+          if (validationErrors.totalBasicAmount) {
+            setValidationErrors((errs) => ({ ...errs, totalBasicAmount: '' }));
+          }
+        }
+      }
+
+      return updated;
+    });
+  };
+
+  const handleAddItem = () => {
+    setLineItems((prev) => [
+      ...prev,
+      { name: '', quantity: 1, unit: 'NOS', rate: '', amount: '' },
+    ]);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setLineItems((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      const remaining = updated.length > 0 ? updated : [{ name: '', quantity: 1, unit: 'NOS', rate: '', amount: '' }];
+      if (autoSyncBasic) {
+        const sum = Math.round(
+          remaining.reduce((acc, it) => acc + (parseFloat(String(it.amount)) || 0), 0) * 100
+        ) / 100;
+        setTotalBasicAmount(sum > 0 ? sum.toString() : '');
+      }
+      return remaining;
+    });
+  };
 
   // Financials & Core Math
   const [totalBasicAmount, setTotalBasicAmount] = useState<string>('');
@@ -370,6 +459,22 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
         resolvedPaymentMode = 'CASH';
       }
 
+      // Filter and sanitize line items
+      const validItems: DailySalesPurchaseLineItem[] = lineItems
+        .filter((it) => it.name.trim() || Number(it.rate) > 0 || Number(it.amount) > 0)
+        .map((it) => {
+          const qty = Math.max(0, Number(it.quantity) || 1);
+          const rate = Math.max(0, Number(it.rate) || 0);
+          const amt = Number(it.amount) || Math.round(qty * rate * 100) / 100;
+          return {
+            name: it.name.trim() || 'Item',
+            quantity: qty,
+            unit: (it.unit || 'NOS').trim().toUpperCase(),
+            rate,
+            amount: amt,
+          };
+        });
+
       const payload: CreateDailySalesPurchasePayload = {
         entryDate,
         type: entryType,
@@ -383,6 +488,7 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
         vendorId: resolvedVendId,
         category,
         description: fullDescription,
+        items: validItems.length > 0 ? validItems : undefined,
         paymentMode: resolvedPaymentMode,
         paymentStatus: resolvedPaymentStatus,
       };
@@ -728,7 +834,189 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
               </div>
             </div>
 
-            {/* Card 2: Core Financials & Cash Deduction Engine */}
+            {/* Card 2: Line Items Breakdown */}
+            <div className="bg-[#121226]/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+              <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="p-2 rounded-lg bg-lime-500/10 text-lime-400 border border-lime-500/20">
+                    <Package className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <h2 className="text-sm font-bold text-white tracking-wide uppercase">
+                      Line Items &amp; Material Breakdown
+                    </h2>
+                    <p className="text-[11px] text-slate-400">
+                      Record items, qty, unit, rate, and amount. Subtotal automatically syncs to basic amount.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAddItem}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-lime-500/15 hover:bg-lime-500/25 border border-lime-500/30 text-lime-300 hover:text-white transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Item Row</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Datalist for common units */}
+              <datalist id="common-units-list">
+                {COMMON_UNITS.map((u) => (
+                  <option key={u} value={u} />
+                ))}
+              </datalist>
+
+              {/* Items Table */}
+              <div className="overflow-x-auto -mx-1 sm:mx-0">
+                <table className="w-full text-left text-xs min-w-[580px]">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 font-semibold">
+                      <th className="pb-2 pl-2 w-8">#</th>
+                      <th className="pb-2">Item Name / Description <span className="text-rose-400">*</span></th>
+                      <th className="pb-2 w-20">Qty</th>
+                      <th className="pb-2 w-24">Unit</th>
+                      <th className="pb-2 w-28">Rate (₹)</th>
+                      <th className="pb-2 w-32 text-right">Amount (₹)</th>
+                      <th className="pb-2 w-10 text-center"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {lineItems.map((item, idx) => (
+                      <tr key={idx} className="group hover:bg-white/[0.02]">
+                        <td className="py-2 pl-2 text-slate-500 font-mono text-[11px]">{idx + 1}</td>
+                        <td className="py-2 pr-2">
+                          <input
+                            type="text"
+                            placeholder={entryType === 'SALES' ? 'e.g. SHOE BOX COVER 18mm / TOP RAIL' : 'e.g. Compact Laminate Sheet 12mm'}
+                            value={item.name}
+                            onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
+                            className="w-full bg-[#030213] border border-slate-700/70 focus:border-lime-500 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none transition"
+                          />
+                        </td>
+                        <td className="py-2 pr-2">
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            placeholder="1"
+                            value={item.quantity}
+                            onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
+                            className="w-full bg-[#030213] border border-slate-700/70 focus:border-lime-500 rounded-lg px-2 py-1.5 text-xs text-white font-mono focus:outline-none transition"
+                          />
+                        </td>
+                        <td className="py-2 pr-2">
+                          <input
+                            type="text"
+                            list="common-units-list"
+                            placeholder="NOS"
+                            value={item.unit}
+                            onChange={(e) => handleItemChange(idx, 'unit', e.target.value.toUpperCase())}
+                            className="w-full bg-[#030213] border border-slate-700/70 focus:border-lime-500 rounded-lg px-2 py-1.5 text-xs text-white font-mono uppercase focus:outline-none transition"
+                          />
+                        </td>
+                        <td className="py-2 pr-2">
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-mono">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={item.rate}
+                              onChange={(e) => handleItemChange(idx, 'rate', e.target.value)}
+                              className="w-full bg-[#030213] border border-slate-700/70 focus:border-lime-500 rounded-lg pl-5 pr-2 py-1.5 text-xs text-white font-mono focus:outline-none transition"
+                            />
+                          </div>
+                        </td>
+                        <td className="py-2 pr-2 text-right">
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-mono">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={item.amount}
+                              onChange={(e) => handleItemChange(idx, 'amount', e.target.value)}
+                              className="w-full bg-[#030213] border border-slate-700/70 focus:border-lime-500 rounded-lg pl-5 pr-2 py-1.5 text-xs text-lime-400 font-mono font-bold text-right focus:outline-none transition"
+                            />
+                          </div>
+                        </td>
+                        <td className="py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(idx)}
+                            disabled={lineItems.length === 1 && !lineItems[0].name && !lineItems[0].rate}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition disabled:opacity-30 cursor-pointer"
+                            title="Remove item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Items Bottom Controls */}
+              <div className="pt-2 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/40 p-3 rounded-xl border border-slate-800">
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleAddItem}
+                    className="text-xs font-semibold text-lime-400 hover:text-lime-300 transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Add Another Line</span>
+                  </button>
+
+                  {itemsSum > 0 && (
+                    <label className="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={autoSyncBasic}
+                        onChange={(e) => {
+                          setAutoSyncBasic(e.target.checked);
+                          if (e.target.checked && itemsSum > 0) {
+                            setTotalBasicAmount(itemsSum.toString());
+                          }
+                        }}
+                        className="w-3.5 h-3.5 rounded text-lime-500 bg-slate-900 border-slate-700 cursor-pointer"
+                      />
+                      <span>Auto-sync with Basic Amount</span>
+                    </label>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400">Items Subtotal:</span>
+                  <span className="text-sm font-mono font-black text-lime-400">
+                    {formatCurrency(itemsSum)}
+                  </span>
+                  {itemsSum > 0 && totalBasicAmount !== itemsSum.toString() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTotalBasicAmount(itemsSum.toString());
+                        setAutoSyncBasic(true);
+                        if (validationErrors.totalBasicAmount) {
+                          setValidationErrors((errs) => ({ ...errs, totalBasicAmount: '' }));
+                        }
+                      }}
+                      className="ml-2 px-2 py-0.5 rounded text-[10px] font-bold bg-lime-500/20 text-lime-300 border border-lime-500/40 hover:bg-lime-500/30 transition cursor-pointer"
+                    >
+                      Sync Now
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: Core Financials & Cash Deduction Engine */}
             <div className="bg-[#121226]/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5">
               <div className="flex items-center justify-between border-b border-white/5 pb-3">
                 <div className="flex items-center gap-2">
@@ -761,6 +1049,7 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
                     value={totalBasicAmount}
                     onChange={(e) => {
                       setTotalBasicAmount(e.target.value);
+                      setAutoSyncBasic(false);
                       if (validationErrors.totalBasicAmount) {
                         setValidationErrors((prev) => ({ ...prev, totalBasicAmount: '' }));
                       }
@@ -777,6 +1066,26 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
                   <span className="text-[11px] text-rose-400 mt-1 block font-medium">
                     {validationErrors.totalBasicAmount}
                   </span>
+                ) : itemsSum > 0 ? (
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+                    <span>
+                      {totalBasicAmount === itemsSum.toString()
+                        ? '✓ Auto-synced with Line Items breakdown subtotal.'
+                        : `Line items subtotal is ₹${itemsSum.toLocaleString('en-IN')}.`}
+                    </span>
+                    {totalBasicAmount !== itemsSum.toString() && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTotalBasicAmount(itemsSum.toString());
+                          setAutoSyncBasic(true);
+                        }}
+                        className="text-lime-400 hover:underline cursor-pointer font-semibold"
+                      >
+                        Match Items Total
+                      </button>
+                    )}
+                  </div>
                 ) : (
                   <span className="text-[10px] text-slate-400 mt-1 block">
                     Full taxable base value prior to any cash settlement deduction.
@@ -1106,6 +1415,18 @@ export const RecordDailySalePage: React.FC<RecordDailySalePageProps> = ({ initia
 
               {/* Detailed Math Steps */}
               <div className="space-y-2.5 text-xs">
+                {itemsSum > 0 && (
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-lime-500/10 border border-lime-500/20 text-lime-300">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Package className="w-3.5 h-3.5 text-lime-400" />
+                      <span>Items Breakdown Subtotal</span>
+                    </span>
+                    <span className="font-mono font-bold">
+                      {formatCurrency(itemsSum)}
+                    </span>
+                  </div>
+                )}
+
                 {/* 1. Total Basic Amount */}
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#030213]/80 border border-white/5">
                   <span className="text-slate-300 font-medium">1. Total Basic Amount</span>

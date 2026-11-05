@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   PlusCircle,
@@ -13,12 +13,16 @@ import {
   AlertCircle,
   Loader2,
   Briefcase,
+  Plus,
+  Trash2,
+  Package,
 } from 'lucide-react';
 import { crmApi, vendorsApi } from '../../api';
 import { dailySalesPurchasesApi } from '../../api/dailySalesPurchasesApi';
 import {
   DailySalesPurchaseItem,
   CreateDailySalesPurchasePayload,
+  DailySalesPurchaseLineItem,
   BusinessParty,
 } from '../../types/admin';
 
@@ -53,6 +57,23 @@ const PAYMENT_STATUSES = [
   { value: 'PAID', label: 'Paid / Received' },
   { value: 'PARTIAL', label: 'Partially Paid' },
   { value: 'UNPAID', label: 'Unpaid / Outstanding' },
+];
+
+const COMMON_UNITS = [
+  'NOS',
+  'PIC',
+  'SQFT',
+  'SET',
+  'SHEET',
+  'BOX',
+  'KG',
+  'MTR',
+  'PAIR',
+  'PKT',
+  'BUNDLE',
+  'RFT',
+  'MM',
+  'INCH',
 ];
 
 export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseModalProps> = ({
@@ -97,6 +118,68 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Line items state
+  const [lineItems, setLineItems] = useState<
+    Array<{
+      name: string;
+      quantity: number | string;
+      unit: string;
+      rate: number | string;
+      amount: number | string;
+    }>
+  >([]);
+  const [showLineItems, setShowLineItems] = useState<boolean>(false);
+
+  const itemsSum = useMemo(() => {
+    return Math.round(
+      lineItems.reduce((acc, it) => acc + (parseFloat(String(it.amount)) || 0), 0) * 100
+    ) / 100;
+  }, [lineItems]);
+
+  const handleItemChange = (index: number, field: string, value: any) => {
+    setLineItems((prev) => {
+      const updated = [...prev];
+      const item = { ...updated[index], [field]: value };
+
+      if (field === 'quantity' || field === 'rate') {
+        const q = parseFloat(String(field === 'quantity' ? value : item.quantity)) || 0;
+        const r = parseFloat(String(field === 'rate' ? value : item.rate)) || 0;
+        item.amount = q > 0 && r > 0 ? (Math.round(q * r * 100) / 100).toString() : item.amount;
+      }
+
+      updated[index] = item;
+
+      const sum = Math.round(
+        updated.reduce((acc, it) => acc + (parseFloat(String(it.amount)) || 0), 0) * 100
+      ) / 100;
+      if (sum > 0) {
+        setAmount(sum.toString());
+      }
+
+      return updated;
+    });
+  };
+
+  const handleAddItem = () => {
+    setLineItems((prev) => [
+      ...prev,
+      { name: '', quantity: 1, unit: 'NOS', rate: '', amount: '' },
+    ]);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setLineItems((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      const sum = Math.round(
+        updated.reduce((acc, it) => acc + (parseFloat(String(it.amount)) || 0), 0) * 100
+      ) / 100;
+      if (sum > 0) {
+        setAmount(sum.toString());
+      }
+      return updated;
+    });
+  };
+
   // Load Customers & Vendors
   useEffect(() => {
     if (!isOpen) return;
@@ -139,6 +222,21 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
       setSelectedCustomerId(editItem.customerId || '');
       setSelectedVendorId(editItem.vendorId || '');
       setCustomPartyName(editItem.partyName || '');
+      if (editItem.items && Array.isArray(editItem.items) && editItem.items.length > 0) {
+        setLineItems(
+          editItem.items.map((it: any) => ({
+            name: it.name || it.itemName || it.description || '',
+            quantity: it.quantity || it.qty || 1,
+            unit: it.unit || 'NOS',
+            rate: it.rate || '',
+            amount: it.amount || '',
+          }))
+        );
+        setShowLineItems(true);
+      } else {
+        setLineItems([]);
+        setShowLineItems(false);
+      }
     } else {
       setType(initialType);
       setEntryDate(initialDate || new Date().toISOString().slice(0, 10));
@@ -152,6 +250,8 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
       setSelectedCustomerId('');
       setSelectedVendorId('');
       setCustomPartyName('');
+      setLineItems([]);
+      setShowLineItems(false);
     }
     setErrorMessage(null);
   }, [editItem, initialType, initialDate, isOpen]);
@@ -256,6 +356,21 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
         resolvedMode = 'CASH';
       }
 
+      const validItems: DailySalesPurchaseLineItem[] = lineItems
+        .filter((it) => it.name.trim() || Number(it.rate) > 0 || Number(it.amount) > 0)
+        .map((it) => {
+          const qty = Math.max(0, Number(it.quantity) || 1);
+          const rate = Math.max(0, Number(it.rate) || 0);
+          const amt = Number(it.amount) || Math.round(qty * rate * 100) / 100;
+          return {
+            name: it.name.trim() || 'Item',
+            quantity: qty,
+            unit: (it.unit || 'NOS').trim().toUpperCase(),
+            rate,
+            amount: amt,
+          };
+        });
+
       const payload: CreateDailySalesPurchasePayload = {
         entryDate,
         type,
@@ -268,6 +383,7 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
         vendorId: type === 'PURCHASE' ? resolvedVendId : undefined,
         category,
         description: notes.length > 0 ? notes.join('\n') : undefined,
+        items: validItems.length > 0 ? validItems : (editItem ? [] : undefined),
         paymentMode: resolvedMode,
         paymentStatus: resolvedStatus,
       };
@@ -510,6 +626,136 @@ export const AddEditDailySalesPurchaseModal: React.FC<AddEditDailySalesPurchaseM
               />
             </div>
           )}
+
+          {/* Datalist for common units */}
+          <datalist id="modal-common-units">
+            {COMMON_UNITS.map((u) => (
+              <option key={u} value={u} />
+            ))}
+          </datalist>
+
+          {/* Line Items Breakdown Section */}
+          <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Package className="w-4 h-4 text-lime-400" />
+                <span className="text-xs font-bold text-slate-200">
+                  Itemized Material Breakdown
+                </span>
+                {lineItems.length > 0 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-lime-500/20 text-lime-300 border border-lime-500/30">
+                    {lineItems.length} {lineItems.length === 1 ? 'item' : 'items'}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!showLineItems && lineItems.length === 0) {
+                    setLineItems([{ name: '', quantity: 1, unit: 'NOS', rate: '', amount: '' }]);
+                  }
+                  setShowLineItems(!showLineItems);
+                }}
+                className="text-[11px] font-bold text-lime-400 hover:text-lime-300 transition cursor-pointer underline underline-offset-2"
+              >
+                {showLineItems ? 'Hide Items Table' : '+ Record Specific Items'}
+              </button>
+            </div>
+
+            {showLineItems && (
+              <div className="space-y-2 pt-2 border-t border-slate-800/80 animate-fade-in">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs min-w-[500px]">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-slate-400 font-semibold text-[11px]">
+                        <th className="pb-1.5 pl-1">Item / Description</th>
+                        <th className="pb-1.5 w-16">Qty</th>
+                        <th className="pb-1.5 w-20">Unit</th>
+                        <th className="pb-1.5 w-24">Rate (₹)</th>
+                        <th className="pb-1.5 w-24 text-right">Amount (₹)</th>
+                        <th className="pb-1.5 w-8"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/50">
+                      {lineItems.map((item, idx) => (
+                        <tr key={idx} className="group">
+                          <td className="py-1.5 pr-1.5">
+                            <input
+                              type="text"
+                              placeholder="e.g. Compact Laminate / Top Rail"
+                              value={item.name}
+                              onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/80 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-500"
+                            />
+                          </td>
+                          <td className="py-1.5 pr-1.5">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              placeholder="1"
+                              value={item.quantity}
+                              onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/80 rounded px-2 py-1 text-xs text-white font-mono focus:outline-none focus:border-lime-500"
+                            />
+                          </td>
+                          <td className="py-1.5 pr-1.5">
+                            <input
+                              type="text"
+                              list="modal-common-units"
+                              placeholder="NOS"
+                              value={item.unit}
+                              onChange={(e) => handleItemChange(idx, 'unit', e.target.value.toUpperCase())}
+                              className="w-full bg-slate-900 border border-slate-700/80 rounded px-2 py-1 text-xs text-white font-mono uppercase focus:outline-none focus:border-lime-500"
+                            />
+                          </td>
+                          <td className="py-1.5 pr-1.5">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={item.rate}
+                              onChange={(e) => handleItemChange(idx, 'rate', e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/80 rounded px-2 py-1 text-xs text-white font-mono focus:outline-none focus:border-lime-500"
+                            />
+                          </td>
+                          <td className="py-1.5 pr-1.5 text-right font-mono text-xs font-bold text-lime-400">
+                            ₹{Number(item.amount || 0).toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-1.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(idx)}
+                              className="p-1 text-slate-500 hover:text-rose-400 rounded cursor-pointer"
+                              title="Remove item"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex items-center justify-between pt-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={handleAddItem}
+                    className="text-xs font-semibold text-lime-400 hover:text-lime-300 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Add Another Line</span>
+                  </button>
+
+                  <span className="text-slate-400 text-[11px]">
+                    Subtotal: <span className="font-mono font-bold text-lime-400">₹{itemsSum.toLocaleString('en-IN')}</span> (auto-syncs to Basic Amount)
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Category & Amount Fields */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

@@ -4039,6 +4039,15 @@ export interface AsyncReportJob {
   completedAt?: string;
 }
 
+export interface DailySalesPurchaseLineItem {
+  id?: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  rate: number;
+  amount: number;
+}
+
 export interface DailySalesPurchaseItem {
   id: string;
   entryDate: string;
@@ -4074,6 +4083,7 @@ export interface DailySalesPurchaseItem {
   } | null;
   category?: string | null;
   description?: string | null;
+  items?: DailySalesPurchaseLineItem[] | null;
   paymentMode: string;
   paymentStatus: string;
   companyProfileId?: string | null;
@@ -4094,6 +4104,7 @@ export interface CreateDailySalesPurchasePayload {
   vendorId?: string;
   category?: string;
   description?: string;
+  items?: DailySalesPurchaseLineItem[];
   paymentMode?: string;
   paymentStatus?: string;
   companyProfileId?: string;
