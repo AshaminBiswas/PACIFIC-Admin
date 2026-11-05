@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Save, RotateCcw, CheckCircle2, Plus, Trash2, Building2, MapPin, Receipt, ShieldCheck, Wrench } from 'lucide-react';
+import { ArrowLeft, Save, RotateCcw, CheckCircle2, Plus, Trash2, Building2, MapPin, Receipt, ShieldCheck, Wrench, Truck } from 'lucide-react';
 import { invoicesApi, crmApi, salesOrdersApi } from '../api/services';
 import { companiesApi } from '../api/companyApi';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
@@ -34,6 +34,7 @@ interface InvoiceFormData {
   grLrNumber: string;
   placeOfSupply: string;
   reverseCharge: boolean;
+  freightTerms: 'Extra as Actual / To pay' | 'Customer Scope' | 'Included in Price' | 'Fixed Amount';
   freightAmount: number;
   items: InvoiceItemRow[];
 }
@@ -51,6 +52,7 @@ const INITIAL_FORM_DATA: InvoiceFormData = {
   grLrNumber: '',
   placeOfSupply: 'West Bengal',
   reverseCharge: false,
+  freightTerms: 'Extra as Actual / To pay',
   freightAmount: 0,
   items: [
     {
@@ -297,6 +299,14 @@ export default function CreateInvoicePage() {
     [formData.items]
   );
 
+  const effectiveFreightAmount = useMemo(() => {
+    return formData.freightTerms === 'Fixed Amount' ? (Number(formData.freightAmount) || 0) : 0;
+  }, [formData.freightTerms, formData.freightAmount]);
+
+  const totalTaxable = useMemo(() => {
+    return subtotal + effectiveFreightAmount;
+  }, [subtotal, effectiveFreightAmount]);
+
   const selectedCompany = useMemo(
     () => companies.find((c) => c.id === formData.companyProfileId) || companies[0],
     [companies, formData.companyProfileId]
@@ -311,7 +321,7 @@ export default function CreateInvoicePage() {
       : '';
 
     return calculateGstSplit(
-      subtotal,
+      totalTaxable,
       billingAddr?.stateCode || deliveryAddr?.stateCode,
       billingAddr?.state || deliveryAddr?.state,
       false,
@@ -320,7 +330,7 @@ export default function CreateInvoicePage() {
       addressStr,
       sellerStateCode
     );
-  }, [subtotal, billingAddr, deliveryAddr, selectedCustomer, sellerStateCode]);
+  }, [totalTaxable, billingAddr, deliveryAddr, selectedCustomer, sellerStateCode]);
 
   const handleSubmit = async () => {
     try {
@@ -349,6 +359,12 @@ export default function CreateInvoicePage() {
         dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
         issueDate: formData.invoiceDate ? new Date(formData.invoiceDate).toISOString() : new Date().toISOString(),
         status: 'DRAFT',
+        vehicleNumber: formData.vehicleNumber || '',
+        modeOfTransport: formData.modeOfTransport || 'By Road',
+        grLrNumber: formData.grLrNumber || '',
+        placeOfSupply: formData.placeOfSupply || billToState,
+        freightTerms: formData.freightTerms,
+        freightAmount: effectiveFreightAmount,
         items: formData.items.map((it) => ({
           ...it,
           unit: it.unit || "No's",
@@ -379,7 +395,6 @@ export default function CreateInvoicePage() {
           placeOfSupplyStateCode: billToCode,
           reverseCharge: formData.reverseCharge,
         },
-        freightAmount: Number(formData.freightAmount || 0),
       };
 
       const res = await invoicesApi.create(payload);
@@ -761,6 +776,55 @@ export default function CreateInvoicePage() {
           </div>
         </div>
 
+        {/* Freight Terms & Charges Block */}
+        <div className="bg-[#0a0a1a] border border-white/10 rounded-xl p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+                <Truck className="w-4 h-4 text-[#7FB706]" />
+                Freight / Transportation Terms
+              </span>
+              <p className="text-[11px] text-gray-500">
+                Specify commercial freight terms (e.g. Extra as Actual, Customer Scope, Included in Price, or Fixed ₹).
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <select
+                value={formData.freightTerms}
+                onChange={(e) => {
+                  const val = e.target.value as any;
+                  setFormData((prev) => ({
+                    ...prev,
+                    freightTerms: val,
+                    freightAmount: val === 'Fixed Amount' ? prev.freightAmount : 0,
+                  }));
+                }}
+                className="bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#7FB706] min-h-[42px]"
+              >
+                <option value="Extra as Actual / To pay">Extra as Actual / To pay</option>
+                <option value="Customer Scope">Customer Scope</option>
+                <option value="Included in Price">Included in Price</option>
+                <option value="Fixed Amount">Fixed Amount (Specify ₹)</option>
+              </select>
+
+              {formData.freightTerms === 'Fixed Amount' && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 font-semibold">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.freightAmount || ''}
+                    onChange={(e) => setFormData({ ...formData, freightAmount: Number(e.target.value) || 0 })}
+                    placeholder="Freight ₹"
+                    className="w-32 bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-[#7FB706] min-h-[42px]"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Section 4: Delhi 07 GST Breakdown Dock */}
         <div className="bg-[#0a0a1a] border border-white/10 rounded-xl p-4 sm:p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -791,9 +855,28 @@ export default function CreateInvoicePage() {
 
             <div className="w-full sm:w-72 space-y-2 text-right">
               <div className="flex justify-between text-xs text-gray-400">
-                <span>Taxable Subtotal:</span>
+                <span>Items Subtotal:</span>
                 <span className="font-mono text-white">
                   ₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              {formData.freightTerms === 'Fixed Amount' && effectiveFreightAmount > 0 ? (
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>Add : Freight Charges:</span>
+                  <span className="font-mono text-white">
+                    ₹{effectiveFreightAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>Freight Terms:</span>
+                  <span className="text-gray-300 font-medium text-[11px]">{formData.freightTerms}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-xs font-semibold text-gray-300 pt-1 border-t border-white/5">
+                <span>Total Taxable Amount:</span>
+                <span className="font-mono text-white">
+                  ₹{totalTaxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </span>
               </div>
               {gstBreakdown.isDelhi ? (

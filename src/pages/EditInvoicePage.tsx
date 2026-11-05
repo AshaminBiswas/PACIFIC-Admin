@@ -60,6 +60,7 @@ export default function EditInvoicePage() {
 
   // Items
   const [items, setItems] = useState<InvoiceItemRow[]>([]);
+  const [freightTerms, setFreightTerms] = useState<string>('Extra as Actual / To pay');
   const [freightAmount, setFreightAmount] = useState<number>(0);
   const [roundingAdjustment, setRoundingAdjustment] = useState<number>(0);
 
@@ -138,6 +139,7 @@ export default function EditInvoicePage() {
       }
 
       setFreightAmount(Number(inv.freightAmount || 0));
+      setFreightTerms(inv.freightTerms || (Number(inv.freightAmount || 0) > 0 ? 'Fixed Amount' : 'Extra as Actual / To pay'));
       setRoundingAdjustment(Number(inv.roundingAdjustment || 0));
     } catch (err: any) {
       console.error('Failed to load invoice for editing:', err);
@@ -191,9 +193,13 @@ export default function EditInvoicePage() {
     return items.reduce((sum, it) => sum + (Number(it.amount) || 0), 0);
   }, [items]);
 
+  const effectiveFreightAmount = useMemo(() => {
+    return freightTerms === 'Fixed Amount' ? (Number(freightAmount) || 0) : 0;
+  }, [freightTerms, freightAmount]);
+
   const totalTaxable = useMemo(() => {
-    return subtotal + (Number(freightAmount) || 0);
-  }, [subtotal, freightAmount]);
+    return subtotal + effectiveFreightAmount;
+  }, [subtotal, effectiveFreightAmount]);
 
   const taxAmount = useMemo(() => {
     return Math.round((totalTaxable * 0.18) * 100) / 100;
@@ -226,8 +232,13 @@ export default function EditInvoicePage() {
         billTo,
         shipTo,
         transport,
+        vehicleNumber: transport.vehicleNumber,
+        modeOfTransport: transport.modeOfTransport,
+        grLrNumber: transport.grLrNumber,
+        placeOfSupply: transport.placeOfSupply,
+        freightTerms,
         items,
-        freightAmount: Number(freightAmount || 0),
+        freightAmount: effectiveFreightAmount,
         roundingAdjustment: Math.round((grandTotal - (totalTaxable + taxAmount)) * 100) / 100,
         subtotal,
         taxAmount,
@@ -658,17 +669,35 @@ export default function EditInvoicePage() {
             <div className="w-full sm:w-1/2 space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-gray-400 mb-1">
-                  Add: Freight Charges (₹)
+                  Freight Terms & Charges
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={freightAmount}
-                  onChange={(e) => setFreightAmount(Number(e.target.value) || 0)}
-                  placeholder="0.00"
-                  className="w-full sm:w-48 bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-[#7FB706]"
-                />
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                  <select
+                    value={freightTerms}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFreightTerms(val);
+                      if (val !== 'Fixed Amount') setFreightAmount(0);
+                    }}
+                    className="bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-[#7FB706]"
+                  >
+                    <option value="Extra as Actual / To pay">Extra as Actual / To pay</option>
+                    <option value="Customer Scope">Customer Scope</option>
+                    <option value="Included in Price">Included in Price</option>
+                    <option value="Fixed Amount">Fixed Amount (Specify ₹)</option>
+                  </select>
+                  {freightTerms === 'Fixed Amount' && (
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={freightAmount || ''}
+                      onChange={(e) => setFreightAmount(Number(e.target.value) || 0)}
+                      placeholder="Freight ₹"
+                      className="w-32 bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-[#7FB706]"
+                    />
+                  )}
+                </div>
               </div>
 
               <div>
@@ -691,12 +720,21 @@ export default function EditInvoicePage() {
                 <span>Subtotal (Items):</span>
                 <span className="font-mono text-white">₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
-              {freightAmount > 0 && (
+              {freightTerms === 'Fixed Amount' && effectiveFreightAmount > 0 ? (
                 <div className="flex justify-between py-1 text-gray-400">
                   <span>Add: Freight:</span>
-                  <span className="font-mono text-white">₹{freightAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  <span className="font-mono text-white">₹{effectiveFreightAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+              ) : (
+                <div className="flex justify-between py-1 text-gray-400">
+                  <span>Freight:</span>
+                  <span className="text-gray-300 font-medium text-[11px]">{freightTerms}</span>
                 </div>
               )}
+              <div className="flex justify-between py-1 text-gray-400">
+                <span>Total Taxable:</span>
+                <span className="font-mono text-white">₹{totalTaxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
               <div className="flex justify-between py-1 text-gray-400">
                 <span>Add: GST (18%):</span>
                 <span className="font-mono text-white">₹{taxAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>

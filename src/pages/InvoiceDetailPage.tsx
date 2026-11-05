@@ -51,6 +51,53 @@ export default function InvoiceDetailPage() {
   const [selectedStatus, setSelectedStatus] = useState<InvoiceStatus>('DRAFT');
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
+  // Quick Transport Edit Modal State
+  const [showTransportModal, setShowTransportModal] = useState(false);
+  const [savingTransport, setSavingTransport] = useState(false);
+  const [transportForm, setTransportForm] = useState({
+    vehicleNumber: '',
+    modeOfTransport: 'By Road',
+    grLrNumber: '',
+    placeOfSupply: '',
+  });
+
+  const handleOpenTransportModal = () => {
+    const tr = (invoice as any)?.transport || {};
+    setTransportForm({
+      vehicleNumber: tr.vehicleNumber || '',
+      modeOfTransport: tr.modeOfTransport || 'By Road',
+      grLrNumber: tr.grLrNumber || '',
+      placeOfSupply: tr.placeOfSupply || (invoice as any)?.billTo?.state || 'West Bengal',
+    });
+    setShowTransportModal(true);
+  };
+
+  const handleSaveTransport = async () => {
+    if (!id) return;
+    setSavingTransport(true);
+    try {
+      await invoicesApi.update(id, {
+        transport: {
+          ...((invoice as any)?.transport || {}),
+          vehicleNumber: transportForm.vehicleNumber.trim(),
+          modeOfTransport: transportForm.modeOfTransport.trim(),
+          grLrNumber: transportForm.grLrNumber.trim(),
+          placeOfSupply: transportForm.placeOfSupply.trim(),
+        },
+        vehicleNumber: transportForm.vehicleNumber.trim(),
+        modeOfTransport: transportForm.modeOfTransport.trim(),
+        grLrNumber: transportForm.grLrNumber.trim(),
+        placeOfSupply: transportForm.placeOfSupply.trim(),
+      });
+      setShowTransportModal(false);
+      await fetchInvoice();
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || 'Failed to update transport details');
+    } finally {
+      setSavingTransport(false);
+    }
+  };
+
   const fetchInvoice = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -459,9 +506,17 @@ export default function InvoiceDetailPage() {
 
         {/* Dispatch & Transport Details */}
         <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-400 border-b border-white/5 pb-2">
-            <MapPin className="w-4 h-4 text-purple-400" />
-            <span>Dispatch &amp; Transport</span>
+          <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-gray-400 border-b border-white/5 pb-2">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-purple-400" />
+              <span>Dispatch &amp; Transport</span>
+            </div>
+            <button
+              onClick={handleOpenTransportModal}
+              className="text-[11px] text-[#7FB706] hover:text-[#90cf08] hover:underline font-semibold flex items-center gap-1 cursor-pointer transition lowercase tracking-normal"
+            >
+              <Edit className="w-3 h-3" /> Edit
+            </button>
           </div>
           <div className="space-y-2 text-xs">
             <div className="flex items-center justify-between">
@@ -560,12 +615,17 @@ export default function InvoiceDetailPage() {
                 <span>Subtotal (Basic Value):</span>
                 <span className="font-mono text-white">₹{Number(invoice.subtotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
-              {Number(invoice.freightAmount || 0) > 0 && (
+              {Number(invoice.freightAmount || 0) > 0 ? (
                 <div className="flex justify-between py-1 border-b border-white/5 text-gray-400">
                   <span>Add : Freight Charges:</span>
                   <span className="font-mono text-white">₹{Number(invoice.freightAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                 </div>
-              )}
+              ) : (invoice as any).freightTerms ? (
+                <div className="flex justify-between py-1 border-b border-white/5 text-gray-400">
+                  <span>Freight Terms:</span>
+                  <span className="text-gray-300 text-xs font-semibold">{(invoice as any).freightTerms}</span>
+                </div>
+              ) : null}
               <div className="flex justify-between py-1 border-b border-white/5 text-gray-400">
                 <span>GST Tax Amount (18%):</span>
                 <span className="font-mono text-white">₹{Number(invoice.taxAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
@@ -822,6 +882,90 @@ export default function InvoiceDetailPage() {
                   className="px-5 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-white rounded-xl text-xs font-semibold disabled:opacity-50"
                 >
                   {updatingStatus ? 'Updating...' : 'Update Status'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Transport Edit Modal */}
+      {showTransportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-[#181830] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-[#121226]">
+              <div className="flex items-center gap-2">
+                <Truck className="w-5 h-5 text-[#7FB706]" />
+                <h3 className="text-sm font-bold text-white">Update Dispatch & Transport</h3>
+              </div>
+              <button
+                onClick={() => setShowTransportModal(false)}
+                className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="block text-gray-400 font-semibold mb-1">Vehicle Number</label>
+                <input
+                  type="text"
+                  value={transportForm.vehicleNumber}
+                  onChange={(e) => setTransportForm({ ...transportForm, vehicleNumber: e.target.value })}
+                  placeholder="e.g. DL1LAV0507 or WB 25K 4361"
+                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-[#7FB706]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-400 font-semibold mb-1">Mode of Transport</label>
+                <input
+                  type="text"
+                  value={transportForm.modeOfTransport}
+                  onChange={(e) => setTransportForm({ ...transportForm, modeOfTransport: e.target.value })}
+                  placeholder="e.g. By Road"
+                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-[#7FB706]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-400 font-semibold mb-1">GR / LR / RR Number</label>
+                <input
+                  type="text"
+                  value={transportForm.grLrNumber}
+                  onChange={(e) => setTransportForm({ ...transportForm, grLrNumber: e.target.value })}
+                  placeholder="e.g. LR-98432"
+                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-[#7FB706]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-400 font-semibold mb-1">Place of Supply</label>
+                <input
+                  type="text"
+                  value={transportForm.placeOfSupply}
+                  onChange={(e) => setTransportForm({ ...transportForm, placeOfSupply: e.target.value })}
+                  placeholder="e.g. West Bengal or Delhi"
+                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-[#7FB706]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTransportModal(false)}
+                  className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveTransport}
+                  disabled={savingTransport}
+                  className="px-5 py-2 bg-[#7FB706] hover:bg-[#6fa005] text-white rounded-xl text-xs font-semibold disabled:opacity-50"
+                >
+                  {savingTransport ? 'Saving...' : 'Save Transport'}
                 </button>
               </div>
             </div>
