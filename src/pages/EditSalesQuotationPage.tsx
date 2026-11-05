@@ -341,40 +341,49 @@ export default function EditSalesQuotationPage() {
             const isLocker = (specs.systemCategory === 'locker') || (it.systemCategory === 'locker') || (it.description && it.description.toLowerCase().includes('locker'));
             const defaultUnit = isLocker ? '4' : 'NOS';
             const unitVal = it.unit && (isLocker ? (/^\d+$/.test(String(it.unit).trim()) ? String(it.unit).trim() : '4') : it.unit);
+            const isHw = loadedScope === 'HARDWARE' ||
+              specs.systemCategory === 'hardware' ||
+              it.systemCategory === 'hardware' ||
+              it.hsnSac === '8302' ||
+              specs.hsnSac === '8302' ||
+              (['SET', 'PAIR', 'NOS', 'PCS', 'MTR', 'KG', 'PKT', 'LOT'].includes(String(it.unit || '').toUpperCase()) &&
+                (/stopper|channel|rail|hinge|lock|leg|handle|hook|bracket|screw|fastener|fitting/i.test(it.description || '') && !it.description?.toLowerCase().includes('cubicle')));
+
             const detectedCat = specs.systemCategory || it.systemCategory ||
               (isLocker ? 'locker' :
                it.description && (it.description.toLowerCase().includes('urinal') || it.description.toLowerCase().includes('ump')) ? 'ump' :
+               isHw ? 'hardware' :
                loadedScope === 'HARDWARE' ? 'hardware' :
                loadedScope === 'BOARD' ? 'board' :
                loadedScope === 'CUSTOM_ITEM' || it.isCustom || specs.isCustom ? 'custom' : 'cubicle');
 
             return {
               id: it.id,
-              modelId: it.modelId || it.productId || '',
-              customModelName: it.customModelName || it.modelName || specs.customModelName || specs.modelName || '',
-              modelName: it.modelName || specs.modelName || '',
-              modelImageUrl: it.modelImageUrl || specs.modelImageUrl || specs.imageUrl || '',
-              isCustom: Boolean(it.isCustom || specs.isCustom || detectedCat === 'custom' || it.modelId === 'CUSTOM'),
+              modelId: isHw ? '' : (it.modelId || it.productId || ''),
+              customModelName: isHw ? '' : (it.customModelName || it.modelName || specs.customModelName || specs.modelName || ''),
+              modelName: isHw ? '' : (it.modelName || specs.modelName || ''),
+              modelImageUrl: isHw ? '' : (it.modelImageUrl || specs.modelImageUrl || specs.imageUrl || ''),
+              isCustom: Boolean(!isHw && (it.isCustom || specs.isCustom || detectedCat === 'custom' || it.modelId === 'CUSTOM')),
               hsnSac: it.hsnSac || specs.hsnSac || '',
-              width: specs.width || '',
-              depth: specs.depth || '',
-              height: specs.height || '',
-              boardMaterial: specs.boardMaterial || it.boardType || specs.boardType || '',
+              width: isHw ? '' : (specs.width || ''),
+              depth: isHw ? '' : (specs.depth || ''),
+              height: isHw ? '' : (specs.height || ''),
+              boardMaterial: isHw ? '' : (specs.boardMaterial || it.boardType || specs.boardType || ''),
               hardwareType: specs.hardwareType || it.hardwarePackage || specs.hardwarePackage || '',
-              colorFinish: specs.colorFinish || it.boardColor || specs.boardColor || '',
+              colorFinish: isHw ? '' : (specs.colorFinish || it.boardColor || specs.boardColor || ''),
               notes: specs.notes || it.notes || '',
               description: it.description || it.itemDescription || '',
               unit: unitVal || defaultUnit,
               quantity: Number(it.quantity) || 1,
               rate: Number(it.rate ?? it.unitPrice) || 0,
-              boardType: it.boardType || specs.boardType || 'HPL',
-              cubicleSize: it.cubicleSize || (specs.width && specs.depth ? `${specs.width} × ${specs.depth}` : ''),
-              boardColor: it.boardColor || specs.boardColor || specs.colorFinish || '',
-              boardThickness: it.boardThickness || specs.boardThickness || '',
-              doorSize: it.doorSize || specs.doorSize || '',
-              overallHeight: it.overallHeight || specs.overallHeight || '',
+              boardType: isHw ? '' : (it.boardType || specs.boardType || 'HPL'),
+              cubicleSize: isHw ? '' : (it.cubicleSize || (specs.width && specs.depth ? `${specs.width} × ${specs.depth}` : '')),
+              boardColor: isHw ? '' : (it.boardColor || specs.boardColor || specs.colorFinish || ''),
+              boardThickness: isHw ? '' : (it.boardThickness || specs.boardThickness || ''),
+              doorSize: isHw ? '' : (it.doorSize || specs.doorSize || ''),
+              overallHeight: isHw ? '' : (it.overallHeight || specs.overallHeight || ''),
               hardwarePackage: it.hardwarePackage || specs.hardwarePackage || specs.hardwareType || '',
-              make: it.make || specs.make || 'Pacific',
+              make: isHw ? '' : (it.make || specs.make || 'Pacific'),
               systemCategory: detectedCat,
               customSpecsJson: specs,
             };
@@ -400,6 +409,23 @@ export default function EditSalesQuotationPage() {
 
     let hasUpdates = false;
     const updatedItems = form.items.map((it) => {
+      // NEVER match or auto-fill cubicle models on hardware items or in HARDWARE scope
+      if (form.quotationScope === 'HARDWARE' || it.systemCategory === 'hardware') {
+        if (it.modelId || it.customModelName || it.modelName || it.modelImageUrl || it.boardType || it.make) {
+          hasUpdates = true;
+          return {
+            ...it,
+            modelId: '',
+            customModelName: '',
+            modelName: '',
+            modelImageUrl: '',
+            boardType: '',
+            make: '',
+          };
+        }
+        return it;
+      }
+
       const descLower = (it.description || '').toLowerCase();
       const rawName = (it.customModelName || it.modelName || '').trim().toLowerCase();
 
@@ -433,7 +459,7 @@ export default function EditSalesQuotationPage() {
     if (hasUpdates) {
       setForm((prev) => ({ ...prev, items: updatedItems }));
     }
-  }, [catalogModels, form.items]);
+  }, [catalogModels, form.items, form.quotationScope]);
 
   // Auto-save to localStorage
   const autoSave = useCallback(
@@ -1327,24 +1353,26 @@ export default function EditSalesQuotationPage() {
         drawingFileName: form.drawingFileName || undefined,
         drawingFileId: form.drawingFileId || undefined,
         items: form.items.map((it, idx) => {
-          const matchedCatalog = catalogModels.find((m) =>
+          const isHw = currentScope === 'HARDWARE' || it.systemCategory === 'hardware';
+
+          const matchedCatalog = !isHw ? catalogModels.find((m) =>
             (it.modelId && (m.id === it.modelId || m.slug === it.modelId)) ||
             (it.customModelName && (m.title.toLowerCase() === it.customModelName.toLowerCase() || m.title.toLowerCase().includes(it.customModelName.toLowerCase()))) ||
             (it.modelName && (m.title.toLowerCase() === it.modelName.toLowerCase() || m.title.toLowerCase().includes(it.modelName.toLowerCase()))) ||
             (it.description && m.title && it.description.toLowerCase().includes(m.title.toLowerCase()))
-          );
-          const resolvedModelName = it.customModelName || (it.modelId && it.modelId !== 'CUSTOM' ? matchedCatalog?.title : undefined) || it.modelName || matchedCatalog?.title || undefined;
-          const resolvedModelImageUrl = it.modelImageUrl || matchedCatalog?.imageUrl || undefined;
-          const resolvedModelId = it.modelId || matchedCatalog?.id || undefined;
+          ) : undefined;
+          const resolvedModelName = isHw ? undefined : (it.customModelName || (it.modelId && it.modelId !== 'CUSTOM' ? matchedCatalog?.title : undefined) || it.modelName || matchedCatalog?.title || undefined);
+          const resolvedModelImageUrl = isHw ? undefined : (it.modelImageUrl || matchedCatalog?.imageUrl || undefined);
+          const resolvedModelId = isHw ? undefined : (it.modelId || matchedCatalog?.id || undefined);
           let finalDesc = it.description;
-          if ((it.systemCategory === 'custom' || it.modelId === 'CUSTOM' || it.isCustom) && it.customModelName) {
+          if (!isHw && (it.systemCategory === 'custom' || it.modelId === 'CUSTOM' || it.isCustom) && it.customModelName) {
             if (!finalDesc) {
               finalDesc = it.customModelName;
             } else if (!finalDesc.includes(it.customModelName)) {
               finalDesc = `${it.customModelName} - ${finalDesc}`;
             }
           }
-          const isLocker = it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker'));
+          const isLocker = !isHw && (it.systemCategory === 'locker' || (it.description && it.description.toLowerCase().includes('locker')));
           const tierRows = isLocker ? (parseFloat(String(it.unit).replace(/[^0-9.]/g, '')) || 1) : 1;
           const qty = Number(it.quantity);
           const rate = Number(it.rate);
@@ -1353,42 +1381,42 @@ export default function EditSalesQuotationPage() {
           return {
             ...it,
             serialNumber: idx + 1,
-            customModelName: resolvedModelName,
-            modelName: resolvedModelName,
-            modelId: resolvedModelId,
+            customModelName: isHw ? undefined : resolvedModelName,
+            modelName: isHw ? undefined : resolvedModelName,
+            modelId: isHw ? undefined : resolvedModelId,
             description: finalDesc,
             unit: it.unit || (isLocker ? '4' : 'NOS'),
             quantity: qty,
             rate: rate,
             amount: amount,
-            boardType: it.boardType || (currentScope === 'HARDWARE' ? undefined : 'HPL'),
-            cubicleSize: it.cubicleSize || undefined,
-            boardColor: it.boardColor || undefined,
-            boardThickness: it.boardThickness || undefined,
-            doorSize: it.doorSize || undefined,
-            overallHeight: it.overallHeight || undefined,
+            boardType: isHw ? undefined : (it.boardType || 'HPL'),
+            cubicleSize: isHw ? undefined : it.cubicleSize || undefined,
+            boardColor: isHw ? undefined : it.boardColor || undefined,
+            boardThickness: isHw ? undefined : it.boardThickness || undefined,
+            doorSize: isHw ? undefined : it.doorSize || undefined,
+            overallHeight: isHw ? undefined : it.overallHeight || undefined,
             hardwarePackage: it.hardwarePackage || undefined,
-            make: it.make || undefined,
-            modelImageUrl: resolvedModelImageUrl,
+            make: isHw ? undefined : it.make || undefined,
+            modelImageUrl: isHw ? undefined : resolvedModelImageUrl,
             customSpecsJson: {
               ...(typeof (it as any).customSpecsJson === 'object' ? (it as any).customSpecsJson : {}),
-              customModelName: resolvedModelName,
-              modelName: resolvedModelName,
-              modelImageUrl: resolvedModelImageUrl,
-              systemCategory: it.systemCategory || (it.modelId === 'CUSTOM' ? 'custom' : undefined),
-              isCustom: Boolean(it.isCustom || it.modelId === 'CUSTOM' || it.systemCategory === 'custom'),
+              customModelName: isHw ? undefined : resolvedModelName,
+              modelName: isHw ? undefined : resolvedModelName,
+              modelImageUrl: isHw ? undefined : resolvedModelImageUrl,
+              systemCategory: isHw ? 'hardware' : (it.systemCategory || (it.modelId === 'CUSTOM' ? 'custom' : undefined)),
+              isCustom: isHw ? false : Boolean(it.isCustom || it.modelId === 'CUSTOM' || it.systemCategory === 'custom'),
               hardwarePackage: it.hardwarePackage || it.hardwareType || undefined,
               hardwareType: it.hardwareType || it.hardwarePackage || undefined,
-              boardType: it.boardType || it.boardMaterial || (currentScope === 'HARDWARE' ? undefined : 'HPL'),
-              boardMaterial: it.boardMaterial || it.boardType || undefined,
-              colorFinish: it.colorFinish || it.boardColor || undefined,
-              boardColor: it.boardColor || it.colorFinish || undefined,
-              width: it.width || undefined,
-              depth: it.depth || undefined,
-              height: it.height || undefined,
+              boardType: isHw ? undefined : (it.boardType || it.boardMaterial || 'HPL'),
+              boardMaterial: isHw ? undefined : (it.boardMaterial || it.boardType || undefined),
+              colorFinish: isHw ? undefined : (it.colorFinish || it.boardColor || undefined),
+              boardColor: isHw ? undefined : (it.boardColor || it.colorFinish || undefined),
+              width: isHw ? undefined : (it.width || undefined),
+              depth: isHw ? undefined : (it.depth || undefined),
+              height: isHw ? undefined : (it.height || undefined),
               notes: it.notes || undefined,
               hsnSac: it.hsnSac || undefined,
-              make: it.make || undefined,
+              make: isHw ? undefined : (it.make || undefined),
               quotationScope: currentScope,
               quotationType: scopeToType(currentScope),
             },

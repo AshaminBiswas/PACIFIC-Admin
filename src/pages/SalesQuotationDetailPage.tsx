@@ -124,6 +124,7 @@ interface QuotationDetail {
     doorSize?: string;
     overallHeight?: string;
     make?: string;
+    hsnSac?: string;
   }>;
   revisions?: Array<{ id: string; revisionNumber: number; reason?: string; createdAt?: string }>;
   convertedOrderId?: string;
@@ -166,10 +167,23 @@ export default function SalesQuotationDetailPage() {
 
   const visualModels = useMemo(() => {
     if (!quotation?.items) return [];
+    const isHardwareScope = quotation.otherTerms?.includes('[QUOTATION_SCOPE:HARDWARE]') || quotation.generalTerms?.includes('[QUOTATION_SCOPE:HARDWARE]');
+    if (isHardwareScope) return [];
     const seen = new Set<string>();
     const list: Array<{ modelName: string; imageUrl: string; category?: string }> = [];
     quotation.items.forEach((it: any) => {
       const customSpecs = (typeof it.customSpecsJson === 'object' && it.customSpecsJson !== null ? it.customSpecsJson : {});
+      const desc = it.description || it.itemDescription || '';
+      const isHardware = Boolean(
+        it.systemCategory === 'hardware' ||
+        customSpecs.systemCategory === 'hardware' ||
+        ['8302', '83021010', '7610', '3925'].some((h) => String(it.hsnSac || customSpecs.hsnSac || '').startsWith(h)) ||
+        (['SET', 'PAIR', 'NOS', 'PCS', 'MTR', 'KG', 'PKT', 'LOT'].includes(String(it.unit || '').toUpperCase()) && (
+          /stopper|channel|rail|hinge|lock|leg|handle|hook|bracket|screw|fastener|fitting/i.test(desc) && !desc.toLowerCase().includes('cubicle')
+        ))
+      );
+      if (isHardware) return;
+
       const img = it.modelImageUrl || customSpecs.modelImageUrl || customSpecs.imageUrl;
       const name = it.customModelName || it.modelName || customSpecs.customModelName || customSpecs.modelName;
       if (img && typeof img === 'string' && img.trim() !== '' && !seen.has(img)) {
@@ -182,7 +196,7 @@ export default function SalesQuotationDetailPage() {
       }
     });
     return list;
-  }, [quotation?.items]);
+  }, [quotation?.items, quotation?.otherTerms, quotation?.generalTerms]);
 
   const handleCopyShortLink = async () => {
     if (!id) return;
@@ -914,14 +928,26 @@ export default function SalesQuotationDetailPage() {
                   const rate = Number(item.rate ?? item.unitPrice ?? 0);
                   const qty = Number(item.quantity ?? 0);
                   const desc = item.description || item.itemDescription || '—';
-                  const isLocker = (item as any).systemCategory === 'locker' || ((item as any).customSpecsJson?.systemCategory === 'locker') || (desc && desc.toLowerCase().includes('locker')) || (desc && desc.toLowerCase().includes('tier')) || String(item.unit || '').toLowerCase().includes('tier') || (/^\d+$/.test(String(item.unit || '').trim()) && !desc.toLowerCase().includes('cubicle'));
+                  const customSpecs = ((item as any).customSpecsJson as any) || {};
+
+                  const isHardware = Boolean(
+                    (item as any).systemCategory === 'hardware' ||
+                    customSpecs.systemCategory === 'hardware' ||
+                    quotation?.otherTerms?.includes('[QUOTATION_SCOPE:HARDWARE]') ||
+                    quotation?.generalTerms?.includes('[QUOTATION_SCOPE:HARDWARE]') ||
+                    ['8302', '83021010', '7610', '3925'].some((h) => String(item.hsnSac || customSpecs.hsnSac || '').startsWith(h)) ||
+                    (['SET', 'PAIR', 'NOS', 'PCS', 'MTR', 'KG', 'PKT', 'LOT'].includes(String(item.unit || '').toUpperCase()) && (
+                      /stopper|channel|rail|hinge|lock|leg|handle|hook|bracket|screw|fastener|fitting/i.test(desc) && !desc.toLowerCase().includes('cubicle')
+                    ))
+                  );
+
+                  const isLocker = !isHardware && ((item as any).systemCategory === 'locker' || ((item as any).customSpecsJson?.systemCategory === 'locker') || (desc && desc.toLowerCase().includes('locker')) || (desc && desc.toLowerCase().includes('tier')) || String(item.unit || '').toLowerCase().includes('tier') || (/^\d+$/.test(String(item.unit || '').trim()) && !desc.toLowerCase().includes('cubicle')));
                   const tierRows = isLocker ? (parseFloat(String(item.unit).replace(/[^0-9.]/g, '')) || 1) : 1;
                   const amount = Number(item.amount ?? item.totalAmount ?? (isLocker ? tierRows * qty * rate : qty * rate));
-                  const isUrinal = !isLocker && ((desc || '').toLowerCase().includes('urinal') || (desc || '').toLowerCase().includes('ump'));
+                  const isUrinal = !isHardware && !isLocker && ((desc || '').toLowerCase().includes('urinal') || (desc || '').toLowerCase().includes('ump'));
                   const sizeLabel = isUrinal ? 'Partition Size' : isLocker ? 'Locker Dimension' : 'Cubicle / Depth Size';
                   const doorLabel = isLocker ? 'Compartment / Door' : 'Door Size';
 
-                  const customSpecs = ((item as any).customSpecsJson as any) || {};
                   const widthVal = customSpecs.width || (item.cubicleSize && item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*w/i)?.[1] ? `${item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*w/i)![1]}mm` : '') || '300mm';
                   const depthVal = customSpecs.depth || (item.cubicleSize && item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*d/i)?.[1] ? `${item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*d/i)![1]}mm` : '') || '450mm';
                   const rawHVal = item.overallHeight || customSpecs.height || (item.cubicleSize && item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)?.[1] ? `${item.cubicleSize.match(/(\d+)\s*(?:mm)?\s*h/i)![1]}mm` : '') || '600mm';
@@ -932,8 +958,9 @@ export default function SalesQuotationDetailPage() {
                   const compDim = `${widthVal} W × ${depthVal} D × ${compHVal}mm H`;
                   const overallDim = `${widthVal} W × ${depthVal} D × ${totalHVal}mm H`;
                   const lockerDoorDisplay = item.doorSize || (tierRows > 1 ? `${tierRows} Tier Modular Doors (${widthVal} W × ${compHVal}mm H per door)` : `1 Tier Modular Door (${widthVal} W × ${compHVal}mm H)`);
-                  const modelImg = item.modelImageUrl || customSpecs.modelImageUrl || customSpecs.imageUrl;
-                  const modelTitle = item.customModelName || item.modelName || customSpecs.customModelName || customSpecs.modelName;
+                  const modelImg = !isHardware ? (item.modelImageUrl || customSpecs.modelImageUrl || customSpecs.imageUrl) : undefined;
+                  const rawModelTitle = item.customModelName || item.modelName || customSpecs.customModelName || customSpecs.modelName;
+                  const modelTitle = !isHardware && rawModelTitle && rawModelTitle.trim().toLowerCase() !== desc.trim().toLowerCase() ? rawModelTitle : undefined;
 
                   return (
                     <tr key={item.id ?? idx} className="hover:bg-white/[0.02]">
@@ -952,7 +979,7 @@ export default function SalesQuotationDetailPage() {
                                 • Model / System: {modelTitle}
                               </div>
                             )}
-                            {(isLocker || item.cubicleSize || item.boardThickness || item.boardColor || item.doorSize || item.overallHeight || item.make) && (
+                            {!isHardware && (isLocker || item.cubicleSize || item.boardThickness || item.boardColor || item.doorSize || item.overallHeight || item.make) && (
                               <div className="mt-1 text-[11px] text-gray-500 space-y-0.5">
                                 {isLocker ? (
                                   <>
@@ -979,6 +1006,16 @@ export default function SalesQuotationDetailPage() {
                                 )}
                               </div>
                             )}
+                            {isHardware && (item.hardwarePackage || customSpecs.hardwarePackage || customSpecs.hardwareType || customSpecs.notes) && (
+                              <div className="mt-1 text-[11px] text-gray-500 space-y-0.5">
+                                {(item.hardwarePackage || customSpecs.hardwarePackage || customSpecs.hardwareType) && (
+                                  <div>• Spec / Material: <span className="text-gray-300 font-medium">{item.hardwarePackage || customSpecs.hardwarePackage || customSpecs.hardwareType}</span></div>
+                                )}
+                                {customSpecs.notes && (
+                                  <div>• Notes: <span className="text-gray-300 font-medium">{customSpecs.notes}</span></div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -1002,12 +1039,25 @@ export default function SalesQuotationDetailPage() {
               const rate = Number(item.rate ?? item.unitPrice ?? 0);
               const qty = Number(item.quantity ?? 0);
               const desc = item.description || item.itemDescription || '—';
-              const isLocker = (item as any).systemCategory === 'locker' || ((item as any).customSpecsJson?.systemCategory === 'locker') || (desc && desc.toLowerCase().includes('locker'));
+              const customSpecs = ((item as any).customSpecsJson as any) || {};
+
+              const isHardware = Boolean(
+                (item as any).systemCategory === 'hardware' ||
+                customSpecs.systemCategory === 'hardware' ||
+                quotation?.otherTerms?.includes('[QUOTATION_SCOPE:HARDWARE]') ||
+                quotation?.generalTerms?.includes('[QUOTATION_SCOPE:HARDWARE]') ||
+                ['8302', '83021010', '7610', '3925'].some((h) => String(item.hsnSac || customSpecs.hsnSac || '').startsWith(h)) ||
+                (['SET', 'PAIR', 'NOS', 'PCS', 'MTR', 'KG', 'PKT', 'LOT'].includes(String(item.unit || '').toUpperCase()) && (
+                  /stopper|channel|rail|hinge|lock|leg|handle|hook|bracket|screw|fastener|fitting/i.test(desc) && !desc.toLowerCase().includes('cubicle')
+                ))
+              );
+
+              const isLocker = !isHardware && ((item as any).systemCategory === 'locker' || ((item as any).customSpecsJson?.systemCategory === 'locker') || (desc && desc.toLowerCase().includes('locker')));
               const tierRows = isLocker ? (parseFloat(String(item.unit).replace(/[^0-9.]/g, '')) || 1) : 1;
               const amount = Number(item.amount ?? item.totalAmount ?? (isLocker ? tierRows * qty * rate : qty * rate));
-              const customSpecs = ((item as any).customSpecsJson as any) || {};
-              const modelImg = item.modelImageUrl || customSpecs.modelImageUrl || customSpecs.imageUrl;
-              const modelTitle = item.customModelName || item.modelName || customSpecs.customModelName || customSpecs.modelName;
+              const modelImg = !isHardware ? (item.modelImageUrl || customSpecs.modelImageUrl || customSpecs.imageUrl) : undefined;
+              const rawModelTitle = item.customModelName || item.modelName || customSpecs.customModelName || customSpecs.modelName;
+              const modelTitle = !isHardware && rawModelTitle && rawModelTitle.trim().toLowerCase() !== desc.trim().toLowerCase() ? rawModelTitle : undefined;
 
               return (
                 <div key={item.id ?? idx} className="p-4 space-y-1">
@@ -1029,6 +1079,11 @@ export default function SalesQuotationDetailPage() {
                         {isLocker && (
                           <div className="text-xs text-purple-300 font-medium mt-0.5">
                             • {qty} Column(s) × {tierRows} Tier(s) ({qty * tierRows} Total Doors)
+                          </div>
+                        )}
+                        {isHardware && (item.hardwarePackage || customSpecs.hardwarePackage || customSpecs.hardwareType) && (
+                          <div className="text-xs text-gray-400 mt-0.5">
+                            • {item.hardwarePackage || customSpecs.hardwarePackage || customSpecs.hardwareType}
                           </div>
                         )}
                       </div>
