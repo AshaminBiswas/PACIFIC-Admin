@@ -26,7 +26,8 @@ export function isKolkataBranch(doc: any): boolean {
   }
 
   // 2. Company profile ID
-  if (doc.companyProfileId === KOLKATA_COMPANY_ID) {
+  const compId = doc.companyProfileId || doc.metadata?.companyProfileId;
+  if (compId === KOLKATA_COMPANY_ID) {
     return true;
   }
 
@@ -42,6 +43,13 @@ export function isKolkataBranch(doc: any): boolean {
 
     const compState = (comp.state || '').toLowerCase();
     if (compState.includes('bengal')) return true;
+  }
+
+  // 4. Metadata state / address checks
+  const metaState = (doc.metadata?.billTo?.state || doc.metadata?.shipTo?.state || '').toLowerCase();
+  const metaCode = doc.metadata?.billTo?.stateCode || doc.metadata?.shipTo?.stateCode;
+  if (metaCode === '19' || metaState.includes('bengal') || metaState.includes('kolkata')) {
+    return true;
   }
 
   // 4. Flat company / party name or state

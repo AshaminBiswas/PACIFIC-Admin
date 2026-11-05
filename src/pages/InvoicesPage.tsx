@@ -71,8 +71,17 @@ const InvoicesPage: React.FC = () => {
       if (statusFilter !== 'ALL')     params.status = statusFilter;
       if (branchFilter !== 'ALL')     params.branch = branchFilter;
       const { data } = await invoicesApi.list(params);
-      setInvoices(data.data?.items ?? []);
-      setTotal(data.data?.total ?? 0);
+      const rawItems = Array.isArray(data.data?.items)
+        ? data.data.items
+        : Array.isArray(data.data)
+        ? data.data
+        : Array.isArray((data as any)?.items)
+        ? (data as any).items
+        : Array.isArray(data)
+        ? data
+        : [];
+      setInvoices(rawItems);
+      setTotal(data.data?.total ?? rawItems.length);
       setTotalPages(data.data?.totalPages ?? 1);
     } catch {
       /* silent */
@@ -144,7 +153,7 @@ const InvoicesPage: React.FC = () => {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-white">Bill &amp; Tax Invoices</h1>
-              <p className="text-xs text-gray-400">Stage 04 — GST tax invoices, payment tracking &amp; receivables</p>
+              <p className="text-xs text-gray-400">Stage 03 — GST tax invoices, payment tracking &amp; receivables</p>
             </div>
           </div>
         </div>
@@ -185,10 +194,10 @@ const InvoicesPage: React.FC = () => {
       {/* ── Quick Pipeline Links ─────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[
-          { label: 'Sales Orders',  path: '/admin/dashboard/sales-orders',    icon: ShoppingBag, color: 'text-blue-400',   bg: 'bg-blue-500/10' },
+          { label: 'Proforma Invoices', path: '/admin/dashboard/proforma-invoices', icon: Receipt, color: 'text-amber-400',   bg: 'bg-amber-500/10' },
           { label: 'Packing Lists', path: '/admin/dashboard/packing-lists',   icon: Package,    color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
           { label: 'Issue Lists',   path: '/admin/dashboard/issue-lists',     icon: Wrench,     color: 'text-purple-400',  bg: 'bg-purple-500/10' },
-          { label: 'Payments',      path: '/admin/dashboard/payments',        icon: CreditCard, color: 'text-amber-400',   bg: 'bg-amber-500/10' },
+          { label: 'Payments',      path: '/admin/dashboard/payments',        icon: CreditCard, color: 'text-blue-400',   bg: 'bg-blue-500/10' },
         ].map(l => (
           <Link
             key={l.path}
@@ -286,7 +295,7 @@ const InvoicesPage: React.FC = () => {
           <div className="p-12 text-center space-y-3">
             <Receipt className="w-12 h-12 mx-auto text-gray-700" />
             <p className="text-white font-semibold">No invoices found</p>
-            <p className="text-xs text-gray-500">Create a new invoice or generate one from a Sales Order.</p>
+            <p className="text-xs text-gray-500">Create a new invoice or generate one directly from a Proforma Invoice.</p>
             <div className="flex items-center justify-center gap-2 pt-2">
               <Link
                 to="/admin/dashboard/invoices/new"
@@ -295,10 +304,10 @@ const InvoicesPage: React.FC = () => {
                 <Plus className="w-3.5 h-3.5" /> New Invoice
               </Link>
               <Link
-                to="/admin/dashboard/sales-orders"
+                to="/admin/dashboard/proforma-invoices"
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-white/5 text-gray-300 border border-white/10 rounded-xl text-xs font-semibold hover:bg-white/10"
               >
-                <ShoppingBag className="w-3.5 h-3.5" /> From Sales Order
+                <Receipt className="w-3.5 h-3.5" /> From Proforma Invoice
               </Link>
             </div>
           </div>
@@ -312,7 +321,7 @@ const InvoicesPage: React.FC = () => {
                     <th className="py-3 px-4 text-center w-10">#</th>
                     <th className="py-3 px-4">Invoice #</th>
                     <th className="py-3 px-4">Customer / Project</th>
-                    <th className="py-3 px-4">Linked Order</th>
+                    <th className="py-3 px-4">Linked Document</th>
                     <th className="py-3 px-4">Issue Date</th>
                     <th className="py-3 px-4">Due Date</th>
                     <th className="py-3 px-4">Subtotal</th>
@@ -357,35 +366,39 @@ const InvoicesPage: React.FC = () => {
                       {/* Customer / project */}
                       <td className="py-3 px-4">
                         <div className="text-sm text-gray-200 font-medium">
-                          {(inv as any).customer?.legalName || (inv as any).party?.legalName || '—'}
+                          {(inv as any).customer?.legalName || (inv as any).party?.legalName || (inv as any).metadata?.billTo?.partyName || (inv as any).metadata?.shipTo?.partyName || 'Valued Customer'}
                         </div>
                         {inv.projectId && (
                           <div className="text-[11px] text-gray-500 font-mono">Project linked</div>
                         )}
                       </td>
 
-                      {/* Linked order */}
+                      {/* Linked doc */}
                       <td className="py-3 px-4">
-                        {(inv as any).salesOrderId ? (
+                        {(inv as any).proformaInvoiceId || (inv as any).linkedPi?.id ? (
                           <Link
-                            to={`/admin/dashboard/sales-orders/${(inv as any).salesOrderId}`}
+                            to={`/admin/dashboard/proforma-invoices/${(inv as any).proformaInvoiceId || (inv as any).linkedPi?.id}`}
                             onClick={e => e.stopPropagation()}
-                            className="inline-flex items-center gap-1 text-[11px] font-mono text-blue-400 hover:text-blue-300 px-2 py-1 bg-blue-500/10 rounded-lg border border-blue-500/20"
+                            className="inline-flex items-center gap-1 text-[11px] font-mono text-amber-400 hover:text-amber-300 px-2 py-1 bg-amber-500/10 rounded-lg border border-amber-500/20"
                           >
-                            <ShoppingBag className="w-3 h-3" />
-                            {(inv as any).orderNumber || 'Order'}
+                            <FileText className="w-3 h-3" />
+                            {(inv as any).linkedPi?.piNumber || 'Proforma Invoice'}
                           </Link>
                         ) : (inv as any).quotationId ? (
                           <Link
                             to={`/admin/dashboard/sales-quotations/${(inv as any).quotationId}`}
                             onClick={e => e.stopPropagation()}
-                            className="inline-flex items-center gap-1 text-[11px] font-mono text-amber-400 hover:text-amber-300 px-2 py-1 bg-amber-500/10 rounded-lg border border-amber-500/20"
+                            className="inline-flex items-center gap-1 text-[11px] font-mono text-purple-400 hover:text-purple-300 px-2 py-1 bg-purple-500/10 rounded-lg border border-purple-500/20"
                           >
                             <FileText className="w-3 h-3" />
                             {(inv as any).quotationRef || 'Quotation'}
                           </Link>
+                        ) : (inv as any).salesOrderId ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-mono text-blue-400 px-2 py-1 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                            {(inv as any).orderNumber || 'Order'}
+                          </span>
                         ) : (
-                          <span className="text-[11px] text-gray-600 italic">Standalone</span>
+                          <span className="text-[11px] text-gray-600 italic">Direct Bill</span>
                         )}
                       </td>
 
@@ -481,7 +494,7 @@ const InvoicesPage: React.FC = () => {
                         )}
                       </div>
                       <div className="text-xs text-gray-400 mt-0.5">
-                        {(inv as any).customer?.legalName || '—'}
+                        {(inv as any).customer?.legalName || (inv as any).party?.legalName || (inv as any).metadata?.billTo?.partyName || (inv as any).metadata?.shipTo?.partyName || 'Valued Customer'}
                       </div>
                     </div>
                     <StatusBadge status={inv.status} />
@@ -514,15 +527,23 @@ const InvoicesPage: React.FC = () => {
                   </div>
 
                   {/* Linked doc */}
-                  {(inv as any).salesOrderId && (
+                  {((inv as any).proformaInvoiceId || (inv as any).linkedPi?.id) ? (
                     <Link
-                      to={`/admin/dashboard/sales-orders/${(inv as any).salesOrderId}`}
-                      className="inline-flex items-center gap-1.5 text-[11px] font-mono text-blue-400 px-2.5 py-1.5 bg-blue-500/10 rounded-lg border border-blue-500/20"
+                      to={`/admin/dashboard/proforma-invoices/${(inv as any).proformaInvoiceId || (inv as any).linkedPi?.id}`}
+                      className="inline-flex items-center gap-1.5 text-[11px] font-mono text-amber-400 px-2.5 py-1.5 bg-amber-500/10 rounded-lg border border-amber-500/20"
                     >
-                      <ShoppingBag className="w-3 h-3" />
-                      {(inv as any).orderNumber || 'Linked Sales Order'}
+                      <Receipt className="w-3 h-3" />
+                      {(inv as any).linkedPi?.piNumber || 'Linked Proforma Invoice'}
                     </Link>
-                  )}
+                  ) : (inv as any).quotationId ? (
+                    <Link
+                      to={`/admin/dashboard/sales-quotations/${(inv as any).quotationId}`}
+                      className="inline-flex items-center gap-1.5 text-[11px] font-mono text-purple-400 px-2.5 py-1.5 bg-purple-500/10 rounded-lg border border-purple-500/20"
+                    >
+                      <FileText className="w-3 h-3" />
+                      {(inv as any).quotationRef || 'Linked Quotation'}
+                    </Link>
+                  ) : null}
 
                   {/* Action buttons */}
                   <div className="grid grid-cols-4 gap-2 pt-1">
@@ -641,23 +662,18 @@ const InvoicesPage: React.FC = () => {
           isOpen={!!selectedInvoiceForTimeline}
           onClose={() => setSelectedInvoiceForTimeline(null)}
           title="Bill & Tax Invoice"
-          stage={4}
+          stage={3}
           documentRef={selectedInvoiceForTimeline.invoiceNumber}
           currentStatus={selectedInvoiceForTimeline.status}
           statusDescription="Statutory GST Tax Invoice under CGST Act with itemized GST breakdown."
           linkedDocs={{
             invoiceId: selectedInvoiceForTimeline.id,
             invoiceNumber: selectedInvoiceForTimeline.invoiceNumber,
-            orderId: (selectedInvoiceForTimeline as any).salesOrderId,
-            orderNumber: (selectedInvoiceForTimeline as any).orderNumber,
+            piId: (selectedInvoiceForTimeline as any).proformaInvoiceId,
             quotationId: (selectedInvoiceForTimeline as any).quotationId,
             quotationRef: (selectedInvoiceForTimeline as any).quotationRef,
           }}
-          primaryDetailUrl={
-            (selectedInvoiceForTimeline as any).salesOrderId
-              ? `/admin/dashboard/sales-orders/${(selectedInvoiceForTimeline as any).salesOrderId}`
-              : undefined
-          }
+          primaryDetailUrl={`/admin/dashboard/invoices/${selectedInvoiceForTimeline.id}`}
         />
       )}
     </div>

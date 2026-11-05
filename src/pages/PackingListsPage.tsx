@@ -810,7 +810,7 @@ export default function PackingListsPage() {
           isOpen={!!selectedPlForTimeline}
           onClose={() => setSelectedPlForTimeline(null)}
           title="Consignment Packing List"
-          stage={5}
+          stage={4}
           documentRef={selectedPlForTimeline.packingListNumber}
           currentStatus={selectedPlForTimeline.receiptStatus}
           statusDescription="BOM piece-by-piece packing list for warehouse verification & site consignee receipt."

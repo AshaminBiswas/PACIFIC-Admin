@@ -333,10 +333,14 @@ export default function CreateInvoicePage() {
       const billToState = billingAddr?.state || 'West Bengal';
       const billToCode = billingAddr?.stateCode || (selectedCustomer?.gstin ? selectedCustomer.gstin.slice(0, 2) : '19');
 
+      const isKolkataBranch = formData.companyProfileId === 'a25090ef-f6c0-407f-8b1e-1da8d506308c';
+
       const payload = {
         orderId: formData.orderId || undefined,
         customerId: formData.customerId || undefined,
         companyProfileId: formData.companyProfileId || undefined,
+        isKolkata: isKolkataBranch,
+        branch: isKolkataBranch ? 'KOLKATA' : 'MAIN',
         subtotal: subtotal,
         taxAmount: gstBreakdown.totalTax,
         totalAmount: gstBreakdown.grandTotal,
@@ -440,8 +444,8 @@ export default function CreateInvoicePage() {
         </div>
       </div>
 
-      {/* ── Document Flow Timeline (Stage 04) ───────────────────── */}
-      <DocumentFlowTimeline currentStage={4} />
+      {/* ── Document Flow Timeline (Stage 03) ───────────────────── */}
+      <DocumentFlowTimeline currentStage={3} />
 
       {/* ── Dynamic Issuing Branch & Billing Entity ───────────── */}
       <BranchSelector

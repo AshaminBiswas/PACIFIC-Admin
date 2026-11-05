@@ -257,8 +257,8 @@ export default function CreateHardwareIssuePage() {
         </div>
       </div>
 
-      {/* ── Document Flow Timeline (Stage 07) ───────────────────── */}
-      <DocumentFlowTimeline currentStage={7} />
+      {/* ── Document Flow Timeline (Stage 06) ───────────────────── */}
+      <DocumentFlowTimeline currentStage={6} />
 
       {/* ── Dynamic Issuing Branch & Entity Selection ───────── */}
       <BranchSelector

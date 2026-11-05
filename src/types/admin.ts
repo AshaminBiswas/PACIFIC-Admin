@@ -1552,7 +1552,7 @@ export interface QuotationFollowup {
   updatedAt: string;
 }
 
-// ─── Central Sales Order Hub ────────────────────────────────────────────────
+// ─── Legacy Sales Orders ────────────────────────────────────────────────────
 
 export type SalesOrderStatus =
   | 'PENDING'

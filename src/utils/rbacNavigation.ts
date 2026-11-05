@@ -24,7 +24,6 @@ export const PATH_PERMISSIONS: Record<string, UserRole[]> = {
   '/admin/dashboard/crm-leads': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'VIEWER'],
   '/admin/dashboard/sales-quotations': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'VIEWER'],
   '/admin/dashboard/proforma-invoices': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'FINANCE_OFFICER', 'VIEWER'],
-  '/admin/dashboard/sales-orders': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'VIEWER'],
   '/admin/dashboard/invoices': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'FINANCE_OFFICER', 'VIEWER'],
   '/admin/dashboard/packing-lists': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'VIEWER'],
   '/admin/dashboard/dispatches': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'VIEWER'],

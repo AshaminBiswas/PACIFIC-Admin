@@ -41,7 +41,7 @@ export interface AdvanceLifecycleInfo {
 }
 
 export interface DocumentFlowTimelineProps {
-  currentStage: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  currentStage: 1 | 2 | 3 | 4 | 5 | 6;
   linkedDocs?: LinkedLifecycleDocs;
   advanceInfo?: AdvanceLifecycleInfo;
   className?: string;
@@ -82,28 +82,17 @@ const STAGES = [
   {
     stage: 3,
     step: '03',
-    name: 'Sales Order Hub',
-    shortName: 'Sales Order',
-    icon: Layers,
-    basePath: '/admin/dashboard/sales-orders',
-    getDetailPath: (docs?: LinkedLifecycleDocs) =>
-      docs?.orderId ? `/admin/dashboard/sales-orders/${docs.orderId}` : null,
-    getDocRef: (docs?: LinkedLifecycleDocs) => docs?.orderNumber,
-  },
-  {
-    stage: 4,
-    step: '04',
     name: 'Bill & Tax Invoice',
     shortName: 'Tax Invoice',
     icon: Receipt,
     basePath: '/admin/dashboard/invoices',
     getDetailPath: (docs?: LinkedLifecycleDocs) =>
-      docs?.invoiceId ? `/admin/dashboard/invoices` : `/admin/dashboard/invoices`,
+      docs?.invoiceId ? `/admin/dashboard/invoices/${docs.invoiceId}` : `/admin/dashboard/invoices`,
     getDocRef: (docs?: LinkedLifecycleDocs) => docs?.invoiceNumber,
   },
   {
-    stage: 5,
-    step: '05',
+    stage: 4,
+    step: '04',
     name: 'Packing List',
     shortName: 'Packing List',
     icon: Package,
@@ -113,8 +102,8 @@ const STAGES = [
     getDocRef: (docs?: LinkedLifecycleDocs) => docs?.plNumber,
   },
   {
-    stage: 6,
-    step: '06',
+    stage: 5,
+    step: '05',
     name: 'Dispatch & Gate Pass',
     shortName: 'Dispatch',
     icon: Truck,
@@ -124,8 +113,8 @@ const STAGES = [
     getDocRef: (docs?: LinkedLifecycleDocs) => docs?.plNumber ? `DSP/${docs.plNumber.split('/').pop()}` : undefined,
   },
   {
-    stage: 7,
-    step: '07',
+    stage: 6,
+    step: '06',
     name: 'Issue List (HIL)',
     shortName: 'Issue List',
     icon: Wrench,
@@ -152,7 +141,7 @@ const STAGE_GUIDES: Record<number, StageGuide> = {
     defaultStatus: 'APPROVED',
     statusDesc: 'Commercial proposal with specifications, dimensions, board type & hardware selection.',
     nextStepTitle: 'Stage 02: Generate Proforma Invoice (PI) & Request Advance',
-    nextStepDesc: 'Once client approves the quotation, issue a Proforma Invoice with 50% advance terms to confirm the booking before factory fabrication.',
+    nextStepDesc: 'Once client approves the quotation, issue a Proforma Invoice with advance terms to confirm the booking before factory fabrication.',
     defaultActionLabel: 'Create Proforma Invoice',
     defaultActionUrl: '/admin/dashboard/proforma-invoices/new',
   },
@@ -160,52 +149,43 @@ const STAGE_GUIDES: Record<number, StageGuide> = {
     title: 'Proforma Invoice (PI)',
     defaultStatus: 'ADVANCE_PENDING',
     statusDesc: 'Precondition commercial invoice with GST calculations and advance payment tracking.',
-    nextStepTitle: 'Stage 03: Collect 50% Advance & Convert to Sales Order',
-    nextStepDesc: 'Collect and record client advance payment (50% default) to unlock production scheduling and confirm the official Sales Order.',
-    defaultActionLabel: 'View Sales Order Hub',
-    defaultActionUrl: '/admin/dashboard/sales-orders',
-  },
-  3: {
-    title: 'Sales Order Hub',
-    defaultStatus: 'APPROVED',
-    statusDesc: 'Confirmed production order against client PO with manufacturing fabrication terms.',
-    nextStepTitle: 'Stage 04: Generate Statutory Tax Invoice & Prepare Packing List',
-    nextStepDesc: 'Generate the statutory GST Tax Invoice (CGST/SGST/IGST) and prepare the factory Packing List breakdown for warehouse dispatch.',
+    nextStepTitle: 'Stage 03: Convert to Formal Bill & Tax Invoice',
+    nextStepDesc: 'Convert this Proforma Invoice into a statutory Tax Invoice / Bill. Recorded advances will reflect automatically.',
     defaultActionLabel: 'Generate Tax Invoice',
     defaultActionUrl: '/admin/dashboard/invoices/new',
   },
-  4: {
+  3: {
     title: 'Bill & Tax Invoice',
     defaultStatus: 'ISSUED',
-    statusDesc: 'Statutory GST Tax Invoice under CGST/SGST Act with legal jurisdictional terms and payment tracking.',
-    nextStepTitle: 'Stage 05: Generate Consignment Packing List',
+    statusDesc: 'Statutory GST Tax Invoice under CGST/SGST Act with legal jurisdictional terms and advance payment reconciliation.',
+    nextStepTitle: 'Stage 04: Generate Consignment Packing List',
     nextStepDesc: 'Create the packet breakdown (pilasters, intermediate panels, doors, hardware cartons) for physical consignment verification.',
     defaultActionLabel: 'Generate Packing List',
     defaultActionUrl: '/admin/dashboard/packing-lists/new',
   },
-  5: {
+  4: {
     title: 'Packing List',
     defaultStatus: 'READY_FOR_DISPATCH',
     statusDesc: 'BOM packet breakdown with piece counts, weight, and consignee verification protocols.',
-    nextStepTitle: 'Stage 06: Create Gate Pass & Outward Dispatch Record',
+    nextStepTitle: 'Stage 05: Create Gate Pass & Outward Dispatch Record',
     nextStepDesc: 'Record transporter details, vehicle number, driver phone, LR/GR number, and E-Way bill for factory gate pass clearance.',
     defaultActionLabel: 'Record Gate Pass',
     defaultActionUrl: '/admin/dashboard/dispatches',
   },
-  6: {
+  5: {
     title: 'Dispatch & Gate Pass',
     defaultStatus: 'DISPATCHED',
     statusDesc: 'Consignment departed factory premises under carrier custody with valid E-Way Bill and Gate Pass.',
-    nextStepTitle: 'Stage 07: Verify Hardware Store Issue & Consignee Ack',
+    nextStepTitle: 'Stage 06: Verify Hardware Store Issue & Consignee Ack',
     nextStepDesc: 'Collect digital delivery receipt signature from site consignee and verify the 44-item Hardware Issue List with sequential installer sign-off.',
     defaultActionLabel: 'View Hardware Issues',
     defaultActionUrl: '/admin/dashboard/issue-lists',
   },
-  7: {
+  6: {
     title: 'Hardware Issue List (HIL)',
     defaultStatus: 'IN_SIGN_OFF',
     statusDesc: '44-item cubicle hardware picklist with sequential 4-role installer sign-off protocol.',
-    nextStepTitle: 'Stage 07 of 07: Complete 4-Role Sequential Sign-Off',
+    nextStepTitle: 'Stage 06 of 06: Complete 4-Role Sequential Sign-Off',
     nextStepDesc: 'Ensure Store Keeper, Quality Inspector, Site Supervisor, and Project Manager sign-offs are completed for final handover and warranty issuance.',
     defaultActionLabel: 'Manage Sign-Off',
     defaultActionUrl: '/admin/dashboard/issue-lists',
@@ -241,30 +221,30 @@ export const DocumentFlowTimeline: React.FC<DocumentFlowTimelineProps> = ({
     if (currentStage === 1) {
       if (linkedDocs?.piId) {
         resolvedNextTitle = `Stage 02: Proforma Invoice Issued (${linkedDocs.piNumber || 'View PI'})`;
-        resolvedNextDesc = 'Proforma Invoice has been created from this quotation. Track advance payment and order confirmation.';
+        resolvedNextDesc = 'Proforma Invoice has been created from this quotation. Track advance payment and bill issuance.';
         resolvedNextLabel = 'View Proforma Invoice';
         resolvedNextUrl = `/admin/dashboard/proforma-invoices/${linkedDocs.piId}`;
-      } else if (linkedDocs?.orderId) {
-        resolvedNextTitle = `Stage 03: Direct Sales Order Active (${linkedDocs.orderNumber || 'View Order'})`;
-        resolvedNextDesc = 'Sales Order has been generated directly from this quotation. Fabrication and dispatch in progress.';
-        resolvedNextLabel = 'View Sales Order';
-        resolvedNextUrl = `/admin/dashboard/sales-orders/${linkedDocs.orderId}`;
+      } else if (linkedDocs?.invoiceId) {
+        resolvedNextTitle = `Stage 03: Direct Tax Invoice Active (${linkedDocs.invoiceNumber || 'View Bill'})`;
+        resolvedNextDesc = 'Tax Invoice has been generated directly from this quotation.';
+        resolvedNextLabel = 'View Tax Invoice';
+        resolvedNextUrl = `/admin/dashboard/invoices/${linkedDocs.invoiceId}`;
       }
     } else if (currentStage === 2) {
-      if (linkedDocs?.orderId) {
-        resolvedNextTitle = `Stage 03: Sales Order Active (${linkedDocs.orderNumber || 'View Order'})`;
-        resolvedNextDesc = 'Sales Order is confirmed and active in the production hub.';
-        resolvedNextLabel = 'View Sales Order';
-        resolvedNextUrl = `/admin/dashboard/sales-orders/${linkedDocs.orderId}`;
+      if (linkedDocs?.invoiceId) {
+        resolvedNextTitle = `Stage 03: Bill & Tax Invoice Active (${linkedDocs.invoiceNumber || 'View Invoice'})`;
+        resolvedNextDesc = 'Tax Invoice / Bill is issued and commercial advance reflected.';
+        resolvedNextLabel = 'View Tax Invoice';
+        resolvedNextUrl = `/admin/dashboard/invoices/${linkedDocs.invoiceId}`;
       }
     } else if (currentStage === 3) {
-      if (linkedDocs?.invoiceId && linkedDocs?.packingListId) {
-        resolvedNextTitle = 'Stage 06: Ready for Outward Dispatch & Gate Pass';
+      if (linkedDocs?.packingListId) {
+        resolvedNextTitle = 'Stage 05: Ready for Outward Dispatch & Gate Pass';
         resolvedNextDesc = 'GST Invoice & Packing List are ready. Proceed with transporter gate pass clearance.';
         resolvedNextLabel = 'Go to Dispatches';
         resolvedNextUrl = '/admin/dashboard/dispatches';
-      } else if (linkedDocs?.invoiceId) {
-        resolvedNextTitle = 'Stage 05: Generate Consignment Packing List';
+      } else {
+        resolvedNextTitle = 'Stage 04: Generate Consignment Packing List';
         resolvedNextDesc = 'Tax Invoice issued. Prepare the factory packing list breakdown.';
         resolvedNextLabel = 'Generate Packing List';
         resolvedNextUrl = '/admin/dashboard/packing-lists/new';
@@ -279,8 +259,7 @@ export const DocumentFlowTimeline: React.FC<DocumentFlowTimelineProps> = ({
   const linkedItems = [
     { label: 'Quotation', ref: linkedDocs?.quotationRef, url: linkedDocs?.quotationId ? `/admin/dashboard/sales-quotations/${linkedDocs.quotationId}` : null },
     { label: 'Proforma PI', ref: linkedDocs?.piNumber, url: linkedDocs?.piId ? `/admin/dashboard/proforma-invoices/${linkedDocs.piId}` : null },
-    { label: 'Sales Order', ref: linkedDocs?.orderNumber, url: linkedDocs?.orderId ? `/admin/dashboard/sales-orders/${linkedDocs.orderId}` : null },
-    { label: 'Tax Invoice', ref: linkedDocs?.invoiceNumber, url: '/admin/dashboard/invoices' },
+    { label: 'Bill / Tax Invoice', ref: linkedDocs?.invoiceNumber, url: linkedDocs?.invoiceId ? `/admin/dashboard/invoices/${linkedDocs.invoiceId}` : '/admin/dashboard/invoices' },
     { label: 'Packing List', ref: linkedDocs?.plNumber, url: '/admin/dashboard/packing-lists' },
     { label: 'Issue List', ref: linkedDocs?.hilNumber, url: '/admin/dashboard/issue-lists' },
   ].filter((item) => item.ref);
@@ -296,7 +275,7 @@ export const DocumentFlowTimeline: React.FC<DocumentFlowTimelineProps> = ({
           </span>
           <span className="text-gray-600 font-mono text-xs">•</span>
           <span className="text-xs font-mono font-bold text-[#B5F823] bg-[#7FB706]/15 border border-[#7FB706]/30 px-2.5 py-0.5 rounded-full">
-            Stage {currentStageMeta.step} of 07: {currentStageMeta.name}
+            Stage {currentStageMeta.step} of 06: {currentStageMeta.name}
           </span>
           {documentRef && (
             <span className="text-xs font-mono font-bold text-white bg-white/5 border border-white/10 px-2 py-0.5 rounded-md">

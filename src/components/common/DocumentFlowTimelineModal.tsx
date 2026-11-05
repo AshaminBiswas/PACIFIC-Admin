@@ -10,7 +10,7 @@ export interface DocumentFlowTimelineModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
-  stage: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  stage: 1 | 2 | 3 | 4 | 5 | 6;
   documentRef?: string;
   currentStatus?: string;
   statusDescription?: string;

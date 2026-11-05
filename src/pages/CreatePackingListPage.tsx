@@ -266,7 +266,7 @@ export default function CreatePackingListPage() {
       </div>
 
       {/* ── Document Flow Timeline (Stage 05 / 06) ──────────────── */}
-      <DocumentFlowTimeline currentStage={5} />
+      <DocumentFlowTimeline currentStage={4} />
 
       {/* ── Dynamic Issuing Branch & Dispatch Warehouse ─────── */}
       <BranchSelector

@@ -352,54 +352,8 @@ export default function App() {
                 </Suspense>
               }
             />
-            <Route
-              path="sales-orders"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <SalesOrdersPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="sales-orders/new"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <CreateSalesOrderPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="sales-orders/:id"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <SalesOrderDetailPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="sales-orders/:id/edit"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <EditSalesOrderPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="sales-orders/:id/timeline"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <SalesOrderTimelinePage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="sales-orders/:id/follow-up"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <SalesOrderFollowupPage />
-                </Suspense>
-              }
-            />
+            <Route path="sales-orders" element={<Navigate to="/admin/dashboard/invoices" replace />} />
+            <Route path="sales-orders/*" element={<Navigate to="/admin/dashboard/invoices" replace />} />
             <Route
               path="purchase-orders"
               element={

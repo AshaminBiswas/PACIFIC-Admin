@@ -1451,7 +1451,7 @@ export default function DispatchStatusPage() {
           isOpen={!!selectedDispatchForTimeline}
           onClose={() => setSelectedDispatchForTimeline(null)}
           title="Dispatch Challan & Gate Pass"
-          stage={6}
+          stage={5}
           documentRef={selectedDispatchForTimeline.dispatchNumber}
           currentStatus={selectedDispatchForTimeline.status}
           statusDescription="Outward gate pass under carrier custody with vehicle and transporter records."

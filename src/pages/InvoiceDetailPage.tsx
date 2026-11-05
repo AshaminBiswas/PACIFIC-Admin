@@ -294,7 +294,7 @@ export default function InvoiceDetailPage() {
 
       {/* Document Flow Pipeline Stage Indicator */}
       <DocumentFlowTimeline
-        currentStage={4}
+        currentStage={3}
         linkedDocs={{
           quotationId: invoice.quotationId,
           piId: invoice.proformaInvoiceId,

@@ -1085,7 +1085,7 @@ export default function HardwareIssuePage() {
           isOpen={!!selectedIssueForTimeline}
           onClose={() => setSelectedIssueForTimeline(null)}
           title="Hardware Store Issue (HIL)"
-          stage={7}
+          stage={6}
           documentRef={selectedIssueForTimeline.issueNumber}
           currentStatus={selectedIssueForTimeline.status}
           statusDescription="Store picklist for 44 cubicle hardware catalog items with sequential 4-role installer sign-off protocol."
