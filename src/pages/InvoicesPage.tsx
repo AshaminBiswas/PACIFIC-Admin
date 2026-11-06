@@ -3,7 +3,7 @@ import {
   Receipt, Search, Plus, RefreshCw, Eye, Trash2, Printer,
   ChevronRight, FileText, Package, Wrench, ShoppingBag,
   CheckCircle2, Clock, AlertCircle, XCircle, CreditCard,
-  ArrowRight, Filter, X, ExternalLink, Layers, Building2,
+  ArrowRight, Filter, X, ExternalLink, Layers, Building2, Edit,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { invoicesApi } from '../api/services';
@@ -439,6 +439,15 @@ const InvoicesPage: React.FC = () => {
                       {/* Actions */}
                       <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Edit Bill */}
+                          <Link
+                            to={`/admin/dashboard/invoices/${inv.id}/edit`}
+                            className="p-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center transition-colors"
+                            title="Edit Bill Details"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Link>
+
                           {/* PDF Preview */}
                           <button
                             onClick={() => handleOpenPdf(inv)}
@@ -546,12 +555,18 @@ const InvoicesPage: React.FC = () => {
                   ) : null}
 
                   {/* Action buttons */}
-                  <div className="grid grid-cols-4 gap-2 pt-1">
+                  <div className="grid grid-cols-5 gap-1.5 pt-1">
                     <Link
                       to={`/admin/dashboard/invoices/${inv.id}`}
                       className="min-h-[40px] flex items-center justify-center gap-1 text-xs font-semibold bg-white/10 text-white rounded-xl"
                     >
                       <Receipt className="w-3.5 h-3.5 text-[#7FB706]" /> View
+                    </Link>
+                    <Link
+                      to={`/admin/dashboard/invoices/${inv.id}/edit`}
+                      className="min-h-[40px] flex items-center justify-center gap-1 text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl"
+                    >
+                      <Edit className="w-3.5 h-3.5" /> Edit
                     </Link>
                     <button
                       onClick={() => handleOpenPdf(inv)}

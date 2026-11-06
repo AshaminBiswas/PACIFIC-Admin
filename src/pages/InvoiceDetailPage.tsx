@@ -462,9 +462,17 @@ export default function InvoiceDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Bill to Party */}
         <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-400 border-b border-white/5 pb-2">
-            <User className="w-4 h-4 text-[#7FB706]" />
-            <span>Bill to Party</span>
+          <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-gray-400 border-b border-white/5 pb-2">
+            <div className="flex items-center gap-2">
+              <User className="w-4 h-4 text-[#7FB706]" />
+              <span>Bill to Party</span>
+            </div>
+            <Link
+              to={`/admin/dashboard/invoices/${invoice.id}/edit`}
+              className="text-[11px] text-[#7FB706] hover:text-[#90cf08] hover:underline font-semibold flex items-center gap-1 cursor-pointer transition lowercase tracking-normal"
+            >
+              <Edit className="w-3 h-3" /> Edit
+            </Link>
           </div>
           <div className="space-y-1.5 text-xs text-gray-300">
             <div className="text-sm font-bold text-white">{billTo.partyName || 'M/s.'}</div>
@@ -484,9 +492,17 @@ export default function InvoiceDetailPage() {
 
         {/* Ship to Party */}
         <div className="bg-[#121226] border border-white/5 rounded-2xl p-5 space-y-3">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-400 border-b border-white/5 pb-2">
-            <Truck className="w-4 h-4 text-blue-400" />
-            <span>Ship to Party</span>
+          <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-gray-400 border-b border-white/5 pb-2">
+            <div className="flex items-center gap-2">
+              <Truck className="w-4 h-4 text-blue-400" />
+              <span>Ship to Party</span>
+            </div>
+            <Link
+              to={`/admin/dashboard/invoices/${invoice.id}/edit`}
+              className="text-[11px] text-[#7FB706] hover:text-[#90cf08] hover:underline font-semibold flex items-center gap-1 cursor-pointer transition lowercase tracking-normal"
+            >
+              <Edit className="w-3 h-3" /> Edit
+            </Link>
           </div>
           <div className="space-y-1.5 text-xs text-gray-300">
             <div className="text-sm font-bold text-white">{shipTo.partyName || billTo.partyName || 'M/s.'}</div>
@@ -550,7 +566,15 @@ export default function InvoiceDetailPage() {
             <Receipt className="w-4 h-4 text-[#7FB706]" />
             <h3 className="text-sm font-bold text-white">Line Items (Goods &amp; Services)</h3>
           </div>
-          <span className="text-xs text-gray-400 font-mono">{items.length} items</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-400 font-mono">{items.length} items</span>
+            <Link
+              to={`/admin/dashboard/invoices/${invoice.id}/edit`}
+              className="text-xs text-[#7FB706] hover:text-[#90cf08] hover:underline font-semibold flex items-center gap-1 cursor-pointer transition"
+            >
+              <Edit className="w-3 h-3" /> Edit Items &amp; Rates
+            </Link>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
