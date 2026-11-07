@@ -52,6 +52,7 @@ import type {
   EmployeePayrollRun,
   EmployeeAdvance,
   EmployeeDeduction,
+  EmployeeLeaveLedger,
 } from '../types/employee';
 
 // ─── Constants & Category Config ──────────────────────────────────────────────
@@ -171,8 +172,18 @@ export function EmployeeDetailPage() {
   // ─── Core State ─────────────────────────────────────────────────────────────
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'conveyance' | 'attendance' | 'payroll' | 'advances' | 'profile'>('conveyance');
+  const [activeTab, setActiveTab] = useState<'leaves' | 'conveyance' | 'attendance' | 'payroll' | 'advances' | 'profile'>('conveyance');
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // ─── Leave Ledger & Balances State ──────────────────────────────────────────
+  const [leaveHistory, setLeaveHistory] = useState<EmployeeLeaveLedger[]>([]);
+  const [isLoadingLeaves, setIsLoadingLeaves] = useState(false);
+  const [isLeaveAdjustModalOpen, setIsLeaveAdjustModalOpen] = useState(false);
+  const [leaveAdjustType, setLeaveAdjustType] = useState<'CL' | 'EL'>('CL');
+  const [leaveAdjustAction, setLeaveAdjustAction] = useState<'USAGE' | 'ACCRUAL' | 'ADJUSTMENT'>('USAGE');
+  const [leaveAdjustAmount, setLeaveAdjustAmount] = useState('1');
+  const [leaveAdjustReason, setLeaveAdjustReason] = useState('');
+  const [isSubmittingLeaveAdjust, setIsSubmittingLeaveAdjust] = useState(false);
 
   // ─── Conveyance List & Filters ──────────────────────────────────────────────
   const [conveyances, setConveyances] = useState<EmployeeConveyanceExpense[]>([]);
@@ -284,12 +295,69 @@ export function EmployeeDetailPage() {
     }
   }, [id, categoryFilter, statusFilter, searchQuery]);
 
+  // ─── Load Leave History ─────────────────────────────────────────────────────
+  const loadLeaveLedger = useCallback(async () => {
+    if (!id) return;
+    setIsLoadingLeaves(true);
+    try {
+      const res = await employeeService.getLeaveLedger(id);
+      setLeaveHistory(res.history || []);
+      if (res.employee) {
+        setEmployee((prev) =>
+          prev
+            ? { ...prev, clBalance: res.employee.clBalance, elBalance: res.employee.elBalance }
+            : prev
+        );
+      }
+    } catch (err: any) {
+      console.warn('Failed to load leave ledger:', err);
+    } finally {
+      setIsLoadingLeaves(false);
+    }
+  }, [id]);
+
   useEffect(() => {
     loadEmployee();
     loadConveyances();
-  }, [loadEmployee, loadConveyances]);
+    loadLeaveLedger();
+  }, [loadEmployee, loadConveyances, loadLeaveLedger]);
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
+  const handleAdjustLeave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    const amt = parseFloat(leaveAdjustAmount);
+    if (isNaN(amt) || amt <= 0) {
+      showToast('error', 'Please enter a valid leave amount');
+      return;
+    }
+    if (!leaveAdjustReason.trim()) {
+      showToast('error', 'Please provide a reason for the leave transaction');
+      return;
+    }
+
+    setIsSubmittingLeaveAdjust(true);
+    try {
+      const res = await employeeService.adjustLeave(id, {
+        leaveType: leaveAdjustType,
+        transactionType: leaveAdjustAction,
+        amount: amt,
+        reason: leaveAdjustReason.trim(),
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear(),
+      });
+      showToast('success', `Leave adjusted successfully. New ${leaveAdjustType} balance: ${res.currentBalance}`);
+      setIsLeaveAdjustModalOpen(false);
+      setLeaveAdjustReason('');
+      setLeaveAdjustAmount('1');
+      await loadEmployee();
+      await loadLeaveLedger();
+    } catch (err: any) {
+      showToast('error', err?.message || 'Failed to adjust leave');
+    } finally {
+      setIsSubmittingLeaveAdjust(false);
+    }
+  };
   const handleCreateExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id || !formSiteName.trim() || !formAmount || parseFloat(formAmount) <= 0) {
@@ -550,12 +618,30 @@ export function EmployeeDetailPage() {
               <span className="text-lg font-bold text-white">{formatINR(employee.monthlyCtc)}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono">
-                CL: {Number(employee.clBalance || 0).toFixed(1)}
-              </span>
-              <span className="text-xs px-2.5 py-1 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 font-mono">
-                EL: {Number(employee.elBalance || 0).toFixed(1)}
-              </span>
+              <button
+                type="button"
+                onClick={() => setActiveTab('leaves')}
+                className="group flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/25 transition cursor-pointer"
+                title="View Leave Balances & History"
+              >
+                <span className="text-[10px] uppercase font-bold tracking-wider text-blue-400/80">CL:</span>
+                <span className="text-sm font-extrabold text-blue-300 font-mono">
+                  {Number(employee.clBalance || 0).toFixed(1)}
+                </span>
+                <span className="text-[10px] text-blue-400/70">days</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('leaves')}
+                className="group flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/25 transition cursor-pointer"
+                title="View Leave Balances & History"
+              >
+                <span className="text-[10px] uppercase font-bold tracking-wider text-purple-400/80">EL:</span>
+                <span className="text-sm font-extrabold text-purple-300 font-mono">
+                  {Number(employee.elBalance || 0).toFixed(1)}
+                </span>
+                <span className="text-[10px] text-purple-400/70">days</span>
+              </button>
             </div>
           </div>
         </div>
@@ -564,6 +650,12 @@ export function EmployeeDetailPage() {
       {/* ── Navigation Tabs ──────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 overflow-x-auto border-b border-white/10 pb-2 no-scrollbar">
         {[
+          {
+            id: 'leaves',
+            label: 'Leave Balances & History',
+            icon: <Award size={16} />,
+            badge: leaveHistory.length,
+          },
           {
             id: 'conveyance',
             label: 'Site Visits & Convenience Expenses',
@@ -616,6 +708,220 @@ export function EmployeeDetailPage() {
           </button>
         ))}
       </div>
+
+      {/* ════════════════════════════════════════════════════════════════════════
+          TAB 0: LEAVE BALANCES & TRANSACTION LEDGER
+      ════════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'leaves' && (
+        <div className="space-y-6">
+          {/* Leave Balances Header Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* CL Card */}
+            <div className="bg-[#0a091e] border border-blue-500/20 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
+              <div className="flex items-start justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider block">
+                    Casual Leave (CL)
+                  </span>
+                  <div className="text-3xl font-extrabold text-white mt-2 font-mono">
+                    {Number(employee.clBalance || 0).toFixed(1)}
+                    <span className="text-sm font-normal text-gray-400 ml-1.5">days</span>
+                  </div>
+                </div>
+                <div className="p-3 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20">
+                  <Award size={22} />
+                </div>
+              </div>
+              <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs text-gray-400">
+                <span>Monthly Auto-Accrual:</span>
+                <span className="text-emerald-400 font-semibold font-mono">+1.00 Day / Month</span>
+              </div>
+              <div className="mt-1 text-[11px] text-gray-500">
+                Added automatically every month. Deducts 1 day on CL attendance.
+              </div>
+            </div>
+
+            {/* EL Card */}
+            <div className="bg-[#0a091e] border border-purple-500/20 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-2xl pointer-events-none" />
+              <div className="flex items-start justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider block">
+                    Earned Leave (EL)
+                  </span>
+                  <div className="text-3xl font-extrabold text-white mt-2 font-mono">
+                    {Number(employee.elBalance || 0).toFixed(1)}
+                    <span className="text-sm font-normal text-gray-400 ml-1.5">days</span>
+                  </div>
+                </div>
+                <div className="p-3 bg-purple-500/10 text-purple-400 rounded-xl border border-purple-500/20">
+                  <Calendar size={22} />
+                </div>
+              </div>
+              <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs text-gray-400">
+                <span>Monthly Auto-Accrual:</span>
+                <span className="text-emerald-400 font-semibold font-mono">+1.00 Day / Month</span>
+              </div>
+              <div className="mt-1 text-[11px] text-gray-500">
+                Added automatically every month. Deducts 1 day on EL attendance.
+              </div>
+            </div>
+
+            {/* Policy & Quick Action Card */}
+            <div className="bg-[#0a091e] border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <CheckCircle2 size={14} /> Automated Leave System
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+                    Clean Slate Active
+                  </span>
+                </div>
+                <p className="text-xs text-gray-300 mt-2.5 leading-relaxed">
+                  Starting this current month, all active employees automatically receive <strong>1.00 CL</strong> and <strong>1.00 EL</strong> every month. Using leaves in attendance auto-deducts balance in real time.
+                </p>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-white/10 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLeaveAdjustType('CL');
+                    setLeaveAdjustAction('USAGE');
+                    setLeaveAdjustAmount('1');
+                    setLeaveAdjustReason('');
+                    setIsLeaveAdjustModalOpen(true);
+                  }}
+                  className="flex-1 px-3 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl text-xs font-semibold shadow transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Plus size={14} /> Adjust / Apply Leave
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    loadEmployee();
+                    loadLeaveLedger();
+                  }}
+                  disabled={isLoadingLeaves}
+                  className="p-2 bg-[#030213] hover:bg-white/10 text-gray-300 hover:text-white rounded-xl border border-white/10 transition cursor-pointer"
+                  title="Refresh leave balance and history"
+                >
+                  <RefreshCw size={14} className={isLoadingLeaves ? 'animate-spin' : ''} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Leave Movement History Table */}
+          <div className="bg-[#0a091e] border border-white/10 rounded-2xl p-6 space-y-4 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Award size={18} className="text-blue-400" /> Leave Ledger & Movement History
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Complete audit log of automatic monthly accruals, attendance usage deductions, and administrative adjustments.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs px-2.5 py-1 rounded-lg bg-white/5 text-gray-300 border border-white/10 font-mono">
+                  {leaveHistory.length} Transactions
+                </span>
+              </div>
+            </div>
+
+            {isLoadingLeaves ? (
+              <div className="flex items-center justify-center py-12 text-gray-400 text-xs gap-2">
+                <RefreshCw size={16} className="animate-spin text-blue-400" /> Loading leave history...
+              </div>
+            ) : leaveHistory.length === 0 ? (
+              <div className="text-center py-12 bg-[#030213] rounded-xl border border-white/5 space-y-2">
+                <Award size={28} className="mx-auto text-gray-600" />
+                <p className="text-xs text-gray-400">No leave movements recorded yet for this employee.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#030213] text-gray-400 border-b border-white/10">
+                    <tr>
+                      <th className="py-2.5 px-3 font-semibold">Date & Time</th>
+                      <th className="py-2.5 px-3 font-semibold">Leave Type</th>
+                      <th className="py-2.5 px-3 font-semibold">Action Type</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Days</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Balance After</th>
+                      <th className="py-2.5 px-4 font-semibold">Reason / Description</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {leaveHistory.map((item) => {
+                      const amt = Number(item.amount || 0);
+                      const isCredit = amt > 0;
+                      return (
+                        <tr key={item.id} className="hover:bg-white/[0.02] transition">
+                          <td className="py-3 px-3 text-gray-300 font-mono whitespace-nowrap">
+                            {item.createdAt
+                              ? new Date(item.createdAt).toLocaleString('en-IN', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : `Month ${item.month}/${item.year}`}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[11px] font-bold font-mono border ${
+                                item.leaveType === 'CL'
+                                  ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                  : 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                              }`}
+                            >
+                              {item.leaveType}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                item.transactionType === 'ACCRUAL'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                  : item.transactionType === 'USAGE'
+                                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                  : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              }`}
+                            >
+                              {item.transactionType === 'ACCRUAL'
+                                ? 'Monthly Accrual'
+                                : item.transactionType === 'USAGE'
+                                ? 'Leave Consumed'
+                                : 'Adjustment'}
+                            </span>
+                          </td>
+                          <td
+                            className={`py-3 px-3 text-right font-mono font-bold whitespace-nowrap ${
+                              isCredit ? 'text-emerald-400' : 'text-rose-400'
+                            }`}
+                          >
+                            {isCredit ? `+${amt.toFixed(2)}` : amt.toFixed(2)}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono text-white font-semibold whitespace-nowrap">
+                            {Number(item.balanceAfter || 0).toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4 text-gray-300 max-w-md">
+                            {item.reason || 'Leave transaction'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ════════════════════════════════════════════════════════════════════════
           TAB 1: SITE VISITS & CONVENIENCE EXPENSES (PRIMARY USER REQUIREMENT)
@@ -1230,27 +1536,44 @@ export function EmployeeDetailPage() {
               <Calendar size={18} className="text-purple-400" /> Attendance Logs & Leave Balances
             </h3>
             <div className="flex items-center gap-2">
-              <span className="text-xs px-2.5 py-1 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono">
-                Casual Leave (CL): {Number(employee.clBalance || 0).toFixed(2)}
-              </span>
-              <span className="text-xs px-2.5 py-1 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-mono">
-                Earned Leave (EL): {Number(employee.elBalance || 0).toFixed(2)}
-              </span>
+              <button
+                type="button"
+                onClick={() => setActiveTab('leaves')}
+                className="text-xs px-2.5 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 font-mono transition cursor-pointer"
+                title="View full CL ledger history"
+              >
+                Casual Leave (CL): {Number(employee.clBalance || 0).toFixed(1)}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('leaves')}
+                className="text-xs px-2.5 py-1 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 font-mono transition cursor-pointer"
+                title="View full EL ledger history"
+              >
+                Earned Leave (EL): {Number(employee.elBalance || 0).toFixed(1)}
+              </button>
             </div>
           </div>
 
           <div className="text-sm text-gray-400">
             Attendance records for {employee.name} are synchronized daily in the main Attendance Matrix.
-            You can mark site duty or double duty for inspection and measurement days.
+            Marking CL or EL automatically debits the respective leave balance in real time.
           </div>
 
-          <div className="pt-2">
+          <div className="pt-2 flex flex-wrap items-center gap-4">
             <Link
               to="/admin/dashboard/employees"
               className="inline-flex items-center gap-2 text-xs text-[#7FB706] hover:underline"
             >
               Open Company Attendance Matrix <ChevronRight size={14} />
             </Link>
+            <button
+              type="button"
+              onClick={() => setActiveTab('leaves')}
+              className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:underline cursor-pointer"
+            >
+              <Award size={14} /> View Leave Balances & History
+            </button>
           </div>
         </div>
       )}
@@ -1970,6 +2293,110 @@ export function EmployeeDetailPage() {
                 className="max-h-[60vh] max-w-full object-contain rounded-xl border border-white/10 shadow-lg"
               />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════════
+          MODAL: APPLY / ADJUST LEAVE
+      ════════════════════════════════════════════════════════════════════════ */}
+      {isLeaveAdjustModalOpen && employee && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div className="bg-[#0a091e] border border-white/10 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Award size={18} className="text-blue-400" /> Apply / Adjust Leave
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsLeaveAdjustModalOpen(false)}
+                className="text-gray-400 hover:text-white transition p-1 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAdjustLeave} className="space-y-4">
+              <div className="bg-[#030213] p-3 rounded-xl border border-white/5 space-y-1">
+                <div className="text-xs text-gray-400">Employee:</div>
+                <div className="text-sm font-bold text-white">
+                  {employee.name} ({employee.employeeId})
+                </div>
+                <div className="flex items-center gap-3 pt-1 text-xs font-mono">
+                  <span className="text-blue-400">Current CL: {Number(employee.clBalance || 0).toFixed(1)}</span>
+                  <span className="text-purple-400">Current EL: {Number(employee.elBalance || 0).toFixed(1)}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Leave Type</label>
+                  <select
+                    value={leaveAdjustType}
+                    onChange={(e) => setLeaveAdjustType(e.target.value as 'CL' | 'EL')}
+                    className="w-full bg-[#030213] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="CL">Casual Leave (CL)</option>
+                    <option value="EL">Earned Leave (EL)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Action</label>
+                  <select
+                    value={leaveAdjustAction}
+                    onChange={(e) => setLeaveAdjustAction(e.target.value as any)}
+                    className="w-full bg-[#030213] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="USAGE">Deduct / Consume Leave (-)</option>
+                    <option value="ACCRUAL">Credit / Add Leave (+)</option>
+                    <option value="ADJUSTMENT">Correct Balance</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Days / Amount</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0.5"
+                  max="30"
+                  value={leaveAdjustAmount}
+                  onChange={(e) => setLeaveAdjustAmount(e.target.value)}
+                  className="w-full bg-[#030213] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                  placeholder="e.g. 1"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Reason / Notes</label>
+                <textarea
+                  value={leaveAdjustReason}
+                  onChange={(e) => setLeaveAdjustReason(e.target.value)}
+                  className="w-full bg-[#030213] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 h-20 resize-none"
+                  placeholder="e.g. Emergency family leave approved by manager"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setIsLeaveAdjustModalOpen(false)}
+                  className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl text-xs transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingLeaveAdjust}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl text-xs font-semibold shadow transition disabled:opacity-50 cursor-pointer"
+                >
+                  {isSubmittingLeaveAdjust ? 'Saving...' : 'Apply Transaction'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

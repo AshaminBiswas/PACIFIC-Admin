@@ -158,6 +158,11 @@ export const employeeService = {
     return res.data?.data !== undefined ? res.data.data : res.data;
   },
 
+  async resetCleanSlateLeaves(): Promise<any> {
+    const res = await apiClient.post<any>('/employees/leaves/reset-clean-slate');
+    return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
   async getLeaveLedger(employeeId: string): Promise<{ employee: Employee; history: EmployeeLeaveLedger[] }> {
     const res = await apiClient.get<any>(`/employees/leaves/ledger/${encodeURIComponent(employeeId)}`);
     return res.data?.data !== undefined ? res.data.data : res.data;
@@ -165,9 +170,23 @@ export const employeeService = {
 
   async adjustLeave(
     employeeId: string,
-    payload: { leaveType: 'CL' | 'EL'; amount: number; reason: string; month?: number; year?: number }
+    payload: {
+      leaveType: 'CL' | 'EL';
+      transactionType?: 'ACCRUAL' | 'USAGE' | 'ADJUSTMENT';
+      amount: number;
+      reason: string;
+      month?: number;
+      year?: number;
+    }
   ): Promise<any> {
-    const res = await apiClient.post<any>(`/employees/leaves/adjust/${encodeURIComponent(employeeId)}`, payload);
+    const now = new Date();
+    const finalPayload = {
+      month: payload.month || now.getMonth() + 1,
+      year: payload.year || now.getFullYear(),
+      transactionType: payload.transactionType || 'ADJUSTMENT',
+      ...payload,
+    };
+    const res = await apiClient.post<any>(`/employees/leaves/adjust/${encodeURIComponent(employeeId)}`, finalPayload);
     return res.data?.data !== undefined ? res.data.data : res.data;
   },
 
