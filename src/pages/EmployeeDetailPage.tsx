@@ -638,7 +638,7 @@ export function EmployeeDetailPage() {
               >
                 <span className="text-[10px] uppercase font-bold tracking-wider text-purple-400/80">EL:</span>
                 <span className="text-sm font-extrabold text-purple-300 font-mono">
-                  {Number(employee.elBalance || 0).toFixed(1)}
+                  {Number(employee.elBalance || 0).toFixed(2)}
                 </span>
                 <span className="text-[10px] text-purple-400/70">days</span>
               </button>
@@ -751,7 +751,7 @@ export function EmployeeDetailPage() {
                     Earned Leave (EL)
                   </span>
                   <div className="text-3xl font-extrabold text-white mt-2 font-mono">
-                    {Number(employee.elBalance || 0).toFixed(1)}
+                    {Number(employee.elBalance || 0).toFixed(2)}
                     <span className="text-sm font-normal text-gray-400 ml-1.5">days</span>
                   </div>
                 </div>
@@ -761,10 +761,10 @@ export function EmployeeDetailPage() {
               </div>
               <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs text-gray-400">
                 <span>Monthly Auto-Accrual:</span>
-                <span className="text-emerald-400 font-semibold font-mono">+1.00 Day / Month</span>
+                <span className="text-emerald-400 font-semibold font-mono">+0.25 Day / Month (1 every 4 mos)</span>
               </div>
               <div className="mt-1 text-[11px] text-gray-500">
-                Added automatically every month. Deducts 1 day on EL attendance.
+                Added automatically every month (+0.25). Deducts 1 day on EL attendance.
               </div>
             </div>
 
@@ -780,7 +780,7 @@ export function EmployeeDetailPage() {
                   </span>
                 </div>
                 <p className="text-xs text-gray-300 mt-2.5 leading-relaxed">
-                  Starting this current month, all active employees automatically receive <strong>1.00 CL</strong> and <strong>1.00 EL</strong> every month. Using leaves in attendance auto-deducts balance in real time.
+                  Starting this current month, all active employees automatically receive <strong>1.00 CL</strong> and <strong>0.25 EL</strong> every month. Using leaves in attendance auto-deducts balance in real time.
                 </p>
               </div>
 
@@ -1550,7 +1550,7 @@ export function EmployeeDetailPage() {
                 className="text-xs px-2.5 py-1 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 font-mono transition cursor-pointer"
                 title="View full EL ledger history"
               >
-                Earned Leave (EL): {Number(employee.elBalance || 0).toFixed(1)}
+                Earned Leave (EL): {Number(employee.elBalance || 0).toFixed(2)}
               </button>
             </div>
           </div>

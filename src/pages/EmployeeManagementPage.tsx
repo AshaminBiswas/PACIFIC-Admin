@@ -1134,7 +1134,7 @@ export function EmployeeManagementPage() {
   };
 
   const handleRunMonthlyAccrual = async () => {
-    if (!confirm(`Run automated leave accrual (+1.00 CL, +1.00 EL) for ${selectedMonth}/${selectedYear}?`)) return;
+    if (!confirm(`Run automated leave accrual (+1.00 CL, +0.25 EL) for ${selectedMonth}/${selectedYear}?`)) return;
     try {
       const res = await employeeService.accrueMonthlyLeave({ month: selectedMonth, year: selectedYear });
       showFeedback('success', res.message || 'Leave accrual completed successfully');
@@ -3066,7 +3066,7 @@ export function EmployeeManagementPage() {
             <div>
               <h3 className="text-base font-semibold text-white">Leave Accrual & Ledger Rules</h3>
               <p className="text-xs text-gray-400">
-                Casual Leave (CL) accrues +1.00 per month. Earned Leave (EL) accrues +1.00 per month (auto-accrued monthly).
+                Casual Leave (CL) accrues +1.00 per month. Earned Leave (EL) accrues +0.25 per month (1 every 4 months).
               </p>
             </div>
 
@@ -3076,7 +3076,7 @@ export function EmployeeManagementPage() {
                 className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white text-xs font-semibold rounded-xl shadow transition flex items-center gap-1.5"
               >
                 <Award size={15} />
-                <span>Run Monthly Accrual (+1.00 CL, +1.00 EL)</span>
+                <span>Run Monthly Accrual (+1.00 CL, +0.25 EL)</span>
               </button>
 
               <button
