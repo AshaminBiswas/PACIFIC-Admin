@@ -32,6 +32,7 @@ interface InvoiceFormData {
   modeOfTransport: string;
   vehicleNumber: string;
   grLrNumber: string;
+  ewayBillNumber: string;
   placeOfSupply: string;
   reverseCharge: boolean;
   freightTerms: 'Extra as Actual / To pay' | 'Customer Scope' | 'Included in Price' | 'Fixed Amount';
@@ -50,6 +51,7 @@ const INITIAL_FORM_DATA: InvoiceFormData = {
   modeOfTransport: 'By Road',
   vehicleNumber: '',
   grLrNumber: '',
+  ewayBillNumber: '',
   placeOfSupply: 'West Bengal',
   reverseCharge: false,
   freightTerms: 'Extra as Actual / To pay',
@@ -362,6 +364,7 @@ export default function CreateInvoicePage() {
         vehicleNumber: formData.vehicleNumber || '',
         modeOfTransport: formData.modeOfTransport || 'By Road',
         grLrNumber: formData.grLrNumber || '',
+        ewayBillNumber: formData.ewayBillNumber || '',
         placeOfSupply: formData.placeOfSupply || billToState,
         freightTerms: formData.freightTerms,
         freightAmount: effectiveFreightAmount,
@@ -595,7 +598,7 @@ export default function CreateInvoicePage() {
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-400">
             <span>Dispatch &amp; Transport Details</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
             <div>
               <label className="block text-[10px] text-gray-400 mb-1">Mode of Transport</label>
               <input
@@ -623,6 +626,16 @@ export default function CreateInvoicePage() {
                 value={formData.grLrNumber}
                 onChange={(e) => setFormData({ ...formData, grLrNumber: e.target.value })}
                 placeholder="LR No."
+                className="bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#7FB706] w-full min-h-[44px]"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-gray-400 mb-1">E-Way Bill No.</label>
+              <input
+                type="text"
+                value={formData.ewayBillNumber}
+                onChange={(e) => setFormData({ ...formData, ewayBillNumber: e.target.value })}
+                placeholder="e.g. 241012345678"
                 className="bg-[#121226] border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#7FB706] w-full min-h-[44px]"
               />
             </div>

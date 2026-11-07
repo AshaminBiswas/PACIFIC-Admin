@@ -6,10 +6,11 @@ import {
   ArrowRight, Filter, X, ExternalLink, Layers, Building2, Edit,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { invoicesApi } from '../api/services';
+import { invoicesApi } from '../api/invoicesApi';
 import DocumentFlowTimelineModal from '../components/common/DocumentFlowTimelineModal';
 import type { Invoice, InvoiceStatus } from '../types/admin';
 import { isKolkataBranch, filterByBranch } from '../utils/branchHelper';
+import { useAdminAuth } from '../context/AdminAuthContext';
 
 /* ─── Status helpers ──────────────────────────────────────────────────────── */
 
@@ -46,6 +47,8 @@ const STATUS_TABS: Array<{ id: string; label: string }> = [
 
 const InvoicesPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAdminAuth();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN' || (user as any)?.roleSlug?.toLowerCase().includes('super') || (user as any)?.isSuperAdmin === true;
 
   const [invoices, setInvoices]         = useState<Invoice[]>([]);
   const [total, setTotal]               = useState(0);
@@ -55,6 +58,17 @@ const InvoicesPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [branchFilter, setBranchFilter] = useState<'ALL' | 'MAIN' | 'KOLKATA'>('ALL');
   const [isLoading, setIsLoading]       = useState(true);
+
+  // Deletion Request States (Non-superadmin request / Super Admin review)
+  const [selectedInvoiceForDelete, setSelectedInvoiceForDelete] = useState<Invoice | null>(null);
+  const [showRequestDeleteModal, setShowRequestDeleteModal] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [submittingDeleteRequest, setSubmittingDeleteRequest] = useState(false);
+
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [submittingRejection, setSubmittingRejection] = useState(false);
+  const [submittingApproval, setSubmittingApproval] = useState(false);
 
   // PDF modal
   const [pdfHtml, setPdfHtml]           = useState('');
@@ -95,12 +109,93 @@ const InvoicesPage: React.FC = () => {
   const displayedInvoices = filterByBranch(invoices, branchFilter);
 
   const handleDelete = async (inv: Invoice) => {
-    if (!confirm(`Delete Invoice ${inv.invoiceNumber}? This action cannot be undone.`)) return;
+    const isPending = (inv as any)?.metadata?.deleteRequest?.status === 'PENDING';
+    setSelectedInvoiceForDelete(inv);
+
+    if (isPending) {
+      if (isSuperAdmin) {
+        setRejectionReason('');
+        setShowReviewModal(true);
+      } else {
+        if (confirm(`A deletion request for Bill ${inv.invoiceNumber} is currently pending Super Admin review.\n\nWould you like to cancel/withdraw this request?`)) {
+          try {
+            await invoicesApi.cancelDeletion(inv.id);
+            alert('Deletion request cancelled.');
+            fetchInvoices();
+          } catch (err: any) {
+            alert(err?.response?.data?.message || err.message || 'Failed to cancel deletion request');
+          }
+        }
+      }
+      return;
+    }
+
+    if (!isSuperAdmin) {
+      setDeleteReason('');
+      setShowRequestDeleteModal(true);
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to permanently delete Tax Invoice ${inv.invoiceNumber}? This action cannot be undone.`)) return;
     try {
       await invoicesApi.delete(inv.id);
       fetchInvoices();
-    } catch {
-      alert('Failed to delete invoice.');
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err.message || 'Failed to delete invoice.');
+    }
+  };
+
+  const handleSendDeletionRequest = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!selectedInvoiceForDelete) return;
+    if (!deleteReason.trim()) {
+      alert('Please specify a reason for the deletion request.');
+      return;
+    }
+    setSubmittingDeleteRequest(true);
+    try {
+      await invoicesApi.requestDeletion(selectedInvoiceForDelete.id, deleteReason.trim());
+      alert('Deletion request submitted to Super Admin successfully.');
+      setShowRequestDeleteModal(false);
+      setDeleteReason('');
+      fetchInvoices();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err.message || 'Failed to submit deletion request');
+    } finally {
+      setSubmittingDeleteRequest(false);
+    }
+  };
+
+  const handleApproveDeletion = async () => {
+    if (!selectedInvoiceForDelete) return;
+    if (!confirm(`Approve deletion request and permanently delete Tax Invoice ${selectedInvoiceForDelete.invoiceNumber}? This action cannot be undone.`)) return;
+    setSubmittingApproval(true);
+    try {
+      await invoicesApi.delete(selectedInvoiceForDelete.id);
+      alert('Invoice deleted successfully.');
+      setShowReviewModal(false);
+      fetchInvoices();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err.message || 'Failed to delete invoice');
+    } finally {
+      setSubmittingApproval(false);
+    }
+  };
+
+  const handleRejectDeletion = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!selectedInvoiceForDelete) return;
+    setSubmittingRejection(true);
+    try {
+      await invoicesApi.rejectDeletion(selectedInvoiceForDelete.id, rejectionReason.trim());
+      alert('Deletion request rejected.');
+      setShowReviewModal(false);
+      setRejectionReason('');
+      fetchInvoices();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err.message || 'Failed to reject deletion request');
+    } finally {
+      setSubmittingRejection(false);
     }
   };
 
@@ -355,6 +450,15 @@ const InvoicesPage: React.FC = () => {
                             </span>
                           )}
                           {isDue(inv) && <span className="text-[9px] px-1 py-0.5 rounded bg-red-500/10 text-red-400 font-bold">OVERDUE</span>}
+                          {(inv as any)?.metadata?.deleteRequest?.status === 'PENDING' && (
+                            <span
+                              className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1"
+                              title={`Deletion requested: ${(inv as any)?.metadata?.deleteRequest?.reason || ''}`}
+                            >
+                              <AlertCircle className="w-2.5 h-2.5 text-amber-400" />
+                              Deletion Requested
+                            </span>
+                          )}
                         </div>
                         {inv.paidAt && (
                           <div className="text-[10px] text-emerald-500 mt-0.5 flex items-center gap-1">
@@ -466,11 +570,23 @@ const InvoicesPage: React.FC = () => {
                             <Layers className="w-4 h-4" />
                           </button>
 
-                          {/* Delete */}
+                          {/* Delete / Request Deletion */}
                           <button
                             onClick={() => handleDelete(inv)}
-                            className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center transition-colors"
-                            title="Delete Invoice"
+                            className={`p-2 rounded-lg cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center transition-colors ${
+                              (inv as any)?.metadata?.deleteRequest?.status === 'PENDING'
+                                ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30'
+                                : 'bg-red-500/10 hover:bg-red-500/20 text-red-400'
+                            }`}
+                            title={
+                              (inv as any)?.metadata?.deleteRequest?.status === 'PENDING'
+                                ? isSuperAdmin
+                                  ? 'Review Deletion Request (Super Admin)'
+                                  : 'Deletion Request Pending'
+                                : isSuperAdmin
+                                ? 'Delete Invoice (Super Admin)'
+                                : 'Request Deletion to Super Admin'
+                            }
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -505,6 +621,14 @@ const InvoicesPage: React.FC = () => {
                       <div className="text-xs text-gray-400 mt-0.5">
                         {(inv as any).customer?.legalName || (inv as any).party?.legalName || (inv as any).metadata?.billTo?.partyName || (inv as any).metadata?.shipTo?.partyName || 'Valued Customer'}
                       </div>
+                      {(inv as any)?.metadata?.deleteRequest?.status === 'PENDING' && (
+                        <div className="mt-1">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 inline-flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 text-amber-400" />
+                            Deletion Requested
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <StatusBadge status={inv.status} />
                   </div>
@@ -582,9 +706,16 @@ const InvoicesPage: React.FC = () => {
                     </button>
                     <button
                       onClick={() => handleDelete(inv)}
-                      className="min-h-[40px] flex items-center justify-center gap-1 text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 rounded-xl"
+                      className={`min-h-[40px] flex items-center justify-center gap-1 text-xs font-semibold rounded-xl border ${
+                        (inv as any)?.metadata?.deleteRequest?.status === 'PENDING'
+                          ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                          : 'bg-red-500/10 text-red-400 border-red-500/20'
+                      }`}
                     >
-                      <Trash2 className="w-3.5 h-3.5" /> Del
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {(inv as any)?.metadata?.deleteRequest?.status === 'PENDING'
+                        ? isSuperAdmin ? 'Review' : 'Pending'
+                        : isSuperAdmin ? 'Del' : 'Req'}
                     </button>
                   </div>
                 </div>
@@ -690,6 +821,156 @@ const InvoicesPage: React.FC = () => {
           }}
           primaryDetailUrl={`/admin/dashboard/invoices/${selectedInvoiceForTimeline.id}`}
         />
+      )}
+
+      {/* Request Bill Deletion Modal (for non-superadmins) */}
+      {showRequestDeleteModal && selectedInvoiceForDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div className="bg-[#1e1e38] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-[#121226]">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-amber-400" />
+                <h3 className="text-sm font-bold text-white">
+                  Request Deletion • {selectedInvoiceForDelete.invoiceNumber}
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowRequestDeleteModal(false)}
+                className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSendDeletionRequest} className="p-5 space-y-4">
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300">
+                Only Super Admins can directly delete GST Tax Invoices. Submitting this request will flag the invoice and notify Super Admins for review.
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                  Reason for Deletion <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  placeholder="e.g. Duplicated invoice, wrong tax rate, client cancelled order, etc."
+                  rows={4}
+                  required
+                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-3 text-white text-xs placeholder-gray-500 focus:outline-none focus:border-[#7FB706] resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRequestDeleteModal(false)}
+                  className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-semibold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingDeleteRequest || !deleteReason.trim()}
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold disabled:opacity-50 flex items-center gap-1.5 shadow-lg shadow-amber-600/20 transition cursor-pointer"
+                >
+                  {submittingDeleteRequest ? 'Submitting...' : 'Send Request to Super Admin'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Super Admin Review Pending Deletion Request Modal */}
+      {showReviewModal && selectedInvoiceForDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div className="bg-[#1e1e38] border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-[#121226]">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-amber-400" />
+                <div>
+                  <h3 className="text-sm font-bold text-white">Review Bill Deletion Request</h3>
+                  <p className="text-[11px] text-gray-400 font-mono">{selectedInvoiceForDelete.invoiceNumber}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowReviewModal(false)}
+                className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="bg-[#0a0a1a] border border-white/10 rounded-xl p-3.5 space-y-2 text-xs">
+                <div className="flex items-center justify-between text-gray-400">
+                  <span>Requested By:</span>
+                  <span className="font-semibold text-white">
+                    {(selectedInvoiceForDelete as any).metadata?.deleteRequest?.requestedByName || (selectedInvoiceForDelete as any).metadata?.deleteRequest?.requestedByEmail || 'User'}
+                  </span>
+                </div>
+                {(selectedInvoiceForDelete as any).metadata?.deleteRequest?.requestedAt && (
+                  <div className="flex items-center justify-between text-gray-400">
+                    <span>Requested Date:</span>
+                    <span className="text-gray-200">
+                      {new Date((selectedInvoiceForDelete as any).metadata.deleteRequest.requestedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                )}
+                <div className="pt-2 border-t border-white/5">
+                  <span className="text-gray-400 font-semibold block mb-1">Reason provided:</span>
+                  <p className="text-amber-200/90 italic bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-lg">
+                    "{(selectedInvoiceForDelete as any).metadata?.deleteRequest?.reason || 'No reason specified'}"
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">
+                  Rejection Note (Optional, only if rejecting)
+                </label>
+                <textarea
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Optional reason for rejecting the deletion request..."
+                  rows={2}
+                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-2.5 text-white text-xs placeholder-gray-500 focus:outline-none focus:border-[#7FB706] resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/5">
+                <button
+                  type="button"
+                  onClick={() => setShowReviewModal(false)}
+                  className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-semibold transition"
+                >
+                  Close
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRejectDeletion}
+                    disabled={submittingRejection}
+                    className="px-4 py-2 bg-white/10 hover:bg-white/15 text-gray-200 rounded-xl text-xs font-semibold disabled:opacity-50 flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <XCircle className="w-3.5 h-3.5 text-rose-400" />
+                    {submittingRejection ? 'Rejecting...' : 'Reject Request'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleApproveDeletion}
+                    disabled={submittingApproval}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold disabled:opacity-50 flex items-center gap-1.5 shadow-lg shadow-rose-600/20 transition cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {submittingApproval ? 'Deleting...' : 'Approve & Delete Bill'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

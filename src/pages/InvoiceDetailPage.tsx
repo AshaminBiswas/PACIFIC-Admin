@@ -11,6 +11,7 @@ import { invoicesApi } from '../api/invoicesApi';
 import type { Invoice, InvoiceStatus } from '../types/admin';
 import DocumentFlowTimeline from '../components/common/DocumentFlowTimeline';
 import { isKolkataBranch } from '../utils/branchHelper';
+import { useAdminAuth } from '../context/AdminAuthContext';
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
   DRAFT:          { label: 'Draft',          cls: 'bg-gray-500/10 text-gray-400 border-gray-500/20',         icon: <Clock className="w-3.5 h-3.5" /> },
@@ -25,6 +26,8 @@ const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: React.Re
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAdminAuth();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN' || (user as any)?.roleSlug?.toLowerCase().includes('super') || (user as any)?.isSuperAdmin === true;
 
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,8 +61,18 @@ export default function InvoiceDetailPage() {
     vehicleNumber: '',
     modeOfTransport: 'By Road',
     grLrNumber: '',
+    ewayBillNumber: '',
     placeOfSupply: '',
   });
+
+  // Deletion Request States
+  const [showRequestDeleteModal, setShowRequestDeleteModal] = useState(false);
+  const [deleteRequestReason, setDeleteRequestReason] = useState('');
+  const [submittingDeleteRequest, setSubmittingDeleteRequest] = useState(false);
+
+  const [showRejectDeleteModal, setShowRejectDeleteModal] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [submittingRejection, setSubmittingRejection] = useState(false);
 
   const handleOpenTransportModal = () => {
     const tr = (invoice as any)?.transport || {};
@@ -67,6 +80,7 @@ export default function InvoiceDetailPage() {
       vehicleNumber: tr.vehicleNumber || '',
       modeOfTransport: tr.modeOfTransport || 'By Road',
       grLrNumber: tr.grLrNumber || '',
+      ewayBillNumber: tr.ewayBillNumber || '',
       placeOfSupply: tr.placeOfSupply || (invoice as any)?.billTo?.state || 'West Bengal',
     });
     setShowTransportModal(true);
@@ -82,11 +96,13 @@ export default function InvoiceDetailPage() {
           vehicleNumber: transportForm.vehicleNumber.trim(),
           modeOfTransport: transportForm.modeOfTransport.trim(),
           grLrNumber: transportForm.grLrNumber.trim(),
+          ewayBillNumber: transportForm.ewayBillNumber.trim(),
           placeOfSupply: transportForm.placeOfSupply.trim(),
         },
         vehicleNumber: transportForm.vehicleNumber.trim(),
         modeOfTransport: transportForm.modeOfTransport.trim(),
         grLrNumber: transportForm.grLrNumber.trim(),
+        ewayBillNumber: transportForm.ewayBillNumber.trim(),
         placeOfSupply: transportForm.placeOfSupply.trim(),
       });
       setShowTransportModal(false);
@@ -206,10 +222,16 @@ export default function InvoiceDetailPage() {
     }
   };
 
-  // Handle Delete
+  // Handle Delete (Super Admin directly, or opens request modal for others)
   const handleDelete = async () => {
     if (!invoice) return;
-    if (!window.confirm(`Are you sure you want to delete Tax Invoice ${invoice.invoiceNumber}? This action cannot be undone.`)) {
+    if (!isSuperAdmin) {
+      setDeleteRequestReason('');
+      setShowRequestDeleteModal(true);
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to permanently delete Tax Invoice ${invoice.invoiceNumber}? This action cannot be undone.`)) {
       return;
     }
     try {
@@ -218,6 +240,70 @@ export default function InvoiceDetailPage() {
       navigate('/admin/dashboard/invoices');
     } catch (err: any) {
       alert(err?.response?.data?.message || err.message || 'Failed to delete invoice');
+    }
+  };
+
+  const handleRequestDeletion = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!invoice) return;
+    if (!deleteRequestReason.trim()) {
+      alert('Please provide a reason for the deletion request.');
+      return;
+    }
+    setSubmittingDeleteRequest(true);
+    try {
+      await invoicesApi.requestDeletion(invoice.id, deleteRequestReason.trim());
+      alert('Deletion request submitted to Super Admin successfully.');
+      setShowRequestDeleteModal(false);
+      setDeleteRequestReason('');
+      await fetchInvoice();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err.message || 'Failed to submit deletion request');
+    } finally {
+      setSubmittingDeleteRequest(false);
+    }
+  };
+
+  const handleApproveDeleteRequest = async () => {
+    if (!invoice) return;
+    if (!window.confirm(`Approve deletion request and permanently delete Tax Invoice ${invoice.invoiceNumber}? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      await invoicesApi.delete(invoice.id);
+      alert('Tax Invoice deleted successfully.');
+      navigate('/admin/dashboard/invoices');
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err.message || 'Failed to delete invoice');
+    }
+  };
+
+  const handleRejectDeleteRequest = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!invoice) return;
+    setSubmittingRejection(true);
+    try {
+      await invoicesApi.rejectDeletion(invoice.id, rejectionReason.trim());
+      alert('Deletion request rejected.');
+      setShowRejectDeleteModal(false);
+      setRejectionReason('');
+      await fetchInvoice();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err.message || 'Failed to reject deletion request');
+    } finally {
+      setSubmittingRejection(false);
+    }
+  };
+
+  const handleCancelDeleteRequest = async () => {
+    if (!invoice) return;
+    if (!window.confirm('Cancel this pending deletion request?')) return;
+    try {
+      await invoicesApi.cancelDeletion(invoice.id);
+      alert('Deletion request cancelled.');
+      await fetchInvoice();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err.message || 'Failed to cancel deletion request');
     }
   };
 
@@ -331,13 +417,82 @@ export default function InvoiceDetailPage() {
 
           <button
             onClick={handleDelete}
-            className="p-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 cursor-pointer transition-colors min-h-[42px] min-w-[42px] flex items-center justify-center"
-            title="Delete Invoice"
+            className={`p-2.5 rounded-xl cursor-pointer transition-colors min-h-[42px] min-w-[42px] flex items-center justify-center ${
+              (invoice as any)?.metadata?.deleteRequest?.status === 'PENDING'
+                ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/30'
+                : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400'
+            }`}
+            title={
+              (invoice as any)?.metadata?.deleteRequest?.status === 'PENDING'
+                ? 'Deletion request is pending'
+                : isSuperAdmin
+                ? 'Delete Invoice (Super Admin)'
+                : 'Request Bill Deletion to Super Admin'
+            }
           >
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
       </div>
+
+      {/* Pending Deletion Request Banner */}
+      {(invoice as any)?.metadata?.deleteRequest?.status === 'PENDING' && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg shadow-amber-500/5">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 shrink-0 mt-0.5">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-bold text-amber-300">Bill Deletion Request Pending Review</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full">
+                  Super Admin Approval Required
+                </span>
+              </div>
+              <p className="text-xs text-gray-300 mt-1">
+                Requested by{' '}
+                <strong className="text-white">
+                  {(invoice as any).metadata.deleteRequest.requestedByName || (invoice as any).metadata.deleteRequest.requestedByEmail || 'User'}
+                </strong>
+                {(invoice as any).metadata.deleteRequest.requestedAt && (
+                  <span className="text-gray-400">
+                    {' '}• {new Date((invoice as any).metadata.deleteRequest.requestedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+              </p>
+              <div className="mt-2 text-xs bg-black/40 border border-white/5 rounded-xl px-3 py-2 text-gray-200">
+                <span className="text-gray-400 font-semibold mr-1.5">Reason:</span>
+                <span className="italic">{(invoice as any).metadata.deleteRequest.reason || 'No reason provided'}</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+            {isSuperAdmin ? (
+              <>
+                <button
+                  onClick={handleApproveDeleteRequest}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-lg shadow-rose-600/20 cursor-pointer min-h-[38px]"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Approve &amp; Delete
+                </button>
+                <button
+                  onClick={() => setShowRejectDeleteModal(true)}
+                  className="px-3.5 py-2 bg-white/10 hover:bg-white/15 text-gray-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer min-h-[38px]"
+                >
+                  <XCircle className="w-3.5 h-3.5" /> Reject
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={handleCancelDeleteRequest}
+                className="px-3.5 py-2 bg-white/10 hover:bg-white/15 text-gray-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer min-h-[38px]"
+              >
+                Cancel Request
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Document Flow Pipeline Stage Indicator */}
       <DocumentFlowTimeline
@@ -546,6 +701,10 @@ export default function InvoiceDetailPage() {
             <div className="flex items-center justify-between">
               <span className="text-gray-500">GR / LR / RR No:</span>
               <span className="font-mono text-gray-300">{transport.grLrNumber || '—'}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500">E-Way Bill No:</span>
+              <span className="font-mono text-gray-200">{transport.ewayBillNumber || '—'}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-gray-500">Place of Supply:</span>
@@ -965,6 +1124,17 @@ export default function InvoiceDetailPage() {
               </div>
 
               <div>
+                <label className="block text-gray-400 font-semibold mb-1">E-Way Bill Number</label>
+                <input
+                  type="text"
+                  value={transportForm.ewayBillNumber}
+                  onChange={(e) => setTransportForm({ ...transportForm, ewayBillNumber: e.target.value })}
+                  placeholder="e.g. 241012345678"
+                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-[#7FB706]"
+                />
+              </div>
+
+              <div>
                 <label className="block text-gray-400 font-semibold mb-1">Place of Supply</label>
                 <input
                   type="text"
@@ -1042,6 +1212,119 @@ export default function InvoiceDetailPage() {
                 />
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Request Bill Deletion Modal (for non-superadmins) */}
+      {showRequestDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div className="bg-[#1e1e38] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-[#121226]">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-amber-400" />
+                <h3 className="text-sm font-bold text-white">Request Bill Deletion</h3>
+              </div>
+              <button
+                onClick={() => setShowRequestDeleteModal(false)}
+                className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRequestDeletion} className="p-5 space-y-4">
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300">
+                Only Super Admins can directly delete GST Tax Invoices. Submitting this request will flag the invoice and notify Super Admins for review.
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                  Reason for Deletion <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  value={deleteRequestReason}
+                  onChange={(e) => setDeleteRequestReason(e.target.value)}
+                  placeholder="e.g. Generated by mistake, duplicated invoice, incorrect customer details, etc."
+                  rows={4}
+                  required
+                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-3 text-white text-xs placeholder-gray-500 focus:outline-none focus:border-[#7FB706] resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRequestDeleteModal(false)}
+                  className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-semibold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingDeleteRequest || !deleteRequestReason.trim()}
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold disabled:opacity-50 flex items-center gap-1.5 shadow-lg shadow-amber-600/20 transition cursor-pointer"
+                >
+                  {submittingDeleteRequest ? 'Submitting...' : 'Send Request to Super Admin'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Deletion Request Modal (for Super Admin) */}
+      {showRejectDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div className="bg-[#1e1e38] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-[#121226]">
+              <div className="flex items-center gap-2">
+                <XCircle className="w-5 h-5 text-rose-400" />
+                <h3 className="text-sm font-bold text-white">Reject Deletion Request</h3>
+              </div>
+              <button
+                onClick={() => setShowRejectDeleteModal(false)}
+                className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRejectDeleteRequest} className="p-5 space-y-4">
+              <p className="text-xs text-gray-300">
+                Specify why this deletion request is being rejected. This keeps the Bill active and marks the request as rejected.
+              </p>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                  Rejection Reason (Optional)
+                </label>
+                <textarea
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="e.g. Invoice has already been reported in GSTR-1, or payment has been collected."
+                  rows={3}
+                  className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl p-3 text-white text-xs placeholder-gray-500 focus:outline-none focus:border-[#7FB706] resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRejectDeleteModal(false)}
+                  className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-semibold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingRejection}
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold disabled:opacity-50 flex items-center gap-1.5 shadow-lg shadow-rose-600/20 transition cursor-pointer"
+                >
+                  {submittingRejection ? 'Rejecting...' : 'Reject Request'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

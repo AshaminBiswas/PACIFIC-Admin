@@ -13,6 +13,12 @@ export const invoicesApi = {
   recordPayment: (id: string, data: any) =>
     apiClient.post<ApiResponse<any>>(`/invoices/${id}/payment`, data),
   update: (id: string, data: any) => apiClient.patch<ApiResponse<Invoice>>(`/invoices/${id}`, data),
+  requestDeletion: (id: string, reason: string) =>
+    apiClient.post<ApiResponse<Invoice>>(`/invoices/${id}/request-deletion`, { reason }),
+  rejectDeletion: (id: string, reason?: string) =>
+    apiClient.post<ApiResponse<Invoice>>(`/invoices/${id}/reject-deletion`, { reason }),
+  cancelDeletion: (id: string) =>
+    apiClient.post<ApiResponse<Invoice>>(`/invoices/${id}/cancel-deletion`),
   delete: (id: string) => apiClient.delete<ApiResponse<{ success: boolean }>>(`/invoices/${id}`),
   getPdfHtml: (id: string) => apiClient.get<string>(`/invoices/${id}/pdf`, { responseType: 'text' as any }),
   getPdfUrl: (id: string) => {

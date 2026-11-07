@@ -63,6 +63,7 @@ export default function EditInvoicePage() {
     modeOfTransport: 'By Road',
     vehicleNumber: '',
     grLrNumber: '',
+    ewayBillNumber: '',
     placeOfSupply: 'West Bengal',
     reverseCharge: false,
   });
@@ -134,6 +135,7 @@ export default function EditInvoicePage() {
         modeOfTransport: tr.modeOfTransport || 'By Road',
         vehicleNumber: tr.vehicleNumber || '',
         grLrNumber: tr.grLrNumber || '',
+        ewayBillNumber: tr.ewayBillNumber || '',
         placeOfSupply: tr.placeOfSupply || bTo.state || 'West Bengal',
         reverseCharge: Boolean(tr.reverseCharge),
       });
@@ -361,6 +363,7 @@ export default function EditInvoicePage() {
         vehicleNumber: transport.vehicleNumber,
         modeOfTransport: transport.modeOfTransport,
         grLrNumber: transport.grLrNumber,
+        ewayBillNumber: transport.ewayBillNumber,
         placeOfSupply: transport.placeOfSupply,
         freightTerms,
         freightAmount: effectiveFreightAmount,
@@ -727,7 +730,7 @@ export default function EditInvoicePage() {
             </h2>
             <span className="text-[11px] text-gray-500">Printed directly onto statutory tax invoice PDF</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             <div>
               <label className="block text-xs font-semibold text-gray-400 mb-1">Mode of Transport</label>
               <input
@@ -757,6 +760,17 @@ export default function EditInvoicePage() {
                 value={transport.grLrNumber}
                 onChange={(e) => setTransport({ ...transport, grLrNumber: e.target.value })}
                 placeholder="LR No."
+                className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-[#7FB706]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 mb-1">E-Way Bill No.</label>
+              <input
+                type="text"
+                value={transport.ewayBillNumber}
+                onChange={(e) => setTransport({ ...transport, ewayBillNumber: e.target.value })}
+                placeholder="e.g. 241012345678"
                 className="w-full bg-[#0a0a1a] border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-[#7FB706]"
               />
             </div>
