@@ -1173,7 +1173,7 @@ export function ExpensesPage() {
       const fCode = String(f.branch?.code || '').toUpperCase();
       const fName = String(f.branch?.name || '').toLowerCase();
 
-      const isKolkata = fBranchId === 'branch-kolkata' || fCode.includes('KOL') || fName.includes('kolkata') || true;
+      const isKolkata = fBranchId === 'branch-kolkata' || fCode.includes('KOL') || fName.includes('kolkata');
 
       if (isKolkata) {
         totalKolkataFloat += amt;
@@ -1383,10 +1383,20 @@ export function ExpensesPage() {
   }, [calculatedClosing, physicalCashInput]);
 
   // ── Derived Financial Metrics: Total Float Inflows - Total Expense Ledger = Live Cash In Hand ──
-  const totalFloatInflows = liveBalance?.totalFloatInflows ?? floatMetrics.totalKolkataFloat ?? 39561200;
-  const totalFloatCount = liveBalance?.totalFloatCount ?? floatMetrics.kolkataCount ?? floatHistory.length ?? 33;
-  const totalExpenseLedger = liveBalance?.totalExpenseLedger ?? 46816300;
-  const totalExpenseCount = liveBalance?.totalExpenseCount ?? 116;
+  const fallbackFloatInflows = isAllBranches
+    ? floatMetrics.totalAllFloat
+    : selectedBranchId === 'branch-kolkata'
+      ? floatMetrics.totalKolkataFloat
+      : 0;
+  const fallbackFloatCount = isAllBranches
+    ? floatHistory.length
+    : selectedBranchId === 'branch-kolkata'
+      ? floatMetrics.kolkataCount
+      : 0;
+  const totalFloatInflows = liveBalance?.totalFloatInflows ?? fallbackFloatInflows;
+  const totalFloatCount = liveBalance?.totalFloatCount ?? fallbackFloatCount;
+  const totalExpenseLedger = liveBalance?.totalExpenseLedger ?? 0;
+  const totalExpenseCount = liveBalance?.totalExpenseCount ?? 0;
   const liveCashInHand = liveBalance ? liveBalance.currentBalance : (totalFloatInflows - totalExpenseLedger);
 
   return (
@@ -1403,7 +1413,7 @@ export function ExpensesPage() {
                 Daily Cash Expense Tracker
               </h1>
               <p className="text-xs sm:text-sm text-gray-400">
-                Multi-branch cash-in-hand reconciliation, fast voucher logging & audit ledger
+                Branch cash-in-hand reconciliation, fast voucher logging &amp; audit ledger (UP factory expenses belong in UP Daily Expense)
               </p>
             </div>
           </div>

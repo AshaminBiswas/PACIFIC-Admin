@@ -9318,3 +9318,20 @@ Enforced that the **Enterprise Analytics & Reporting** engine only considers **C
 ### 172.4 Quality Assurance & Compliance
 - **Zero TypeScript Errors (`npx tsc --noEmit`)**: Passed with 0 errors.
 - **Frontend Production Build (`npm run build`)**: Vite production bundle compiled with exit code 0.
+
+---
+
+## 173. Kolkata vs. UP Expense Separation & Fallback Cleanup
+### 173.1 Overview
+- Separated Uttar Pradesh (UP) factory expenses cleanly from the Kolkata Branch Daily Expenses module (`branch-kolkata`). UP factory expenses belong exclusively in `/admin/dashboard/up-expenses` (`UPExpensesPage.tsx` -> `/api/v1/up/*` -> `up_expenses`), whereas branch daily expenses (`/admin/dashboard/daily-expenses` -> `/api/v1/expenses/*`) track only Kolkata/Delhi branch petty cash.
+- Cleaned up `76` mistaken `EXP-YYYY-MM-UXXXX` records (`32,123,500` paise / `₹3,21,235.00`) from `branch-kolkata` in `expense_entries` while keeping all `80` UP records intact in `up_expenses` (`79` active, `1` soft-deleted).
+- Rebuilt `branch-kolkata` aggregates: `45` Kolkata expense entries (`16,032,800` paise / `₹1,60,328.00`), `43` float top-ups (`48,877,200` paise / `₹4,88,772.00`), and live cash balance `32,844,400` paise (`₹3,28,444.00`), with `62` daily ledgers, `40` daily rollups, and `20` monthly rollups synchronized.
+
+### 173.2 Frontend Code Changes
+- [`src/pages/expenses/DailyExpensesPage.tsx`](file:///D:/Cubicle/PACIFIC-Admin/src/pages/expenses/DailyExpensesPage.tsx):
+  - Removed the `|| true` bypass in `floatMetrics`'s `isKolkata` branch check so `totalKolkataFloat` and `kolkataCount` count only Kolkata float entries.
+  - Replaced stale hardcoded UP-contaminated fallback metrics (`39561200`, `33`, `46816300`, `116`) with branch-aware derived fallbacks (`0` for expenses when unloaded).
+  - Clarified page subtitle so users know UP factory expenses belong in the dedicated UP Daily Expense section.
+
+### 173.3 Quality Assurance & Verification
+- Verified `npx tsc --noEmit` and `npm run build` (`tsc && vite build`) exit with code `0` after the final code edit.
