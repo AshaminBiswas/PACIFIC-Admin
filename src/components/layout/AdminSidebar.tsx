@@ -42,6 +42,7 @@ import {
   UserCheck,
   Wallet,
   BarChart3,
+  HardHat,
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -83,6 +84,7 @@ export const crmFinanceNavItems = [
   { name: 'Payments & Ledger', path: '/admin/dashboard/payments', icon: CreditCard },
   { name: 'Daily Branch Expenses', path: '/admin/dashboard/daily-expenses', icon: Receipt },
   { name: 'UP Daily Expense', path: '/admin/dashboard/up-expenses', icon: Wallet },
+  { name: 'UP Factory Employees', path: '/admin/dashboard/up-employees', icon: HardHat },
   { name: 'Installer Payments', path: '/admin/dashboard/installer-payments', icon: Wrench },
   { name: 'Employees & Payroll', path: '/admin/dashboard/employees', icon: UserCheck },
 ];

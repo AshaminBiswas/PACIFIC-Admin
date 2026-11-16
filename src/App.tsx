@@ -75,6 +75,7 @@ const CreateInstallerBillPage = lazyWithRetry(() => import('./pages/CreateInstal
 const EmployeeManagementPage = lazyWithRetry(() => import('./pages/EmployeeManagementPage'));
 const EmployeeDetailPage = lazyWithRetry(() => import('./pages/EmployeeDetailPage'));
 const UPExpensesPage = lazyWithRetry(() => import('./pages/up/UPExpensesPage'));
+const UPEmployeeManagementPage = lazyWithRetry(() => import('./pages/up/UPEmployeeManagementPage'));
 const DailyExpensesPage = lazyWithRetry(() => import('./pages/expenses/DailyExpensesPage'));
 const WACRMPage = lazyWithRetry(() => import('./pages/wacrm/WACRMPage'));
 const PacificMailPage = lazyWithRetry(() => import('./pages/mail/PacificMailPage'));
@@ -579,6 +580,14 @@ export default function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <UPExpensesPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="up-employees"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <UPEmployeeManagementPage />
                 </Suspense>
               }
             />
