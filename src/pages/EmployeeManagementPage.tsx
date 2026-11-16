@@ -37,12 +37,17 @@ import {
   Fuel,
   Eye,
   ShieldAlert,
+  Upload,
+  MessageCircle,
+  User,
 } from 'lucide-react';
 import { employeeService } from '../api/employeeService';
 import { upEmployeeService } from '../api/upEmployeeService';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { DynamicSalaryCalculatorModal, computeFixedPayableDays } from '../components/payroll/DynamicSalaryCalculatorModal';
 import { EmployeeConveyanceHub } from '../components/payroll/EmployeeConveyanceHub';
+import { EmployeeIdCardModal } from '../components/employee/EmployeeIdCardModal';
+import { uploadImageToImageKit } from '../lib/imagekit';
 import type {
   Employee,
   EmployeeAttendance,
@@ -214,6 +219,17 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [modalDesignation, setModalDesignation] = useState<string>('Workers');
   const [customDesignation, setCustomDesignation] = useState<string>('');
+  const [modalGender, setModalGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>('MALE');
+  const [modalPhone, setModalPhone] = useState<string>('');
+  const [modalWhatsapp, setModalWhatsapp] = useState<string>('');
+  const [isSameWhatsapp, setIsSameWhatsapp] = useState<boolean>(true);
+  const [modalPhotoUrl, setModalPhotoUrl] = useState<string>('');
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
+
+  // ID Card Modal State
+  const [idCardEmployee, setIdCardEmployee] = useState<Employee | null>(null);
+  const [isIdCardModalOpen, setIsIdCardModalOpen] = useState(false);
+
   const [isLeaveAdjustModalOpen, setIsLeaveAdjustModalOpen] = useState(false);
   const [isAddAdvanceModalOpen, setIsAddAdvanceModalOpen] = useState(false);
   const [isAddDeductionModalOpen, setIsAddDeductionModalOpen] = useState(false);
@@ -251,7 +267,7 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
     setTimeout(() => setFeedback(null), 4000);
   };
 
-  // Sync modal designation when adding or editing an employee
+  // Sync modal states when adding or editing an employee
   useEffect(() => {
     if (editingEmployee) {
       if (designationsList.includes(editingEmployee.designation)) {
@@ -261,11 +277,96 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
         setModalDesignation('OTHER');
         setCustomDesignation(editingEmployee.designation);
       }
+      setModalGender((editingEmployee.gender?.toUpperCase() as any) || 'MALE');
+      setModalPhone(editingEmployee.phone || '');
+      const existingWa = editingEmployee.whatsappNo || editingEmployee.phone || '';
+      setModalWhatsapp(existingWa);
+      setIsSameWhatsapp(!editingEmployee.whatsappNo || editingEmployee.whatsappNo === editingEmployee.phone);
+      setModalPhotoUrl(editingEmployee.photoUrl || '');
     } else {
       setModalDesignation('Workers');
       setCustomDesignation('');
+      setModalGender('MALE');
+      setModalPhone('');
+      setModalWhatsapp('');
+      setIsSameWhatsapp(true);
+      setModalPhotoUrl('');
     }
   }, [editingEmployee, isAddEmployeeModalOpen]);
+
+  // Handle Photo File Upload
+  const handlePhotoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Show immediate local preview
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (ev.target?.result) {
+        setModalPhotoUrl(ev.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+
+    // Upload to ImageKit CDN in background
+    setIsUploadingPhoto(true);
+    try {
+      const cdnUrl = await uploadImageToImageKit(file, isUpFactory ? 'up-employees' : 'employees');
+      if (cdnUrl) {
+        setModalPhotoUrl(cdnUrl);
+      }
+    } catch (err) {
+      console.warn('ImageKit upload fallback to preview:', err);
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  // Handle Send WhatsApp Payslip
+  const handleSendWhatsAppPayslip = (run: EmployeePayrollRun) => {
+    try {
+      const emp = run.employee || employees.find((e) => e.id === run.employeeId);
+      const targetPhone = (emp?.whatsappNo || emp?.phone || '').replace(/\D/g, '');
+      if (!targetPhone) {
+        showFeedback('error', 'No mobile or WhatsApp number available for this worker');
+        return;
+      }
+      const phoneInt = targetPhone.length === 10 ? `91${targetPhone}` : targetPhone;
+      const monthName = MONTHS.find((m) => m.value === run.month)?.label || `Month ${run.month}`;
+      const empName = emp?.name || run.employee?.name || 'Worker';
+      const empId = emp?.employeeId || run.employee?.employeeId || '';
+      const desig = emp?.designation || run.employee?.designation || 'Staff';
+      const dept = emp?.department || run.employee?.department || 'UP Factory';
+      const gross = formatINR(run.grossSalary);
+      const deductions = formatINR((run as any).totalDeductions ?? (Number(run.advanceDeduction || 0) + Number(run.otherDeductions || 0)));
+      const net = formatINR(run.netSalary);
+      const payableDays = run.payableDays ?? 'N/A';
+
+      const message =
+        `*PACIFIC RESTROOM CUBICLES — UP FACTORY*\n` +
+        `*OFFICIAL MONTHLY SALARY SLIP*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `👤 *Employee:* ${empName} (${empId})\n` +
+        `💼 *Designation:* ${desig} | ${dept}\n` +
+        `📅 *Payroll Period:* ${monthName} ${run.year}\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `📊 *Payable Days:* ${payableDays} days\n` +
+        `💰 *Gross Earnings:* ${gross}\n` +
+        `📉 *Total Deductions:* ${deductions}\n` +
+        `💵 *NET PAYABLE SALARY:* *${net}*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `📌 *Disbursement Status:* ${run.status}\n` +
+        `🏢 *Unit:* Pacific Restroom Cubicles (UP Factory)\n` +
+        `📍 *Location:* Plot No. 42-B, Industrial Area Phase II, UPSIDC, Greater Noida, UP - 201306\n` +
+        `🌐 *Portal:* www.pacificcubicles.com\n\n` +
+        `_This is an official system-generated salary slip from Pacific UP Factory HR._`;
+
+      window.open(`https://wa.me/${phoneInt}?text=${encodeURIComponent(message)}`, '_blank');
+      showFeedback('success', `WhatsApp salary slip generated for ${empName}`);
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to open WhatsApp');
+    }
+  };
 
   // ─── Data Fetching ──────────────────────────────────────────────────────────
   const fetchEmployees = useCallback(async () => {
@@ -1686,6 +1787,17 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
                         </td>
                         <td className="px-4 py-3.5 text-right space-x-2 whitespace-nowrap">
                           <button
+                            type="button"
+                            onClick={() => {
+                              setIdCardEmployee(emp);
+                              setIsIdCardModalOpen(true);
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-cyan-400 transition"
+                            title="Generate & View Official ID Card"
+                          >
+                            <CreditCard size={15} />
+                          </button>
+                          <button
                             onClick={() => navigate(getEmployeeDetailUrl(emp.id))}
                             className="p-1.5 text-gray-400 hover:text-[#7FB706] transition"
                             title="View Full Profile & Site Visits"
@@ -1782,7 +1894,19 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/5">
+                    <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-white/5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIdCardEmployee(emp);
+                          setIsIdCardModalOpen(true);
+                        }}
+                        className="px-2.5 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-lg text-xs font-medium flex items-center gap-1 cursor-pointer"
+                        title="ID Card"
+                      >
+                        <CreditCard size={13} />
+                        <span>ID Card</span>
+                      </button>
                       <button
                         onClick={() => navigate(getEmployeeDetailUrl(emp.id))}
                         className="px-3 py-1.5 bg-[#7FB706]/15 hover:bg-[#7FB706]/25 text-[#B5F823] border border-[#7FB706]/30 rounded-lg text-xs font-medium flex items-center gap-1 cursor-pointer"
@@ -2075,6 +2199,17 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
                                 </span>
                               </td>
                               <td className="px-4 py-3.5 text-right space-x-1.5 whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIdCardEmployee(worker);
+                                    setIsIdCardModalOpen(true);
+                                  }}
+                                  className="p-1.5 text-gray-400 hover:text-cyan-400 transition"
+                                  title="Generate & View Official ID Card"
+                                >
+                                  <CreditCard size={15} />
+                                </button>
                                 <button
                                   onClick={() => navigate(getEmployeeDetailUrl(worker.id))}
                                   className="p-1.5 text-gray-400 hover:text-[#7FB706] transition"
@@ -2809,6 +2944,15 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
                                   title="Email Payslip to Worker"
                                 >
                                   <Mail size={14} />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleSendWhatsAppPayslip(run)}
+                                  className="p-1.5 text-gray-400 hover:text-emerald-400 bg-[#030213] border border-white/10 rounded-lg transition"
+                                  title="Send Salary Slip on WhatsApp"
+                                >
+                                  <MessageCircle size={14} />
                                 </button>
 
                                 {run.status === 'DRAFT' && (
@@ -4172,6 +4316,16 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
                             <Mail size={14} />
                           </button>
 
+                          {/* WhatsApp Payslip button */}
+                          <button
+                            type="button"
+                            onClick={() => handleSendWhatsAppPayslip(run)}
+                            className="p-1.5 text-gray-400 hover:text-emerald-400 bg-[#030213] border border-white/10 rounded-lg transition"
+                            title="Send Salary Slip on WhatsApp"
+                          >
+                            <MessageCircle size={14} />
+                          </button>
+
                           {/* Finalize Button */}
                           {run.status === 'DRAFT' && (
                             <button
@@ -4317,6 +4471,15 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
                         <Mail size={13} />
                         <span>Email</span>
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSendWhatsAppPayslip(run)}
+                        className="p-2 text-gray-300 hover:text-emerald-400 bg-white/5 hover:bg-emerald-500/10 border border-white/10 rounded-lg text-xs font-medium flex items-center gap-1 cursor-pointer"
+                        title="WhatsApp Payslip"
+                      >
+                        <MessageCircle size={13} className="text-emerald-400" />
+                        <span>WhatsApp</span>
+                      </button>
                       {run.status === 'DRAFT' && (
                         <button
                           type="button"
@@ -4379,7 +4542,9 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
                 const rawBankHolder = ((formData.get('bankAccountHolder') as string) || '').trim();
 
                 const rawEmail = ((formData.get('email') as string) || '').trim().toLowerCase();
-                const rawPhone = ((formData.get('phone') as string) || '').replace(/[\s-]/g, '').trim();
+                const rawPhone = (modalPhone || (formData.get('phone') as string) || '').replace(/[\s-]/g, '').trim();
+                const rawWhatsapp = (isSameWhatsapp ? rawPhone : (modalWhatsapp || (formData.get('whatsappNo') as string) || '')).replace(/[\s-]/g, '').trim();
+                const rawGender = modalGender || (formData.get('gender') as string) || 'MALE';
                 const rawGovId = ((formData.get('governmentIdNumber') as string) || '').replace(/[\s-]/g, '').trim().toUpperCase();
                 const rawAddress = ((formData.get('address') as string) || '').trim();
 
@@ -4390,6 +4555,9 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
                   name: (formData.get('name') as string).trim(),
                   email: rawEmail && rawEmail !== 'none' && rawEmail !== 'na' && rawEmail !== 'nil' ? rawEmail : undefined,
                   phone: rawPhone,
+                  whatsappNo: rawWhatsapp || rawPhone,
+                  gender: rawGender,
+                  photoUrl: modalPhotoUrl || undefined,
                   address: rawAddress || 'N/A',
                   governmentIdType: (formData.get('governmentIdType') as GovernmentIdType) || 'AADHAAR',
                   governmentIdNumber: rawGovId || 'PENDING',
@@ -4408,6 +4576,56 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
               }}
               className="space-y-4 text-sm"
             >
+              {/* ── 1:1 Profile Photo Upload Section ─────────────────────────── */}
+              <div className="flex flex-col sm:flex-row items-center gap-4 p-3.5 bg-[#030213] border border-white/10 rounded-xl">
+                <div className="relative w-24 h-24 rounded-2xl overflow-hidden bg-white/5 border-2 border-dashed border-[#7FB706]/40 flex items-center justify-center shrink-0 shadow-inner group">
+                  {modalPhotoUrl ? (
+                    <img
+                      src={modalPhotoUrl}
+                      alt="1:1 Profile Preview"
+                      className="w-full h-full object-cover aspect-square"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-gray-500 text-center p-2">
+                      <User size={24} className="text-[#7FB706] mb-1" />
+                      <span className="text-[10px] text-gray-400 font-semibold leading-tight">1:1 Photo</span>
+                    </div>
+                  )}
+                  {isUploadingPhoto && (
+                    <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+                      <RefreshCw size={18} className="animate-spin text-[#7FB706]" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 space-y-1.5 text-center sm:text-left">
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                    <label className="cursor-pointer px-3 py-1.5 bg-[#7FB706]/15 hover:bg-[#7FB706]/25 text-[#7FB706] border border-[#7FB706]/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+                      <Upload size={13} />
+                      <span>{modalPhotoUrl ? 'Change 1:1 Photo' : 'Upload 1:1 Profile Photo'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handlePhotoFileChange}
+                      />
+                    </label>
+                    {modalPhotoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setModalPhotoUrl('')}
+                        className="px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl text-xs transition cursor-pointer"
+                      >
+                        Remove Photo
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-gray-400">
+                    High-resolution square 1:1 photo displayed on the Official Dual-Sided Employee ID Card.
+                  </p>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 <div>
                   <label className="block text-xs font-semibold text-gray-400 mb-1">Full Name *</label>
@@ -4417,6 +4635,74 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
                     defaultValue={editingEmployee?.name || ''}
                     placeholder="e.g. Ramesh Kumar"
                     className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">Gender *</label>
+                  <select
+                    name="gender"
+                    value={modalGender}
+                    onChange={(e) => setModalGender(e.target.value as any)}
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706]"
+                  >
+                    <option value="MALE">Male</option>
+                    <option value="FEMALE">Female</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">Mobile Number *</label>
+                  <input
+                    name="phone"
+                    required
+                    value={modalPhone}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setModalPhone(val);
+                      if (isSameWhatsapp) {
+                        setModalWhatsapp(val);
+                      }
+                    }}
+                    placeholder="10-digit mobile number"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706]"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-gray-400">WhatsApp Number</label>
+                    <label className="flex items-center gap-1.5 text-[11px] text-cyan-400 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={isSameWhatsapp}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setIsSameWhatsapp(checked);
+                          if (checked) {
+                            setModalWhatsapp(modalPhone);
+                          }
+                        }}
+                        className="rounded border-white/20 bg-[#030213] text-[#7FB706] focus:ring-0"
+                      />
+                      <span>Same as mobile</span>
+                    </label>
+                  </div>
+                  <input
+                    name="whatsappNo"
+                    value={isSameWhatsapp ? modalPhone : modalWhatsapp}
+                    onChange={(e) => {
+                      setModalWhatsapp(e.target.value);
+                      if (e.target.value !== modalPhone) {
+                        setIsSameWhatsapp(false);
+                      }
+                    }}
+                    disabled={isSameWhatsapp}
+                    placeholder="WhatsApp number (for digital payslips)"
+                    className={`w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706] ${
+                      isSameWhatsapp ? 'opacity-70 bg-white/5 cursor-not-allowed' : ''
+                    }`}
                   />
                 </div>
 
@@ -4437,19 +4723,8 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
                     className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706]"
                   />
                   <p className="text-[10px] text-gray-500 mt-1">
-                    Leave blank if worker has no email (system generates auto-ID email).
+                    Leave blank if worker has no email (auto-generated ID email).
                   </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1">Phone Number *</label>
-                  <input
-                    name="phone"
-                    required
-                    defaultValue={editingEmployee?.phone || ''}
-                    placeholder="10-digit mobile number"
-                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706]"
-                  />
                 </div>
 
                 <div>
@@ -5998,6 +6273,19 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
           showFeedback('success', 'Payroll calculation saved & advance deductions reconciled successfully!');
         }}
       />
+
+      {/* ── Official Employee Identity Card Generator Modal ─────────────────── */}
+      {isIdCardModalOpen && idCardEmployee && (
+        <EmployeeIdCardModal
+          employee={idCardEmployee}
+          isOpen={isIdCardModalOpen}
+          onClose={() => {
+            setIsIdCardModalOpen(false);
+            setIdCardEmployee(null);
+          }}
+          isUpFactory={isUpFactory}
+        />
+      )}
     </div>
   );
 }

@@ -37,10 +37,12 @@ import {
   Layers,
   Banknote,
   Send,
+  MessageCircle,
 } from 'lucide-react';
 import { employeeService } from '../api/employeeService';
 import { upEmployeeService } from '../api/upEmployeeService';
 import { useAdminAuth } from '../context/AdminAuthContext';
+import { EmployeeIdCardModal } from '../components/employee/EmployeeIdCardModal';
 import type {
   Employee,
   EmployeeConveyanceExpense,
@@ -179,6 +181,58 @@ export function EmployeeDetailPage({ isUpFactory = false }: { isUpFactory?: bool
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'leaves' | 'conveyance' | 'attendance' | 'payroll' | 'advances' | 'profile'>('conveyance');
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [isIdCardOpen, setIsIdCardOpen] = useState(false);
+
+  const handleSendWhatsAppPayslip = (run: any) => {
+    try {
+      const targetPhone = (employee?.whatsappNo || employee?.phone || '').replace(/\D/g, '');
+      if (!targetPhone) {
+        setFeedback({ type: 'error', message: 'No mobile or WhatsApp number available for this worker' });
+        setTimeout(() => setFeedback(null), 4000);
+        return;
+      }
+      const phoneInt = targetPhone.length === 10 ? `91${targetPhone}` : targetPhone;
+      const monthNames = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+      const monthName = monthNames[(run.month || 1) - 1] || `Month ${run.month}`;
+      const empName = employee?.name || 'Worker';
+      const empId = employee?.employeeId || '';
+      const desig = employee?.designation || 'Staff';
+      const dept = employee?.department || 'UP Factory';
+      const gross = formatINR(run.grossSalary);
+      const deductions = formatINR(run.totalDeductions);
+      const net = formatINR(run.netSalary);
+      const payableDays = run.payableDays ?? 'N/A';
+
+      const message =
+        `*PACIFIC RESTROOM CUBICLES — UP FACTORY*\n` +
+        `*OFFICIAL MONTHLY SALARY SLIP*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `👤 *Employee:* ${empName} (${empId})\n` +
+        `💼 *Designation:* ${desig} | ${dept}\n` +
+        `📅 *Payroll Period:* ${monthName} ${run.year}\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `📊 *Payable Days:* ${payableDays} days\n` +
+        `💰 *Gross Earnings:* ${gross}\n` +
+        `📉 *Total Deductions:* ${deductions}\n` +
+        `💵 *NET PAYABLE SALARY:* *${net}*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `📌 *Disbursement Status:* ${run.status}\n` +
+        `🏢 *Unit:* Pacific Restroom Cubicles (UP Factory)\n` +
+        `📍 *Location:* Plot No. 42-B, Industrial Area Phase II, UPSIDC, Greater Noida, UP - 201306\n` +
+        `🌐 *Portal:* www.pacificcubicles.com\n\n` +
+        `_This is an official system-generated salary slip from Pacific UP Factory HR._`;
+
+      window.open(`https://wa.me/${phoneInt}?text=${encodeURIComponent(message)}`, '_blank');
+      setFeedback({ type: 'success', message: `WhatsApp salary slip generated for ${empName}` });
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err?.message || 'Failed to open WhatsApp' });
+      setTimeout(() => setFeedback(null), 4000);
+    }
+  };
 
   // ─── Leave Ledger & Balances State ──────────────────────────────────────────
   const [leaveHistory, setLeaveHistory] = useState<EmployeeLeaveLedger[]>([]);
@@ -564,6 +618,14 @@ export function EmployeeDetailPage({ isUpFactory = false }: { isUpFactory?: bool
 
         <div className="flex items-center gap-2">
           <button
+            type="button"
+            onClick={() => setIsIdCardOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/30 text-xs sm:text-sm font-medium rounded-xl transition cursor-pointer"
+          >
+            <CreditCard size={15} />
+            <span>Generate ID Card</span>
+          </button>
+          <button
             onClick={() => setIsRecordExpenseOpen(true)}
             className="flex items-center gap-2 px-3.5 py-2 bg-[#7FB706] hover:bg-[#6ea105] text-white text-xs sm:text-sm font-medium rounded-xl shadow-lg shadow-[#7FB706]/20 transition"
           >
@@ -578,13 +640,21 @@ export function EmployeeDetailPage({ isUpFactory = false }: { isUpFactory?: bool
 
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
           <div className="flex items-start sm:items-center gap-4">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-[#7FB706]/20 to-blue-500/20 border border-white/10 flex items-center justify-center text-xl sm:text-2xl font-bold text-[#7FB706] shrink-0 shadow-inner">
-              {employee.name
-                .split(' ')
-                .map((n) => n[0])
-                .slice(0, 2)
-                .join('')
-                .toUpperCase()}
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-[#7FB706]/20 to-blue-500/20 border border-white/10 flex items-center justify-center text-xl sm:text-2xl font-bold text-[#7FB706] shrink-0 shadow-inner overflow-hidden">
+              {employee.photoUrl ? (
+                <img
+                  src={employee.photoUrl}
+                  alt={employee.name}
+                  className="w-full h-full object-cover aspect-square"
+                />
+              ) : (
+                employee.name
+                  .split(' ')
+                  .map((n) => n[0])
+                  .slice(0, 2)
+                  .join('')
+                  .toUpperCase()
+              )}
             </div>
 
             <div className="space-y-1">
@@ -602,6 +672,11 @@ export function EmployeeDetailPage({ isUpFactory = false }: { isUpFactory?: bool
                 >
                   {employee.status}
                 </span>
+                {isUpFactory && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-semibold">
+                    UP Factory • Super Admin
+                  </span>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm text-gray-400">
@@ -614,7 +689,11 @@ export function EmployeeDetailPage({ isUpFactory = false }: { isUpFactory?: bool
                   <span>{employee.department}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Calendar size={14} className="text-purple-400" />
+                  <User size={14} className="text-purple-400" />
+                  <span>Gender: {employee.gender || 'MALE'}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Calendar size={14} className="text-cyan-400" />
                   <span>Joined {new Date(employee.joiningDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                 </div>
               </div>
@@ -627,13 +706,25 @@ export function EmployeeDetailPage({ isUpFactory = false }: { isUpFactory?: bool
                   <Phone size={13} className="text-[#7FB706]" /> {employee.phone}
                 </a>
                 <a
-                  href={`mailto:${employee.email}`}
-                  className="flex items-center gap-1 text-gray-300 hover:text-blue-400 transition"
+                  href={`https://wa.me/${(employee.whatsappNo || employee.phone || '').replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 transition"
+                  title="Chat on WhatsApp"
                 >
-                  <Mail size={13} className="text-blue-400" /> {employee.email}
+                  <MessageCircle size={13} className="text-emerald-400" />
+                  <span>WhatsApp: {employee.whatsappNo || employee.phone}</span>
                 </a>
+                {employee.email && !employee.email.includes('@internal.prc') && (
+                  <a
+                    href={`mailto:${employee.email}`}
+                    className="flex items-center gap-1 text-gray-300 hover:text-blue-400 transition"
+                  >
+                    <Mail size={13} className="text-blue-400" /> {employee.email}
+                  </a>
+                )}
                 <div className="flex items-center gap-1 text-gray-400">
-                  <MapPin size={13} className="text-amber-400" /> {employee.address || 'Delhi / NCR'}
+                  <MapPin size={13} className="text-amber-400" /> {employee.address || 'UP Factory Unit'}
                 </div>
               </div>
             </div>
@@ -1655,7 +1746,15 @@ export function EmployeeDetailPage({ isUpFactory = false }: { isUpFactory?: bool
                           {run.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => handleSendWhatsAppPayslip(run)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs transition cursor-pointer"
+                          title="Send Payslip on WhatsApp"
+                        >
+                          <MessageCircle size={13} /> WhatsApp
+                        </button>
                         <button
                           onClick={() => api.downloadPayslipPdf(run.id)}
                           className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/5 hover:bg-white/10 text-white rounded-lg text-xs transition"
@@ -2427,6 +2526,15 @@ export function EmployeeDetailPage({ isUpFactory = false }: { isUpFactory?: bool
             </form>
           </div>
         </div>
+      )}
+      {/* ── Official Dual-Sided ID Card Generator Modal ──────────────────────── */}
+      {isIdCardOpen && employee && (
+        <EmployeeIdCardModal
+          employee={employee}
+          isOpen={isIdCardOpen}
+          onClose={() => setIsIdCardOpen(false)}
+          isUpFactory={isUpFactory}
+        />
       )}
     </div>
   );

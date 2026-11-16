@@ -11,6 +11,9 @@ export interface Employee {
   name: string;
   email: string;
   phone: string;
+  whatsappNo?: string | null;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER' | string;
+  photoUrl?: string | null;
   address: string;
   governmentIdType: GovernmentIdType;
   governmentIdNumber: string;
@@ -26,6 +29,7 @@ export interface Employee {
   status: EmployeeStatus;
   clBalance: number | string;
   elBalance: number | string;
+  emergencyContact?: string | null;
   createdAt?: string;
   updatedAt?: string;
   conveyanceExpenses?: EmployeeConveyanceExpense[];
@@ -189,6 +193,7 @@ export interface EmployeePayrollRun {
   grossSalary: number | string;
   advanceDeduction: number | string;
   otherDeductions: number | string;
+  totalDeductions?: number | string;
   deductionSummary?: any;
   calculationHistory?: any;
   netSalary: number | string;
@@ -300,6 +305,9 @@ export interface CreateEmployeePayload {
   name: string;
   email: string;
   phone: string;
+  whatsappNo?: string | null;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER' | string;
+  photoUrl?: string | null;
   address: string;
   governmentIdType: GovernmentIdType;
   governmentIdNumber: string;

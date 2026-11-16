@@ -58,6 +58,9 @@ export interface UpEmployee {
   name: string;
   email?: string | null;
   phone: string;
+  whatsappNo?: string | null;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER' | string;
+  photoUrl?: string | null;
   address: string;
   governmentIdType: UpGovernmentIdType;
   governmentIdNumber: string;
