@@ -41,12 +41,17 @@ export default function EditHardwareModal({
 }: EditHardwareModalProps) {
   const [sku, setSku] = useState('');
   const [name, setName] = useState('');
+  const [category, setCategory] = useState('Cubicle Hardware');
   const [material, setMaterial] = useState('');
   const [color, setColor] = useState('');
   const [unit, setUnit] = useState("No's");
   const [hsnCode, setHsnCode] = useState('8302');
   const [warehouse, setWarehouse] = useState('DELHI');
   const [vendorId, setVendorId] = useState('');
+  const [openingStock, setOpeningStock] = useState<string | number>(0);
+  const [totalInward, setTotalInward] = useState<string | number>(0);
+  const [totalIssued, setTotalIssued] = useState<string | number>(0);
+  const [currentStock, setCurrentStock] = useState<string | number>(0);
   const [reorderLevel, setReorderLevel] = useState<string | number>(20);
   const [unitCost, setUnitCost] = useState<string | number>('');
   const [locationRack, setLocationRack] = useState('');
@@ -65,13 +70,18 @@ export default function EditHardwareModal({
     if (isOpen && item) {
       setSku(item.sku);
       setName(item.name);
-      setMaterial(item.material);
-      setColor(item.color);
-      setUnit(item.unit);
+      setCategory(item.category || 'Cubicle Hardware');
+      setMaterial(item.material || 'STAINLESS_STEEL');
+      setColor(item.color || 'Standard');
+      setUnit(item.unit || "No's");
       setHsnCode(item.hsnCode || '8302');
-      setWarehouse(item.warehouse);
+      setWarehouse(item.warehouse || 'DELHI');
       setVendorId(item.vendorId || '');
-      setReorderLevel(item.reorderLevel);
+      setOpeningStock(item.openingStock !== undefined ? item.openingStock : 0);
+      setTotalInward(item.totalInward !== undefined ? item.totalInward : 0);
+      setTotalIssued(item.totalIssued !== undefined ? item.totalIssued : 0);
+      setCurrentStock(item.currentStock !== undefined ? item.currentStock : 0);
+      setReorderLevel(item.reorderLevel !== undefined ? item.reorderLevel : 20);
       setUnitCost(item.unitCost || '');
       setLocationRack(item.locationRack || '');
       setDia(item.dia || '');
@@ -127,12 +137,18 @@ export default function EditHardwareModal({
       const payload: UpdateHardwareItemInput = {
         sku: sku.trim().toUpperCase(),
         name: name.trim(),
+        category: category.trim(),
+        material: material.trim(),
         color: color.trim(),
         unit: unit.trim(),
         hsnCode: hsnCode.trim(),
         warehouse,
         vendorId: vendorId || undefined,
         vendorName: selectedVendor ? selectedVendor.name : undefined,
+        openingStock: openingStock !== '' ? Number(openingStock) : undefined,
+        totalInward: totalInward !== '' ? Number(totalInward) : undefined,
+        totalIssued: totalIssued !== '' ? Number(totalIssued) : undefined,
+        currentStock: currentStock !== '' ? Number(currentStock) : undefined,
         reorderLevel: Number(reorderLevel) || 10,
         unitCost: unitCost ? Number(unitCost) : undefined,
         locationRack: locationRack.trim(),
@@ -214,15 +230,58 @@ export default function EditHardwareModal({
 
             <div>
               <label className="block text-xs font-semibold text-gray-300 mb-1">
+                Category
+              </label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full px-3 py-2 bg-[#030213] border border-white/15 focus:border-[#7FB706] rounded-xl text-white text-xs focus:outline-none"
+              >
+                <option value="Cubicle Hardware">Cubicle Hardware</option>
+                <option value="Locker Hardware">Locker Hardware</option>
+                <option value="Aluminium Extrusions">Aluminium Extrusions</option>
+                <option value="Screws & Fasteners">Screws & Fasteners</option>
+                <option value="Accessories">Accessories</option>
+                <option value="Custom Hardware">Custom Hardware</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 mb-1">
+                Material <span className="text-red-400">*</span>
+              </label>
+              <select
+                value={material}
+                onChange={(e) => {
+                  setMaterial(e.target.value);
+                  const newColors = getAllowedColorsForMaterial(e.target.value);
+                  if (newColors.length > 0 && !newColors.includes(color)) {
+                    setColor(newColors[0]);
+                  }
+                }}
+                className="w-full px-3 py-2 bg-[#030213] border border-white/15 focus:border-[#7FB706] rounded-xl text-white text-xs focus:outline-none"
+              >
+                <option value="STAINLESS_STEEL">Stainless Steel (SS 304 / 316)</option>
+                <option value="ALUMINIUM">Aluminium (Extrusions / Profiles)</option>
+                <option value="NYLON">Virgin Nylon (Heavy Duty)</option>
+                <option value="BRASS">Solid Brass</option>
+                <option value="ZINC_ALLOY">Zinc Alloy (Die Cast)</option>
+                <option value="MILD_STEEL">Mild Steel / Galvanized</option>
+                <option value="PVD_COATED">PVD Titanium Coated</option>
+              </select>
+            </div>
+
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="block text-xs font-semibold text-gray-300">
                 Colour / Finish
               </label>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5 mb-2">
                 {allowedColors.map((col) => (
                   <button
                     key={col}
                     type="button"
                     onClick={() => setColor(col)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
                       color === col
                         ? 'bg-[#7FB706]/20 border-[#7FB706] text-[#B5F823]'
                         : 'bg-[#030213] border-white/10 text-gray-400 hover:text-white'
@@ -232,6 +291,13 @@ export default function EditHardwareModal({
                   </button>
                 ))}
               </div>
+              <input
+                type="text"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                placeholder="Or type custom colour / finish (e.g. Satin Matt / Matt Black / Gold PVD)"
+                className="w-full px-3 py-2 bg-[#030213] border border-white/15 focus:border-[#7FB706] rounded-xl text-white text-xs focus:outline-none"
+              />
             </div>
 
             <div>
@@ -295,6 +361,8 @@ export default function EditHardwareModal({
                 <option value="Set's">Set's</option>
                 <option value="Pairs">Pairs</option>
                 <option value="Pcs">Pcs</option>
+                <option value="Boxes">Boxes</option>
+                <option value="Kg">Kg</option>
               </select>
             </div>
 
@@ -312,6 +380,93 @@ export default function EditHardwareModal({
                 <option value="OUT_OF_STOCK">OUT OF STOCK</option>
                 <option value="DISCONTINUED">DISCONTINUED</option>
               </select>
+            </div>
+
+            {/* Stock Quantities & Balances Section */}
+            <div className="sm:col-span-2 p-3.5 bg-white/[0.02] border border-white/10 rounded-xl space-y-3">
+              <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span>📊</span> Stock Quantities & Flow Management
+                </span>
+                <span className="text-[10px] text-[#7FB706] font-mono">
+                  All stock parameters editable
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">
+                    Opening Stock ({unit})
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={openingStock}
+                    onChange={(e) => setOpeningStock(e.target.value)}
+                    placeholder="e.g. 50"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/15 focus:border-[#7FB706] rounded-xl text-white text-xs font-mono focus:outline-none"
+                  />
+                  <span className="text-[10px] text-gray-400 mt-0.5 block">
+                    Initial stock level
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-blue-400 mb-1">
+                    Total Inward ({unit})
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={totalInward}
+                    onChange={(e) => setTotalInward(e.target.value)}
+                    placeholder="e.g. 200"
+                    className="w-full px-3 py-2 bg-[#030213] border border-blue-500/30 focus:border-blue-400 rounded-xl text-blue-300 text-xs font-mono focus:outline-none"
+                  />
+                  <span className="text-[10px] text-blue-400/80 mt-0.5 block">
+                    Total received
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-orange-400 mb-1">
+                    Total Issued ({unit})
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={totalIssued}
+                    onChange={(e) => setTotalIssued(e.target.value)}
+                    placeholder="e.g. 80"
+                    className="w-full px-3 py-2 bg-[#030213] border border-orange-500/30 focus:border-orange-400 rounded-xl text-orange-300 text-xs font-mono focus:outline-none"
+                  />
+                  <span className="text-[10px] text-orange-400/80 mt-0.5 block">
+                    Total dispatched
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-emerald-400 mb-1">
+                    Current Stock ({unit}) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    value={currentStock}
+                    onChange={(e) => setCurrentStock(e.target.value)}
+                    placeholder="e.g. 170"
+                    className="w-full px-3 py-2 bg-[#030213] border border-emerald-500/30 focus:border-emerald-400 rounded-xl text-emerald-400 font-bold text-xs font-mono focus:outline-none"
+                  />
+                  <span className="text-[10px] text-emerald-400/80 mt-0.5 block">
+                    Live physical inventory
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div>

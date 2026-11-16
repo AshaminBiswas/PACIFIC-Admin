@@ -50,6 +50,8 @@ export default function EditBoardModal({
   const [thickness, setThickness] = useState('12mm');
   const [boardType, setBoardType] = useState('Compact HPL (Phenolic)');
   const [openingStock, setOpeningStock] = useState<string | number>(0);
+  const [totalInward, setTotalInward] = useState<string | number>(0);
+  const [totalIssued, setTotalIssued] = useState<string | number>(0);
   const [currentStock, setCurrentStock] = useState<string | number>(0);
   const [reorderLevel, setReorderLevel] = useState<string | number>(10);
   const [unitCost, setUnitCost] = useState<string | number>('');
@@ -78,6 +80,8 @@ export default function EditBoardModal({
       setThickness(boardItem.thickness || '12mm');
       setBoardType(boardItem.boardType || 'Compact HPL (Phenolic)');
       setOpeningStock(boardItem.openingStock !== undefined ? boardItem.openingStock : 0);
+      setTotalInward(boardItem.totalInward !== undefined ? boardItem.totalInward : 0);
+      setTotalIssued(boardItem.totalIssued !== undefined ? boardItem.totalIssued : 0);
       setCurrentStock(boardItem.currentStock !== undefined ? boardItem.currentStock : 0);
       setReorderLevel(boardItem.reorderLevel !== undefined ? boardItem.reorderLevel : 10);
       setUnitCost(boardItem.unitCost !== null && boardItem.unitCost !== undefined ? boardItem.unitCost : '');
@@ -119,6 +123,8 @@ export default function EditBoardModal({
         thickness: thickness.trim(),
         boardType: boardType.trim(),
         openingStock: openingStock !== '' ? Number(openingStock) : 0,
+        totalInward: totalInward !== '' ? Number(totalInward) : undefined,
+        totalIssued: totalIssued !== '' ? Number(totalIssued) : undefined,
         currentStock: currentStock !== '' ? Number(currentStock) : undefined,
         reorderLevel: reorderLevel !== '' ? Number(reorderLevel) : 10,
         unitCost: unitCost !== '' ? Number(unitCost) : undefined,
@@ -352,7 +358,7 @@ export default function EditBoardModal({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-gray-300 mb-1.5">
                   Opening Stock (Sheets) *
@@ -373,7 +379,43 @@ export default function EditBoardModal({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5 text-blue-400">
+                  Total Inward Quantity (Sheets)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={totalInward}
+                  onChange={(e) => setTotalInward(e.target.value)}
+                  placeholder="e.g. 100"
+                  className="w-full bg-[#121029] border border-blue-500/30 rounded-xl px-3 py-2.5 text-sm text-blue-300 font-mono focus:outline-none focus:border-blue-400 min-h-[44px]"
+                />
+                <span className="text-[10px] text-blue-400/80 mt-0.5 block">
+                  Total cumulative received stock
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5 text-orange-400">
+                  Total Issued Quantity (Sheets)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={totalIssued}
+                  onChange={(e) => setTotalIssued(e.target.value)}
+                  placeholder="e.g. 25"
+                  className="w-full bg-[#121029] border border-orange-500/30 rounded-xl px-3 py-2.5 text-sm text-orange-300 font-mono focus:outline-none focus:border-orange-400 min-h-[44px]"
+                />
+                <span className="text-[10px] text-orange-400/80 mt-0.5 block">
+                  Total dispatched / consumed stock
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5 text-emerald-400">
                   Current Stock (Sheets) *
                 </label>
                 <input
@@ -387,7 +429,7 @@ export default function EditBoardModal({
                   className="w-full bg-[#121029] border border-emerald-500/30 rounded-xl px-3 py-2.5 text-sm text-emerald-400 font-mono font-bold focus:outline-none focus:border-emerald-400 min-h-[44px]"
                 />
                 <span className="text-[10px] text-emerald-400/80 mt-0.5 block">
-                  Live physical count
+                  Live physical count in warehouse
                 </span>
               </div>
 
@@ -405,7 +447,7 @@ export default function EditBoardModal({
                   className="w-full bg-[#121029] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-[#7FB706] min-h-[44px]"
                 />
                 <span className="text-[10px] text-amber-400/80 mt-0.5 block">
-                  Low stock notification (Email alerts temporarily paused)
+                  Low stock notification threshold
                 </span>
               </div>
 

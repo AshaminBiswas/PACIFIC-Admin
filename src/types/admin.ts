@@ -2781,6 +2781,7 @@ export interface UpdateBoardItemInput {
   openingStock?: number;
   currentStock?: number;
   totalInward?: number;
+  totalIssued?: number;
   reorderLevel?: number;
   unitCost?: number;
   locationRack?: string;
@@ -2878,6 +2879,7 @@ export interface HardwareInventoryItem {
   id: string;
   sku: string; // Manually entered by user
   name: string; // e.g. 'Gravity Hinge (Pair)', 'Indicator Thumbturn Lock', 'Top Rail / Headrail'
+  category?: string;
   material: HardwareInventoryMaterial;
   color: string; // SS: 'Black' | 'Golden' | 'Stainless Steel'; Aluminium: 'Black' | 'Aluminium colour'; Nylon: 'Black'
   unit: HardwareStandardUnit; // "No's" | "Meters" | "Set's" | custom
@@ -2976,6 +2978,7 @@ export interface CreateHardwareItemInput {
 export interface UpdateHardwareItemInput {
   sku?: string;
   name?: string;
+  category?: string;
   material?: string;
   color?: string;
   unit?: string;
@@ -2983,7 +2986,10 @@ export interface UpdateHardwareItemInput {
   warehouse?: string;
   vendorId?: string;
   vendorName?: string;
+  openingStock?: number;
   currentStock?: number;
+  totalInward?: number;
+  totalIssued?: number;
   reorderLevel?: number;
   unitCost?: number;
   locationRack?: string;

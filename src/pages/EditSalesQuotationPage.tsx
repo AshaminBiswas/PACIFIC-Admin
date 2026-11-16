@@ -3,8 +3,9 @@ import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom'
 import {
   FileText, ArrowLeft, Save, Plus, Trash2, RefreshCw,
   AlertTriangle, RotateCcw, Wrench, Sparkles, Layers,
-  UploadCloud, ExternalLink, Eye, History, Package,
+  UploadCloud, ExternalLink, Eye, History, Package, Boxes,
 } from 'lucide-react';
+import HsnSelectInput from '../components/common/HsnSelectInput';
 import { salesQuotationsApi } from '../api/salesQuotationsApi';
 import { companiesApi } from '../api/companyApi';
 import { productCatalogApi } from '../api/productCatalogApi';
@@ -46,6 +47,8 @@ interface EditItem {
   hardwareType?: string;
   colorFinish?: string;
   notes?: string;
+  itemType?: 'cubicle' | 'hardware' | 'custom';
+  parentModelId?: string;
   systemCategory?: 'cubicle' | 'ump' | 'locker' | 'board' | 'hardware' | 'custom' | string;
   description: string;
   unit: string;
@@ -1215,8 +1218,10 @@ export default function EditSalesQuotationPage() {
       items: [
         ...f.items,
         {
+          itemType: 'cubicle',
           systemCategory: 'board',
           description: '12mm High Pressure Compact Laminate (HPL) Board Sheet',
+          hsnSac: '4823',
           unit: 'SQFT',
           quantity: 100,
           rate: 185,
@@ -1235,8 +1240,10 @@ export default function EditSalesQuotationPage() {
       items: [
         ...f.items,
         {
+          itemType: 'hardware',
           systemCategory: 'hardware',
           description: name || 'SS 304 Restroom Cubicle Fitting',
+          hsnSac: '8302',
           unit,
           quantity: 1,
           rate,
@@ -2247,71 +2254,51 @@ export default function EditSalesQuotationPage() {
               <p className="text-xs text-red-400 mt-0.5">{fieldErrors.items}</p>
             )}
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {(!form.quotationScope || form.quotationScope === 'CUBICLE') && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    addItem();
-                    clearFieldError('items');
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] border border-[#7FB706]/30 rounded-lg text-xs font-bold cursor-pointer transition-colors"
-                  title="Add another catalog cubicle model system"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  ＋ Add Cubicle System
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    addCustomModelItem();
-                    clearFieldError('items');
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors"
-                  title="Write custom model name and technical specifications"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  ＋ Add Custom Item &amp; Model
-                </button>
-              </>
-            )}
-            {form.quotationScope === 'BOARD' && (
-              <button
-                type="button"
-                onClick={() => {
-                  addBoardItem();
-                  clearFieldError('items');
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add Board Sheet
-              </button>
-            )}
-            {form.quotationScope === 'HARDWARE' && (
-              <button
-                type="button"
-                onClick={() => {
-                  addHardwareItem();
-                  clearFieldError('items');
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add Hardware Item
-              </button>
-            )}
-            {form.quotationScope === 'CUSTOM_ITEM' && (
-              <button
-                type="button"
-                onClick={() => {
-                  addCustomModelItem();
-                  clearFieldError('items');
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add Custom Item
-              </button>
-            )}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                addCustomModelItem();
+                clearFieldError('items');
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-sm"
+              title="Add custom item, bespoke model, or service"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> + Custom Item
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                addBoardItem();
+                clearFieldError('items');
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+              title="Add compact laminate / HPL board sheet"
+            >
+              <Plus className="w-3.5 h-3.5" /> + Board Sheet
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                addHardwareItem();
+                clearFieldError('items');
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+              title="Add architectural hardware fitting"
+            >
+              <Plus className="w-3.5 h-3.5" /> + Hardware Item
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                addItem();
+                clearFieldError('items');
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] rounded-lg text-xs font-bold cursor-pointer transition-colors"
+              title="Add catalog or custom cubicle model"
+            >
+              <Plus className="w-3.5 h-3.5" /> + Cubicle Model
+            </button>
           </div>
         </div>
 
@@ -2326,13 +2313,30 @@ export default function EditSalesQuotationPage() {
                 }
               }
             }}
-            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
               (!form.quotationScope || form.quotationScope === 'CUBICLE')
                 ? 'bg-[#7FB706] text-black shadow-md'
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Layers className="w-4 h-4" /> Restroom Cubicles
+            <Layers className="w-4 h-4 shrink-0" /> Restroom Cubicle System
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (form.quotationScope !== 'CUSTOM_ITEM') {
+                if (window.confirm('Switch quotation mode to Custom (Board & Hardware)? This allows configuring custom board sheets and hardware accessories together without requiring a cubicle model.')) {
+                  applyBoilerplatePreset('CUSTOM_ITEM');
+                }
+              }
+            }}
+            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+              form.quotationScope === 'CUSTOM_ITEM'
+                ? 'bg-[#7FB706] text-black shadow-md'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Boxes className="w-4 h-4 shrink-0" /> Custom (Board & Hardware)
           </button>
           <button
             type="button"
@@ -2343,13 +2347,13 @@ export default function EditSalesQuotationPage() {
                 }
               }
             }}
-            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
               form.quotationScope === 'BOARD'
                 ? 'bg-[#7FB706] text-black shadow-md'
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Package className="w-4 h-4" /> Custom Board
+            <Package className="w-4 h-4 shrink-0" /> Board Only (HPL / HDF)
           </button>
           <button
             type="button"
@@ -2360,30 +2364,13 @@ export default function EditSalesQuotationPage() {
                 }
               }
             }}
-            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
               form.quotationScope === 'HARDWARE'
                 ? 'bg-[#7FB706] text-black shadow-md'
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Wrench className="w-4 h-4" /> Custom Hardware
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (form.quotationScope !== 'CUSTOM_ITEM') {
-                if (window.confirm('Switch quotation mode to Custom Item & Bespoke Works? This allows configuring custom items, bespoke models, and specialized fabrication.')) {
-                  applyBoilerplatePreset('CUSTOM_ITEM');
-                }
-              }
-            }}
-            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
-              form.quotationScope === 'CUSTOM_ITEM'
-                ? 'bg-[#7FB706] text-black shadow-md'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Sparkles className="w-4 h-4" /> Custom Item
+            <Wrench className="w-4 h-4 shrink-0" /> Custom Hardware Only
           </button>
         </div>
 
@@ -2399,15 +2386,40 @@ export default function EditSalesQuotationPage() {
               <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-indigo-300">
                 <span className="flex items-center gap-2 font-medium">
                   <Sparkles className="w-4 h-4 text-indigo-400 flex-shrink-0" />
-                  <span><strong>Custom Item &amp; Bespoke Works Mode Active:</strong> Configure custom items, bespoke models, vanity counters, glass partitions, and specialized fabrication freely without requiring a standard cubicle model.</span>
+                  <span><strong>Customized Items &amp; Supply Mode Active:</strong> Configure custom items, bespoke models, vanity counters, glass partitions, board sheets, and hardware accessories freely without requiring a standard cubicle model.</span>
                 </span>
-                <button
-                  type="button"
-                  onClick={addCustomModelItem}
-                  className="px-3 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer transition self-start sm:self-auto"
-                >
-                  <Plus className="w-3.5 h-3.5" /> + Add Custom Item
-                </button>
+                <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addCustomModelItem();
+                      clearFieldError('items');
+                    }}
+                    className="px-2.5 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition shadow-sm"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> + Custom Item
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addBoardItem();
+                      clearFieldError('items');
+                    }}
+                    className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> + Board Sheet
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addHardwareItem();
+                      clearFieldError('items');
+                    }}
+                    className="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> + Hardware Item
+                  </button>
+                </div>
               </div>
 
               {form.items.length === 0 && (
@@ -2424,17 +2436,294 @@ export default function EditSalesQuotationPage() {
               )}
 
               <div className="space-y-4">
-                {form.items.map((item, idx) => (
-                  <CustomQuotationItemCard
-                    key={idx}
-                    index={idx}
-                    item={item}
-                    fieldErrors={fieldErrors}
-                    onChange={(field, val) => handleItemChange(idx, field as keyof EditItem, val)}
-                    onRemove={() => removeItem(idx)}
-                    canRemove={form.items.length > 1}
-                  />
-                ))}
+                {form.items.map((item, idx) => {
+                  const lineTotal = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
+                  const isBoard = item.systemCategory === 'board';
+                  const isHw = !isBoard && (item.itemType === 'hardware' || item.systemCategory === 'hardware');
+                  const isCustom = !isBoard && !isHw;
+
+                  if (isCustom) {
+                    return (
+                      <CustomQuotationItemCard
+                        key={idx}
+                        index={idx}
+                        item={item}
+                        fieldErrors={fieldErrors}
+                        onChange={(field, val) => handleItemChange(idx, field as keyof EditItem, val)}
+                        onRemove={() => removeItem(idx)}
+                        canRemove={form.items.length > 1}
+                      />
+                    );
+                  }
+
+                  if (isHw) {
+                    return (
+                      <div key={idx} className="bg-[#0a0a1a] border border-cyan-500/30 rounded-xl p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono font-bold text-cyan-400">Item #{idx + 1}</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                              <Wrench className="w-3 h-3 text-cyan-400" /> Hardware Fitting
+                            </span>
+                          </div>
+                          {form.items.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeItem(idx)}
+                              className="p-1 text-red-400 hover:text-red-300 cursor-pointer transition-colors"
+                              title="Remove Hardware Item"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                          <div className="sm:col-span-4 space-y-1">
+                            <label className={labelCls}>Hardware Description / Name *</label>
+                            <input
+                              type="text"
+                              value={item.description}
+                              onChange={(e) => {
+                                handleItemChange(idx, 'description', e.target.value);
+                                clearFieldError(`item_${idx}_desc`);
+                              }}
+                              placeholder="e.g. SS 304 Gravity Hinges (Self-Closing Pair)"
+                              className={getInputCls(`item_${idx}_desc`)}
+                              required
+                            />
+                            {fieldErrors[`item_${idx}_desc`] && (
+                              <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_desc`]}</p>
+                            )}
+                          </div>
+
+                          <div className="sm:col-span-3 space-y-1">
+                            <label className={labelCls}>Material / Finish / Specs</label>
+                            <input
+                              type="text"
+                              value={item.hardwarePackage || ''}
+                              onChange={(e) => handleItemChange(idx, 'hardwarePackage', e.target.value)}
+                              placeholder="e.g. Grade 304 Stainless Steel (Satin Finish)"
+                              className={inputCls}
+                            />
+                          </div>
+
+                          <div className="sm:col-span-2 space-y-1">
+                            <label className={labelCls}>HSN / SAC</label>
+                            <HsnSelectInput
+                              value={item.hsnSac || ''}
+                              onChange={(val) => handleItemChange(idx, 'hsnSac', val)}
+                              options={['3925', '8302', '7610']}
+                            />
+                          </div>
+
+                          <div className="sm:col-span-1 space-y-1">
+                            <label className={labelCls}>Unit</label>
+                            <select
+                              value={item.unit || 'SET'}
+                              onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                              className={inputCls}
+                            >
+                              {['SET', 'PAIR', 'NOS', 'PCS', 'MTR', 'RMT', 'LOT'].map((u) => (
+                                <option key={u} value={u}>{u}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="sm:col-span-1 space-y-1">
+                            <label className={labelCls}>Qty *</label>
+                            <input
+                              type="number"
+                              min="0.01"
+                              step="0.01"
+                              value={item.quantity}
+                              onChange={(e) => {
+                                handleItemChange(idx, 'quantity', Number(e.target.value) || 0);
+                                clearFieldError(`item_${idx}_qty`);
+                              }}
+                              className={getInputCls(`item_${idx}_qty`)}
+                              required
+                            />
+                            {fieldErrors[`item_${idx}_qty`] && (
+                              <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_qty`]}</p>
+                            )}
+                          </div>
+
+                          <div className="sm:col-span-1 space-y-1">
+                            <label className={labelCls}>Rate (₹) *</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.rate}
+                              onChange={(e) => {
+                                handleItemChange(idx, 'rate', Number(e.target.value) || 0);
+                                clearFieldError(`item_${idx}_rate`);
+                              }}
+                              className={getInputCls(`item_${idx}_rate`)}
+                              required
+                            />
+                            {fieldErrors[`item_${idx}_rate`] && (
+                              <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_rate`]}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="text-right text-xs text-gray-400 font-mono pt-1 border-t border-white/5">
+                          Line Total: <span className="font-bold text-white text-sm">
+                            ₹ {lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={idx} className="bg-[#0a0a1a] border border-amber-500/30 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-bold text-amber-400">Item #{idx + 1}</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                            <Package className="w-3 h-3 text-amber-400" /> Board Sheet Supply
+                          </span>
+                        </div>
+                        {form.items.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeItem(idx)}
+                            className="p-1 text-red-400 hover:text-red-300 cursor-pointer transition-colors"
+                            title="Remove Board Item"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                        <div className="sm:col-span-6 space-y-1">
+                          <label className={labelCls}>Board Description *</label>
+                          <input
+                            type="text"
+                            value={item.description}
+                            onChange={(e) => {
+                              handleItemChange(idx, 'description', e.target.value);
+                              clearFieldError(`item_${idx}_desc`);
+                            }}
+                            placeholder="e.g. 12mm High Pressure Compact Laminate (HPL) Board Sheet"
+                            className={getInputCls(`item_${idx}_desc`)}
+                            required
+                          />
+                          {fieldErrors[`item_${idx}_desc`] && (
+                            <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_desc`]}</p>
+                          )}
+                        </div>
+
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className={labelCls}>Board Type *</label>
+                          <select
+                            value={item.boardType || 'HPL'}
+                            onChange={(e) => handleItemChange(idx, 'boardType', e.target.value)}
+                            className={inputCls}
+                          >
+                            <option value="HPL">HPL (Compact Laminate)</option>
+                            <option value="HDF">HDF (High Density Board)</option>
+                            <option value="WOODEN">Wooden Core Panel</option>
+                          </select>
+                        </div>
+
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className={labelCls}>Thickness</label>
+                          <input
+                            type="text"
+                            value={item.boardThickness || ''}
+                            onChange={(e) => handleItemChange(idx, 'boardThickness', e.target.value)}
+                            placeholder="e.g. 12mm"
+                            className={inputCls}
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className={labelCls}>Color / Decor Code</label>
+                          <input
+                            type="text"
+                            value={item.boardColor || ''}
+                            onChange={(e) => handleItemChange(idx, 'boardColor', e.target.value)}
+                            placeholder="e.g. D.No. 123"
+                            className={inputCls}
+                          />
+                        </div>
+
+                        <div className="sm:col-span-5 space-y-1">
+                          <label className={labelCls}>Sheet Dimensions / Size</label>
+                          <input
+                            type="text"
+                            value={item.cubicleSize || ''}
+                            onChange={(e) => handleItemChange(idx, 'cubicleSize', e.target.value)}
+                            placeholder="e.g. 1220mm × 2440mm (4ft × 8ft)"
+                            className={inputCls}
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className={labelCls}>Unit</label>
+                          <select
+                            value={item.unit || 'SQFT'}
+                            onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                            className={inputCls}
+                          >
+                            {['SQFT', 'SQM', 'NOS', 'SHEET', 'LOT'].map((u) => (
+                              <option key={u} value={u}>{u}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className={labelCls}>Quantity *</label>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={item.quantity}
+                            onChange={(e) => {
+                              handleItemChange(idx, 'quantity', Number(e.target.value) || 0);
+                              clearFieldError(`item_${idx}_qty`);
+                            }}
+                            className={getInputCls(`item_${idx}_qty`)}
+                            required
+                          />
+                          {fieldErrors[`item_${idx}_qty`] && (
+                            <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_qty`]}</p>
+                          )}
+                        </div>
+
+                        <div className="sm:col-span-3 space-y-1">
+                          <label className={labelCls}>Rate (₹) *</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.rate}
+                            onChange={(e) => {
+                              handleItemChange(idx, 'rate', Number(e.target.value) || 0);
+                              clearFieldError(`item_${idx}_rate`);
+                            }}
+                            className={getInputCls(`item_${idx}_rate`)}
+                            required
+                          />
+                          {fieldErrors[`item_${idx}_rate`] && (
+                            <p className="mt-1 text-xs text-red-400">{fieldErrors[`item_${idx}_rate`]}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right text-xs text-gray-400 font-mono pt-1 border-t border-white/5">
+                        Line Total: <span className="font-bold text-white text-sm">
+                          ₹ {lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               <button
@@ -2825,12 +3114,20 @@ export default function EditSalesQuotationPage() {
             </div>
           ) : (
             (() => {
+            const boardItems = form.items.filter(
+              (it) => it.systemCategory === 'board'
+            );
+
+            const hardwareItems = form.items.filter(
+              (it) => it.itemType === 'hardware' || it.systemCategory === 'hardware'
+            );
+
             const customItems = form.items.filter(
-              (it) => it.systemCategory === 'custom' || it.modelId === 'CUSTOM' || (it as any).isCustom
+              (it) => (it.itemType === 'custom' || it.systemCategory === 'custom' || it.modelId === 'CUSTOM' || (it as any).isCustom) && it.systemCategory !== 'board' && it.itemType !== 'hardware' && it.systemCategory !== 'hardware'
             );
 
             const primaryCubicleItem = form.items.find(
-              (it) => it.systemCategory !== 'ump' && it.systemCategory !== 'locker' && it.systemCategory !== 'custom' && it.modelId !== 'CUSTOM' && !(it as any).isCustom
+              (it) => it.itemType !== 'hardware' && it.itemType !== 'custom' && it.systemCategory !== 'custom' && !(it as any).isCustom && it.systemCategory !== 'board' && it.systemCategory !== 'ump' && it.systemCategory !== 'locker' && it.systemCategory !== 'hardware'
             );
             const primaryCubicleIdx = primaryCubicleItem ? form.items.indexOf(primaryCubicleItem) : -1;
 
@@ -2843,11 +3140,102 @@ export default function EditSalesQuotationPage() {
             );
 
             const additionalCubicleItems = form.items.filter(
-              (it, i) => i !== primaryCubicleIdx && it !== umpItem && it !== lockerItem && it.systemCategory !== 'custom' && it.modelId !== 'CUSTOM' && !(it as any).isCustom
+              (it, i) => it.itemType !== 'hardware' && it.itemType !== 'custom' && it.systemCategory !== 'custom' && !(it as any).isCustom && it.systemCategory !== 'board' && it.systemCategory !== 'hardware' && i !== primaryCubicleIdx && it !== umpItem && it !== lockerItem
             );
 
             return (
               <>
+                {/* ── BOARD SHEETS (IF ANY IN CUBICLE SCOPE) ── */}
+                {boardItems.length > 0 && (
+                  <div className="space-y-3 bg-[#0a0a1a] border border-amber-500/40 rounded-xl p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-amber-400">Board Sheets &amp; Panels ({boardItems.length} items)</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                          <Package className="w-3 h-3 text-amber-400" /> Compact Sheet Supply
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={addBoardItem}
+                        className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <Plus className="w-3 h-3" /> + Add Board
+                      </button>
+                    </div>
+
+                    {boardItems.map((bItem) => {
+                      const bIdx = form.items.indexOf(bItem);
+                      const bTotal = (Number(bItem.quantity) || 0) * (Number(bItem.rate) || 0);
+                      return (
+                        <div key={bIdx} className="bg-white/[0.02] border border-white/10 rounded-lg p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-300 font-semibold">{bItem.description || `Board Item #${bIdx + 1}`}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeItem(bIdx)}
+                              className="text-red-400 hover:text-red-300 text-xs p-1 cursor-pointer transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-7 gap-2 text-xs">
+                            <input
+                              type="text"
+                              value={bItem.description}
+                              onChange={(e) => handleItemChange(bIdx, 'description', e.target.value)}
+                              placeholder="Board description"
+                              className="sm:col-span-2 bg-[#121226] border border-white/10 rounded px-2.5 py-1.5 text-white"
+                            />
+                            <input
+                              type="text"
+                              value={bItem.hsnSac || '4823'}
+                              onChange={(e) => handleItemChange(bIdx, 'hsnSac', e.target.value)}
+                              placeholder="HSN (4823)"
+                              className="bg-[#121226] border border-white/10 rounded px-2.5 py-1.5 text-white font-mono"
+                              title="HSN / SAC Code"
+                            />
+                            <input
+                              type="text"
+                              value={bItem.boardThickness || ''}
+                              onChange={(e) => handleItemChange(bIdx, 'boardThickness', e.target.value)}
+                              placeholder="Thickness (12mm)"
+                              className="bg-[#121226] border border-white/10 rounded px-2.5 py-1.5 text-white"
+                            />
+                            <input
+                              type="text"
+                              value={bItem.cubicleSize || ''}
+                              onChange={(e) => handleItemChange(bIdx, 'cubicleSize', e.target.value)}
+                              placeholder="Sheet Size (4x8ft)"
+                              className="bg-[#121226] border border-white/10 rounded px-2.5 py-1.5 text-white"
+                            />
+                            <input
+                              type="number"
+                              value={bItem.quantity}
+                              onChange={(e) => handleItemChange(bIdx, 'quantity', Number(e.target.value) || 0)}
+                              placeholder="Qty"
+                              className="bg-[#121226] border border-white/10 rounded px-2.5 py-1.5 text-white font-mono"
+                            />
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                value={bItem.rate}
+                                onChange={(e) => handleItemChange(bIdx, 'rate', Number(e.target.value) || 0)}
+                                placeholder="Rate (₹)"
+                                className="w-full bg-[#121226] border border-white/10 rounded px-2.5 py-1.5 text-white font-mono"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-gray-400 font-mono">
+                            <span>HSN: <span className="text-[#7FB706] font-bold">{bItem.hsnSac || '4823'}</span></span>
+                            <span>Subtotal: <span className="font-bold text-white">₹ {bTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {/* ── OPTIONAL CUBICLE SYSTEM (PRIMARY) ── */}
                 {!primaryCubicleItem && (
                   <div className="bg-[#0a0a1a] border border-dashed border-[#7FB706]/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -3541,6 +3929,145 @@ export default function EditSalesQuotationPage() {
                   </div>
                 )}
 
+                {/* ── SECTION 5: ITEMIZED HARDWARE & ACCESSORIES LIST ── */}
+                {hardwareItems.length > 0 && (
+                  <div className="space-y-3 pt-3 border-t border-white/10">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Wrench className="w-4 h-4 text-cyan-400" />
+                        <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                          Itemized Hardware Components &amp; Accessories ({hardwareItems.length} items)
+                        </h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => addHardwareItem()}
+                        className="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <Plus className="w-3 h-3" /> + Add Hardware
+                      </button>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {hardwareItems.map((item) => {
+                        const realIdx = form.items.indexOf(item);
+                        const lineTotal = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
+
+                        return (
+                          <div key={realIdx} className="bg-[#0b1022] border border-cyan-500/25 rounded-xl p-3.5 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-mono font-bold text-cyan-400">Item #{realIdx + 1}</span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                                  <Wrench className="w-3 h-3" /> Architectural Hardware
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeItem(realIdx)}
+                                className="p-1 text-red-400 hover:text-red-300 cursor-pointer transition-colors"
+                                title="Remove Hardware Item"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                              <div className="sm:col-span-5 space-y-1">
+                                <label className={labelCls}>Hardware Description / Name *</label>
+                                <input
+                                  type="text"
+                                  value={item.description}
+                                  onChange={(e) => {
+                                    handleItemChange(realIdx, 'description', e.target.value);
+                                    clearFieldError(`item_${realIdx}_desc`);
+                                  }}
+                                  className={getInputCls(`item_${realIdx}_desc`) + ' text-xs'}
+                                  required
+                                />
+                              </div>
+
+                              <div className="sm:col-span-3 space-y-1">
+                                <label className={labelCls}>Material / Hardware Finish</label>
+                                <input
+                                  type="text"
+                                  value={item.hardwarePackage || ''}
+                                  onChange={(e) => handleItemChange(realIdx, 'hardwarePackage', e.target.value)}
+                                  placeholder="e.g. Grade 304 Stainless Steel (Satin/Brushed)"
+                                  className={inputCls + ' text-xs'}
+                                />
+                              </div>
+
+                              <div className="sm:col-span-2 space-y-1">
+                                <label className={labelCls}>HSN / SAC</label>
+                                <HsnSelectInput
+                                  value={item.hsnSac || '8302'}
+                                  onChange={(val) => handleItemChange(realIdx, 'hsnSac', val)}
+                                  options={['3925', '8302', '7610']}
+                                />
+                              </div>
+
+                              <div className="sm:col-span-1 space-y-1">
+                                <label className={labelCls}>Unit</label>
+                                <select
+                                  value={item.unit || 'SET'}
+                                  onChange={(e) => handleItemChange(realIdx, 'unit', e.target.value)}
+                                  className={inputCls + ' text-xs'}
+                                >
+                                  {['SET', 'PAIR', 'NOS', 'PCS', 'MTR', 'RMT', 'LOT'].map((u) => (
+                                    <option key={u} value={u}>{u}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="sm:col-span-1 space-y-1">
+                                <label className={labelCls}>Qty *</label>
+                                <input
+                                  type="number"
+                                  min="0.01"
+                                  step="0.01"
+                                  value={item.quantity}
+                                  onChange={(e) => {
+                                    handleItemChange(realIdx, 'quantity', Number(e.target.value) || 0);
+                                    clearFieldError(`item_${realIdx}_qty`);
+                                  }}
+                                  className={getInputCls(`item_${realIdx}_qty`) + ' text-xs font-mono'}
+                                  required
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                              <div className="sm:col-span-6 space-y-1">
+                                <label className={labelCls}>Rate (₹) *</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={item.rate}
+                                  onChange={(e) => {
+                                    handleItemChange(realIdx, 'rate', Number(e.target.value) || 0);
+                                    clearFieldError(`item_${realIdx}_rate`);
+                                  }}
+                                  className={getInputCls(`item_${realIdx}_rate`) + ' text-xs font-mono'}
+                                  required
+                                />
+                              </div>
+                              <div className="sm:col-span-6 flex items-end justify-end pb-1">
+                                <div className="text-right font-mono text-xs text-gray-400">
+                                  Line Total: <span className="font-bold text-cyan-300 text-sm">
+                                    ₹ {lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Bottom Quick-Action Buttons */}
                 <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-white/5">
                   <button
@@ -3549,9 +4076,9 @@ export default function EditSalesQuotationPage() {
                       addCustomModelItem();
                       clearFieldError('items');
                     }}
-                    className="flex-1 min-w-[140px] py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-dashed border-amber-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="flex-1 min-w-[140px] py-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-dashed border-indigo-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <Sparkles className="w-4 h-4 text-amber-400" /> + Add Custom Item
+                    <Sparkles className="w-4 h-4 text-indigo-400" /> + Add Custom Item
                   </button>
                   <button
                     type="button"
@@ -3561,7 +4088,27 @@ export default function EditSalesQuotationPage() {
                     }}
                     className="flex-1 min-w-[140px] py-2.5 bg-[#7FB706]/10 hover:bg-[#7FB706]/20 text-[#7FB706] border border-dashed border-[#7FB706]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <Plus className="w-4 h-4" /> + Add Cubicle System
+                    <Plus className="w-4 h-4" /> + Add Cubicle Model
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addHardwareItem();
+                      clearFieldError('items');
+                    }}
+                    className="flex-1 min-w-[140px] py-2.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-dashed border-cyan-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> + Add Hardware Item
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addBoardItem();
+                      clearFieldError('items');
+                    }}
+                    className="flex-1 min-w-[140px] py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-dashed border-amber-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> + Add Board Sheet
                   </button>
                 </div>
               </>
