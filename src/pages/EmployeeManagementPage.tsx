@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { employeeService } from '../api/employeeService';
 import { upEmployeeService } from '../api/upEmployeeService';
+import { useDebounce } from '../hooks/useDebounce';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { DynamicSalaryCalculatorModal, computeFixedPayableDays } from '../components/payroll/DynamicSalaryCalculatorModal';
 import { EmployeeConveyanceHub } from '../components/payroll/EmployeeConveyanceHub';
@@ -175,6 +176,7 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [selectedDepartment, setSelectedDepartment] = useState('All Departments');
   const [selectedDesignation, setSelectedDesignation] = useState('All Designations');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
@@ -373,7 +375,7 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
     setIsLoadingEmployees(true);
     try {
       const res = await api.listEmployees({
-        search: searchQuery || undefined,
+        search: debouncedSearchQuery || undefined,
         department: selectedDepartment !== 'All Departments' ? selectedDepartment : undefined,
         designation: selectedDesignation !== 'All Designations' ? selectedDesignation : undefined,
         status: statusFilter !== 'ALL' ? statusFilter : undefined,
@@ -385,7 +387,7 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
     } finally {
       setIsLoadingEmployees(false);
     }
-  }, [searchQuery, selectedDepartment, selectedDesignation, statusFilter]);
+  }, [debouncedSearchQuery, selectedDepartment, selectedDesignation, statusFilter]);
 
   const fetchAttendance = useCallback(async () => {
     setIsLoadingAttendance(true);

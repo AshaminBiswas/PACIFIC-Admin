@@ -9,6 +9,9 @@ import {
   ExternalLink, Sparkles, MessageCircle, Phone,
 } from 'lucide-react';
 import { salesQuotationsApi } from '../api/services';
+import { useDebounce } from '../hooks/useDebounce';
+import { useQuotationsList, useQuotationMutations } from '../hooks/queries/useQuotationsQuery';
+import { queryClient, queryKeys } from '../lib/queryClient';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import type { SalesQuotation, QuotationFollowupStatus, QuotationFollowupChannel } from '../types/admin';
 import { scopeToType } from '../types/admin';
@@ -21,7 +24,6 @@ export default function SalesQuotationsPage() {
   const navigate = useNavigate();
 
   const [quotations, setQuotations] = useState<SalesQuotation[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [branchFilter, setBranchFilter] = useState<'ALL' | 'MAIN' | 'KOLKATA'>('ALL');
@@ -30,6 +32,31 @@ export default function SalesQuotationsPage() {
   const [pageSize, setPageSize] = useState<number>(50);
   const [totalPages, setTotalPages] = useState(1);
   const [totalQuotations, setTotalQuotations] = useState(0);
+
+  const debouncedSearch = useDebounce(search, 300);
+  const {
+    data: quotationsData,
+    isLoading: loading,
+    refetch: refetchQuotationsQuery,
+  } = useQuotationsList({
+    page,
+    limit: pageSize,
+    search: debouncedSearch,
+    status: statusFilter,
+    branch: branchFilter,
+    sortBy: 'date',
+    sortOrder: dateSortOrder,
+  });
+
+  const { invalidateQuotations } = useQuotationMutations();
+
+  useEffect(() => {
+    if (quotationsData?.items) {
+      setQuotations(quotationsData.items);
+      setTotalPages(quotationsData.totalPages);
+      setTotalQuotations(quotationsData.total);
+    }
+  }, [quotationsData]);
 
   // Modals
   const [previewQuotation, setPreviewQuotation] = useState<SalesQuotation | null>(null);
@@ -243,37 +270,9 @@ export default function SalesQuotationsPage() {
     }
   };
 
-  const fetchQuotations = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params: any = {
-        page,
-        limit: pageSize,
-        search,
-        sortBy: 'date',
-        sortOrder: dateSortOrder,
-      };
-      if (statusFilter !== 'ALL') params.status = statusFilter;
-      if (branchFilter !== 'ALL') params.branch = branchFilter;
-      const res = await salesQuotationsApi.list(params);
-      if (res.data?.data) {
-        const data = res.data.data;
-        setQuotations(data.items || []);
-        const total = data.total ?? (data as any).pagination?.total ?? (data.items?.length || 0);
-        const tPages = data.totalPages ?? (data as any).pagination?.totalPages ?? Math.max(1, Math.ceil(total / pageSize));
-        setTotalQuotations(total);
-        setTotalPages(tPages);
-      }
-    } catch (err) {
-      console.error('Failed to load quotations:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, pageSize, search, statusFilter, branchFilter, dateSortOrder]);
-
-  useEffect(() => {
-    fetchQuotations();
-  }, [fetchQuotations]);
+  const fetchQuotations = useCallback(() => {
+    refetchQuotationsQuery();
+  }, [refetchQuotationsQuery]);
 
   const displayedQuotations = useMemo(() => {
     const filtered = filterByBranch(quotations, branchFilter);

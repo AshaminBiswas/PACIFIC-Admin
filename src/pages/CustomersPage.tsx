@@ -6,22 +6,31 @@ import {
   GitMerge, Layers, ShoppingBag, Package, Wrench, AlertTriangle, ShieldAlert, Trash2, Edit2, Clock
 } from 'lucide-react';
 import { crmApi } from '../api/services';
+import { useDebounce } from '../hooks/useDebounce';
+import { useCustomersList, useCustomerMutations } from '../hooks/queries/useCustomersQuery';
 import type { BusinessParty, Customer360Data } from '../types/admin';
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<BusinessParty[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const debouncedSearch = useDebounce(search, 300);
+
+  const {
+    data: customersData,
+    isLoading: loading,
+    isFetching,
+    refetch: fetchCustomers,
+  } = useCustomersList({ page, limit: 15, search: debouncedSearch });
+
+  const { deleteCustomer, invalidateCustomers } = useCustomerMutations();
+  const customers = customersData?.items || [];
+  const totalPages = customersData?.totalPages || 1;
 
   const handleDeleteCustomer = async (id: string, name: string) => {
     if (!confirm(`Are you sure you want to delete customer "${name}"? This action cannot be undone.`)) return;
     try {
-      await crmApi.deleteCustomer(id);
-      setCustomers((prev) => prev.filter((c) => c.id !== id));
+      await deleteCustomer(id);
       alert(`Customer "${name}" was deleted successfully.`);
-      fetchCustomers();
     } catch (err: any) {
       console.error('Failed to delete customer:', err);
       alert(err.response?.data?.message || err.message || 'Failed to delete customer');
@@ -65,25 +74,6 @@ export default function CustomersPage() {
     billingState: 'Delhi',
     billingStateCode: '07',
   });
-
-  const fetchCustomers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await crmApi.listCustomers({ page, limit: 15, search });
-      if (res.data?.data) {
-        setCustomers(res.data.data.items || []);
-        setTotalPages(res.data.data.totalPages || 1);
-      }
-    } catch (err) {
-      console.error('Failed to fetch customers:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, search]);
-
-  useEffect(() => {
-    fetchCustomers();
-  }, [fetchCustomers]);
 
   // Real-time Duplicate Check
   useEffect(() => {
@@ -139,7 +129,7 @@ export default function CustomersPage() {
       setShowMergeModal(false);
       setCanonicalCustomerId('');
       setMergedCustomerId('');
-      fetchCustomers();
+      invalidateCustomers();
     } catch (err: any) {
       alert(err.response?.data?.message || err.message || 'Failed to merge customers');
     } finally {
@@ -190,7 +180,7 @@ export default function CustomersPage() {
           : [],
       });
       setShowCreateModal(false);
-      fetchCustomers();
+      invalidateCustomers();
     } catch (err) {
       console.error('Failed to create customer:', err);
     }

@@ -1,7 +1,5 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/lib/supabase";
-import { dashboardApi, crmApi } from "@/api/services";
+import { useOverviewStatsQuery } from "@/hooks/queries/useDashboardQuery";
 import {
   Package, FileText, Lightbulb, ImageIcon, MonitorPlay, Layers,
   LayoutTemplate, MessageSquare, Star, HelpCircle, Users, FileDown,
@@ -13,141 +11,29 @@ import { useReportingPeriod } from "../../context/ReportingPeriodContext";
 
 export default function AdminOverview() {
   const { resolvedPeriod } = useReportingPeriod();
-  const OVERVIEW_CACHE_KEY = 'pacific_admin_overview_stats_v2';
+  const { data, isLoading: loading } = useOverviewStatsQuery();
 
-  const [counts, setCounts] = useState<Record<string, number>>(() => {
-    try {
-      const cached = sessionStorage.getItem(OVERVIEW_CACHE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Date.now() - parsed.timestamp < 5 * 60 * 1000) {
-          return parsed.counts || {};
-        }
-      }
-    } catch {}
-    return {
-      products: 0,
-      blogs: 0,
-      solutions: 0,
-      gallery: 0,
-      hero_images: 0,
-      core_services: 0,
-      page_banners: 0,
-      catalogs: 0,
-      contact_queries: 0,
-      feedback: 0,
-      faqs: 0,
-      leads: 0,
-    };
-  });
-  const [erpStats, setErpStats] = useState<{
-    customers: number;
-    quotations: number;
-    orders: number;
-    invoices: number;
-  }>(() => {
-    try {
-      const cached = sessionStorage.getItem(OVERVIEW_CACHE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Date.now() - parsed.timestamp < 5 * 60 * 1000) {
-          return parsed.erpStats || { customers: 0, quotations: 0, orders: 0, invoices: 0 };
-        }
-      }
-    } catch {}
-    return {
-      customers: 0,
-      quotations: 0,
-      orders: 0,
-      invoices: 0,
-    };
-  });
-  const [loading, setLoading] = useState(() => {
-    try {
-      const cached = sessionStorage.getItem(OVERVIEW_CACHE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Date.now() - parsed.timestamp < 5 * 60 * 1000) {
-          return false;
-        }
-      }
-    } catch {}
-    return true;
-  });
+  const counts = data?.counts || {
+    products: 0,
+    blogs: 0,
+    solutions: 0,
+    gallery: 0,
+    hero_images: 0,
+    core_services: 0,
+    page_banners: 0,
+    catalogs: 0,
+    contact_queries: 0,
+    feedback: 0,
+    faqs: 0,
+    leads: 0,
+  };
 
-  useEffect(() => {
-    async function fetchCounts() {
-      try {
-        const cached = sessionStorage.getItem(OVERVIEW_CACHE_KEY);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Date.now() - parsed.timestamp < 5 * 60 * 1000) {
-            setLoading(false);
-            return;
-          }
-        }
-      } catch {}
-
-      // 1. Fetch ERP stats from Pacific Backend API
-      let newErp = { customers: 0, quotations: 0, orders: 0, invoices: 0 };
-      try {
-        const [statsRes, crmRes] = await Promise.allSettled([
-          dashboardApi.getStats(),
-          crmApi.listCustomers({ limit: 1 }),
-        ]);
-
-        const statsData = statsRes.status === 'fulfilled' ? statsRes.value.data?.data?.overview : null;
-        const crmData = crmRes.status === 'fulfilled' ? crmRes.value.data?.data : null;
-
-        newErp = {
-          customers: crmData?.total || 0,
-          quotations: statsData?.totalQuotations || 0,
-          orders: statsData?.totalProjects || 0,
-          invoices: statsData?.totalInvoices || 0,
-        };
-        setErpStats(newErp);
-      } catch (_e) {}
-
-      // 2. Fetch CMS item counts
-      const tables = [
-        { key: "products", table: "products" },
-        { key: "blogs", table: "blogs" },
-        { key: "solutions", table: "solutions" },
-        { key: "hero_images", table: "hero_images" },
-        { key: "page_banners", table: "page_banners" },
-        { key: "catalogs", table: "catalogs" },
-        { key: "contact_queries", table: "leads" },
-        { key: "feedback", table: "testimonials" },
-        { key: "faqs", table: "faqs" },
-        { key: "leads", table: "visitor_leads" },
-      ];
-
-      const newCounts: Record<string, number> = {};
-      try {
-        const results = await Promise.all(
-          tables.map((t) =>
-            supabase.from(t.table).select("id", { count: "exact", head: true }).then((r) => ({
-              key: t.key,
-              count: r.count || 0,
-            }))
-          )
-        );
-
-        results.forEach((r) => (newCounts[r.key] = r.count));
-        setCounts(newCounts);
-      } catch (_sErr) {}
-
-      try {
-        sessionStorage.setItem(
-          OVERVIEW_CACHE_KEY,
-          JSON.stringify({ counts: newCounts, erpStats: newErp, timestamp: Date.now() })
-        );
-      } catch {}
-
-      setLoading(false);
-    }
-    fetchCounts();
-  }, []);
+  const erpStats = data?.erpStats || {
+    customers: 0,
+    quotations: 0,
+    orders: 0,
+    invoices: 0,
+  };
 
   const allCards = [
     { label: "Services", count: counts.products, icon: Package, color: "#7FB706", path: "/admin/dashboard/products" },

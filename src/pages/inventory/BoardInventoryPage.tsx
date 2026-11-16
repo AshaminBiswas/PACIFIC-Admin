@@ -26,6 +26,13 @@ import {
 } from 'lucide-react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { boardInventoryApi } from '../../api/boardInventoryApi';
+import {
+  useBoardInventoryList,
+  useBoardSuppliersQuery,
+  useBoardAnalyticsQuery,
+  useInventoryMutations,
+} from '../../hooks/queries/useInventoryQuery';
+import { queryClient, queryKeys } from '../../lib/queryClient';
 import type {
   BoardInventoryItem,
   BoardSupplier,
@@ -55,7 +62,6 @@ export default function BoardInventoryPage() {
   const [boards, setBoards] = useState<BoardInventoryItem[]>([]);
   const [suppliers, setSuppliers] = useState<BoardSupplier[]>(() => boardInventoryApi.getCachedSuppliersSync() || []);
   const [analytics, setAnalytics] = useState<BoardAnalyticsSummary | null>(null);
-  const [loading, setLoading] = useState(true);
 
   // Pagination State
   const [page, setPage] = useState(1);
@@ -100,93 +106,64 @@ export default function BoardInventoryPage() {
     selectedStatus,
   ]);
 
-  // Load paginated board list (egress-optimized: does not reload analytics or suppliers)
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const warehouseParam = selectedWarehouse !== 'ALL' ? selectedWarehouse : undefined;
-      const vendorNameParam = selectedSupplierName !== 'ALL' ? selectedSupplierName : undefined;
-      const sizeParam = selectedSize !== 'ALL' ? selectedSize : undefined;
-      const thicknessParam = selectedThickness !== 'ALL' ? selectedThickness : undefined;
-      const boardTypeParam = selectedBoardType !== 'ALL' ? selectedBoardType : undefined;
-      const statusParam = selectedStatus !== 'ALL' ? selectedStatus : undefined;
-      const searchParam = debouncedSearch.trim() || undefined;
+  const warehouseParam = selectedWarehouse !== 'ALL' ? selectedWarehouse : undefined;
+  const vendorNameParam = selectedSupplierName !== 'ALL' ? selectedSupplierName : undefined;
+  const sizeParam = selectedSize !== 'ALL' ? selectedSize : undefined;
+  const thicknessParam = selectedThickness !== 'ALL' ? selectedThickness : undefined;
+  const boardTypeParam = selectedBoardType !== 'ALL' ? selectedBoardType : undefined;
+  const statusParam = selectedStatus !== 'ALL' ? selectedStatus : undefined;
+  const searchParam = debouncedSearch.trim() || undefined;
 
-      const boardsRes = await boardInventoryApi.list({
-        page,
-        limit: pageSize,
-        warehouse: warehouseParam,
-        vendorName: vendorNameParam,
-        size: sizeParam,
-        thickness: thicknessParam,
-        boardType: boardTypeParam,
-        status: statusParam,
-        search: searchParam,
-        category: 'RESTROOM_CUBICLE',
-      });
-
-      if (boardsRes.data?.data) {
-        const resp = boardsRes.data.data;
-        const items = resp.items || [];
-        setBoards(items);
-        const total = resp.total ?? (resp as any).pagination?.total ?? items.length;
-        setTotalRecords(total);
-        const pages = resp.totalPages ?? (resp as any).pagination?.totalPages ?? Math.max(1, Math.ceil(total / pageSize));
-        setTotalPages(pages);
-      }
-    } catch (err) {
-      console.error('Failed to load board inventory data:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [
+  const {
+    data: boardsData,
+    isLoading: loading,
+    refetch: refetchBoards,
+  } = useBoardInventoryList({
     page,
-    pageSize,
-    debouncedSearch,
-    selectedWarehouse,
-    selectedSupplierName,
-    selectedSize,
-    selectedThickness,
-    selectedBoardType,
-    selectedStatus,
-  ]);
+    limit: pageSize,
+    warehouse: warehouseParam,
+    vendorName: vendorNameParam,
+    size: sizeParam,
+    thickness: thicknessParam,
+    boardType: boardTypeParam,
+    status: statusParam,
+    search: searchParam,
+    category: 'RESTROOM_CUBICLE',
+  });
 
-  // Load analytics separately — only runs when warehouse changes or after mutations
-  const loadAnalytics = useCallback(async () => {
-    try {
-      const warehouseParam = selectedWarehouse !== 'ALL' ? selectedWarehouse : undefined;
-      const analyticsRes = await boardInventoryApi.getAnalytics({ warehouse: warehouseParam, category: 'RESTROOM_CUBICLE' });
-      if (analyticsRes.data?.data) {
-        setAnalytics(analyticsRes.data.data);
-      }
-    } catch (err) {
-      console.error('Failed to load board analytics:', err);
+  const { data: cachedSuppliers } = useBoardSuppliersQuery();
+  const { data: cachedAnalytics, refetch: refetchAnalytics } = useBoardAnalyticsQuery({
+    warehouse: warehouseParam,
+    category: 'RESTROOM_CUBICLE',
+  });
+
+  useEffect(() => {
+    if (boardsData?.items) {
+      setBoards(boardsData.items);
+      setTotalRecords(boardsData.total);
+      setTotalPages(boardsData.totalPages);
     }
-  }, [selectedWarehouse]);
+  }, [boardsData]);
 
-  // Load suppliers once on mount
-  const loadSuppliers = useCallback(async () => {
-    try {
-      const suppliersRes = await boardInventoryApi.listSuppliers();
-      if (suppliersRes.data?.data) {
-        setSuppliers(suppliersRes.data.data);
-      }
-    } catch (err) {
-      console.warn('Failed to load board suppliers:', err);
+  useEffect(() => {
+    if (cachedSuppliers && cachedSuppliers.length > 0) {
+      setSuppliers(cachedSuppliers);
     }
-  }, []);
+  }, [cachedSuppliers]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (cachedAnalytics) {
+      setAnalytics(cachedAnalytics);
+    }
+  }, [cachedAnalytics]);
 
-  useEffect(() => {
-    loadAnalytics();
-  }, [loadAnalytics]);
+  const loadData = useCallback(() => {
+    refetchBoards();
+  }, [refetchBoards]);
 
-  useEffect(() => {
-    loadSuppliers();
-  }, [loadSuppliers]);
+  const loadAnalytics = useCallback(() => {
+    refetchAnalytics();
+  }, [refetchAnalytics]);
 
   // Dynamic dropdown values
   const availableSizes = useMemo(() => {
