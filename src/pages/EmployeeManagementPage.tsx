@@ -36,8 +36,10 @@ import {
   History,
   Fuel,
   Eye,
+  ShieldAlert,
 } from 'lucide-react';
 import { employeeService } from '../api/employeeService';
+import { upEmployeeService } from '../api/upEmployeeService';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { DynamicSalaryCalculatorModal, computeFixedPayableDays } from '../components/payroll/DynamicSalaryCalculatorModal';
 import { EmployeeConveyanceHub } from '../components/payroll/EmployeeConveyanceHub';
@@ -70,6 +72,18 @@ const DEPARTMENTS = [
   'Engineering & QA',
 ];
 
+const UP_DEPARTMENTS = [
+  'All Departments',
+  'UP Factory Operations',
+  'Assembly & Fabrication',
+  'Machine Shop & Cutting',
+  'Powder Coating / Finishing',
+  'Packaging & Dispatch',
+  'Maintenance & Electrical',
+  'Quality Assurance',
+  'Site Execution Support',
+];
+
 const COMMON_DESIGNATIONS = [
   'Workers',
   'Hardware Technician',
@@ -82,6 +96,20 @@ const COMMON_DESIGNATIONS = [
   'Administration & HR',
   'Fabricator / Carpenter',
   'Helper / Support Staff',
+];
+
+const UP_COMMON_DESIGNATIONS = [
+  'Workers',
+  'Fabricator',
+  'Assembler',
+  'Machine Operator',
+  'Welder',
+  'Helper',
+  'Packer',
+  'Quality Inspector',
+  'Shift Incharge',
+  'Maintenance Technician',
+  'Driver / Logistics',
 ];
 
 const MONTHS = [
@@ -115,11 +143,20 @@ function formatINR(val: number | string | null | undefined): string {
   return `\u20B9${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function EmployeeManagementPage() {
+export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: boolean } = {}) {
   const navigate = useNavigate();
   const { adminUser } = useAdminAuth();
   const roleUpper = String(adminUser?.role || '').toUpperCase();
   const isSuperAdmin = roleUpper === 'SUPER_ADMIN' || roleUpper === 'ADMIN' || adminUser?.role === 'super_admin';
+  const isStrictSuperAdmin = roleUpper === 'SUPER_ADMIN' || roleUpper === 'SUPERADMIN' || adminUser?.role === 'super_admin';
+
+  const api = isUpFactory ? upEmployeeService : employeeService;
+  const departmentsList = isUpFactory ? UP_DEPARTMENTS : DEPARTMENTS;
+  const designationsList = isUpFactory ? UP_COMMON_DESIGNATIONS : COMMON_DESIGNATIONS;
+  const getEmployeeDetailUrl = useCallback(
+    (id: string) => (isUpFactory ? `/admin/dashboard/up-employees/${id}` : `/admin/dashboard/employees/${id}`),
+    [isUpFactory]
+  );
 
   // ─── Active Top Tab ─────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'directory' | 'workers' | 'conveyance' | 'attendance' | 'leaves' | 'advances' | 'payroll'>('directory');
@@ -217,7 +254,7 @@ export function EmployeeManagementPage() {
   // Sync modal designation when adding or editing an employee
   useEffect(() => {
     if (editingEmployee) {
-      if (COMMON_DESIGNATIONS.includes(editingEmployee.designation)) {
+      if (designationsList.includes(editingEmployee.designation)) {
         setModalDesignation(editingEmployee.designation);
         setCustomDesignation('');
       } else {
@@ -234,7 +271,7 @@ export function EmployeeManagementPage() {
   const fetchEmployees = useCallback(async () => {
     setIsLoadingEmployees(true);
     try {
-      const res = await employeeService.listEmployees({
+      const res = await api.listEmployees({
         search: searchQuery || undefined,
         department: selectedDepartment !== 'All Departments' ? selectedDepartment : undefined,
         designation: selectedDesignation !== 'All Designations' ? selectedDesignation : undefined,
@@ -252,7 +289,7 @@ export function EmployeeManagementPage() {
   const fetchAttendance = useCallback(async () => {
     setIsLoadingAttendance(true);
     try {
-      const res = await employeeService.listAttendance({
+      const res = await api.listAttendance({
         month: selectedMonth,
         year: selectedYear,
       });
@@ -270,10 +307,10 @@ export function EmployeeManagementPage() {
     try {
       const summaryParams = ledgerScope === 'MONTH' ? { recoveryMonth: selectedMonth, recoveryYear: selectedYear } : {};
       const [advRes, dedRes, summaryRes, ledgerRes] = await Promise.all([
-        employeeService.listAdvances({ recoveryMonth: selectedMonth, recoveryYear: selectedYear }).catch(() => []),
-        employeeService.listDeductions({ applyMonth: selectedMonth, applyYear: selectedYear }).catch(() => []),
-        employeeService.getAdvanceSummary(summaryParams).catch(() => null),
-        employeeService.getAdvanceLedger(summaryParams).catch(() => null),
+        api.listAdvances({ recoveryMonth: selectedMonth, recoveryYear: selectedYear }).catch(() => []),
+        api.listDeductions({ applyMonth: selectedMonth, applyYear: selectedYear }).catch(() => []),
+        api.getAdvanceSummary(summaryParams).catch(() => null),
+        api.getAdvanceLedger(summaryParams).catch(() => null),
       ]);
       setAdvancesList(advRes);
       setDeductionsList(dedRes);
@@ -373,7 +410,7 @@ export function EmployeeManagementPage() {
   const fetchPayroll = useCallback(async () => {
     setIsLoadingPayroll(true);
     try {
-      const res = await employeeService.listPayroll({
+      const res = await api.listPayroll({
         month: selectedMonth,
         year: selectedYear,
       });
@@ -389,7 +426,7 @@ export function EmployeeManagementPage() {
   const triggerPayrollSync = useCallback(() => {
     setTimeout(async () => {
       try {
-        const res = await employeeService.listPayroll({
+        const res = await api.listPayroll({
           month: selectedMonth,
           year: selectedYear,
         });
@@ -420,7 +457,7 @@ export function EmployeeManagementPage() {
   useEffect(() => {
     if (selectedEmployeeForLeave) {
       setIsLoadingLeaveHistory(true);
-      employeeService
+      api
         .getLeaveLedger(selectedEmployeeForLeave)
         .then((res) => setLeaveHistory(res.history))
         .catch(() => showFeedback('error', 'Failed to load leave history'))
@@ -522,11 +559,11 @@ export function EmployeeManagementPage() {
     try {
       let savedEmployee: Employee;
       if (editingEmployee) {
-        savedEmployee = await employeeService.updateEmployee(editingEmployee.id, formData);
+        savedEmployee = await api.updateEmployee(editingEmployee.id, formData);
         showFeedback('success', `Employee "${savedEmployee?.name || 'Staff'}" updated successfully`);
         setEmployees((prev) => prev.map((e) => (e.id === savedEmployee.id ? { ...e, ...savedEmployee } : e)));
       } else {
-        savedEmployee = await employeeService.createEmployee(formData);
+        savedEmployee = await api.createEmployee(formData);
         showFeedback(
           'success',
           `Worker / Employee "${savedEmployee?.name || 'Staff'}" (${savedEmployee?.employeeId || ''}) added successfully!`
@@ -553,7 +590,7 @@ export function EmployeeManagementPage() {
   const handleDeactivateEmployee = async (id: string) => {
     if (!confirm('Are you sure you want to deactivate this employee?')) return;
     try {
-      await employeeService.deactivateEmployee(id);
+      await api.deactivateEmployee(id);
       showFeedback('success', 'Employee deactivated');
       fetchEmployees();
     } catch (err: any) {
@@ -570,7 +607,7 @@ export function EmployeeManagementPage() {
       prev.map((r) => (r.id === record.id ? { ...r, isSundayOverride: newOverride } : r))
     );
 
-    employeeService
+    api
       .recordAttendance({
         employeeId: record.employeeId,
         date: dateStr,
@@ -627,7 +664,7 @@ export function EmployeeManagementPage() {
         )
       );
 
-      employeeService
+      api
         .deleteAttendance({ employeeId, date: dateStr })
         .then(() => {
           triggerPayrollSync();
@@ -713,7 +750,7 @@ export function EmployeeManagementPage() {
     }
 
     // 2. Silent background network call without blocking or refetching
-    employeeService
+    api
       .recordAttendance({
         employeeId,
         date: dateStr,
@@ -762,7 +799,7 @@ export function EmployeeManagementPage() {
       (r) => r.employeeId === employeeId && new Date(r.date).toISOString().slice(0, 10) === dateStr
     );
 
-    employeeService
+    api
       .recordAttendance({
         employeeId,
         date: dateStr,
@@ -817,7 +854,7 @@ export function EmployeeManagementPage() {
 
     // 2. Parallelized background batch update
     try {
-      await employeeService.batchRecordAttendance({
+      await api.batchRecordAttendance({
         date: dateStr,
         records: activeStaff.map((e) => ({
           employeeId: e.id,
@@ -868,7 +905,7 @@ export function EmployeeManagementPage() {
 
     // 2. Parallelized background batch update
     try {
-      await employeeService.batchRecordAttendance({
+      await api.batchRecordAttendance({
         date: dateStr,
         records: activeWorkers.map((e) => ({
           employeeId: e.id,
@@ -919,7 +956,7 @@ export function EmployeeManagementPage() {
 
     // 2. Parallelized background batch update
     try {
-      await employeeService.batchRecordAttendance({
+      await api.batchRecordAttendance({
         date: dateStr,
         records: activeStaff.map((e) => ({
           employeeId: e.id,
@@ -970,7 +1007,7 @@ export function EmployeeManagementPage() {
 
     // 2. Parallelized background batch update
     try {
-      await employeeService.batchRecordAttendance({
+      await api.batchRecordAttendance({
         date: dateStr,
         records: activeWorkers.map((e) => ({
           employeeId: e.id,
@@ -989,7 +1026,7 @@ export function EmployeeManagementPage() {
   const handleDownloadMonthlyAttendancePdf = async (workerOnly = false) => {
     try {
       setIsDownloadingAttendancePdf(true);
-      await employeeService.downloadMonthlyAttendancePdf({
+      await api.downloadMonthlyAttendancePdf({
         month: selectedMonth,
         year: selectedYear,
         workerOnly,
@@ -1061,7 +1098,7 @@ export function EmployeeManagementPage() {
     showFeedback('success', `Attendance updated for ${targetEmpName}`);
 
     try {
-      await employeeService.recordAttendance({
+      await api.recordAttendance({
         employeeId: employee.id,
         date: dateStr,
         status: formData.status,
@@ -1083,7 +1120,7 @@ export function EmployeeManagementPage() {
   const handleSaveEditedAdvance = async (formData: UpdateAdvancePayload) => {
     if (!editingAdvance) return;
     try {
-      await employeeService.updateAdvance(editingAdvance.id, formData);
+      await api.updateAdvance(editingAdvance.id, formData);
       showFeedback('success', 'Advance record updated successfully');
       setEditingAdvance(null);
       fetchAdvancesAndDeductions();
@@ -1103,7 +1140,7 @@ export function EmployeeManagementPage() {
     if (!partialDeductAdvanceItem) return;
     try {
       setIsSubmittingPartialDeduct(true);
-      await employeeService.recoverAdvance(partialDeductAdvanceItem.id, payload);
+      await api.recoverAdvance(partialDeductAdvanceItem.id, payload);
       showFeedback(
         'success',
         payload.recoveryType === 'FULL'
@@ -1123,7 +1160,7 @@ export function EmployeeManagementPage() {
   const handleSaveEditedDeduction = async (formData: UpdateDeductionPayload) => {
     if (!editingDeduction) return;
     try {
-      await employeeService.updateDeduction(editingDeduction.id, formData);
+      await api.updateDeduction(editingDeduction.id, formData);
       showFeedback('success', 'Deduction record updated successfully');
       setEditingDeduction(null);
       fetchAdvancesAndDeductions();
@@ -1136,11 +1173,11 @@ export function EmployeeManagementPage() {
   const handleRunMonthlyAccrual = async () => {
     if (!confirm(`Run automated leave accrual (+1.00 CL, +0.25 EL) for ${selectedMonth}/${selectedYear}?`)) return;
     try {
-      const res = await employeeService.accrueMonthlyLeave({ month: selectedMonth, year: selectedYear });
+      const res = await api.accrueMonthlyLeave({ month: selectedMonth, year: selectedYear });
       showFeedback('success', res.message || 'Leave accrual completed successfully');
       fetchEmployees();
       if (selectedEmployeeForLeave) {
-        employeeService.getLeaveLedger(selectedEmployeeForLeave).then((r) => setLeaveHistory(r.history));
+        api.getLeaveLedger(selectedEmployeeForLeave).then((r) => setLeaveHistory(r.history));
       }
     } catch (err: any) {
       showFeedback('error', err?.message || 'Failed to run leave accrual');
@@ -1177,7 +1214,7 @@ export function EmployeeManagementPage() {
   const handleCalculatePayroll = async () => {
     setIsCalculatingPayroll(true);
     try {
-      await employeeService.calculatePayroll({
+      await api.calculatePayroll({
         month: selectedMonth,
         year: selectedYear,
         previewOnly: false,
@@ -1193,7 +1230,7 @@ export function EmployeeManagementPage() {
 
   const handleFinalizePayroll = async (id: string) => {
     try {
-      await employeeService.finalizePayroll(id);
+      await api.finalizePayroll(id);
       showFeedback('success', 'Payroll run finalized and deductions locked');
       fetchPayroll();
     } catch (err: any) {
@@ -1204,7 +1241,7 @@ export function EmployeeManagementPage() {
   const handleRevertPayrollToDraft = async (runId: string) => {
     if (!confirm('Are you sure you want to revert this payroll run back to DRAFT? Any recovered advances and applied deductions will be reopened.')) return;
     try {
-      await employeeService.revertPayrollToDraft(runId);
+      await api.revertPayrollToDraft(runId);
       showFeedback('success', 'Payroll run reverted to DRAFT');
       fetchPayroll();
       fetchAdvancesAndDeductions();
@@ -1216,7 +1253,7 @@ export function EmployeeManagementPage() {
   const handleMarkPaid = async (formData: { paymentMode: string; paymentReference?: string; paymentNotes?: string }) => {
     if (!selectedPayrollForPaid) return;
     try {
-      await employeeService.markPayrollPaid(selectedPayrollForPaid.id, formData);
+      await api.markPayrollPaid(selectedPayrollForPaid.id, formData);
       showFeedback('success', 'Disbursement recorded and payslip emailed to employee');
       setIsMarkPaidModalOpen(false);
       setSelectedPayrollForPaid(null);
@@ -1229,7 +1266,7 @@ export function EmployeeManagementPage() {
   const handleDownloadPdf = async (run: EmployeePayrollRun) => {
     try {
       const filename = `Payslip-${run.employee?.employeeId || 'PRC'}-${selectedMonth}-${selectedYear}.pdf`;
-      await employeeService.downloadPayslipPdf(run.id, filename);
+      await api.downloadPayslipPdf(run.id, filename);
     } catch (err: any) {
       showFeedback('error', err?.message || 'Failed to download payslip PDF');
     }
@@ -1237,13 +1274,35 @@ export function EmployeeManagementPage() {
 
   const handleResendEmail = async (id: string) => {
     try {
-      await employeeService.resendPayslipEmail(id);
+      await api.resendPayslipEmail(id);
       showFeedback('success', 'Payslip advice re-dispatched via email');
       fetchPayroll();
     } catch (err: any) {
       showFeedback('error', err?.message || 'Failed to email payslip');
     }
   };
+
+  if (isUpFactory && !isStrictSuperAdmin) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-[#0d0d2b] border border-rose-500/30 rounded-2xl p-8 text-center shadow-2xl">
+          <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto mb-4 text-rose-400">
+            <ShieldAlert size={32} />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Access Restricted</h2>
+          <p className="text-sm text-slate-400 mb-6 leading-relaxed">
+            The UP Factory Workforce & Payroll Management System contains sensitive manufacturing wage data and is strictly restricted to Super Administrators.
+          </p>
+          <button
+            onClick={() => navigate('/admin/dashboard')}
+            className="w-full py-2.5 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium rounded-xl text-sm transition-all"
+          >
+            Return to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-[1700px] mx-auto pb-12 font-sans">
@@ -1265,18 +1324,28 @@ export function EmployeeManagementPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-[#0a091e] p-5 rounded-2xl border border-white/10 shadow-xl">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="p-2.5 rounded-xl bg-[#7FB706]/15 border border-[#7FB706]/30 text-[#B5F823]">
-              <Users size={22} />
+            <div className={`p-2.5 rounded-xl border ${
+              isUpFactory
+                ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                : 'bg-[#7FB706]/15 border-[#7FB706]/30 text-[#B5F823]'
+            }`}>
+              {isUpFactory ? <Construction size={22} /> : <Users size={22} />}
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-                Employee & Compensation Suite
-                <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30 font-medium">
-                  HR & Payroll
+              <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2 flex-wrap">
+                {isUpFactory ? 'UP Factory — Workforce & Payroll Suite' : 'Employee & Compensation Suite'}
+                <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-medium ${
+                  isUpFactory
+                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1'
+                    : 'bg-[#7FB706]/15 text-[#B5F823] border border-[#7FB706]/30'
+                }`}>
+                  {isUpFactory ? <><ShieldCheck size={12} /> Super Admin Only • UP Branch</> : 'HR & Payroll'}
                 </span>
               </h1>
               <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
-                Master directory, daily attendance tracking, leave ledgers, advances & automated payroll disbursement
+                {isUpFactory
+                  ? 'Isolated UP Factory worker master, biometric attendance, advances, deductions & wage disbursements'
+                  : 'Master directory, daily attendance tracking, leave ledgers, advances & automated payroll disbursement'}
               </p>
             </div>
           </div>
@@ -1484,7 +1553,7 @@ export function EmployeeManagementPage() {
                 onChange={(e) => setSelectedDepartment(e.target.value)}
                 className="bg-[#030213] border border-white/10 text-sm text-white rounded-xl px-3 py-2 focus:outline-none focus:border-[#7FB706]"
               >
-                {DEPARTMENTS.map((d) => (
+                {departmentsList.map((d) => (
                   <option key={d} value={d}>
                     {d}
                   </option>
@@ -1497,7 +1566,7 @@ export function EmployeeManagementPage() {
                 className="bg-[#030213] border border-white/10 text-sm text-white rounded-xl px-3 py-2 focus:outline-none focus:border-[#7FB706]"
               >
                 <option value="All Designations">All Designations</option>
-                {COMMON_DESIGNATIONS.map((desig) => (
+                {designationsList.map((desig) => (
                   <option key={desig} value={desig}>
                     {desig}
                   </option>
@@ -1551,7 +1620,7 @@ export function EmployeeManagementPage() {
                     employees.map((emp) => (
                       <tr key={emp.id} className="hover:bg-white/5 transition">
                         <td
-                          onClick={() => navigate(`/admin/dashboard/employees/${emp.id}`)}
+                          onClick={() => navigate(getEmployeeDetailUrl(emp.id))}
                           className="px-4 py-3.5 font-mono text-xs font-semibold text-amber-400 hover:text-[#7FB706] cursor-pointer"
                           title="View Employee Profile"
                         >
@@ -1559,7 +1628,7 @@ export function EmployeeManagementPage() {
                         </td>
                         <td className="px-4 py-3.5">
                           <div
-                            onClick={() => navigate(`/admin/dashboard/employees/${emp.id}`)}
+                            onClick={() => navigate(getEmployeeDetailUrl(emp.id))}
                             className="font-medium text-white hover:text-[#7FB706] transition cursor-pointer"
                             title="View Employee Profile & Site Visits"
                           >
@@ -1617,7 +1686,7 @@ export function EmployeeManagementPage() {
                         </td>
                         <td className="px-4 py-3.5 text-right space-x-2 whitespace-nowrap">
                           <button
-                            onClick={() => navigate(`/admin/dashboard/employees/${emp.id}`)}
+                            onClick={() => navigate(getEmployeeDetailUrl(emp.id))}
                             className="p-1.5 text-gray-400 hover:text-[#7FB706] transition"
                             title="View Full Profile & Site Visits"
                           >
@@ -1667,14 +1736,14 @@ export function EmployeeManagementPage() {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div
-                          onClick={() => navigate(`/admin/dashboard/employees/${emp.id}`)}
+                          onClick={() => navigate(getEmployeeDetailUrl(emp.id))}
                           className="font-semibold text-white text-base hover:text-[#7FB706] cursor-pointer transition"
                         >
                           {emp.name}
                         </div>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <span
-                            onClick={() => navigate(`/admin/dashboard/employees/${emp.id}`)}
+                            onClick={() => navigate(getEmployeeDetailUrl(emp.id))}
                             className="font-mono text-xs text-[#B5F823] bg-[#7FB706]/15 px-1.5 py-0.5 rounded border border-[#7FB706]/30 font-medium cursor-pointer"
                           >
                             {emp.employeeId}
@@ -1715,7 +1784,7 @@ export function EmployeeManagementPage() {
 
                     <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/5">
                       <button
-                        onClick={() => navigate(`/admin/dashboard/employees/${emp.id}`)}
+                        onClick={() => navigate(getEmployeeDetailUrl(emp.id))}
                         className="px-3 py-1.5 bg-[#7FB706]/15 hover:bg-[#7FB706]/25 text-[#B5F823] border border-[#7FB706]/30 rounded-lg text-xs font-medium flex items-center gap-1 cursor-pointer"
                       >
                         <Eye size={13} />
@@ -1960,7 +2029,7 @@ export function EmployeeManagementPage() {
                           .map((worker) => (
                             <tr key={worker.id} className="hover:bg-white/5 transition">
                               <td
-                                onClick={() => navigate(`/admin/dashboard/employees/${worker.id}`)}
+                                onClick={() => navigate(getEmployeeDetailUrl(worker.id))}
                                 className="px-4 py-3.5 font-mono text-xs font-semibold text-amber-400 hover:text-[#7FB706] cursor-pointer"
                                 title="View Worker Profile & Visits"
                               >
@@ -1968,7 +2037,7 @@ export function EmployeeManagementPage() {
                               </td>
                               <td className="px-4 py-3.5">
                                 <div
-                                  onClick={() => navigate(`/admin/dashboard/employees/${worker.id}`)}
+                                  onClick={() => navigate(getEmployeeDetailUrl(worker.id))}
                                   className="font-medium text-white hover:text-[#7FB706] cursor-pointer transition"
                                   title="View Worker Profile & Visits"
                                 >
@@ -2007,7 +2076,7 @@ export function EmployeeManagementPage() {
                               </td>
                               <td className="px-4 py-3.5 text-right space-x-1.5 whitespace-nowrap">
                                 <button
-                                  onClick={() => navigate(`/admin/dashboard/employees/${worker.id}`)}
+                                  onClick={() => navigate(getEmployeeDetailUrl(worker.id))}
                                   className="p-1.5 text-gray-400 hover:text-[#7FB706] transition"
                                   title="View Full Profile & Site Visits"
                                 >
@@ -2530,7 +2599,7 @@ export function EmployeeManagementPage() {
                                     type="button"
                                     onClick={async () => {
                                       if (!confirm('Cancel/Delete this worker advance record?')) return;
-                                      await employeeService.deleteAdvance(adv.id);
+                                      await api.deleteAdvance(adv.id);
                                       fetchAdvancesAndDeductions();
                                     }}
                                     className="p-1.5 text-gray-500 hover:text-rose-400 hover:bg-white/10 rounded-lg transition"
@@ -2676,7 +2745,7 @@ export function EmployeeManagementPage() {
                                         if (match) {
                                           setPartialDeductAdvanceItem(match);
                                         } else {
-                                          employeeService
+                                          api
                                             .listAdvances({ employeeId: run.employeeId, recoveryMonth: run.month, recoveryYear: run.year, isRecovered: false })
                                             .then((res) => {
                                               if (res && res[0]) setPartialDeductAdvanceItem(res[0]);
@@ -2796,8 +2865,10 @@ export function EmployeeManagementPage() {
         <EmployeeConveyanceHub
           employees={employees}
           isSuperAdmin={isSuperAdmin}
-          onOpenEmployeeDetail={(empId) => navigate(`/admin/dashboard/employees/${empId}`)}
+          onOpenEmployeeDetail={(empId) => navigate(getEmployeeDetailUrl(empId))}
           showFeedback={showFeedback}
+          isUpFactory={isUpFactory}
+          service={api}
         />
       )}
 
@@ -3526,7 +3597,7 @@ export function EmployeeManagementPage() {
                               <button
                                 onClick={async () => {
                                   if (!confirm('Cancel/Delete this advance record?')) return;
-                                  await employeeService.deleteAdvance(adv.id);
+                                  await api.deleteAdvance(adv.id);
                                   fetchAdvancesAndDeductions();
                                 }}
                                 className="p-1.5 text-gray-500 hover:text-rose-400 hover:bg-white/10 rounded-lg transition"
@@ -3858,7 +3929,7 @@ export function EmployeeManagementPage() {
                               <button
                                 onClick={async () => {
                                   if (!confirm('Delete this deduction record?')) return;
-                                  await employeeService.deleteDeduction(ded.id);
+                                  await api.deleteDeduction(ded.id);
                                   fetchAdvancesAndDeductions();
                                 }}
                                 className="p-1.5 text-gray-500 hover:text-rose-400 hover:bg-white/10 rounded-lg transition"
@@ -4034,7 +4105,7 @@ export function EmployeeManagementPage() {
                                   if (match) {
                                     setPartialDeductAdvanceItem(match);
                                   } else {
-                                    employeeService
+                                    api
                                       .listAdvances({ employeeId: run.employeeId, recoveryMonth: run.month, recoveryYear: run.year, isRecovered: false })
                                       .then((res) => {
                                         if (res && res[0]) setPartialDeductAdvanceItem(res[0]);
@@ -4395,7 +4466,7 @@ export function EmployeeManagementPage() {
                     }}
                     className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706] font-medium text-xs"
                   >
-                    {COMMON_DESIGNATIONS.map((d) => (
+                    {designationsList.map((d) => (
                       <option key={d} value={d}>
                         {d}
                       </option>
@@ -4443,7 +4514,7 @@ export function EmployeeManagementPage() {
                     defaultValue={editingEmployee?.department || 'Operations'}
                     className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#7FB706]"
                   >
-                    {DEPARTMENTS.filter((d) => d !== 'All Departments').map((d) => (
+                    {departmentsList.filter((d) => d !== 'All Departments').map((d) => (
                       <option key={d} value={d}>
                         {d}
                       </option>
@@ -4691,7 +4762,7 @@ export function EmployeeManagementPage() {
                   };
 
                   try {
-                    const res = await employeeService.adjustLeave(selectedEmp.id, payload);
+                    const res = await api.adjustLeave(selectedEmp.id, payload);
                     const newBal = res?.currentBalance !== undefined ? Number(res.currentBalance) : remainingBal;
 
                     // Optimistic update of local employees list
@@ -4723,7 +4794,7 @@ export function EmployeeManagementPage() {
                     fetchEmployees();
 
                     if (selectedEmployeeForLeave === selectedEmp.id) {
-                      employeeService.getLeaveLedger(selectedEmp.id).then((r) => setLeaveHistory(r.history));
+                      api.getLeaveLedger(selectedEmp.id).then((r) => setLeaveHistory(r.history));
                     }
                   } catch (err: any) {
                     showFeedback('error', err?.message || 'Leave adjustment failed');
@@ -4900,7 +4971,7 @@ export function EmployeeManagementPage() {
                   recoveryYear: Number(formData.get('recoveryYear')),
                 };
                 try {
-                  await employeeService.createAdvance(payload);
+                  await api.createAdvance(payload);
                   showFeedback('success', 'Salary advance registered');
                   setIsAddAdvanceModalOpen(false);
                   fetchAdvancesAndDeductions();
@@ -5036,7 +5107,7 @@ export function EmployeeManagementPage() {
                   applyYear: Number(formData.get('applyYear')),
                 };
                 try {
-                  await employeeService.createDeduction(payload);
+                  await api.createDeduction(payload);
                   showFeedback('success', 'Deduction registered');
                   setIsAddDeductionModalOpen(false);
                   fetchAdvancesAndDeductions();
@@ -5918,6 +5989,8 @@ export function EmployeeManagementPage() {
         selectedYear={selectedYear}
         payrollRuns={payrollRuns}
         initialData={calculatorInitialData}
+        isUpFactory={isUpFactory}
+        service={api}
         onSaveSuccess={() => {
           fetchPayroll();
           fetchAdvancesAndDeductions();

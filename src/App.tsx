@@ -592,6 +592,14 @@ export default function App() {
               }
             />
             <Route
+              path="up-employees/:id"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <EmployeeDetailPage isUpFactory={true} />
+                </Suspense>
+              }
+            />
+            <Route
               path="daily-expenses"
               element={
                 <Suspense fallback={<PageLoader />}>

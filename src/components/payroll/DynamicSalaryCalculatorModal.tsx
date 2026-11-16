@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { employeeService } from '../../api/employeeService';
+import { upEmployeeService } from '../../api/upEmployeeService';
 import type {
   Employee,
   EmployeePayrollRun,
@@ -41,6 +42,8 @@ interface DynamicSalaryCalculatorModalProps {
   payrollRuns?: EmployeePayrollRun[];
   initialData?: Partial<SimulateSalaryCalculationPayload> | null;
   onSaveSuccess?: () => void;
+  isUpFactory?: boolean;
+  service?: any;
 }
 
 export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModalProps> = ({
@@ -52,7 +55,10 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
   payrollRuns = [],
   initialData,
   onSaveSuccess,
+  isUpFactory = false,
+  service,
 }) => {
+  const activeService = service || (isUpFactory ? upEmployeeService : employeeService);
   const defaultMonth = initialData?.month || initialMonth || 10;
   const defaultYear = initialData?.year || initialYear || 2026;
   const initialFixedDivisor = computeFixedPayableDays(defaultMonth, defaultYear);
@@ -167,7 +173,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
 
     try {
       setIsLoadingDefaults(true);
-      const defaults = await employeeService.getSalaryCalculationDefaults(empId, targetMonth, targetYear);
+      const defaults = await activeService.getSalaryCalculationDefaults(empId, targetMonth, targetYear);
       if (defaults) {
         if (defaults.monthlyCtc) setMonthlyCtc(defaults.monthlyCtc);
         const fixedDivisor = computeFixedPayableDays(targetMonth, targetYear);
@@ -378,7 +384,7 @@ export const DynamicSalaryCalculatorModal: React.FC<DynamicSalaryCalculatorModal
 
     try {
       setIsSaving(true);
-      await employeeService.simulateSalaryCalculation({
+      await activeService.simulateSalaryCalculation({
         employeeId: selectedEmpId,
         employeeName,
         month,

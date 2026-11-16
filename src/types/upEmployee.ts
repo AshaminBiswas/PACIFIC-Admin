@@ -13,6 +13,45 @@ export type UpPayrollStatus = 'DRAFT' | 'FINALIZED' | 'PAID';
 export type UpWorkerType = 'MONTHLY' | 'DAILY_WAGE' | 'CONTRACT';
 export type UpPaymentMode = 'CASH' | 'BANK_TRANSFER' | 'UPI';
 
+export type {
+  Employee,
+  EmployeeAttendance,
+  EmployeeLeaveLedger,
+  EmployeeAdvance,
+  EmployeeDeduction,
+  EmployeePayrollRun,
+  SalaryCalculationBreakdown,
+  AdvanceSummary,
+  AdvanceLedgerTransaction,
+  AdvanceLedgerResponse,
+  ListEmployeesResponse,
+  ListAttendanceResponse,
+  EmployeeConveyanceExpense,
+  ConveyanceCategory,
+  ConveyancePurpose,
+  ConveyancePaymentMode,
+  ConveyanceStatus,
+  ConveyanceSummaryStats,
+  ListConveyanceExpensesResponse,
+  CreateConveyancePayload,
+  UpdateConveyancePayload,
+  SettleConveyancePayload,
+  SimulateSalaryCalculationPayload,
+  EmployeeSalaryDefaults,
+  CreateEmployeePayload,
+  UpdateEmployeePayload,
+  RecordAttendancePayload,
+  BatchAttendancePayload,
+  CreateAdvancePayload,
+  UpdateAdvancePayload,
+  PartialDeductAdvancePayload,
+  RecoverAdvancePayload,
+  CreateDeductionPayload,
+  UpdateDeductionPayload,
+  CalculatePayrollPayload,
+  MarkPayrollPaidPayload,
+} from './employee';
+
 export interface UpEmployee {
   id: string;
   employeeId: string;

@@ -24,6 +24,7 @@ import {
   Filter,
 } from 'lucide-react';
 import { employeeService } from '../../api/employeeService';
+import { upEmployeeService } from '../../api/upEmployeeService';
 import type {
   Employee,
   EmployeeConveyanceExpense,
@@ -146,6 +147,8 @@ interface EmployeeConveyanceHubProps {
   isSuperAdmin: boolean;
   onOpenEmployeeDetail: (employeeId: string) => void;
   showFeedback: (type: 'success' | 'error', message: string) => void;
+  isUpFactory?: boolean;
+  service?: any;
 }
 
 export function EmployeeConveyanceHub({
@@ -153,7 +156,10 @@ export function EmployeeConveyanceHub({
   isSuperAdmin,
   onOpenEmployeeDetail,
   showFeedback,
+  isUpFactory = false,
+  service,
 }: EmployeeConveyanceHubProps) {
+  const activeService = service || (isUpFactory ? upEmployeeService : employeeService);
   // ─── Data State ─────────────────────────────────────────────────────────────
   const [conveyances, setConveyances] = useState<EmployeeConveyanceExpense[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -238,7 +244,7 @@ export function EmployeeConveyanceHub({
   const fetchConveyances = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await employeeService.listConveyanceExpenses({
+      const res = await activeService.listConveyanceExpenses({
         employeeId: selectedEmployeeId !== 'ALL' ? selectedEmployeeId : undefined,
         category: selectedCategory !== 'ALL' ? (selectedCategory as ConveyanceCategory) : undefined,
         status: selectedStatus !== 'ALL' ? (selectedStatus as ConveyanceStatus) : undefined,
@@ -252,7 +258,7 @@ export function EmployeeConveyanceHub({
     } finally {
       setIsLoading(false);
     }
-  }, [selectedEmployeeId, selectedCategory, selectedStatus, searchQuery, showFeedback]);
+  }, [selectedEmployeeId, selectedCategory, selectedStatus, searchQuery, showFeedback, activeService]);
 
   useEffect(() => {
     fetchConveyances();
@@ -291,7 +297,7 @@ export function EmployeeConveyanceHub({
         remarks: formRemarks.trim() || undefined,
       };
 
-      await employeeService.createConveyanceExpense(payload);
+      await activeService.createConveyanceExpense(payload);
       showFeedback('success', 'Site visit expense recorded successfully!');
       setIsRecordModalOpen(false);
       // Reset
@@ -315,7 +321,7 @@ export function EmployeeConveyanceHub({
 
   const handleApprove = async (id: string) => {
     try {
-      await employeeService.approveConveyanceExpense(id);
+      await activeService.approveConveyanceExpense(id);
       showFeedback('success', 'Expense approved successfully');
       fetchConveyances();
     } catch (err: any) {
@@ -330,7 +336,7 @@ export function EmployeeConveyanceHub({
     }
     setIsRejecting(true);
     try {
-      await employeeService.rejectConveyanceExpense(rejectExpense.id, rejectReason.trim());
+      await activeService.rejectConveyanceExpense(rejectExpense.id, rejectReason.trim());
       showFeedback('success', 'Expense claim rejected');
       setRejectExpense(null);
       fetchConveyances();
@@ -348,7 +354,7 @@ export function EmployeeConveyanceHub({
     }
     setIsSettling(true);
     try {
-      await employeeService.settleConveyanceExpense(settleExpense.id, {
+      await activeService.settleConveyanceExpense(settleExpense.id, {
         paymentRef: settlePaymentRef.trim(),
         reimbursedAmount: settleAmount ? parseFloat(settleAmount) : undefined,
       });
@@ -365,7 +371,7 @@ export function EmployeeConveyanceHub({
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this expense record?')) return;
     try {
-      await employeeService.deleteConveyanceExpense(id);
+      await activeService.deleteConveyanceExpense(id);
       showFeedback('success', 'Expense record deleted');
       fetchConveyances();
     } catch (err: any) {

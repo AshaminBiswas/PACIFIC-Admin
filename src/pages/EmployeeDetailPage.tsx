@@ -39,6 +39,7 @@ import {
   Send,
 } from 'lucide-react';
 import { employeeService } from '../api/employeeService';
+import { upEmployeeService } from '../api/upEmployeeService';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import type {
   Employee,
@@ -162,12 +163,16 @@ function formatINR(val: number | string | null | undefined): string {
   return `\u20B9${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function EmployeeDetailPage() {
+export function EmployeeDetailPage({ isUpFactory = false }: { isUpFactory?: boolean } = {}) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { adminUser } = useAdminAuth();
   const roleUpper = String(adminUser?.role || '').toUpperCase();
   const isSuperAdmin = roleUpper === 'SUPER_ADMIN' || roleUpper === 'ADMIN' || adminUser?.role === 'super_admin';
+  const isStrictSuperAdmin = roleUpper === 'SUPER_ADMIN' || roleUpper === 'SUPERADMIN' || adminUser?.role === 'super_admin';
+
+  const api = isUpFactory ? upEmployeeService : employeeService;
+  const directoryUrl = isUpFactory ? '/admin/dashboard/up-employees' : '/admin/dashboard/employees';
 
   // ─── Core State ─────────────────────────────────────────────────────────────
   const [employee, setEmployee] = useState<Employee | null>(null);
@@ -265,21 +270,21 @@ export function EmployeeDetailPage() {
     if (!id) return;
     setIsLoading(true);
     try {
-      const emp = await employeeService.getEmployee(id);
+      const emp = await api.getEmployee(id);
       setEmployee(emp);
     } catch (err: any) {
       showToast('error', err?.message || 'Failed to load employee details');
     } finally {
       setIsLoading(false);
     }
-  }, [id]);
+  }, [id, api]);
 
   // ─── Load Conveyance Expenses ───────────────────────────────────────────────
   const loadConveyances = useCallback(async () => {
     if (!id) return;
     setIsLoadingConveyances(true);
     try {
-      const res = await employeeService.listConveyanceExpenses({
+      const res = await api.listConveyanceExpenses({
         employeeId: id,
         category: categoryFilter !== 'ALL' ? (categoryFilter as ConveyanceCategory) : undefined,
         status: statusFilter !== 'ALL' ? (statusFilter as ConveyanceStatus) : undefined,
@@ -293,14 +298,14 @@ export function EmployeeDetailPage() {
     } finally {
       setIsLoadingConveyances(false);
     }
-  }, [id, categoryFilter, statusFilter, searchQuery]);
+  }, [id, categoryFilter, statusFilter, searchQuery, api]);
 
   // ─── Load Leave History ─────────────────────────────────────────────────────
   const loadLeaveLedger = useCallback(async () => {
     if (!id) return;
     setIsLoadingLeaves(true);
     try {
-      const res = await employeeService.getLeaveLedger(id);
+      const res = await api.getLeaveLedger(id);
       setLeaveHistory(res.history || []);
       if (res.employee) {
         setEmployee((prev) =>
@@ -338,7 +343,7 @@ export function EmployeeDetailPage() {
 
     setIsSubmittingLeaveAdjust(true);
     try {
-      const res = await employeeService.adjustLeave(id, {
+      const res = await api.adjustLeave(id, {
         leaveType: leaveAdjustType,
         transactionType: leaveAdjustAction,
         amount: amt,
@@ -390,7 +395,7 @@ export function EmployeeDetailPage() {
         remarks: formRemarks.trim() || undefined,
       };
 
-      await employeeService.createConveyanceExpense(payload);
+      await api.createConveyanceExpense(payload);
       showToast('success', 'Site visit expense recorded successfully!');
       setIsRecordExpenseOpen(false);
       // Reset form
@@ -414,7 +419,7 @@ export function EmployeeDetailPage() {
 
   const handleApproveExpense = async (expenseId: string) => {
     try {
-      await employeeService.approveConveyanceExpense(expenseId);
+      await api.approveConveyanceExpense(expenseId);
       showToast('success', 'Expense claim approved successfully');
       loadConveyances();
     } catch (err: any) {
@@ -434,7 +439,7 @@ export function EmployeeDetailPage() {
     }
     setIsRejecting(true);
     try {
-      await employeeService.rejectConveyanceExpense(rejectModalExpense.id, rejectReason.trim());
+      await api.rejectConveyanceExpense(rejectModalExpense.id, rejectReason.trim());
       showToast('success', 'Expense claim rejected');
       setRejectModalExpense(null);
       loadConveyances();
@@ -458,7 +463,7 @@ export function EmployeeDetailPage() {
     }
     setIsSettling(true);
     try {
-      await employeeService.settleConveyanceExpense(settleModalExpense.id, {
+      await api.settleConveyanceExpense(settleModalExpense.id, {
         paymentRef: settlePaymentRef.trim(),
         reimbursedAmount: settleAmount ? parseFloat(settleAmount) : undefined,
       });
@@ -475,7 +480,7 @@ export function EmployeeDetailPage() {
   const handleDeleteExpense = async (expenseId: string) => {
     if (!window.confirm('Are you sure you want to delete this expense record?')) return;
     try {
-      await employeeService.deleteConveyanceExpense(expenseId);
+      await api.deleteConveyanceExpense(expenseId);
       showToast('success', 'Expense record deleted');
       loadConveyances();
     } catch (err: any) {
@@ -483,12 +488,35 @@ export function EmployeeDetailPage() {
     }
   };
 
+  // ─── Super Admin Access Guard (UP Factory Only) ───────────────────────────
+  if (isUpFactory && !isStrictSuperAdmin) {
+    return (
+      <div className="min-h-screen bg-[#030213] text-white p-6 flex flex-col items-center justify-center">
+        <div className="max-w-md w-full bg-[#0a091e] border border-rose-500/30 rounded-2xl p-8 text-center shadow-2xl">
+          <AlertCircle className="text-rose-400 mx-auto mb-4" size={48} />
+          <h2 className="text-xl font-bold mb-2">Access Restricted — Super Admin Only</h2>
+          <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+            The UP Factory Workforce database and profile records are confidential and restricted strictly to Super Administrator accounts.
+          </p>
+          <button
+            onClick={() => navigate('/admin/dashboard')}
+            className="w-full py-2.5 px-4 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-semibold rounded-xl text-sm transition cursor-pointer"
+          >
+            Return to Main Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ─── Render Loading / Not Found ─────────────────────────────────────────────
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#030213] text-white flex flex-col items-center justify-center p-6">
         <RefreshCw className="animate-spin text-[#7FB706] mb-3" size={32} />
-        <p className="text-gray-400 text-sm">Loading employee profile & convenience records...</p>
+        <p className="text-gray-400 text-sm">
+          {isUpFactory ? 'Loading UP factory worker profile & records...' : 'Loading employee profile & convenience records...'}
+        </p>
       </div>
     );
   }
@@ -497,13 +525,13 @@ export function EmployeeDetailPage() {
     return (
       <div className="min-h-screen bg-[#030213] text-white p-6 flex flex-col items-center justify-center">
         <AlertCircle className="text-rose-400 mb-3" size={40} />
-        <h2 className="text-xl font-bold mb-2">Employee Not Found</h2>
+        <h2 className="text-xl font-bold mb-2">{isUpFactory ? 'UP Worker Not Found' : 'Employee Not Found'}</h2>
         <p className="text-gray-400 text-sm mb-6">The employee record requested does not exist or was removed.</p>
         <Link
-          to="/admin/dashboard/employees"
+          to={directoryUrl}
           className="flex items-center gap-2 px-4 py-2 bg-[#7FB706] text-white rounded-xl text-sm font-medium hover:bg-[#6ea105] transition"
         >
-          <ArrowLeft size={16} /> Return to Employee Directory
+          <ArrowLeft size={16} /> Return to {isUpFactory ? 'UP Factory Directory' : 'Employee Directory'}
         </Link>
       </div>
     );
@@ -528,10 +556,10 @@ export function EmployeeDetailPage() {
       {/* ── Top Navigation / Back Bar ────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button
-          onClick={() => navigate('/admin/dashboard/employees')}
-          className="flex items-center gap-2 text-xs sm:text-sm font-medium text-gray-400 hover:text-white transition px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10"
+          onClick={() => navigate(directoryUrl)}
+          className="flex items-center gap-2 text-xs sm:text-sm font-medium text-gray-400 hover:text-white transition px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 cursor-pointer"
         >
-          <ArrowLeft size={16} /> Back to Directory
+          <ArrowLeft size={16} /> {isUpFactory ? 'Back to UP Workforce' : 'Back to Directory'}
         </button>
 
         <div className="flex items-center gap-2">
@@ -1562,10 +1590,10 @@ export function EmployeeDetailPage() {
 
           <div className="pt-2 flex flex-wrap items-center gap-4">
             <Link
-              to="/admin/dashboard/employees"
+              to={directoryUrl}
               className="inline-flex items-center gap-2 text-xs text-[#7FB706] hover:underline"
             >
-              Open Company Attendance Matrix <ChevronRight size={14} />
+              Open {isUpFactory ? 'UP Factory' : 'Company'} Attendance Matrix <ChevronRight size={14} />
             </Link>
             <button
               type="button"
@@ -1629,7 +1657,7 @@ export function EmployeeDetailPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button
-                          onClick={() => employeeService.downloadPayslipPdf(run.id)}
+                          onClick={() => api.downloadPayslipPdf(run.id)}
                           className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/5 hover:bg-white/10 text-white rounded-lg text-xs transition"
                         >
                           <Download size={13} /> PDF
