@@ -912,6 +912,13 @@ export function ExpensesPage() {
       }
       fetchBalance();
     } catch (err: any) {
+      const errorMsg = (err.response?.data?.message || err.message || '').toLowerCase();
+      if (errorMsg.includes('already approved')) {
+        // Already approved on server — maintain approved state and refresh balances
+        fetchBalance();
+        return;
+      }
+
       // Rollback optimistic state
       setPendingEntries(prevPending);
       setTodayEntries(prevToday);
@@ -919,7 +926,7 @@ export function ExpensesPage() {
       setLastLoggedExpense(prevLastLogged);
       setLiveBalance(prevBalance);
 
-      const msg = err.message || 'Failed to approve expense';
+      const msg = err.response?.data?.message || err.message || 'Failed to approve expense';
       alert(`⚠️ Could not approve expense voucher ${entry.entryNumber}: ${msg}`);
     } finally {
       setApprovingId(null);
@@ -976,6 +983,12 @@ export function ExpensesPage() {
       }
       fetchBalance();
     } catch (err: any) {
+      const errorMsg = (err.response?.data?.message || err.message || '').toLowerCase();
+      if (errorMsg.includes('already rejected')) {
+        fetchBalance();
+        return;
+      }
+
       // Rollback
       setPendingEntries(prevPending);
       setTodayEntries(prevToday);
@@ -983,7 +996,8 @@ export function ExpensesPage() {
       setLastLoggedExpense(prevLastLogged);
       setLiveBalance(prevBalance);
 
-      alert(`⚠️ Failed to reject expense: ${err.message || 'Server error'}`);
+      const msg = err.response?.data?.message || err.message || 'Server error';
+      alert(`⚠️ Failed to reject expense: ${msg}`);
     } finally {
       setRejectingId(null);
     }
