@@ -1125,6 +1125,7 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
   };
 
   const [isDownloadingAttendancePdf, setIsDownloadingAttendancePdf] = useState(false);
+  const [isDownloadingDirectoryPdf, setIsDownloadingDirectoryPdf] = useState(false);
 
   const handleDownloadMonthlyAttendancePdf = async (workerOnly = false) => {
     try {
@@ -1139,6 +1140,29 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
       showFeedback('error', err?.message || 'Failed to download monthly attendance PDF');
     } finally {
       setIsDownloadingAttendancePdf(false);
+    }
+  };
+
+  const handleDownloadDirectoryPdf = async (customParams?: {
+    designation?: string;
+    department?: string;
+    status?: string;
+    search?: string;
+  }) => {
+    try {
+      setIsDownloadingDirectoryPdf(true);
+      const params = customParams || {
+        department: selectedDepartment !== 'All Departments' ? selectedDepartment : undefined,
+        designation: selectedDesignation !== 'All Designations' ? selectedDesignation : undefined,
+        status: statusFilter !== 'ALL' ? statusFilter : undefined,
+        search: debouncedSearchQuery || undefined,
+      };
+      await api.downloadEmployeeDirectoryPdf(params);
+      showFeedback('success', `${isUpFactory ? 'UP Factory' : 'Pacific'} employee directory PDF downloaded successfully!`);
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Failed to download employee directory PDF');
+    } finally {
+      setIsDownloadingDirectoryPdf(false);
     }
   };
 
@@ -1686,6 +1710,23 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
                 <option value="INACTIVE">Inactive</option>
               </select>
             </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={isDownloadingDirectoryPdf}
+                onClick={() => handleDownloadDirectoryPdf()}
+                className="inline-flex items-center gap-2 px-3.5 py-2 bg-[#030213] hover:bg-white/10 text-[#7FB706] hover:text-white border border-[#7FB706]/40 hover:border-[#7FB706] text-xs font-semibold rounded-xl transition shadow-sm disabled:opacity-50"
+                title="Download Master Employee Directory Register PDF with complete details (Personal, Contact, ID, Bank, Leaves, CTC)"
+              >
+                {isDownloadingDirectoryPdf ? (
+                  <RefreshCw size={14} className="animate-spin text-[#7FB706]" />
+                ) : (
+                  <Download size={14} />
+                )}
+                <span>Download Details (PDF)</span>
+              </button>
+            </div>
           </div>
 
           {/* Directory Table */}
@@ -2104,6 +2145,20 @@ export function EmployeeManagementPage({ isUpFactory = false }: { isUpFactory?: 
                     }{' '}
                     of {workerEmployees.length} Workers
                   </span>
+                  <button
+                    type="button"
+                    disabled={isDownloadingDirectoryPdf}
+                    onClick={() => handleDownloadDirectoryPdf({ designation: 'Workers', search: workerSearchQuery })}
+                    className="px-3.5 py-1.5 bg-[#030213] hover:bg-white/10 text-amber-400 hover:text-amber-300 border border-amber-500/30 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                    title="Download Factory Workers Register PDF"
+                  >
+                    {isDownloadingDirectoryPdf ? (
+                      <RefreshCw size={13} className="animate-spin text-amber-400" />
+                    ) : (
+                      <Download size={13} />
+                    )}
+                    <span>Download Workers PDF</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => {

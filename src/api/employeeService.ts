@@ -86,6 +86,43 @@ export const employeeService = {
     return res.data?.data !== undefined ? res.data.data : res.data;
   },
 
+  async downloadEmployeeDirectoryPdf(params: {
+    department?: string;
+    designation?: string;
+    status?: string;
+    search?: string;
+    filename?: string;
+  } = {}): Promise<void> {
+    const query = new URLSearchParams();
+    if (params.department && params.department !== 'ALL' && params.department !== 'All Departments') {
+      query.append('department', params.department);
+    }
+    if (params.designation && params.designation !== 'ALL' && params.designation !== 'All Designations') {
+      query.append('designation', params.designation);
+    }
+    if (params.status && params.status !== 'ALL') {
+      query.append('status', params.status);
+    }
+    if (params.search && params.search.trim()) {
+      query.append('search', params.search.trim());
+    }
+
+    const qStr = query.toString();
+    const res = await apiClient.get(`/employees/export-pdf${qStr ? `?${qStr}` : ''}`, {
+      responseType: 'blob',
+    });
+
+    const blob = new Blob([res.data], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = params.filename || `Pacific_Employee_Directory_${new Date().toISOString().slice(0, 10)}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
   // ─── Attendance ─────────────────────────────────────────────────────────────
   async listAttendance(params: { month: number; year: number; employeeId?: string }): Promise<ListAttendanceResponse> {
     const query = new URLSearchParams();
