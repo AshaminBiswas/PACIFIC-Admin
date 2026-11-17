@@ -5,7 +5,6 @@ import {
   AlertTriangle, RotateCcw, Sparkles, ShieldCheck, Wrench, CheckCircle2, Layers, Package,
   UploadCloud, ExternalLink, Eye, Boxes,
 } from 'lucide-react';
-import HsnSelectInput from '../components/common/HsnSelectInput';
 import { uploadToImageKit } from '../lib/imagekit';
 import { salesQuotationsApi } from '../api/salesQuotationsApi';
 import { crmApi } from '../api/crmApi';
@@ -882,7 +881,6 @@ export default function DraftQuotationPage() {
           itemType: 'cubicle',
           systemCategory: 'board',
           description: '12mm High Pressure Compact Laminate (HPL) Board Sheet',
-          hsnSac: '4823',
           unit: 'SQFT',
           quantity: 100,
           rate: 185,
@@ -904,7 +902,6 @@ export default function DraftQuotationPage() {
           itemType: 'hardware',
           systemCategory: 'hardware',
           description: customDesc || 'SS 304 Restroom Hardware Fitting',
-          hsnSac: '8302',
           unit: defaultUnit,
           quantity: 1,
           rate: defaultRate,
@@ -1320,7 +1317,6 @@ export default function DraftQuotationPage() {
             customModelName: isHw ? undefined : resolvedModelName,
             modelName: isHw ? undefined : resolvedModelName,
             modelImageUrl: isHw ? undefined : (it.modelImageUrl || undefined),
-            hsnSac: it.hsnSac || undefined,
             customSpecsJson: {
               hardwarePackage: it.hardwarePackage || it.hardwareType || undefined,
               hardwareType: it.hardwareType || it.hardwarePackage || undefined,
@@ -1332,7 +1328,6 @@ export default function DraftQuotationPage() {
               depth: isHw ? undefined : (it.depth || undefined),
               height: isHw ? undefined : (it.height || undefined),
               notes: it.notes || undefined,
-              hsnSac: it.hsnSac || undefined,
               systemCategory: isHw ? 'hardware' : (it.systemCategory || (it.modelId === 'CUSTOM' ? 'custom' : undefined)),
               isCustom: isHw ? false : Boolean(it.isCustom || it.modelId === 'CUSTOM' || it.systemCategory === 'custom'),
               quotationScope: form.quotationScope || 'CUBICLE',
@@ -2400,7 +2395,7 @@ export default function DraftQuotationPage() {
                             )}
                           </div>
 
-                          <div className="sm:col-span-3 space-y-1">
+                          <div className="sm:col-span-5 space-y-1">
                             <label className={labelCls}>Material / Finish / Specs</label>
                             <input
                               type="text"
@@ -2408,15 +2403,6 @@ export default function DraftQuotationPage() {
                               onChange={(e) => handleItemChange(idx, 'hardwarePackage', e.target.value)}
                               placeholder="e.g. Grade 304 Stainless Steel (Satin Finish)"
                               className={inputCls}
-                            />
-                          </div>
-
-                          <div className="sm:col-span-2 space-y-1">
-                            <label className={labelCls}>HSN / SAC</label>
-                            <HsnSelectInput
-                              value={item.hsnSac || ''}
-                              onChange={(val) => handleItemChange(idx, 'hsnSac', val)}
-                              options={['3925', '8302', '7610']}
                             />
                           </div>
 
@@ -3073,21 +3059,13 @@ export default function DraftQuotationPage() {
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-7 gap-2 text-xs">
+                          <div className="grid grid-cols-1 sm:grid-cols-6 gap-2 text-xs">
                             <input
                               type="text"
                               value={bItem.description}
                               onChange={(e) => handleItemChange(bIdx, 'description', e.target.value)}
                               placeholder="Board description"
                               className="sm:col-span-2 bg-[#121226] border border-white/10 rounded px-2.5 py-1.5 text-white"
-                            />
-                            <input
-                              type="text"
-                              value={bItem.hsnSac || '4823'}
-                              onChange={(e) => handleItemChange(bIdx, 'hsnSac', e.target.value)}
-                              placeholder="HSN (4823)"
-                              className="bg-[#121226] border border-white/10 rounded px-2.5 py-1.5 text-white font-mono"
-                              title="HSN / SAC Code"
                             />
                             <input
                               type="text"
@@ -3120,8 +3098,7 @@ export default function DraftQuotationPage() {
                               />
                             </div>
                           </div>
-                          <div className="flex items-center justify-between text-[11px] text-gray-400 font-mono">
-                            <span>HSN: <span className="text-[#7FB706] font-bold">{bItem.hsnSac || '4823'}</span></span>
+                          <div className="flex items-center justify-end text-[11px] text-gray-400 font-mono">
                             <span>Subtotal: <span className="font-bold text-white">₹ {bTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></span>
                           </div>
                         </div>
@@ -4242,7 +4219,7 @@ export default function DraftQuotationPage() {
                                 />
                               </div>
 
-                              <div className="sm:col-span-3 space-y-1">
+                              <div className="sm:col-span-5 space-y-1">
                                 <label className={labelCls}>Material / Hardware Finish</label>
                                 <input
                                   type="text"
@@ -4250,15 +4227,6 @@ export default function DraftQuotationPage() {
                                   onChange={(e) => handleItemChange(realIdx, 'hardwarePackage', e.target.value)}
                                   placeholder="e.g. Grade 304 Stainless Steel (Satin/Brushed)"
                                   className={inputCls + ' text-xs'}
-                                />
-                              </div>
-
-                              <div className="sm:col-span-2 space-y-1">
-                                <label className={labelCls}>HSN / SAC</label>
-                                <HsnSelectInput
-                                  value={item.hsnSac || '8302'}
-                                  onChange={(val) => handleItemChange(realIdx, 'hsnSac', val)}
-                                  options={['3925', '8302', '7610']}
                                 />
                               </div>
 

@@ -5,7 +5,6 @@ import {
   AlertTriangle, RotateCcw, Wrench, Sparkles, Layers,
   UploadCloud, ExternalLink, Eye, History, Package, Boxes,
 } from 'lucide-react';
-import HsnSelectInput from '../components/common/HsnSelectInput';
 import { salesQuotationsApi } from '../api/salesQuotationsApi';
 import { companiesApi } from '../api/companyApi';
 import { productCatalogApi } from '../api/productCatalogApi';
@@ -1221,7 +1220,6 @@ export default function EditSalesQuotationPage() {
           itemType: 'cubicle',
           systemCategory: 'board',
           description: '12mm High Pressure Compact Laminate (HPL) Board Sheet',
-          hsnSac: '4823',
           unit: 'SQFT',
           quantity: 100,
           rate: 185,
@@ -1243,7 +1241,6 @@ export default function EditSalesQuotationPage() {
           itemType: 'hardware',
           systemCategory: 'hardware',
           description: name || 'SS 304 Restroom Cubicle Fitting',
-          hsnSac: '8302',
           unit,
           quantity: 1,
           rate,
@@ -1422,7 +1419,6 @@ export default function EditSalesQuotationPage() {
               depth: isHw ? undefined : (it.depth || undefined),
               height: isHw ? undefined : (it.height || undefined),
               notes: it.notes || undefined,
-              hsnSac: it.hsnSac || undefined,
               make: isHw ? undefined : (it.make || undefined),
               quotationScope: currentScope,
               quotationType: scopeToType(currentScope),
@@ -2497,7 +2493,7 @@ export default function EditSalesQuotationPage() {
                             )}
                           </div>
 
-                          <div className="sm:col-span-3 space-y-1">
+                          <div className="sm:col-span-5 space-y-1">
                             <label className={labelCls}>Material / Finish / Specs</label>
                             <input
                               type="text"
@@ -2505,15 +2501,6 @@ export default function EditSalesQuotationPage() {
                               onChange={(e) => handleItemChange(idx, 'hardwarePackage', e.target.value)}
                               placeholder="e.g. Grade 304 Stainless Steel (Satin Finish)"
                               className={inputCls}
-                            />
-                          </div>
-
-                          <div className="sm:col-span-2 space-y-1">
-                            <label className={labelCls}>HSN / SAC</label>
-                            <HsnSelectInput
-                              value={item.hsnSac || ''}
-                              onChange={(val) => handleItemChange(idx, 'hsnSac', val)}
-                              options={['3925', '8302', '7610']}
                             />
                           </div>
 
@@ -3019,24 +3006,13 @@ export default function EditSalesQuotationPage() {
                         )}
                       </div>
 
-                      <div className="sm:col-span-3 space-y-1">
+                      <div className="sm:col-span-6 space-y-1">
                         <label className={labelCls}>Hardware Spec / Material</label>
                         <input
                           type="text"
                           value={item.hardwarePackage || ''}
                           onChange={(e) => handleItemChange(idx, 'hardwarePackage', e.target.value)}
                           placeholder="e.g. Grade 304 Stainless Steel"
-                          className={inputCls}
-                        />
-                      </div>
-
-                      <div className="sm:col-span-3 space-y-1">
-                        <label className={labelCls}>HSN / SAC Code</label>
-                        <input
-                          type="text"
-                          value={item.hsnSac || ''}
-                          onChange={(e) => handleItemChange(idx, 'hsnSac', e.target.value)}
-                          placeholder="e.g. 8302"
                           className={inputCls}
                         />
                       </div>
@@ -3179,21 +3155,13 @@ export default function EditSalesQuotationPage() {
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-7 gap-2 text-xs">
+                          <div className="grid grid-cols-1 sm:grid-cols-6 gap-2 text-xs">
                             <input
                               type="text"
                               value={bItem.description}
                               onChange={(e) => handleItemChange(bIdx, 'description', e.target.value)}
                               placeholder="Board description"
                               className="sm:col-span-2 bg-[#121226] border border-white/10 rounded px-2.5 py-1.5 text-white"
-                            />
-                            <input
-                              type="text"
-                              value={bItem.hsnSac || '4823'}
-                              onChange={(e) => handleItemChange(bIdx, 'hsnSac', e.target.value)}
-                              placeholder="HSN (4823)"
-                              className="bg-[#121226] border border-white/10 rounded px-2.5 py-1.5 text-white font-mono"
-                              title="HSN / SAC Code"
                             />
                             <input
                               type="text"
@@ -3226,8 +3194,7 @@ export default function EditSalesQuotationPage() {
                               />
                             </div>
                           </div>
-                          <div className="flex items-center justify-between text-[11px] text-gray-400 font-mono">
-                            <span>HSN: <span className="text-[#7FB706] font-bold">{bItem.hsnSac || '4823'}</span></span>
+                          <div className="flex items-center justify-end text-[11px] text-gray-400 font-mono">
                             <span>Subtotal: <span className="font-bold text-white">₹ {bTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></span>
                           </div>
                         </div>
@@ -3987,7 +3954,7 @@ export default function EditSalesQuotationPage() {
                                 />
                               </div>
 
-                              <div className="sm:col-span-3 space-y-1">
+                              <div className="sm:col-span-5 space-y-1">
                                 <label className={labelCls}>Material / Hardware Finish</label>
                                 <input
                                   type="text"
@@ -3995,15 +3962,6 @@ export default function EditSalesQuotationPage() {
                                   onChange={(e) => handleItemChange(realIdx, 'hardwarePackage', e.target.value)}
                                   placeholder="e.g. Grade 304 Stainless Steel (Satin/Brushed)"
                                   className={inputCls + ' text-xs'}
-                                />
-                              </div>
-
-                              <div className="sm:col-span-2 space-y-1">
-                                <label className={labelCls}>HSN / SAC</label>
-                                <HsnSelectInput
-                                  value={item.hsnSac || '8302'}
-                                  onChange={(val) => handleItemChange(realIdx, 'hsnSac', val)}
-                                  options={['3925', '8302', '7610']}
                                 />
                               </div>
 
