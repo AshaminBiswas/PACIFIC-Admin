@@ -96,6 +96,9 @@ export interface Permission {
   id: string;
   code: string;
   module: string;
+  submodule?: string | null;
+  action?: string | null;
+  category?: string | null;
   description: string;
   createdAt?: string;
 }
@@ -105,11 +108,14 @@ export interface RoleManagementItem {
   name: string;
   code: string;
   description?: string | null;
+  department?: string | null;
+  category?: string | null;
+  status?: string | null;
   isSystem: boolean;
   permissionCount?: number;
   assignedUsersCount?: number;
   permissions?: Permission[];
-  users?: AdminUser[];
+  users?: AdminUserManagementItem[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -117,60 +123,110 @@ export interface RoleManagementItem {
 export interface GroupedPermissionsResponse {
   total: number;
   modules: string[];
-  grouped: Record<string, Permission[]>;
+  grouped: Record<string, any>;
   all: Permission[];
 }
 
 export interface AdminUserManagementItem {
   id: string;
+  adminId: string;
+  profilePhoto?: string | null;
   email: string;
   firstName: string;
   lastName: string;
+  fullName?: string;
+  mobileNumber?: string | null;
+  department: string;
+  designation: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PENDING' | string;
   role: string;
+  isSuperAdmin?: boolean;
   isActive: boolean;
   mustChangePassword?: boolean;
   twoFactorEnabled?: boolean;
   isTwoFactorPending?: boolean;
   lastLoginAt?: string;
   lastLoginIp?: string;
+  createdById?: string | null;
+  createdBy?: string | null;
+  roles?: RoleManagementItem[];
   customRoles?: RoleManagementItem[];
+  effectivePermissions?: Permission[];
+  effectivePermissionCodes?: string[];
   createdAt: string;
   updatedAt?: string;
 }
 
 export interface CreateAdminUserPayload {
+  adminId?: string;
   email: string;
   password?: string;
   firstName: string;
   lastName: string;
+  profilePhoto?: string | null;
+  mobileNumber?: string | null;
+  department?: string;
+  designation?: string;
+  status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PENDING' | string;
   role?: string;
   roleIds?: string[];
   isActive?: boolean;
   mustChangePassword?: boolean;
-  isTwoFactorPending?: boolean;
 }
 
 export interface UpdateAdminUserPayload {
   firstName?: string;
   lastName?: string;
+  profilePhoto?: string | null;
+  mobileNumber?: string | null;
+  department?: string;
+  designation?: string;
+  status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PENDING' | string;
   role?: string;
   isActive?: boolean;
   roleIds?: string[];
   mustChangePassword?: boolean;
-  isTwoFactorPending?: boolean;
 }
 
 export interface CreateRolePayload {
   name: string;
   code?: string;
   description?: string;
+  department?: string;
+  category?: string;
   permissionIds?: string[];
 }
 
 export interface UpdateRolePayload {
   name?: string;
   description?: string;
+  department?: string;
+  category?: string;
+  status?: string;
   permissionIds?: string[];
+}
+
+export interface AdminActivityLogItem {
+  id: string;
+  actorId: string;
+  actor?: {
+    id: string;
+    adminId?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    profilePhoto?: string | null;
+    role?: string;
+  };
+  targetType: string;
+  targetId?: string | null;
+  action: string;
+  details?: string | null;
+  previousState?: any;
+  newState?: any;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  createdAt: string;
 }
 
 

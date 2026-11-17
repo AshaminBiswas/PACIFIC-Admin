@@ -127,6 +127,100 @@ export function canRoleAccessPath(role: UserRole | string | undefined, path: str
 }
 
 /**
+ * Granular permissions mapped by navigation path.
+ */
+export const PATH_REQUIRED_PERMISSIONS: Record<string, string[]> = {
+  '/admin/dashboard': ['dashboard.view'],
+  '/admin/dashboard/wacrm': ['customers.read', 'customers.manage'],
+  '/admin/dashboard/crm-leads': ['leads.read', 'customers.read'],
+  '/admin/dashboard/sales-quotations': ['quotations.read', 'quotations.create'],
+  '/admin/dashboard/proforma-invoices': ['pi.read'],
+  '/admin/dashboard/invoices': ['invoices.read', 'finance.read'],
+  '/admin/dashboard/packing-lists': ['packing_lists.read'],
+  '/admin/dashboard/dispatches': ['packing_lists.read'],
+  '/admin/dashboard/issue-lists': ['hardware_issues.read'],
+  '/admin/dashboard/purchase-orders': ['procurement.read'],
+  '/admin/dashboard/vendors': ['procurement.read', 'inventory.read'],
+  '/admin/dashboard/inventory/boards': ['inventory.read'],
+  '/admin/dashboard/inventory/hardware': ['inventory.read', 'hardware_issues.read'],
+  '/admin/dashboard/inventory/lockers': ['inventory.read'],
+  '/admin/dashboard/inventory/ump': ['inventory.read'],
+  '/admin/dashboard/inventory/store': ['inventory.read'],
+  '/admin/dashboard/analytics': ['analytics.read', 'reports.read', 'dashboard.sales_overview'],
+  '/admin/dashboard/daily-reports': ['reports.read'],
+  '/admin/dashboard/branch-ledger': ['finance.read', 'reports.read'],
+  '/admin/dashboard/customers': ['customers.read'],
+  '/admin/dashboard/mail': ['dashboard.view'],
+  '/admin/dashboard/payments': ['finance.read'],
+  '/admin/dashboard/installer-payments': ['finance.read'],
+  '/admin/dashboard/employees': ['settings.read'],
+  '/admin/dashboard/daily-expenses': ['expenses.read'],
+  '/admin/dashboard/up-expenses': ['expenses.read', 'up_factory.read'],
+  '/admin/dashboard/up-employees': ['up_factory.read'],
+  '/admin/dashboard/export': ['export.read'],
+  '/admin/dashboard/export/orders': ['export.read', 'export.manage'],
+  '/admin/dashboard/export/shipments': ['export.read', 'export.manage'],
+  '/admin/dashboard/export/customers': ['export.read', 'customers.read'],
+  '/admin/dashboard/export/quotations': ['export.read', 'quotations.read'],
+  '/admin/dashboard/export/realization': ['export.read', 'finance.read'],
+  '/admin/dashboard/export/emails': ['export.read'],
+  '/admin/dashboard/products': ['products.read'],
+  '/admin/dashboard/leads': ['leads.read'],
+  '/admin/dashboard/contact-queries': ['leads.read'],
+  '/admin/dashboard/blogs': ['blogs.read'],
+  '/admin/dashboard/solutions': ['cms.read'],
+  '/admin/dashboard/hero': ['banners.read'],
+  '/admin/dashboard/page-banners': ['banners.read'],
+  '/admin/dashboard/locations': ['cms.read', 'banners.read'],
+  '/admin/dashboard/catalogs': ['cms.read'],
+  '/admin/dashboard/feedback': ['reviews.read'],
+  '/admin/dashboard/faq': ['cms.read'],
+  '/admin/dashboard/qr-center': ['inventory.read', 'products.read'],
+  '/admin/dashboard/company-settings': ['settings.read', 'settings.manage'],
+  '/admin/dashboard/admin-management': ['admin_users.read', 'roles.read', 'admin_users.manage'],
+  '/admin/dashboard/profile': ['dashboard.view'],
+};
+
+/**
+ * Checks if a user is permitted to access a given route path via their roles and permissions
+ */
+export function canUserAccessPath(user: any, path: string): boolean {
+  if (!user) return false;
+  const roleUpper = user.role?.toUpperCase();
+  if (roleUpper === 'SUPER_ADMIN' || user.isSuperAdmin) return true;
+
+  const permissions: string[] = user.permissions || [];
+  if (permissions.includes('*')) return true;
+
+  // Check granular permissions if loaded
+  if (permissions.length > 0) {
+    const required = PATH_REQUIRED_PERMISSIONS[path];
+    if (required && required.some((perm) => permissions.includes(perm))) {
+      return true;
+    }
+
+    // Prefix check for sub-routes
+    for (const [permPath, perms] of Object.entries(PATH_REQUIRED_PERMISSIONS)) {
+      if (path.startsWith(permPath) && perms.some((p) => permissions.includes(p))) {
+        return true;
+      }
+    }
+  }
+
+  // Fallback to role-based check
+  return canRoleAccessPath(user.role, path);
+}
+
+/**
+ * Filters navigation items dynamically using user permissions and roles
+ */
+export function filterNavItemsForUser<T extends { path: string }>(items: T[], user: any): T[] {
+  if (!user) return [];
+  if (user.role?.toUpperCase() === 'SUPER_ADMIN' || user.isSuperAdmin) return items;
+  return items.filter((item) => canUserAccessPath(user, item.path));
+}
+
+/**
  * Filters an array of navigation items to only include items accessible by the role
  */
 export function filterNavItemsByRole<T extends { path: string }>(

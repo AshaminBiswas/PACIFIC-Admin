@@ -7,13 +7,30 @@ import type { UserRole, AuthTokens } from '../types/admin';
 
 export interface PacificAdminUser {
   id: string;
+  adminId?: string;
+  profilePhoto?: string | null;
   email: string;
   firstName?: string;
   lastName?: string;
+  fullName?: string;
+  mobileNumber?: string | null;
+  department?: string;
+  designation?: string;
+  status?: string;
   role: UserRole | string;
+  isSuperAdmin?: boolean;
   twoFactorEnabled?: boolean;
   mustChangePassword?: boolean;
   isTwoFactorPending?: boolean;
+  roles?: {
+    id: string;
+    name: string;
+    code: string;
+    department?: string;
+    category?: string;
+    isSystem: boolean;
+  }[];
+  permissions?: string[];
 }
 
 interface AdminAuthContextType {
@@ -21,12 +38,17 @@ interface AdminAuthContextType {
   adminUser: PacificAdminUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isSuperAdmin: boolean;
+  permissions: string[];
   login: (email: string, password: string) => Promise<LoginResult>;
   setAuthSession: (tokens: AuthTokens & { sessionToken?: string }) => void;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   checkAndRefreshToken: () => Promise<boolean>;
   hasRole: (allowedRoles: string[]) => boolean;
+  hasPermission: (permissionCode: string) => boolean;
+  hasAnyPermission: (permissionCodes: string[]) => boolean;
+  hasAllPermissions: (permissionCodes: string[]) => boolean;
 }
 
 const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefined);
@@ -200,12 +222,57 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setUser(null);
   };
 
-  const hasRole = (allowedRoles: string[]) => {
-    if (!user) return false;
-    const roleUpper = user.role?.toUpperCase();
-    if (roleUpper === 'SUPER_ADMIN') return true;
-    return allowedRoles.map((r) => r.toUpperCase()).includes(roleUpper);
-  };
+  const isSuperAdmin = Boolean(
+    user &&
+      (user.isSuperAdmin ||
+        user.role?.toUpperCase() === 'SUPER_ADMIN' ||
+        user.roles?.some((r) => r.code === 'SUPER_ADMIN'))
+  );
+
+  const permissions: string[] = user?.permissions || [];
+
+  const hasRole = useCallback(
+    (allowedRoles: string[]) => {
+      if (!user) return false;
+      const roleUpper = user.role?.toUpperCase();
+      if (roleUpper === 'SUPER_ADMIN' || isSuperAdmin) return true;
+      return allowedRoles.map((r) => r.toUpperCase()).includes(roleUpper);
+    },
+    [user, isSuperAdmin]
+  );
+
+  const hasPermission = useCallback(
+    (permissionCode: string): boolean => {
+      if (!user) return false;
+      if (isSuperAdmin) return true;
+      if (!permissions || permissions.length === 0) return false;
+      if (permissions.includes('*')) return true;
+      return permissions.includes(permissionCode);
+    },
+    [user, isSuperAdmin, permissions]
+  );
+
+  const hasAnyPermission = useCallback(
+    (permissionCodes: string[]): boolean => {
+      if (!user) return false;
+      if (isSuperAdmin) return true;
+      if (!permissions || permissions.length === 0) return false;
+      if (permissions.includes('*')) return true;
+      return permissionCodes.some((code) => permissions.includes(code));
+    },
+    [user, isSuperAdmin, permissions]
+  );
+
+  const hasAllPermissions = useCallback(
+    (permissionCodes: string[]): boolean => {
+      if (!user) return false;
+      if (isSuperAdmin) return true;
+      if (!permissions || permissions.length === 0) return false;
+      if (permissions.includes('*')) return true;
+      return permissionCodes.every((code) => permissions.includes(code));
+    },
+    [user, isSuperAdmin, permissions]
+  );
 
   return (
     <AdminAuthContext.Provider
@@ -214,12 +281,17 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         adminUser: user,
         isAuthenticated,
         isLoading,
+        isSuperAdmin,
+        permissions,
         login,
         setAuthSession,
         logout,
         refreshProfile,
         checkAndRefreshToken,
         hasRole,
+        hasPermission,
+        hasAnyPermission,
+        hasAllPermissions,
       }}
     >
       {children}

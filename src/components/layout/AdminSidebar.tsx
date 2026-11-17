@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAdminAuth } from '../../context/AdminAuthContext';
-import { filterNavItemsByRole, getRoleBadgeInfo } from '../../utils/rbacNavigation';
+import { filterNavItemsByRole, filterNavItemsForUser, getRoleBadgeInfo } from '../../utils/rbacNavigation';
 // @ts-ignore
 import logo from '../../image/logo/logo.webp';
 import {
@@ -143,12 +143,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
   const roleInfo = getRoleBadgeInfo(user?.role);
 
-  const visibleSales = useMemo(() => filterNavItemsByRole(salesPipelineItems, user?.role), [user?.role]);
-  const visibleProcurement = useMemo(() => filterNavItemsByRole(procurementNavItems, user?.role), [user?.role]);
-  const visibleCrmFinance = useMemo(() => filterNavItemsByRole(crmFinanceNavItems, user?.role), [user?.role]);
-  const visibleSystem = useMemo(() => filterNavItemsByRole(systemNavItems, user?.role), [user?.role]);
-  const visibleExport = useMemo(() => filterNavItemsByRole(exportNavItems, user?.role), [user?.role]);
-  const visibleCms = useMemo(() => filterNavItemsByRole(cmsNavItems, user?.role), [user?.role]);
+  const visibleSales = useMemo(() => filterNavItemsForUser(salesPipelineItems, user), [user]);
+  const visibleProcurement = useMemo(() => filterNavItemsForUser(procurementNavItems, user), [user]);
+  const visibleCrmFinance = useMemo(() => filterNavItemsForUser(crmFinanceNavItems, user), [user]);
+  const visibleSystem = useMemo(() => filterNavItemsForUser(systemNavItems, user), [user]);
+  const visibleExport = useMemo(() => filterNavItemsForUser(exportNavItems, user), [user]);
+  const visibleCms = useMemo(() => filterNavItemsForUser(cmsNavItems, user), [user]);
 
   const hasErpSection = visibleSales.length > 0 || visibleProcurement.length > 0 || visibleCrmFinance.length > 0 || visibleSystem.length > 0;
 
