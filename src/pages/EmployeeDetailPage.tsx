@@ -244,6 +244,20 @@ export function EmployeeDetailPage({ isUpFactory = false }: { isUpFactory?: bool
   const [leaveAdjustReason, setLeaveAdjustReason] = useState('');
   const [isSubmittingLeaveAdjust, setIsSubmittingLeaveAdjust] = useState(false);
 
+  // ─── Advances & Deductions State ────────────────────────────────────────────
+  const [advances, setAdvances] = useState<EmployeeAdvance[]>([]);
+  const [deductions, setDeductions] = useState<EmployeeDeduction[]>([]);
+  const [hasLoadedAdvances, setHasLoadedAdvances] = useState(false);
+  const [isLoadingAdvances, setIsLoadingAdvances] = useState(false);
+  const [advanceFilter, setAdvanceFilter] = useState<'ALL' | 'PENDING' | 'RECOVERED'>('ALL');
+  const [isGiveAdvanceModalOpen, setIsGiveAdvanceModalOpen] = useState(false);
+  const [advAmount, setAdvAmount] = useState('');
+  const [advDate, setAdvDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [advRecoveryMonth, setAdvRecoveryMonth] = useState(() => new Date().getMonth() + 1);
+  const [advRecoveryYear, setAdvRecoveryYear] = useState(() => new Date().getFullYear());
+  const [advReason, setAdvReason] = useState('');
+  const [isSubmittingAdvance, setIsSubmittingAdvance] = useState(false);
+
   // ─── Conveyance List & Filters ──────────────────────────────────────────────
   const [conveyances, setConveyances] = useState<EmployeeConveyanceExpense[]>([]);
   const [isLoadingConveyances, setIsLoadingConveyances] = useState(false);
@@ -373,13 +387,129 @@ export function EmployeeDetailPage({ isUpFactory = false }: { isUpFactory?: bool
     } finally {
       setIsLoadingLeaves(false);
     }
-  }, [id]);
+  }, [id, api]);
+
+  // ─── Load Advances & Deductions (Dedicated Fresh Query) ─────────────────────
+  const loadAdvancesAndDeductions = useCallback(async () => {
+    if (!id) return;
+    setIsLoadingAdvances(true);
+    try {
+      const [advList, dedList] = await Promise.all([
+        api.listAdvances({ employeeId: id, status: 'ALL' }),
+        api.listDeductions({ employeeId: id }),
+      ]);
+      setAdvances(Array.isArray(advList) ? advList : []);
+      setDeductions(Array.isArray(dedList) ? dedList : []);
+      setHasLoadedAdvances(true);
+      setEmployee((prev) =>
+        prev
+          ? {
+              ...prev,
+              advances: Array.isArray(advList) ? advList : prev.advances,
+              deductions: Array.isArray(dedList) ? dedList : prev.deductions,
+            }
+          : prev
+      );
+    } catch (err: any) {
+      console.warn('Failed to load advances/deductions:', err);
+    } finally {
+      setIsLoadingAdvances(false);
+    }
+  }, [id, api]);
 
   useEffect(() => {
     loadEmployee();
     loadConveyances();
     loadLeaveLedger();
-  }, [loadEmployee, loadConveyances, loadLeaveLedger]);
+    loadAdvancesAndDeductions();
+  }, [loadEmployee, loadConveyances, loadLeaveLedger, loadAdvancesAndDeductions]);
+
+  useEffect(() => {
+    if (activeTab === 'advances') {
+      loadAdvancesAndDeductions();
+    }
+  }, [activeTab, loadAdvancesAndDeductions]);
+
+  const displayedAdvances = useMemo<EmployeeAdvance[]>(() => {
+    if (hasLoadedAdvances) return advances;
+    return employee?.advances || [];
+  }, [hasLoadedAdvances, advances, employee?.advances]);
+
+  const displayedDeductions = useMemo<EmployeeDeduction[]>(() => {
+    if (hasLoadedAdvances) return deductions;
+    return employee?.deductions || [];
+  }, [hasLoadedAdvances, deductions, employee?.deductions]);
+
+  const advanceStats = useMemo(() => {
+    let totalDisbursed = 0;
+    let totalPending = 0;
+    let totalRecovered = 0;
+    let pendingCount = 0;
+    let recoveredCount = 0;
+
+    for (const adv of displayedAdvances) {
+      const amt = Number(adv.amount || 0);
+      const orig = Number(adv.originalAmount || adv.amount || 0);
+      if (adv.isRecovered) {
+        totalDisbursed += orig > 0 ? orig : amt;
+        totalRecovered += orig > 0 ? orig : amt;
+        recoveredCount += 1;
+      } else {
+        totalDisbursed += orig;
+        totalPending += amt;
+        if (orig > amt) {
+          totalRecovered += orig - amt;
+        }
+        pendingCount += 1;
+      }
+    }
+
+    const totalDeductions = displayedDeductions.reduce((s, d) => s + Number(d.amount || 0), 0);
+
+    return {
+      totalDisbursed,
+      totalPending,
+      totalRecovered,
+      pendingCount,
+      recoveredCount,
+      totalDeductions,
+    };
+  }, [displayedAdvances, displayedDeductions]);
+
+  const handleCreateAdvance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    const amt = parseFloat(advAmount);
+    if (isNaN(amt) || amt <= 0) {
+      showToast('error', 'Please enter a valid advance amount');
+      return;
+    }
+    if (!advReason.trim()) {
+      showToast('error', 'Please provide a reason for the advance');
+      return;
+    }
+
+    setIsSubmittingAdvance(true);
+    try {
+      await api.createAdvance({
+        employeeId: id,
+        amount: amt,
+        advanceDate: advDate || new Date().toISOString().split('T')[0],
+        recoveryMonth: advRecoveryMonth,
+        recoveryYear: advRecoveryYear,
+        reason: advReason.trim(),
+      });
+      showToast('success', `Salary advance of ${formatINR(amt)} recorded successfully`);
+      setIsGiveAdvanceModalOpen(false);
+      setAdvAmount('');
+      setAdvReason('');
+      await Promise.all([loadAdvancesAndDeductions(), loadEmployee()]);
+    } catch (err: any) {
+      showToast('error', err?.response?.data?.message || err?.message || 'Failed to record advance');
+    } finally {
+      setIsSubmittingAdvance(false);
+    }
+  };
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
   const handleAdjustLeave = async (e: React.FormEvent) => {
@@ -732,9 +862,26 @@ export function EmployeeDetailPage({ isUpFactory = false }: { isUpFactory?: bool
 
           {/* Quick Stats on Right */}
           <div className="flex flex-wrap md:flex-col items-end gap-2 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-white/10">
-            <div className="bg-[#030213] border border-white/10 rounded-xl px-4 py-2 text-right">
-              <span className="text-[11px] text-gray-500 uppercase tracking-wider block">Monthly CTC</span>
-              <span className="text-lg font-bold text-white">{formatINR(employee.monthlyCtc)}</span>
+            <div className="flex items-center gap-2">
+              <div className="bg-[#030213] border border-white/10 rounded-xl px-4 py-2 text-right">
+                <span className="text-[11px] text-gray-500 uppercase tracking-wider block">Monthly CTC</span>
+                <span className="text-lg font-bold text-white">{formatINR(employee.monthlyCtc)}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('advances')}
+                className={`rounded-xl px-3.5 py-2 text-right border transition cursor-pointer ${
+                  advanceStats.totalPending > 0
+                    ? 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30'
+                    : 'bg-[#030213] hover:bg-white/5 border-white/10'
+                }`}
+                title="View Salary Advances & Deductions"
+              >
+                <span className="text-[11px] text-amber-400/80 uppercase tracking-wider block">Pending Advance</span>
+                <span className={`text-lg font-bold font-mono ${advanceStats.totalPending > 0 ? 'text-amber-300' : 'text-gray-400'}`}>
+                  {formatINR(advanceStats.totalPending)}
+                </span>
+              </button>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -782,6 +929,12 @@ export function EmployeeDetailPage({ isUpFactory = false }: { isUpFactory?: bool
             badge: conveyances.length,
           },
           {
+            id: 'advances',
+            label: 'Advances & Deductions',
+            icon: <DollarSign size={16} />,
+            badge: displayedAdvances.length + displayedDeductions.length,
+          },
+          {
             id: 'profile',
             label: 'Personal & Banking Profile',
             icon: <User size={16} />,
@@ -796,12 +949,6 @@ export function EmployeeDetailPage({ isUpFactory = false }: { isUpFactory?: bool
             label: 'Payroll & Payslips',
             icon: <FileText size={16} />,
             badge: employee.payrollRuns?.length,
-          },
-          {
-            id: 'advances',
-            label: 'Advances & Deductions',
-            icon: <DollarSign size={16} />,
-            badge: (employee.advances?.length || 0) + (employee.deductions?.length || 0),
           },
         ].map((tab) => (
           <button
@@ -1775,63 +1922,358 @@ export function EmployeeDetailPage({ isUpFactory = false }: { isUpFactory?: bool
           TAB 5: ADVANCES & DEDUCTIONS
       ════════════════════════════════════════════════════════════════════════ */}
       {activeTab === 'advances' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-[#0a091e] border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
-            <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
-              <DollarSign size={18} className="text-amber-400" /> Salary Advances
-            </h3>
-            {(!employee.advances || employee.advances.length === 0) ? (
-              <div className="py-8 text-center text-gray-500 text-sm">No advances on record</div>
-            ) : (
-              <div className="space-y-2">
-                {employee.advances.map((adv: any) => (
-                  <div
-                    key={adv.id}
-                    className="flex items-center justify-between p-3 rounded-xl bg-[#030213] border border-white/10"
-                  >
-                    <div>
-                      <div className="font-bold text-white">{formatINR(adv.amount)}</div>
-                      <div className="text-xs text-gray-400">{adv.reason}</div>
-                    </div>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full border ${
-                        adv.isRecovered
-                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                          : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                      }`}
-                    >
-                      {adv.isRecovered ? 'Recovered' : 'Pending'}
-                    </span>
-                  </div>
-                ))}
+        <div className="space-y-6">
+          {/* Summary KPI Strip */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-[#0a091e] border border-white/10 rounded-2xl p-4 shadow-xl">
+              <div className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">Total Advances Given</div>
+              <div className="text-xl sm:text-2xl font-extrabold text-white mt-1 font-mono">
+                {formatINR(advanceStats.totalDisbursed)}
               </div>
-            )}
+              <div className="text-[11px] text-gray-500 mt-1">
+                {displayedAdvances.length} {displayedAdvances.length === 1 ? 'record' : 'records'} total
+              </div>
+            </div>
+
+            <div className="bg-[#0a091e] border border-amber-500/25 rounded-2xl p-4 shadow-xl">
+              <div className="text-[11px] uppercase tracking-wider text-amber-400/90 font-semibold">Pending Recovery</div>
+              <div className="text-xl sm:text-2xl font-extrabold text-amber-300 mt-1 font-mono">
+                {formatINR(advanceStats.totalPending)}
+              </div>
+              <div className="text-[11px] text-amber-400/70 mt-1">
+                {advanceStats.pendingCount} pending {advanceStats.pendingCount === 1 ? 'advance' : 'advances'}
+              </div>
+            </div>
+
+            <div className="bg-[#0a091e] border border-emerald-500/25 rounded-2xl p-4 shadow-xl">
+              <div className="text-[11px] uppercase tracking-wider text-emerald-400/90 font-semibold">Total Recovered</div>
+              <div className="text-xl sm:text-2xl font-extrabold text-emerald-300 mt-1 font-mono">
+                {formatINR(advanceStats.totalRecovered)}
+              </div>
+              <div className="text-[11px] text-emerald-400/70 mt-1">
+                {advanceStats.recoveredCount} cleared {advanceStats.recoveredCount === 1 ? 'record' : 'records'}
+              </div>
+            </div>
+
+            <div className="bg-[#0a091e] border border-rose-500/20 rounded-2xl p-4 shadow-xl">
+              <div className="text-[11px] uppercase tracking-wider text-rose-400/90 font-semibold">Other Deductions</div>
+              <div className="text-xl sm:text-2xl font-extrabold text-rose-300 mt-1 font-mono">
+                {formatINR(advanceStats.totalDeductions)}
+              </div>
+              <div className="text-[11px] text-gray-500 mt-1">
+                {displayedDeductions.length} {displayedDeductions.length === 1 ? 'deduction' : 'deductions'}
+              </div>
+            </div>
           </div>
 
-          <div className="bg-[#0a091e] border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
-            <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
-              <CreditCard size={18} className="text-rose-400" /> Deductions History
-            </h3>
-            {(!employee.deductions || employee.deductions.length === 0) ? (
-              <div className="py-8 text-center text-gray-500 text-sm">No deductions on record</div>
-            ) : (
-              <div className="space-y-2">
-                {employee.deductions.map((ded: any) => (
-                  <div
-                    key={ded.id}
-                    className="flex items-center justify-between p-3 rounded-xl bg-[#030213] border border-white/10"
-                  >
-                    <div>
-                      <div className="font-bold text-rose-400">-{formatINR(ded.amount)}</div>
-                      <div className="text-xs text-gray-400">{ded.reason}</div>
-                    </div>
-                    <span className="text-xs text-gray-500">
-                      Month {ded.applyMonth}/{ded.applyYear}
-                    </span>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Salary Advances Card */}
+            <div className="bg-[#0a091e] border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <DollarSign size={18} className="text-amber-400" />
+                  <span>Salary Advances ({displayedAdvances.length})</span>
+                </h3>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center bg-[#030213] p-0.5 rounded-lg border border-white/10 text-[11px]">
+                    {(['ALL', 'PENDING', 'RECOVERED'] as const).map((statusKey) => (
+                      <button
+                        key={statusKey}
+                        type="button"
+                        onClick={() => setAdvanceFilter(statusKey)}
+                        className={`px-2 py-1 rounded-md font-medium transition cursor-pointer ${
+                          advanceFilter === statusKey
+                            ? statusKey === 'PENDING'
+                              ? 'bg-amber-500/20 text-amber-300'
+                              : statusKey === 'RECOVERED'
+                              ? 'bg-emerald-500/20 text-emerald-300'
+                              : 'bg-white/10 text-white'
+                            : 'text-gray-400 hover:text-white'
+                        }`}
+                      >
+                        {statusKey === 'ALL' ? 'All' : statusKey === 'PENDING' ? 'Pending' : 'Recovered'}
+                      </button>
+                    ))}
                   </div>
-                ))}
+
+                  <button
+                    type="button"
+                    onClick={() => loadAdvancesAndDeductions()}
+                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 transition cursor-pointer"
+                    title="Refresh advances"
+                  >
+                    <RefreshCw size={14} className={isLoadingAdvances ? 'animate-spin' : ''} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsGiveAdvanceModalOpen(true)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#7FB706] hover:bg-[#6fa005] text-white text-xs font-semibold transition cursor-pointer"
+                  >
+                    <Plus size={13} /> Give Advance
+                  </button>
+                </div>
               </div>
-            )}
+
+              {isLoadingAdvances && displayedAdvances.length === 0 ? (
+                <div className="py-10 text-center text-gray-400 text-sm">Loading salary advances...</div>
+              ) : displayedAdvances.filter((a) =>
+                  advanceFilter === 'PENDING' ? !a.isRecovered : advanceFilter === 'RECOVERED' ? a.isRecovered : true
+                ).length === 0 ? (
+                <div className="py-10 text-center text-gray-500 text-sm">
+                  {advanceFilter === 'ALL'
+                    ? 'No salary advances on record for this employee'
+                    : `No ${advanceFilter.toLowerCase()} advances found`}
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {displayedAdvances
+                    .filter((a) =>
+                      advanceFilter === 'PENDING' ? !a.isRecovered : advanceFilter === 'RECOVERED' ? a.isRecovered : true
+                    )
+                    .map((adv: any) => {
+                      const advDateStr = adv.advanceDate || adv.createdAt;
+                      const formattedDate = advDateStr
+                        ? new Date(advDateStr).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })
+                        : '—';
+                      const recoveryPeriod =
+                        adv.recoveryMonth && adv.recoveryYear
+                          ? new Date(adv.recoveryYear, adv.recoveryMonth - 1).toLocaleDateString('en-IN', {
+                              month: 'short',
+                              year: 'numeric',
+                            })
+                          : '—';
+                      const hasPartialRecovery =
+                        adv.originalAmount && Number(adv.originalAmount) > Number(adv.amount);
+
+                      return (
+                        <div
+                          key={adv.id}
+                          className="p-3.5 rounded-xl bg-[#030213] border border-white/10 hover:border-white/20 transition space-y-2"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="flex items-baseline gap-2 flex-wrap">
+                                <span className="text-base font-extrabold text-white font-mono">
+                                  {formatINR(adv.amount)}
+                                </span>
+                                {hasPartialRecovery && (
+                                  <span className="text-[11px] text-gray-400 font-mono">
+                                    (Orig: {formatINR(adv.originalAmount)})
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-300 mt-0.5">{adv.reason || 'Salary Advance'}</div>
+                            </div>
+                            <span
+                              className={`text-[11px] px-2.5 py-0.5 rounded-full border font-semibold whitespace-nowrap ${
+                                adv.isRecovered
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                                  : 'bg-amber-500/10 text-amber-300 border-amber-500/25'
+                              }`}
+                            >
+                              {adv.isRecovered ? 'Recovered' : 'Pending Recovery'}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-400 pt-1.5 border-t border-white/5">
+                            <span className="flex items-center gap-1">
+                              <Calendar size={11} className="text-cyan-400" />
+                              Given: <strong className="text-gray-200">{formattedDate}</strong>
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock size={11} className="text-amber-400" />
+                              Recovery: <strong className="text-gray-200">{recoveryPeriod}</strong>
+                            </span>
+                            {adv.disbursedVia && (
+                              <span className="px-1.5 py-0.5 rounded bg-white/5 text-gray-300 font-mono text-[10px]">
+                                {adv.disbursedVia}
+                              </span>
+                            )}
+                            {adv.isRecovered && adv.recoveredAt && (
+                              <span className="text-emerald-400">
+                                Cleared:{' '}
+                                {new Date(adv.recoveredAt).toLocaleDateString('en-IN', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+
+            {/* Deductions History Card */}
+            <div className="bg-[#0a091e] border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
+              <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+                <CreditCard size={18} className="text-rose-400" />
+                <span>Deductions History ({displayedDeductions.length})</span>
+              </h3>
+              {displayedDeductions.length === 0 ? (
+                <div className="py-10 text-center text-gray-500 text-sm">No deductions on record</div>
+              ) : (
+                <div className="space-y-2.5">
+                  {displayedDeductions.map((ded: any) => (
+                    <div
+                      key={ded.id}
+                      className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-[#030213] border border-white/10"
+                    >
+                      <div>
+                        <div className="font-bold text-rose-400 font-mono">-{formatINR(ded.amount)}</div>
+                        <div className="text-xs text-gray-300 mt-0.5">{ded.reason}</div>
+                      </div>
+                      <div className="text-right space-y-1">
+                        <div className="text-xs text-gray-400 font-mono">
+                          {ded.applyMonth && ded.applyYear
+                            ? new Date(ded.applyYear, ded.applyMonth - 1).toLocaleDateString('en-IN', {
+                                month: 'short',
+                                year: 'numeric',
+                              })
+                            : `Month ${ded.applyMonth}/${ded.applyYear}`}
+                        </div>
+                        <span
+                          className={`inline-block text-[10px] px-2 py-0.5 rounded-full border ${
+                            ded.isApplied
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                              : 'bg-rose-500/10 text-rose-300 border-rose-500/20'
+                          }`}
+                        >
+                          {ded.isApplied ? 'Applied' : 'Scheduled'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════════
+          MODAL: GIVE SALARY ADVANCE (DIRECTLY FROM EMPLOYEE PROFILE)
+      ════════════════════════════════════════════════════════════════════════ */}
+      {isGiveAdvanceModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#0a091e] border border-white/15 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <DollarSign size={18} className="text-amber-400" /> Issue Salary Advance
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {employee.name} ({employee.employeeId})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsGiveAdvanceModalOpen(false)}
+                className="p-1.5 text-gray-400 hover:text-white rounded-lg bg-white/5 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateAdvance} className="space-y-3.5 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Advance Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={advDate}
+                    onChange={(e) => setAdvDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Amount (₹) *</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    step="0.01"
+                    value={advAmount}
+                    onChange={(e) => setAdvAmount(e.target.value)}
+                    placeholder="e.g. 5000"
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white font-mono text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Recovery Month</label>
+                  <select
+                    value={advRecoveryMonth}
+                    onChange={(e) => setAdvRecoveryMonth(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
+                  >
+                    {[
+                      'January', 'February', 'March', 'April', 'May', 'June',
+                      'July', 'August', 'September', 'October', 'November', 'December',
+                    ].map((label, idx) => (
+                      <option key={label} value={idx + 1}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Recovery Year</label>
+                  <select
+                    value={advRecoveryYear}
+                    onChange={(e) => setAdvRecoveryYear(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
+                  >
+                    {[2025, 2026, 2027, 2028].map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Reason *</label>
+                <textarea
+                  required
+                  rows={2}
+                  value={advReason}
+                  onChange={(e) => setAdvReason(e.target.value)}
+                  placeholder="e.g. Medical emergency / Cash advance"
+                  className="w-full px-3 py-2 bg-[#030213] border border-white/10 rounded-xl text-white text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsGiveAdvanceModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-medium transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingAdvance}
+                  className="px-4 py-2 rounded-xl bg-[#7FB706] hover:bg-[#6fa005] disabled:opacity-50 text-white text-xs font-semibold transition cursor-pointer"
+                >
+                  {isSubmittingAdvance ? 'Saving...' : 'Save Advance'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

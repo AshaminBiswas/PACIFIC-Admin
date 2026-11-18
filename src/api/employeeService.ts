@@ -72,7 +72,9 @@ export const employeeService = {
   },
 
   async getEmployee(id: string): Promise<Employee> {
-    const res = await apiClient.get<any>(`/employees/${encodeURIComponent(id)}`);
+    const res = await apiClient.get<any>(`/employees/${encodeURIComponent(id)}`, {
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    });
     return res.data?.data !== undefined ? res.data.data : res.data;
   },
 
@@ -230,6 +232,7 @@ export const employeeService = {
   // ─── Advances ───────────────────────────────────────────────────────────────
   async listAdvances(params: {
     employeeId?: string;
+    status?: 'PENDING' | 'RECOVERED' | 'ALL';
     recoveryMonth?: number;
     recoveryYear?: number;
     isRecovered?: boolean;
@@ -238,10 +241,18 @@ export const employeeService = {
     if (params.employeeId) query.append('employeeId', params.employeeId);
     if (params.recoveryMonth) query.append('recoveryMonth', params.recoveryMonth.toString());
     if (params.recoveryYear) query.append('recoveryYear', params.recoveryYear.toString());
-    if (params.isRecovered !== undefined) query.append('isRecovered', params.isRecovered.toString());
+    if (params.isRecovered !== undefined) {
+      query.append('isRecovered', params.isRecovered.toString());
+    } else if (params.status === 'PENDING') {
+      query.append('isRecovered', 'false');
+    } else if (params.status === 'RECOVERED') {
+      query.append('isRecovered', 'true');
+    }
 
     const qStr = query.toString();
-    const res = await apiClient.get<any>(`/employees/advances${qStr ? `?${qStr}` : ''}`);
+    const res = await apiClient.get<any>(`/employees/advances${qStr ? `?${qStr}` : ''}`, {
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    });
     const data = res.data?.data !== undefined ? res.data.data : res.data;
     return Array.isArray(data) ? data : [];
   },
@@ -318,7 +329,9 @@ export const employeeService = {
     if (params.isApplied !== undefined) query.append('isApplied', params.isApplied.toString());
 
     const qStr = query.toString();
-    const res = await apiClient.get<any>(`/employees/deductions${qStr ? `?${qStr}` : ''}`);
+    const res = await apiClient.get<any>(`/employees/deductions${qStr ? `?${qStr}` : ''}`, {
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    });
     const data = res.data?.data !== undefined ? res.data.data : res.data;
     return Array.isArray(data) ? data : [];
   },

@@ -110,7 +110,9 @@ export const upEmployeeService = {
   },
 
   async getEmployee(id: string): Promise<Employee> {
-    const res = await apiClient.get<any>(`/up-employees/${encodeURIComponent(id)}`);
+    const res = await apiClient.get<any>(`/up-employees/${encodeURIComponent(id)}`, {
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    });
     return res.data?.data ?? res.data;
   },
 
@@ -327,8 +329,12 @@ export const upEmployeeService = {
       sp.set('status', params.isRecovered ? 'RECOVERED' : 'PENDING');
     } else if (params.status) {
       sp.set('status', params.status);
+    } else {
+      sp.set('status', 'ALL');
     }
-    const res = await apiClient.get<any>(`/up-employees/advances?${sp.toString()}`);
+    const res = await apiClient.get<any>(`/up-employees/advances?${sp.toString()}`, {
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    });
     const data = res.data?.data ?? res.data;
     return Array.isArray(data) ? data : [];
   },
@@ -416,7 +422,9 @@ export const upEmployeeService = {
     if (params.applyYear) sp.set('applyYear', params.applyYear.toString());
     if (params.isApplied !== undefined) sp.set('isApplied', params.isApplied.toString());
 
-    const res = await apiClient.get<any>(`/up-employees/deductions?${sp.toString()}`);
+    const res = await apiClient.get<any>(`/up-employees/deductions?${sp.toString()}`, {
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    });
     const data = res.data?.data ?? res.data;
     return Array.isArray(data) ? data : [];
   },
