@@ -219,6 +219,7 @@ export default function BoardInventoryPage() {
     if (!window.confirm(`Are you sure you want to remove Board SKU ${designNo}?`)) return;
     try {
       await boardInventoryApi.delete(id);
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
       loadData();
     } catch (err: any) {
       alert(err.response?.data?.message || err.message || 'Failed to delete board');

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 
 import { boardInventoryApi, isActionTesaVendor } from '../../api/boardInventoryApi';
+import { queryClient, queryKeys } from '../../lib/queryClient';
 import type { BoardSupplier } from '../../types/admin';
 
 // Preset standard sheet sizes with both feet & metric mm notation
@@ -216,6 +217,9 @@ export default function CreateBoardSkuPage() {
         locationRack: locationRack.trim() || undefined,
         notes: notes.trim() || undefined,
       });
+
+      // Invalidate inventory cache so listings show new SKU immediately
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
 
       // Navigate back to the corresponding inventory view
       if (category === 'LOCKER_BOARD') {

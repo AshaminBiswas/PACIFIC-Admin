@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { hardwareInventoryApi } from '../../api/hardwareInventoryApi';
+import { queryClient, queryKeys } from '../../lib/queryClient';
 import { exportComprehensiveHardwareReport } from '../../utils/hardwareExcelExport';
 import type {
   HardwareInventoryItem,
@@ -340,6 +341,7 @@ export default function HardwareInventoryPage() {
     }
     try {
       await hardwareInventoryApi.delete(id);
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
       loadData();
     } catch (err: any) {
       alert(err.message || 'Failed to delete hardware item');

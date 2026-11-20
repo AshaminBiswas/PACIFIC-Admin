@@ -12,6 +12,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { boardInventoryApi, isActionTesaVendor } from '../../api/boardInventoryApi';
+import { queryClient, queryKeys } from '../../lib/queryClient';
 import type { BoardSupplier, CreateBoardItemInput } from '../../types/admin';
 
 interface CreateBoardModalProps {
@@ -260,6 +261,8 @@ export default function CreateBoardModal({
         notes: notes.trim() || undefined,
       });
 
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
+
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -320,6 +323,7 @@ export default function CreateBoardModal({
       }));
 
       await boardInventoryApi.createBulk(items);
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
       onSuccess();
       onClose();
     } catch (err: any) {

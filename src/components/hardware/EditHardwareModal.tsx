@@ -15,6 +15,7 @@ import {
   hardwareInventoryApi,
   getAllowedColorsForMaterial,
 } from '../../api/hardwareInventoryApi';
+import { queryClient, queryKeys } from '../../lib/queryClient';
 import type {
   HardwareInventoryItem,
   HardwareBranch,
@@ -117,6 +118,30 @@ export default function EditHardwareModal({
 
   const allowedColors = getAllowedColorsForMaterial(material);
 
+  const handleOpeningStockChange = (val: string) => {
+    setOpeningStock(val);
+    const op = val === '' ? 0 : Number(val) || 0;
+    const inw = totalInward === '' ? 0 : Number(totalInward) || 0;
+    const iss = totalIssued === '' ? 0 : Number(totalIssued) || 0;
+    setCurrentStock(Math.max(0, op + inw - iss));
+  };
+
+  const handleTotalInwardChange = (val: string) => {
+    setTotalInward(val);
+    const op = openingStock === '' ? 0 : Number(openingStock) || 0;
+    const inw = val === '' ? 0 : Number(val) || 0;
+    const iss = totalIssued === '' ? 0 : Number(totalIssued) || 0;
+    setCurrentStock(Math.max(0, op + inw - iss));
+  };
+
+  const handleTotalIssuedChange = (val: string) => {
+    setTotalIssued(val);
+    const op = openingStock === '' ? 0 : Number(openingStock) || 0;
+    const inw = totalInward === '' ? 0 : Number(totalInward) || 0;
+    const iss = val === '' ? 0 : Number(val) || 0;
+    setCurrentStock(Math.max(0, op + inw - iss));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -161,6 +186,10 @@ export default function EditHardwareModal({
       };
 
       await hardwareInventoryApi.update(item.id, payload);
+
+      // Invalidate hardware query cache
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
+
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -403,7 +432,7 @@ export default function EditHardwareModal({
                     min="0"
                     step="any"
                     value={openingStock}
-                    onChange={(e) => setOpeningStock(e.target.value)}
+                    onChange={(e) => handleOpeningStockChange(e.target.value)}
                     placeholder="e.g. 50"
                     className="w-full px-3 py-2 bg-[#030213] border border-white/15 focus:border-[#7FB706] rounded-xl text-white text-xs font-mono focus:outline-none"
                   />
@@ -421,7 +450,7 @@ export default function EditHardwareModal({
                     min="0"
                     step="any"
                     value={totalInward}
-                    onChange={(e) => setTotalInward(e.target.value)}
+                    onChange={(e) => handleTotalInwardChange(e.target.value)}
                     placeholder="e.g. 200"
                     className="w-full px-3 py-2 bg-[#030213] border border-blue-500/30 focus:border-blue-400 rounded-xl text-blue-300 text-xs font-mono focus:outline-none"
                   />
@@ -439,7 +468,7 @@ export default function EditHardwareModal({
                     min="0"
                     step="any"
                     value={totalIssued}
-                    onChange={(e) => setTotalIssued(e.target.value)}
+                    onChange={(e) => handleTotalIssuedChange(e.target.value)}
                     placeholder="e.g. 80"
                     className="w-full px-3 py-2 bg-[#030213] border border-orange-500/30 focus:border-orange-400 rounded-xl text-orange-300 text-xs font-mono focus:outline-none"
                   />

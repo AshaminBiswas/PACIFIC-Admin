@@ -23,6 +23,7 @@ import {
   getAllowedColorsForMaterial,
   suggestHardwareSku,
 } from '../../api/hardwareInventoryApi';
+import { queryClient, queryKeys } from '../../lib/queryClient';
 import type {
   HardwareBranch,
   HardwareVendor,
@@ -252,6 +253,7 @@ export default function CreateHardwareSkuPage() {
       };
 
       await hardwareInventoryApi.create(payload);
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
       navigate('/admin/dashboard/inventory/hardware');
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || 'Failed to create hardware SKU';

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Edit2, Building2, Layers, AlertCircle, Save, MapPin } from 'lucide-react';
 import { boardInventoryApi, isActionTesaVendor } from '../../api/boardInventoryApi';
+import { queryClient, queryKeys } from '../../lib/queryClient';
 
 import type { BoardInventoryItem, BoardSupplier } from '../../types/admin';
 
@@ -93,6 +94,30 @@ export default function EditBoardModal({
 
   if (!isOpen || !boardItem) return null;
 
+  const handleOpeningChange = (val: string) => {
+    setOpeningStock(val);
+    const op = val === '' ? 0 : Number(val) || 0;
+    const inw = totalInward === '' ? 0 : Number(totalInward) || 0;
+    const iss = totalIssued === '' ? 0 : Number(totalIssued) || 0;
+    setCurrentStock(Math.max(0, op + inw - iss));
+  };
+
+  const handleInwardChange = (val: string) => {
+    setTotalInward(val);
+    const op = openingStock === '' ? 0 : Number(openingStock) || 0;
+    const inw = val === '' ? 0 : Number(val) || 0;
+    const iss = totalIssued === '' ? 0 : Number(totalIssued) || 0;
+    setCurrentStock(Math.max(0, op + inw - iss));
+  };
+
+  const handleIssuedChange = (val: string) => {
+    setTotalIssued(val);
+    const op = openingStock === '' ? 0 : Number(openingStock) || 0;
+    const inw = totalInward === '' ? 0 : Number(totalInward) || 0;
+    const iss = val === '' ? 0 : Number(val) || 0;
+    setCurrentStock(Math.max(0, op + inw - iss));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!designNo.trim()) {
@@ -131,6 +156,9 @@ export default function EditBoardModal({
         locationRack: locationRack.trim() || undefined,
         notes: notes.trim() || undefined,
       });
+
+      // Invalidate inventory cache
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
 
       onSuccess();
       onClose();
@@ -369,7 +397,7 @@ export default function EditBoardModal({
                   step="any"
                   required
                   value={openingStock}
-                  onChange={(e) => setOpeningStock(e.target.value)}
+                  onChange={(e) => handleOpeningChange(e.target.value)}
                   placeholder="e.g. 4.5"
                   className="w-full bg-[#121029] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-[#7FB706] min-h-[44px]"
                 />
@@ -387,7 +415,7 @@ export default function EditBoardModal({
                   min="0"
                   step="any"
                   value={totalInward}
-                  onChange={(e) => setTotalInward(e.target.value)}
+                  onChange={(e) => handleInwardChange(e.target.value)}
                   placeholder="e.g. 100"
                   className="w-full bg-[#121029] border border-blue-500/30 rounded-xl px-3 py-2.5 text-sm text-blue-300 font-mono focus:outline-none focus:border-blue-400 min-h-[44px]"
                 />
@@ -405,7 +433,7 @@ export default function EditBoardModal({
                   min="0"
                   step="any"
                   value={totalIssued}
-                  onChange={(e) => setTotalIssued(e.target.value)}
+                  onChange={(e) => handleIssuedChange(e.target.value)}
                   placeholder="e.g. 25"
                   className="w-full bg-[#121029] border border-orange-500/30 rounded-xl px-3 py-2.5 text-sm text-orange-300 font-mono focus:outline-none focus:border-orange-400 min-h-[44px]"
                 />

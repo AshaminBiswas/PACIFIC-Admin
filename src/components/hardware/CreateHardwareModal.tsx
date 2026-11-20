@@ -21,6 +21,7 @@ import {
   getAllowedColorsForMaterial,
   suggestHardwareSku,
 } from '../../api/hardwareInventoryApi';
+import { queryClient, queryKeys } from '../../lib/queryClient';
 import type {
   HardwareBranch,
   HardwareVendor,
@@ -227,6 +228,7 @@ export default function CreateHardwareModal({
       };
 
       await hardwareInventoryApi.create(payload);
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
       onSuccess();
       onClose();
     } catch (err: any) {

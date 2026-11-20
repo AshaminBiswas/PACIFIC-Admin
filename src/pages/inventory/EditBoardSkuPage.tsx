@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 
 import { boardInventoryApi, isActionTesaVendor } from '../../api/boardInventoryApi';
+import { queryClient, queryKeys } from '../../lib/queryClient';
 import type { BoardSupplier, BoardInventoryItem } from '../../types/admin';
 
 // Preset standard sheet sizes with both feet & metric mm notation
@@ -82,12 +83,39 @@ export default function EditBoardSkuPage() {
 
   // Stock & Financials
   const [openingStock, setOpeningStock] = useState<string | number>(0);
+  const [totalInward, setTotalInward] = useState<string | number>(0);
+  const [totalIssued, setTotalIssued] = useState<string | number>(0);
   const [currentStock, setCurrentStock] = useState<string | number>(0);
   const [reorderLevel, setReorderLevel] = useState<string | number>(10);
   const [unitCost, setUnitCost] = useState<string | number>('');
   const [locationRack, setLocationRack] = useState('');
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState('ACTIVE');
+
+  // Stock calculation handlers: Auto-computes currentStock = openingStock + totalInward - totalIssued
+  const handleOpeningStockChange = (val: string) => {
+    setOpeningStock(val);
+    const op = val === '' ? 0 : Number(val) || 0;
+    const inw = totalInward === '' ? 0 : Number(totalInward) || 0;
+    const iss = totalIssued === '' ? 0 : Number(totalIssued) || 0;
+    setCurrentStock(Math.max(0, op + inw - iss));
+  };
+
+  const handleTotalInwardChange = (val: string) => {
+    setTotalInward(val);
+    const op = openingStock === '' ? 0 : Number(openingStock) || 0;
+    const inw = val === '' ? 0 : Number(val) || 0;
+    const iss = totalIssued === '' ? 0 : Number(totalIssued) || 0;
+    setCurrentStock(Math.max(0, op + inw - iss));
+  };
+
+  const handleTotalIssuedChange = (val: string) => {
+    setTotalIssued(val);
+    const op = openingStock === '' ? 0 : Number(openingStock) || 0;
+    const inw = totalInward === '' ? 0 : Number(totalInward) || 0;
+    const iss = val === '' ? 0 : Number(val) || 0;
+    setCurrentStock(Math.max(0, op + inw - iss));
+  };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -190,6 +218,8 @@ export default function EditBoardSkuPage() {
         }
 
         setOpeningStock(item.openingStock !== undefined ? item.openingStock : 0);
+        setTotalInward(item.totalInward !== undefined ? item.totalInward : 0);
+        setTotalIssued(item.totalIssued !== undefined ? item.totalIssued : 0);
         setCurrentStock(item.currentStock !== undefined ? item.currentStock : 0);
         setReorderLevel(item.reorderLevel !== undefined ? item.reorderLevel : 10);
         setUnitCost(item.unitCost !== null && item.unitCost !== undefined ? item.unitCost : '');
@@ -288,6 +318,8 @@ export default function EditBoardSkuPage() {
         thickness: resolvedThickness,
         boardType: resolvedBoardType,
         openingStock: openingStock !== '' ? Number(openingStock) : 0,
+        totalInward: totalInward !== '' ? Number(totalInward) : 0,
+        totalIssued: totalIssued !== '' ? Number(totalIssued) : 0,
         currentStock: currentStock !== '' ? Number(currentStock) : 0,
         reorderLevel: reorderLevel !== '' ? Number(reorderLevel) : 10,
         unitCost: unitCost !== '' ? Number(unitCost) : undefined,
@@ -295,6 +327,9 @@ export default function EditBoardSkuPage() {
         notes: notes.trim() || undefined,
         status,
       });
+
+      // Crucial: Invalidate TanStack query cache so listing pages immediately show updated data
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
 
       setSuccessMessage(`Board SKU "${designNo}" updated successfully!`);
 
@@ -767,11 +802,16 @@ export default function EditBoardSkuPage() {
 
         {/* Section 4: Stock Levels & Financials (Supports Decimals e.g. 4.5) */}
         <div className="p-4 sm:p-5 bg-[#09071a] border border-white/10 rounded-2xl space-y-4">
-          <h2 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2 border-b border-white/10 pb-2">
-            <Boxes className="w-4 h-4 text-[#7FB706]" /> 4. Stock Levels & Financials
-          </h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-2">
+            <h2 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+              <Boxes className="w-4 h-4 text-[#7FB706]" /> 4. Stock Levels & Financials
+            </h2>
+            <span className="text-[11px] text-[#7FB706] font-mono">
+              Formula: Current = Opening ({openingStock || 0}) + Inward ({totalInward || 0}) - Issued ({totalIssued || 0}) = {currentStock}
+            </span>
+          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {/* Opening Stock */}
             <div>
               <label className="block text-xs font-semibold text-gray-300 mb-1.5">
@@ -783,18 +823,58 @@ export default function EditBoardSkuPage() {
                 min="0"
                 required
                 value={openingStock}
-                onChange={(e) => setOpeningStock(e.target.value)}
+                onChange={(e) => handleOpeningStockChange(e.target.value)}
                 placeholder="e.g. 4.5 or 10"
                 className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-[#7FB706] min-h-[44px]"
               />
               <span className="text-[10px] text-gray-400 mt-1 block">
-                Supports decimal sheets (e.g. 4.5 for cut pieces).
+                Initial baseline opening stock.
+              </span>
+            </div>
+
+            {/* Total Inward Quantity */}
+            <div>
+              <label className="block text-xs font-semibold text-sky-400 mb-1.5">
+                Total Inward / Received (Sheets) *
+              </label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                required
+                value={totalInward}
+                onChange={(e) => handleTotalInwardChange(e.target.value)}
+                placeholder="e.g. 25"
+                className="w-full bg-[#121029] border border-sky-500/30 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-sky-300 focus:outline-none focus:border-sky-400 min-h-[44px]"
+              />
+              <span className="text-[10px] text-sky-400/80 mt-1 block">
+                Cumulative inward stock received.
+              </span>
+            </div>
+
+            {/* Total Issued Quantity */}
+            <div>
+              <label className="block text-xs font-semibold text-amber-400 mb-1.5">
+                Total Issued / Deducted (Sheets) *
+              </label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                required
+                value={totalIssued}
+                onChange={(e) => handleTotalIssuedChange(e.target.value)}
+                placeholder="e.g. 10"
+                className="w-full bg-[#121029] border border-amber-500/30 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-amber-300 focus:outline-none focus:border-amber-400 min-h-[44px]"
+              />
+              <span className="text-[10px] text-amber-400/80 mt-1 block">
+                Cumulative issued / production used.
               </span>
             </div>
 
             {/* Current Stock */}
             <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+              <label className="block text-xs font-semibold text-emerald-400 mb-1.5">
                 Current Stock (Sheets) *
               </label>
               <input
@@ -805,10 +885,10 @@ export default function EditBoardSkuPage() {
                 value={currentStock}
                 onChange={(e) => setCurrentStock(e.target.value)}
                 placeholder="e.g. 4.5 or 10"
-                className="w-full bg-[#121029] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-[#7FB706] min-h-[44px]"
+                className="w-full bg-[#121029] border border-emerald-500/30 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-emerald-300 focus:outline-none focus:border-emerald-400 min-h-[44px]"
               />
-              <span className="text-[10px] text-gray-400 mt-1 block">
-                Current active balance on floor.
+              <span className="text-[10px] text-emerald-400/80 mt-1 block">
+                Live available floor balance.
               </span>
             </div>
 
