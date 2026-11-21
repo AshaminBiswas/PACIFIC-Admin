@@ -15,25 +15,26 @@ export const PATH_PERMISSIONS: Record<string, UserRole[]> = {
     'FINANCE_OFFICER',
     'PROCUREMENT_MANAGER',
     'EXPORT_MANAGER',
+    'COMMERCIAL_OPERATIONS_EXECUTIVE',
     'EDITOR',
     'VIEWER',
   ],
 
   // ─── Commercial Sales Pipeline ────────────────────────────────────────────
-  '/admin/dashboard/wacrm': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'VIEWER'],
-  '/admin/dashboard/crm-leads': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'VIEWER'],
-  '/admin/dashboard/sales-quotations': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'VIEWER'],
-  '/admin/dashboard/proforma-invoices': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'FINANCE_OFFICER', 'VIEWER'],
-  '/admin/dashboard/invoices': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'FINANCE_OFFICER', 'VIEWER'],
+  '/admin/dashboard/wacrm': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'COMMERCIAL_OPERATIONS_EXECUTIVE', 'VIEWER'],
+  '/admin/dashboard/crm-leads': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'COMMERCIAL_OPERATIONS_EXECUTIVE', 'VIEWER'],
+  '/admin/dashboard/sales-quotations': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'COMMERCIAL_OPERATIONS_EXECUTIVE', 'VIEWER'],
+  '/admin/dashboard/proforma-invoices': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'FINANCE_OFFICER', 'COMMERCIAL_OPERATIONS_EXECUTIVE', 'VIEWER'],
+  '/admin/dashboard/invoices': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'FINANCE_OFFICER', 'COMMERCIAL_OPERATIONS_EXECUTIVE', 'VIEWER'],
   '/admin/dashboard/packing-lists': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'VIEWER'],
   '/admin/dashboard/dispatches': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'VIEWER'],
-  '/admin/dashboard/issue-lists': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'VIEWER'],
+  '/admin/dashboard/issue-lists': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'COMMERCIAL_OPERATIONS_EXECUTIVE', 'VIEWER'],
 
   // ─── Procurement & Inventory ─────────────────────────────────────────────
   '/admin/dashboard/purchase-orders': ['SUPER_ADMIN', 'ADMIN', 'PROCUREMENT_MANAGER', 'VIEWER'],
   '/admin/dashboard/vendors': ['SUPER_ADMIN', 'ADMIN', 'PROCUREMENT_MANAGER', 'VIEWER'],
-  '/admin/dashboard/inventory/boards': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'PROCUREMENT_MANAGER', 'VIEWER'],
-  '/admin/dashboard/inventory/hardware': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'PROCUREMENT_MANAGER', 'VIEWER'],
+  '/admin/dashboard/inventory/boards': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'PROCUREMENT_MANAGER', 'COMMERCIAL_OPERATIONS_EXECUTIVE', 'VIEWER'],
+  '/admin/dashboard/inventory/hardware': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'PROCUREMENT_MANAGER', 'COMMERCIAL_OPERATIONS_EXECUTIVE', 'VIEWER'],
   '/admin/dashboard/inventory/lockers': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'PROCUREMENT_MANAGER', 'VIEWER'],
   '/admin/dashboard/inventory/ump': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'PROCUREMENT_MANAGER', 'VIEWER'],
   '/admin/dashboard/inventory/store': ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'PROCUREMENT_MANAGER', 'VIEWER'],
@@ -42,12 +43,12 @@ export const PATH_PERMISSIONS: Record<string, UserRole[]> = {
   '/admin/dashboard/analytics': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'SALES_MANAGER', 'VIEWER'],
   '/admin/dashboard/daily-reports': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'SALES_MANAGER', 'VIEWER'],
   '/admin/dashboard/branch-ledger': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'SALES_MANAGER', 'VIEWER'],
-  '/admin/dashboard/customers': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'FINANCE_OFFICER', 'VIEWER'],
+  '/admin/dashboard/customers': ['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'FINANCE_OFFICER', 'COMMERCIAL_OPERATIONS_EXECUTIVE', 'VIEWER'],
   '/admin/dashboard/payments': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'VIEWER'],
   '/admin/dashboard/installer-payments': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'SALES_MANAGER', 'VIEWER'],
   '/admin/dashboard/installer-payments/new': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'SALES_MANAGER'],
   '/admin/dashboard/employees': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'SALES_MANAGER', 'VIEWER'],
-  '/admin/dashboard/daily-expenses': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'SALES_MANAGER', 'VIEWER'],
+  '/admin/dashboard/daily-expenses': ['SUPER_ADMIN', 'ADMIN', 'FINANCE_OFFICER', 'SALES_MANAGER', 'COMMERCIAL_OPERATIONS_EXECUTIVE', 'VIEWER'],
   '/admin/dashboard/up-expenses': ['SUPER_ADMIN'],
   '/admin/dashboard/up-expenses/new': ['SUPER_ADMIN'],
   '/admin/dashboard/up-employees': ['SUPER_ADMIN'],
@@ -88,6 +89,7 @@ export const PATH_PERMISSIONS: Record<string, UserRole[]> = {
     'FINANCE_OFFICER',
     'PROCUREMENT_MANAGER',
     'EXPORT_MANAGER',
+    'COMMERCIAL_OPERATIONS_EXECUTIVE',
     'EDITOR',
     'VIEWER',
   ],
@@ -305,6 +307,13 @@ export function getRoleBadgeInfo(role: string = 'EDITOR'): {
         badgeClass: 'bg-gray-500/10 text-gray-400 border border-gray-500/30',
         dotColor: 'bg-gray-400',
         description: 'Auditing and read-only visibility across ERP and website operations',
+      };
+    case 'COMMERCIAL_OPERATIONS_EXECUTIVE':
+      return {
+        name: 'Commercial & Operations Executive',
+        badgeClass: 'bg-teal-500/10 text-teal-400 border border-teal-500/30',
+        dotColor: 'bg-teal-400',
+        description: 'Quotations, PI, Bills, Board & Hardware Inventory, Daily Expenses, and B2B CRM',
       };
     default:
       return {

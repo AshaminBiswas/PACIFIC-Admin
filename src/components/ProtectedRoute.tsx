@@ -1,6 +1,6 @@
 import { Navigate, Outlet, useLocation, Link } from "react-router-dom";
 import { useAdminAuth } from "../context/AdminAuthContext";
-import { canRoleAccessPath, getRoleBadgeInfo } from "../utils/rbacNavigation";
+import { canRoleAccessPath, canUserAccessPath, getRoleBadgeInfo } from "../utils/rbacNavigation";
 import { ShieldAlert, ArrowLeft, Home } from "lucide-react";
 
 /**
@@ -27,7 +27,7 @@ export default function ProtectedRoute() {
   }
 
   // Check RBAC permission for current route
-  const hasAccess = canRoleAccessPath(user.role, location.pathname);
+  const hasAccess = canUserAccessPath(user, location.pathname);
 
   if (!hasAccess) {
     const roleInfo = getRoleBadgeInfo(user.role);
